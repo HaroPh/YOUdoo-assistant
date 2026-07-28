@@ -61,3 +61,65 @@ class InMemoryUsageStore:
         hits = [r for r in self._rows if r[0] >= since and r[idx] == want]
         return Usage(requests=len(hits),
                      total_tokens=sum(r[3] for r in hits))
+
+
+class PostgresUsageStore:
+    """Bản bền của UsageStore.
+
+    Sổ phải sống qua lần khởi động lại: RPD trải dài 24 giờ, mà bản trong bộ
+    nhớ mất sạch mỗi lần restart — đúng lúc đó hệ thống sẽ tưởng ví còn nguyên
+    và bắn thẳng vào 429. (Cooldown thì ngược lại, cố ý để trong bộ nhớ ở
+    budget.py.)
+
+    KHÔNG bắt exception ở đây: BudgetLedger là chỗ quyết định fail-open, và nó
+    chỉ quyết được nếu lỗi nổi lên tới nó. Nuốt lỗi ở tầng này sẽ biến "Postgres
+    sập" thành "ví rỗng", tức mở toang mọi hạn mức mà không ai biết.
+    """
+
+    def __init__(self, dsn: str | None = None, *, pool=None) -> None:
+        if pool is not None:
+            self._pool = pool
+            self._owns_pool = False
+            return
+        import os
+
+        from psycopg_pool import ConnectionPool
+
+        self._pool = ConnectionPool(dsn or os.environ["DATABASE_URL"],
+                                    min_size=1, max_size=4, open=True)
+        self._owns_pool = True
+
+    def close(self) -> None:
+        if self._owns_pool:
+            self._pool.close()
+
+    def record(self, *, ts: datetime, alias: str, provider: str, upstream: str,
+               prompt_tokens: int, completion_tokens: int,
+               total_tokens: int) -> None:
+        with self._pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO llm_usage (ts, alias, provider, upstream, "
+                "prompt_tokens, completion_tokens, total_tokens) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (ts, alias, provider, upstream, prompt_tokens,
+                 completion_tokens, total_tokens))
+
+    def usage_since(self, *, since: datetime, alias: str | None = None,
+                    provider: str | None = None) -> Usage:
+        _check_exactly_one(alias, provider)
+        column = "alias" if alias is not None else "provider"
+        value = alias if alias is not None else provider
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                f"SELECT count(*), coalesce(sum(total_tokens), 0) "
+                f"FROM llm_usage WHERE {column} = %s AND ts >= %s",
+                (value, since)).fetchone()
+        # coalesce ở trên đảm bảo sum không trả NULL khi không có dòng nào —
+        # nếu không, Usage(total_tokens=None) sẽ làm phép cộng ở can_afford() vỡ.
+        return Usage(requests=row[0], total_tokens=row[1])
+
+
+# `column` được nội suy vào chuỗi SQL, nhưng nó KHÔNG đến từ đầu vào người
+# dùng: _check_exactly_one() đã chốt nó chỉ có thể là đúng một trong hai
+# literal "alias" / "provider" do chính code này viết ra. Giá trị so sánh vẫn
+# đi qua tham số hoá.
