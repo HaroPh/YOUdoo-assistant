@@ -208,16 +208,31 @@ sập cả hệ thống để bảo vệ một hạn mức miễn phí — sai t
 
 ### `providers.py` — ba client
 
-| provider | base_url |
-|---|---|
-| google | `https://generativelanguage.googleapis.com/v1beta/openai/` |
-| groq | `https://api.groq.com/openai/v1` |
-| openrouter | `https://openrouter.ai/api/v1` |
+**Cập nhật sau spike Task 1 (2026-07-28), thay cho bản gốc "cả ba đều
+`ChatOpenAI` qua base_url riêng":** spike đo hội thoại tool 2 lượt thật qua
+endpoint OpenAI-compat của Google và thấy vòng lặp **không hội tụ** — Google
+trả lỗi `400 INVALID_ARGUMENT` ngay lượt 2 vì thiếu `thought_signature`
+trong `functionCall` (chi tiết: `docs/spikes/2026-07-28-thought-signature.md`).
+`ChatOpenAI` không mang trường này qua lượt kế tiếp được vì nó không thuộc
+schema OpenAI. Quyết định: Google chuyển sang client native
+`langchain-google-genai` / `ChatGoogleGenerativeAI`; Groq và OpenRouter giữ
+nguyên `ChatOpenAI` vì cả hai đều hội tụ bình thường qua đường OpenAI-compat.
 
-Cả ba đều OpenAI-compatible và đều giữ được tool-calling tiếng Việt (đã đo —
-Phụ lục A). Đây là lý do SP-1 **không** dùng LiteLLM: giá trị "hợp nhất giao
-thức" của nó đã bốc hơi, còn bài toán thật — kế toán hạn mức free-tier theo
-ngày — lại đúng chỗ LiteLLM yếu nhất.
+| provider | client | base_url / cách gọi |
+|---|---|---|
+| google | `ChatGoogleGenerativeAI` (native, gói `langchain-google-genai`) | SDK tự quản lý endpoint `generativelanguage.googleapis.com` |
+| groq | `ChatOpenAI` | `https://api.groq.com/openai/v1` |
+| openrouter | `ChatOpenAI` | `https://openrouter.ai/api/v1` |
+
+Groq và OpenRouter vẫn OpenAI-compatible và giữ được tool-calling tiếng Việt
+(đã đo — Phụ lục A). Đây vẫn là lý do SP-1 **không** dùng LiteLLM cho hai
+provider này: giá trị "hợp nhất giao thức" của nó đã bốc hơi, còn bài toán
+thật — kế toán hạn mức free-tier theo ngày — lại đúng chỗ LiteLLM yếu nhất.
+
+Vì ba client giờ **không cùng một lớp**, `client_for()` (Task 7) phải phân
+nhánh theo `spec.provider` thay vì dựng một `ChatOpenAI` chung với `base_url`
+khác nhau theo provider. `langchain-google-genai` được thêm vào
+`backend/requirements.txt`.
 
 ### `router.py` — vai trò → model
 
@@ -291,17 +306,24 @@ lần; nhưng ngân sách đổi theo từng lượt nên không dựng sẵn đ
 điểm invoke**. `make_llms()` trả dict các `RoutedChatModel`. Nhờ vậy toàn bộ
 `agents/` port sang không phải sửa dòng nào ở chỗ gọi LLM.
 
-### Rủi ro phải chọc sớm: `thought_signature`
+### Rủi ro đã chọc: `thought_signature` (chốt ở Task 1, 2026-07-28)
 
 Google trả `extra_content.google.thought_signature` **bên trong** `tool_calls`.
-Gemini 3 dùng chữ ký này để giữ mạch suy luận qua nhiều lượt tool. `ChatOpenAI`
-của LangChain nhiều khả năng vứt nó đi vì không thuộc schema OpenAI.
+Gemini 3 dùng chữ ký này để giữ mạch suy luận qua nhiều lượt tool.
 
-Kế hoạch triển khai **phải có spike này đứng trước**: chạy hội thoại tool 2
-lượt qua `ChatOpenAI` → Google, xem vòng lặp có hoàn tất không. Nếu hỏng, đường
-lui đã chọn sẵn: dùng `langchain-google-genai` native **chỉ riêng cho Google** —
-ba client trong `providers.py` không bắt buộc phải cùng một lớp. Agent ERP sống
-bằng tool loop nên đây không phải chi tiết nhỏ.
+Spike `backend/spikes/spike_thought_signature.py` chạy hội thoại tool 2 lượt
+thật qua `ChatOpenAI` → Google (`gemini-3.5-flash-lite`, endpoint
+OpenAI-compat). Kết quả quan sát được: `ChatOpenAI` không mang
+`thought_signature` đi qua lượt kế tiếp, và Google từ chối ngay ở lượt 2 với
+lỗi `400 INVALID_ARGUMENT — "Function call is missing a thought_signature in
+functionCall parts"` — vòng lặp **không hội tụ**. Output đầy đủ và quyết định
+chi tiết: `docs/spikes/2026-07-28-thought-signature.md`.
+
+Đường lui đã dùng: Google chuyển sang `langchain-google-genai` native
+**chỉ riêng cho Google** — ba client trong `providers.py` (mục trên) không
+còn cùng một lớp. `client_for()` (Task 7) phải phân nhánh theo
+`spec.provider`. Agent ERP sống bằng tool loop nên đây không phải chi tiết
+nhỏ.
 
 ---
 
@@ -633,7 +655,7 @@ không hoàn tác được**. Model mạnh hơn là model *giỏi hơn* trong vi
 
 | Rủi ro | Mức | Đối sách |
 |---|---|---|
-| `ChatOpenAI` nuốt `thought_signature` của Gemini 3 → tool loop nhiều lượt hỏng | Cao | Spike đứng đầu kế hoạch; đường lui: `langchain-google-genai` native chỉ cho Google |
+| `ChatOpenAI` nuốt `thought_signature` của Gemini 3 → tool loop nhiều lượt hỏng | Cao (đã xác nhận, Task 1 — 2026-07-28) | Google chuyển sang `langchain-google-genai` / `ChatGoogleGenerativeAI` native; xem `docs/spikes/2026-07-28-thought-signature.md` |
 | Gemma nhả `<thought>` vào `content` → lộ suy nghĩ thô ra người dùng | Cao (đã xác nhận) | Scrub tất định ở gateway theo cờ `emits_thought_tags`; thiếu thẻ đóng → trả rỗng để node degrade |
 | Kế toán token thiếu 7× trên Gemma | Cao (đã xác nhận) | Sổ ngân sách dùng `total_tokens`, không cộng `prompt + completion` |
 | Groq 8K TPM chặn synthesis có RAG ngữ cảnh lớn | Trung bình | Vai heavy đặt Google đứng đầu chuỗi; `token_multiplier` chặn ước lượng lệch |
