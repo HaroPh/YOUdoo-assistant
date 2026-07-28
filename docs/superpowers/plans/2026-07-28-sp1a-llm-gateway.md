@@ -165,7 +165,7 @@ lại và một quyết định, không phải mã sản xuất.
 **Interfaces:**
 - Consumes: không có (task đầu tiên)
 - Produces: khung thư mục Python; **quyết định** ghi trong
-  `docs/spikes/2026-07-28-thought-signature.md` về việc `providers.py` (Task 6)
+  `docs/spikes/2026-07-28-thought-signature.md` về việc `providers.py` (Task 7)
   dùng `ChatOpenAI` cho Google hay `ChatGoogleGenerativeAI`
 
 - [ ] **Bước 1: Dựng khung thư mục và dependency**
@@ -325,10 +325,10 @@ giải), **Quyết định**.
 
 Quyết định theo đúng luật này:
 
-| Quan sát | Quyết định cho Task 6 |
+| Quan sát | Quyết định cho Task 7 |
 |---|---|
 | Vòng lặp hội tụ, câu trả lời cuối đúng | Dùng `ChatOpenAI` cho cả 3 provider. Ghi rằng `thought_signature` bị mất **không** gây hỏng trong phạm vi đã đo |
-| Vòng lặp không hội tụ, HOẶC Google trả lỗi liên quan chữ ký | Google đổi sang `langchain-google-genai` / `ChatGoogleGenerativeAI`; thêm `langchain-google-genai` vào `requirements.txt`. Task 6 phải xử `client_for()` phân nhánh theo `spec.provider` |
+| Vòng lặp không hội tụ, HOẶC Google trả lỗi liên quan chữ ký | Google đổi sang `langchain-google-genai` / `ChatGoogleGenerativeAI`; thêm `langchain-google-genai` vào `requirements.txt`. Task 7 phải xử `client_for()` phân nhánh theo `spec.provider` |
 
 Nếu rơi vào hàng thứ hai, **cập nhật spec §2** (mục `providers.py`) rồi mới đi
 tiếp — spec là bản ghi thiết kế, không được để nó nói sai.
