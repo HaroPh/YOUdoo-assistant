@@ -59,6 +59,11 @@ class BudgetLedger:
         try:
             minute = self._store.usage_since(
                 since=now - timedelta(seconds=60), **scope)
+            # Cửa sổ TRƯỢT 24h, không phải "ngày lịch": Google reset hạn mức
+            # lúc nửa đêm giờ Thái Bình Dương, Groq và OpenRouter reset ở múi
+            # giờ khác — ba múi giờ là ba con bug đang chờ. Cửa sổ trượt chỉ
+            # có một cách hiện thực và luôn THẬN TRỌNG HƠN mức thật; giá phải
+            # trả là hơi bi quan ngay sau một đợt dùng dồn — chấp nhận được.
             day = self._store.usage_since(
                 since=now - timedelta(hours=24), **scope)
         except Exception:
