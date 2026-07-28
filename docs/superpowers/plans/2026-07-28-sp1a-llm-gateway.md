@@ -108,7 +108,11 @@ class BudgetLedger:
 
 # providers.py
 def strip_thought(content: str | None) -> str
-def client_for(spec: ModelSpec) -> ChatOpenAI
+def client_for(spec: ModelSpec) -> ChatOpenAI | "ChatGoogleGenerativeAI"
+# google → ChatGoogleGenerativeAI (spike Task 1: ChatOpenAI làm mất
+# thought_signature, Google từ chối cứng lượt 2 với 400). groq/openrouter →
+# ChatOpenAI. Cả hai lớp phơi ra .invoke()/.bind_tools() giống nhau nên
+# router.py (Task 8-10) không cần biết sự khác biệt này.
 
 # router.py
 @dataclass(frozen=True)
@@ -1617,10 +1621,32 @@ OpenAI-compat, câu trả lời thật nằm ngay sau thẻ đóng. Vai `chitcha
 Và **không tắt được**: `reasoning_effort=none` → `400 "Thinking budget is not
 supported for this model"`. Nên gỡ tất định là bắt buộc, không phải tuỳ chọn.
 
-**Trước khi bắt đầu:** đọc `docs/spikes/2026-07-28-thought-signature.md` (Task
-1). Nếu quyết định ở đó là "Google đổi sang `langchain-google-genai`" thì
-`client_for()` phải phân nhánh theo `spec.provider`, và bước 3 dưới đây cần sửa
-tương ứng.
+**Kết quả spike Task 1 (2026-07-28, đã xảy ra thật — không còn là "nếu"):**
+vòng lặp tool 2 lượt qua `ChatOpenAI` → Google **không hội tụ**, Google từ
+chối cứng ở lượt 2 với `400 INVALID_ARGUMENT: "Function call is missing a
+thought_signature in functionCall parts"`. Chi tiết:
+`docs/spikes/2026-07-28-thought-signature.md`.
+
+**Do đó `client_for()` KHÔNG còn trả về một loại client duy nhất.** Google
+dùng `ChatGoogleGenerativeAI` (gói `langchain-google-genai`, đã thêm vào
+`requirements.txt` ở Task 1, bản `4.2.0` — đã xác nhận qua metadata PyPI:
+đòi `langchain-core<2.0.0,>=1.2.5`, khớp bản `1.4.8` đã pin, không ép nâng
+cấp). Groq và OpenRouter tiếp tục `ChatOpenAI` vì cả hai vẫn hội tụ bình
+thường qua endpoint OpenAI-compat (đã đo). Bước 3 dưới đây viết đúng theo
+phân nhánh này — không phải giả định "cả ba client giống hệt nhau" của bản
+kế hoạch gốc.
+
+Ba khác biệt về tên trường giữa hai lớp client mà bạn PHẢI biết trước khi
+viết `client_for()` (xác nhận từ mã nguồn `langchain_google_genai._common`,
+không phải suy đoán):
+- `ChatGoogleGenerativeAI` nhận khoá qua `api_key` (alias của trường
+  `google_api_key`) — **không phải** `api_key=...` kiểu `ChatOpenAI` dùng
+  `base_url`; không có tham số `base_url` nào cả, SDK tự quản endpoint.
+- Giới hạn token ra: `max_tokens` là **alias** của `max_output_tokens` — dùng
+  được tên nào cũng ra cùng trường, plan này dùng `max_output_tokens=` cho
+  rõ nghĩa.
+- Timeout: `timeout` là tên chính (alias `request_timeout`) — giống
+  `ChatOpenAI`, không cần đổi tên khi gọi.
 
 **Files:**
 - Create: `backend/src/llm/providers.py`
@@ -1690,47 +1716,97 @@ def test_khoang_trang_dau_truoc_the_van_xu_ly_duoc():
 
 
 # ─── client_for ─────────────────────────────────────────────────────────────
+# Google → ChatGoogleGenerativeAI (spike Task 1); Groq/OpenRouter → ChatOpenAI.
+# Hai lớp có TÊN TRƯỜNG khác nhau cho cùng khái niệm (đã xác nhận từ mã nguồn
+# langchain_google_genai._common, không suy đoán): ChatOpenAI dùng
+# `model_name`/`openai_api_base`/`request_timeout`/`max_tokens`;
+# ChatGoogleGenerativeAI dùng `model`/(không có base_url)/`timeout`/
+# `max_output_tokens`. Test dưới đây test ĐÚNG trường của ĐÚNG lớp — không
+# giả định hai lớp đối xứng.
 
-def test_moi_provider_trong_catalog_deu_co_base_url_va_ten_bien_moi_truong():
-    from src.llm.catalog import CATALOG
-    for spec in CATALOG.values():
-        assert spec.provider in BASE_URLS
-        assert spec.provider in ENV_KEYS
+def test_google_dung_ChatGoogleGenerativeAI_groq_openrouter_dung_ChatOpenAI(monkeypatch):
+    """Đây là hành vi CHÍNH mà quyết định spike Task 1 đòi hỏi — nếu test này
+    xanh mà client_for() vẫn trả ChatOpenAI cho Google, coi như chưa làm."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
 
-
-def test_client_dung_model_id_goc_khong_phai_alias(monkeypatch):
-    monkeypatch.setenv("GOOGLE_API_KEY", "k")
-    client = client_for(GEMMA)
-    assert client.model_name == "gemma-4-26b-a4b-it"   # KHÔNG phải "gemma-4-26b"
-
-
-def test_client_lay_dung_base_url_theo_provider(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "k")
     monkeypatch.setenv("GROQ_API_KEY", "k")
     monkeypatch.setenv("OPENROUTER_API_KEY", "k")
-    assert "generativelanguage" in str(client_for(GEMINI).openai_api_base)
+    assert isinstance(client_for(GEMINI), ChatGoogleGenerativeAI)
+    assert isinstance(client_for(GEMMA), ChatGoogleGenerativeAI)
+    assert isinstance(client_for(GROQ), ChatOpenAI)
+    assert isinstance(client_for(OR_LING), ChatOpenAI)
+
+
+def test_moi_provider_co_ten_bien_moi_truong_rieng():
+    from src.llm.catalog import CATALOG
+    for spec in CATALOG.values():
+        assert spec.provider in ENV_KEYS
+
+
+def test_groq_va_openrouter_co_base_url_google_thi_khong():
+    """Google không có base_url — ChatGoogleGenerativeAI tự quản endpoint."""
+    assert "groq" in BASE_URLS and "openrouter" in BASE_URLS
+    assert "google" not in BASE_URLS
+
+
+def test_client_google_dung_model_id_goc_qua_truong_model(monkeypatch):
+    """ChatGoogleGenerativeAI dùng trường `model`, KHÔNG phải `model_name`."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "k")
+    client = client_for(GEMMA)
+    assert client.model == "gemma-4-26b-a4b-it"   # KHÔNG phải "gemma-4-26b"
+
+
+def test_client_groq_dung_model_id_goc_qua_truong_model_name(monkeypatch):
+    """ChatOpenAI dùng trường `model_name` (alias `model` lúc khởi tạo)."""
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    client = client_for(GROQ)
+    assert client.model_name == "openai/gpt-oss-20b"
+
+
+def test_client_groq_openrouter_lay_dung_base_url_theo_provider(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
     assert "groq.com" in str(client_for(GROQ).openai_api_base)
     assert "openrouter.ai" in str(client_for(OR_LING).openai_api_base)
 
 
-def test_client_lay_timeout_va_max_tokens_tu_catalog(monkeypatch):
+def test_client_groq_lay_timeout_va_max_tokens_tu_catalog(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "k")
     client = client_for(GROQ)
     assert client.request_timeout == GROQ.timeout_s
     assert client.max_tokens == GROQ.max_output_tokens
 
 
+def test_client_google_lay_timeout_va_max_output_tokens_tu_catalog(monkeypatch):
+    """Field khác tên (max_output_tokens, không phải max_tokens) nhưng PHẢI
+    nhận đúng giá trị từ catalog — đây chính là chỗ dễ gõ nhầm tên field."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "k")
+    client = client_for(GEMINI)
+    assert client.timeout == GEMINI.timeout_s
+    assert client.max_output_tokens == GEMINI.max_output_tokens
+
+
 def test_thieu_bien_moi_truong_thi_chet_ngay_voi_thong_bao_ro(monkeypatch):
-    """Lỗi cấu hình lệch lạc phải chết ngay và ồn ào (spec §6)."""
+    """Lỗi cấu hình lệch lạc phải chết ngay và ồn ào (spec §6). Kiểm cả hai
+    nhánh client — RuntimeError phải ném TRƯỚC khi chạm tới constructor nào."""
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="GROQ_API_KEY"):
         client_for(GROQ)
 
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="GOOGLE_API_KEY"):
+        client_for(GEMINI)
 
-def test_temperature_luon_bang_khong(monkeypatch):
-    """Khớp repo nguồn: mọi vai đều temperature=0 để đầu ra tái lập được."""
+
+def test_temperature_luon_bang_khong_ca_hai_loai_client(monkeypatch):
+    """Khớp repo nguồn: mọi vai đều temperature=0 để đầu ra tái lập được.
+    ChatGoogleGenerativeAI cũng có trường `temperature` (khác mặc định 0.7 của
+    thư viện) nên phải truyền tường minh, không dựa vào default."""
     monkeypatch.setenv("GOOGLE_API_KEY", "k")
+    monkeypatch.setenv("GROQ_API_KEY", "k")
     assert client_for(GEMINI).temperature == 0
+    assert client_for(GROQ).temperature == 0
 ```
 
 - [ ] **Bước 2: Chạy test để chắc chắn nó thất bại**
@@ -1743,24 +1819,30 @@ Kỳ vọng: FAIL với `ModuleNotFoundError: No module named 'src.llm.providers
 `backend/src/llm/providers.py`:
 
 ```python
-"""Ba client OpenAI-compatible + chuẩn hoá đầu ra (spec SP-1 §2).
+"""Client cho từng nhà cung cấp + chuẩn hoá đầu ra (spec SP-1 §2).
 
-Chỗ DUY NHẤT biết base_url và tên biến môi trường. Không tầng nào khác được
-nhắc tới Google/Groq/OpenRouter.
+Chỗ DUY NHẤT biết base_url, tên biến môi trường, và loại client của từng nhà.
+Không tầng nào khác được nhắc tới Google/Groq/OpenRouter.
 
-Cả ba nhà đều nói chuẩn OpenAI và đều giữ được tool-calling tiếng Việt (đo
-2026-07-28) — đây chính là lý do SP-1 bỏ LiteLLM: giá trị "hợp nhất giao thức"
-của nó đã bốc hơi.
+Google dùng ChatGoogleGenerativeAI, KHÔNG dùng ChatOpenAI: spike Task 1
+(docs/spikes/2026-07-28-thought-signature.md, 2026-07-28) đo hội thoại tool
+2 lượt thật qua endpoint OpenAI-compat của Google và thấy vòng lặp KHÔNG hội
+tụ — ChatOpenAI không mang thought_signature đi qua request kế tiếp, và
+Google từ chối cứng ở lượt 2 với 400 INVALID_ARGUMENT. Groq và OpenRouter vẫn
+ChatOpenAI: cả hai vẫn OpenAI-compatible và giữ tool-calling tiếng Việt bình
+thường (đã đo — spec Phụ lục A). Đây vẫn là lý do SP-1 bỏ LiteLLM cho hai nhà
+này: giá trị "hợp nhất giao thức" của nó đã bốc hơi.
 """
 import os
 import re
 
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from .catalog import ModelSpec
 
+# Chỉ Groq/OpenRouter dùng — Google không có base_url (SDK tự quản endpoint).
 BASE_URLS = {
-    "google": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "groq": "https://api.groq.com/openai/v1",
     "openrouter": "https://openrouter.ai/api/v1",
 }
@@ -1796,14 +1878,31 @@ def strip_thought(content: str | None) -> str:
 
 
 
-def client_for(spec: ModelSpec) -> ChatOpenAI:
-    """Dựng client cho một model. Thiếu khoá → chết ngay, không đợi lúc gọi."""
+def client_for(spec: ModelSpec):
+    """Dựng client cho một model. Thiếu khoá → chết ngay, không đợi lúc gọi.
+
+    Google → ChatGoogleGenerativeAI; Groq/OpenRouter → ChatOpenAI (quyết định
+    spike Task 1). Đọc khoá và kiểm rỗng CHUNG cho cả hai nhánh trước khi rẽ,
+    để thông báo lỗi thiếu biến môi trường nhất quán bất kể provider nào.
+    """
     env_name = ENV_KEYS[spec.provider]
     api_key = os.environ.get(env_name)
     if not api_key:
         raise RuntimeError(
             f"thiếu biến môi trường {env_name} — cần cho provider "
             f"{spec.provider!r} (model {spec.alias!r}). Xem .env.example.")
+
+    if spec.provider == "google":
+        # KHÔNG có base_url — SDK tự quản endpoint. Field tên `model` (không
+        # phải `model_name`), `max_output_tokens` (không phải `max_tokens`,
+        # dù đó là alias hợp lệ — dùng tên chính cho rõ nghĩa), `timeout`.
+        return ChatGoogleGenerativeAI(
+            model=spec.model_id,      # ID GỐC của nhà cung cấp, không phải alias
+            api_key=api_key,
+            temperature=0,
+            timeout=spec.timeout_s,
+            max_output_tokens=spec.max_output_tokens,
+        )
     return ChatOpenAI(
         model=spec.model_id,          # ID GỐC của nhà cung cấp, không phải alias
         base_url=BASE_URLS[spec.provider],
@@ -1817,21 +1916,30 @@ def client_for(spec: ModelSpec) -> ChatOpenAI:
 - [ ] **Bước 4: Chạy test để chắc chắn nó xanh**
 
 Chạy: `cd backend && python -m pytest tests/llm/test_providers.py -v`
-Kỳ vọng: 14 test PASS
+Kỳ vọng: 18 test PASS
 
-Nếu `client.openai_api_base` / `client.request_timeout` / `client.model_name`
-không phải tên thuộc tính đúng của phiên bản `langchain-openai` đang cài, hãy
+Nếu tên thuộc tính (`model_name`/`openai_api_base`/`request_timeout` của
+`ChatOpenAI`, hay `model`/`timeout`/`max_output_tokens` của
+`ChatGoogleGenerativeAI`) không khớp phiên bản thư viện đang cài, hãy
 `print(client.__fields__.keys())` một lần rồi **sửa test cho khớp thuộc tính
-thật** — ba assertion đó chỉ nhằm chứng minh cấu hình đã truyền xuống, không
-nhằm khoá tên thuộc tính của thư viện.
+thật** — các assertion đó chỉ nhằm chứng minh cấu hình đã truyền xuống, không
+nhằm khoá tên thuộc tính của thư viện. Tên trường đã dùng ở đây được xác nhận
+từ mã nguồn `langchain_google_genai._common` ngày 2026-07-28, nhưng thư viện
+có thể đổi giữa các bản.
 
 - [ ] **Bước 5: Commit**
 
 ```bash
 git add backend/src/llm/providers.py backend/tests/llm/test_providers.py
-git commit -m "feat(llm): ba client OpenAI-compatible + gỡ <thought> tất định
+git commit -m "feat(llm): client theo provider (Google native) + gỡ <thought> tất định
 
-Chỗ duy nhất biết base_url và tên biến môi trường của từng nhà cung cấp.
+Chỗ duy nhất biết base_url, tên biến môi trường, và loại client của từng nhà.
+
+Google dùng ChatGoogleGenerativeAI, KHÔNG ChatOpenAI: spike Task 1 đo vòng
+lặp tool 2 lượt qua ChatOpenAI → Google KHÔNG hội tụ, Google từ chối cứng ở
+lượt 2 (400, thiếu thought_signature). Groq/OpenRouter vẫn ChatOpenAI. Tên
+trường khác nhau giữa hai lớp (model/model_name, timeout/request_timeout,
+max_output_tokens/max_tokens) đã đối chiếu với mã nguồn thư viện, không đoán.
 
 strip_thought(): họ Gemma nhả nguyên <thought>...</thought> vào trường content
 qua endpoint OpenAI-compat, và thinking KHÔNG tắt được (reasoning_effort trả
@@ -1839,7 +1947,8 @@ qua endpoint OpenAI-compat, và thinking KHÔNG tắt được (reasoning_effort
 dùng. Neo \\A: chỉ khối mở đầu bị gỡ, chuỗi giống thẻ trong câu trả lời thật
 không bị đụng. Thiếu thẻ đóng → trả rỗng để node degrade về SAFE_MSG.
 
-Thiếu biến môi trường → RuntimeError ngay lúc dựng client, không đợi lúc gọi."
+Thiếu biến môi trường → RuntimeError ngay lúc dựng client, không đợi lúc gọi
+(cả hai nhánh)."
 ```
 
 ---
@@ -2361,7 +2470,9 @@ Rồi thêm các phương thức sau vào lớp `Router` đã có:
 
 ```python
     def _client(self, spec: ModelSpec, tools):
-        # Cache theo alias: dựng ChatOpenAI mỗi lượt là lãng phí, mà tools thì
+        # Cache theo alias: dựng lại client mỗi lượt là lãng phí (dù là
+        # ChatOpenAI hay ChatGoogleGenerativeAI — client_for() trả loại nào
+        # tuỳ provider, xem Task 7), mà tools thì
         # đổi theo lượt nên bind_tools() gọi lại mỗi lần (nó trả về bản bọc
         # mới, không sửa client gốc).
         if spec.alias not in self._clients:
