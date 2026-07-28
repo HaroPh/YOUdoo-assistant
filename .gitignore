@@ -1,0 +1,32 @@
+# ─── Bí mật — KHÔNG BAO GIỜ commit ───────────────────────────────────────────
+# models.csv chứa API key thật của 3 provider. Nó nằm trong repo vì tiện tra
+# cứu tại chỗ, nhưng giá trị thật thuộc về .env; bảng hạn mức (không có key)
+# thuộc về docs/provider-quotas.md — xem spec SP-1 §9.
+.env
+.env.*
+!.env.example
+models.csv
+*.key
+*.pem
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ─── Dữ liệu chạy / kết quả ──────────────────────────────────────────────────
+logs/
+*.log
+.coverage
+htmlcov/
+
+# ─── IDE / OS ────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
