@@ -131,6 +131,8 @@ class ModelSpec:
     weight: str             # heavy | light
     max_output_tokens: int | None   # thay hằng số 4096 ghim cho qwen3:8b
     timeout_s: int                  # thay nhánh is_qwen()
+    supports_tools: bool            # prompt-guard / whisper (SP-2, SP-4) thì False
+    emits_thought_tags: bool        # họ Gemma nhả <thought> vào content
 ```
 
 Bốn trường sinh ra từ đo đạc ngày 2026-07-28 (chi tiết ở Phụ lục A):
@@ -160,11 +162,19 @@ Bốn trường sinh ra từ đo đạc ngày 2026-07-28 (chi tiết ở Phụ l
 ```python
 class BudgetLedger:
     def can_afford(spec, est_tokens) -> Verdict   # ok | rpm | tpm | rpd | cooldown
-    def record(spec, prompt_tokens, completion_tokens)
+    def record(spec, prompt_tokens, completion_tokens, total_tokens)
     def cooldown(spec, seconds)
 ```
 
-Ba quyết định cần giữ nguyên:
+**`total_tokens` là con số có thẩm quyền, KHÔNG phải `prompt + completion`.**
+Đo được ngày 2026-07-28: `gemma-4-26b-a4b-it` trả
+`prompt_tokens: 11, completion_tokens: 36, total_tokens: 337` — có ~290 token
+"thinking" **không xuất hiện trong `completion_tokens` nhưng vẫn bị tính vào
+tổng**. Cộng hai thành phần sẽ đếm thiếu **7 lần**, tức sổ báo còn hạn mức
+trong khi ví đã cạn. `prompt_tokens`/`completion_tokens` vẫn lưu để chẩn đoán,
+nhưng mọi phép kiểm TPM/TPD dùng `total_tokens`.
+
+Bốn quyết định cần giữ nguyên:
 
 **Cửa sổ trượt 24h, không phải "ngày lịch".** Google reset lúc nửa đêm giờ Thái
 Bình Dương, Groq và OpenRouter giờ khác — ba múi giờ là ba con bug đang chờ.
@@ -242,6 +252,26 @@ thiết kế theo RPM sẽ bị TPM đánh úp.
    một lượt synthesis có RAG tốn ~3–4K token input, và 12K là mức của
    `groq-llama-3.3-70b` — mắt xích Groq duy nhất đủ sức gánh vai heavy.
    `gpt-oss-*` ở 8K bị loại khỏi vai heavy đúng bởi bất biến này.
+
+### Chuẩn hoá đầu ra: gỡ `<thought>` của họ Gemma
+
+Đo được 2026-07-28: `gemma-4-26b-a4b-it` và `gemma-4-31b-it` nhả nguyên khối
+`<thought>…</thought>` vào **trường `content`** qua endpoint OpenAI-compat —
+câu trả lời thật nằm ngay sau thẻ đóng. `gemini-3.5/3.1-flash-lite` **không**
+bị. Và thinking **không tắt được**: đặt `reasoning_effort` trả
+`400 "Thinking budget is not supported for this model"`.
+
+Vì `chitchat` và `router` chạy Gemma, không gỡ thì người dùng nhìn thấy phần
+suy nghĩ thô trong câu trả lời.
+
+Nên gateway gỡ **tất định** phần `<thought>…</thought>` ở đầu `content` cho mọi
+spec có `emits_thought_tags=True`. Cùng hình dạng với `tool_leak_guard.py` đã
+có: một cú scrub tất định tại ranh giới, vì định dạng model trả về không đáng
+tin. Không dùng prompt để nhờ model đừng làm vậy.
+
+Trường hợp biên phải xử lý: thiếu thẻ đóng (bị cắt giữa chừng) → coi như toàn
+bộ `content` là suy nghĩ, trả chuỗi rỗng để node gọi degrade về `SAFE_MSG`,
+chứ không trả nửa khối suy nghĩ cho người dùng.
 
 ### Chế độ ghim (bắt buộc)
 
@@ -604,6 +634,8 @@ không hoàn tác được**. Model mạnh hơn là model *giỏi hơn* trong vi
 | Rủi ro | Mức | Đối sách |
 |---|---|---|
 | `ChatOpenAI` nuốt `thought_signature` của Gemini 3 → tool loop nhiều lượt hỏng | Cao | Spike đứng đầu kế hoạch; đường lui: `langchain-google-genai` native chỉ cho Google |
+| Gemma nhả `<thought>` vào `content` → lộ suy nghĩ thô ra người dùng | Cao (đã xác nhận) | Scrub tất định ở gateway theo cờ `emits_thought_tags`; thiếu thẻ đóng → trả rỗng để node degrade |
+| Kế toán token thiếu 7× trên Gemma | Cao (đã xác nhận) | Sổ ngân sách dùng `total_tokens`, không cộng `prompt + completion` |
 | Groq 8K TPM chặn synthesis có RAG ngữ cảnh lớn | Trung bình | Vai heavy đặt Google đứng đầu chuỗi; `token_multiplier` chặn ước lượng lệch |
 | Chẻ `server.py` 1865 dòng làm rơi một security guard | Trung bình | Bất biến source-scan (§3) + bộ test đã port |
 | Re-baseline cần Ollama + qwen3:8b sống | Trung bình | Thứ tự bắt buộc ở §8; không gỡ Ollama trước bước 2 |
@@ -654,6 +686,30 @@ Ba key trong `models.csv` đều xác nhận hoạt động.
   `openai/gpt-oss-safeguard-20b`** — chưa có trong `models.csv`, hạn mức chưa
   xác nhận.
 
+### Model ID đã xác nhận tồn tại (`GET /v1beta/models`, `/openai/v1/models`)
+
+| Provider | model_id |
+|---|---|
+| Google | `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemma-4-26b-a4b-it`, `gemma-4-31b-it` |
+| Groq | `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `llama-3.3-70b-versatile`, `meta-llama/llama-prompt-guard-2-22m`, `meta-llama/llama-prompt-guard-2-86m`, `whisper-large-v3`, `whisper-large-v3-turbo` |
+| OpenRouter | `inclusionai/ling-3.0-flash:free`, `nvidia/nemotron-3-super-120b-a12b:free` |
+
+### Hành vi `<thought>` và kế toán token
+
+| Model | `<thought>` rò vào `content` | `p+c` vs `total_tokens` |
+|---|---|---|
+| `gemini-3.5-flash-lite` | Không | 48 = 48 |
+| `gemini-3.1-flash-lite` | Không | 48 = 48 |
+| `gemma-4-26b-a4b-it` | **Có** | 47 vs **337** (thiếu 7.2×) |
+| `gemma-4-31b-it` | **Có** | 45 vs **315** (thiếu 7.0×) |
+
+Không tắt được: `reasoning_effort=none` → `400 "Thinking budget is not
+supported for this model"`; `reasoning_effort=low` → `400 "Thinking level is
+not supported for this model"`.
+
+**Gemma 4 CÓ hỗ trợ tool-calling** — `finish_reason: tool_calls` hoạt động.
+Lo ngại ban đầu (họ Gemma thường không có function calling) là sai với Gemma 4.
+
 ### Đính chính cần đưa vào ADR-010
 
 ADR-010 viết *"summarization cho meeting agent giao Groq (nhanh với văn bản
@@ -672,6 +728,8 @@ thì phải có bình luận trong file tracked, ngay tại điểm code nó chi
 | QĐ M2 bị thay thế có chủ đích | Khối bình luận đầu `agents/models.py` |
 | `google/*:free` bị loại vì `upstream=google` | Bình luận trong `catalog.py` |
 | Budget fail-open (ngược `write_gate` fail-closed) | Bình luận trong `budget.py` |
+| Dùng `total_tokens`, không cộng `p+c` (Gemma thiếu 7×) | Bình luận trong `budget.py` |
+| Scrub `<thought>` vì Gemma không tắt được thinking | Bình luận trong `providers.py` |
 | Cửa sổ trượt 24h thay vì ngày lịch | Bình luận trong `budget.py` |
 | `fusion` giữ qua SP-1, bỏ ở SP-2 | Đã có sẵn `evals/cases.py:325` |
 | Loại NeMo Guardrails, chọn prompt-guard cho SP-2 | ADR-011 |
