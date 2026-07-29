@@ -1,3 +1,8 @@
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_ensure_schema_is_idempotent(rag_conn):
     from src.rag import db
     # second call must not raise

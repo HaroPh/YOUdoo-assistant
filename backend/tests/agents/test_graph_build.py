@@ -91,6 +91,25 @@ def test_build_graph_registers_write_continuation():
     assert "write_continuation" in graph.get_graph().nodes
 
 
+def test_all_write_mutating_nodes_reachable_only_through_gated_path():
+    """Whole-branch security invariant (final review, 2026-07-29): the ONLY
+    nodes allowed to route into any ERP-mutating node are erp_write_planner
+    and write_continuation — both gate through write_gate's
+    write_actions_enabled() before ever reaching a mutation. Per-task reviews
+    verified this per-node; nothing asserted it at the whole-graph level. A
+    future edge added elsewhere straight into erp_write_executor or any
+    WRITE_COORDINATORS node must fail this test."""
+    from src.agents.write_registry import WRITE_COORDINATORS
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    edges = [(e.source, e.target) for e in graph.get_graph().edges]
+    mutating_nodes = {"erp_write_executor"} | {spec.node for spec in WRITE_COORDINATORS.values()}
+    allowed_sources = {"erp_write_planner", "write_continuation"}
+    for source, target in edges:
+        if target in mutating_nodes:
+            assert source in allowed_sources, (
+                f"unexpected edge {source} -> {target} bypasses the write gate")
+
+
 def test_all_writes_route_through_continuation():
     graph = build_graph(MagicMock(), tools=[], checkpointer=None)
     edges = [(e.source, e.target) for e in graph.get_graph().edges]

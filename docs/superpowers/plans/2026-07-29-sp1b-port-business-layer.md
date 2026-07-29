@@ -756,9 +756,9 @@ Expected: in `.gitignore:15:.venv/	backend/.venv/`. Không cần sửa `.gitigno
 - [ ] **Bước 5: Dựng hạ tầng và kiểm**
 
 ```bash
-docker compose up -d postgres ollama
+docker compose up -d postgres
 docker compose ps
-docker exec -i $(docker compose ps -q ollama) ollama pull bge-m3
+# (Superseded, Task 3 thực tế: dùng chung Ollama đã có sẵn ở cổng 11434, không tạo service ollama trong compose này — xem ledger Task 3.)
 ```
 Expected: cả hai service `running`; `ollama pull` tải xong bge-m3.
 
@@ -2021,12 +2021,13 @@ def test_cau_hoi_ERP_di_qua_tool(agent):
 - [ ] **Bước 5: Dựng hạ tầng đầy đủ và chạy đầu-cuối**
 
 ```bash
-docker compose up -d postgres ollama
+docker compose up -d postgres
 # MCP server (tiến trình riêng, cửa sổ khác):
 cd mcp-servers/odoo && python server.py
 # Rồi, ở cửa sổ chính:
 cd backend && .venv/Scripts/python.exe -m pytest tests/agents/test_dau_cuoi.py -m live -v
 ```
+Ollama giả định đã chạy sẵn ở nơi khác (cổng 11434) — quyết định Task 3, xem ledger. docker-compose.yml của repo này KHÔNG có service ollama.
 
 Expected: 3 test PASS.
 
@@ -2073,6 +2074,7 @@ trả lời. Không khẳng định nội dung (dữ liệu Odoo đổi theo mô
 6. MCP server đã chẻ theo domain; test bất biến registry xanh; số tool sau khi chẻ bằng đúng số trước khi chẻ.
 7. Đầu-cuối: một câu hỏi thật đi qua Odoo thật + RAG thật + model cloud thật và trả về câu trả lời — chạy từ pytest, không cần server.
 8. Toàn bộ test xanh ở cả ba chế độ: `-m "not integration and not live"`, `-m integration`, `-m live`.
+   (Ngoại lệ đã ghi nhận: 2 test trong test_live_providers.py đỏ vì trôi API Google thượng nguồn kể từ 2026-07-29 — không phải hồi quy từ kế hoạch này, xem ledger Task 13. Đường sản xuất thật không bị ảnh hưởng.)
 
 **Chưa làm được sau kế hoạch B:** chưa có HTTP endpoint, chưa có trace, chưa có số eval. Đó là việc của C.
 
@@ -2082,9 +2084,10 @@ trả lời. Không khẳng định nội dung (dữ liệu Odoo đổi theo mô
 |---|---|---|
 | **C** | `main.py` FastAPI `/v1` bọc `ERPAgent` + Langfuse `tracing.py` (đổ `RouteDecision` vào span) + eval harness (13 file `tests/jobs/`) + gate 7 bộ đối chiếu baseline qwen3:8b + `multi_source` lượt hai | B |
 
-Bốn điều kiện đầu vào của kế hoạch C, ghi lại để không rơi:
+Năm điều kiện đầu vào của kế hoạch C, ghi lại để không rơi:
 
 - **Pool Postgres không có timeout tường minh** (`llm/store.py`) — DB không truy cập được thì mỗi lượt gọi chặn ~90 giây trước khi fail-open.
 - **`Router.ainvoke()` gọi Postgres đồng bộ** — chặn event loop dưới FastAPI/LangGraph async.
 - **`tiktoken` cần mạng lần dùng đầu nếu không có cache** — chạy trên đường test MẶC ĐỊNH vốn phải không chạm mạng. Máy dev đã có cache nên không lộ; **sẽ vỡ trên CI lạnh.**
 - **Eval gate phải chạy TRƯỚC khi mở `/v1`** — ADR-009 QĐ M3. Kế hoạch B cố ý không tuyên bố "không hồi quy", chỉ tuyên bố "port đúng".
+- **`rag/embed.py`'s `assert_embedding_marker()` không có người gọi thật** — cơ chế fail lớn tiếng khi lệch `embedding_model`/`dim` tồn tại (Task 5, có test riêng) nhưng `ERPAgent.setup()` (Task 13, đường khởi động thật của kế hoạch B) chưa gọi nó. Kế hoạch C bọc `main.py` FastAPI quanh `ERPAgent` — gọi nó ở đó, trước khi phục vụ request đầu tiên, mới đúng tinh thần "app không lên nếu lệch" của spec §3b.

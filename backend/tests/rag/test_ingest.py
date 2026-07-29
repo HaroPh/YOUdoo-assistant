@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def _mock_embed(monkeypatch):

@@ -83,7 +83,12 @@ def test_gemma_van_nha_thought_vao_content():
     ChatGoogleGenerativeAI. Nếu test này đỏ, kiểm tra trước xem có phải do đổi
     CLIENT (không phải đổi provider/model) gây ra, trước khi kết luận Gemma đã
     ngừng nhả <thought> — content vẫn là string thường qua cả hai client nên
-    kết quả không lẽ ra phải đổi, nhưng đáng kiểm chứng lại nếu bất ngờ đỏ."""
+    kết quả không lẽ ra phải đổi, nhưng đáng kiểm chứng lại nếu bất ngờ đỏ.
+
+    Xác nhận đã xảy ra thật vào 2026-07-29 (kế hoạch SP-1B, Task 13): content
+    giờ là list-block. Đường sản xuất thật (RoutedChatModel._gop_content(),
+    llm/router.py) đã chuẩn hoá đúng dạng này — test_dau_cuoi.py trả về plain
+    string sạch qua đúng đường đó."""
     _skip_neu_thieu_key("google")
     spec = CATALOG["gemma-4-26b"]
     response = client_for(spec).invoke([HumanMessage("Xin chào, bạn khoẻ không?")])

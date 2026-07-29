@@ -13,6 +13,7 @@ def _seed(conn, rows):
             (doc_id, f"{doc_id}.docx", "T", "A › B", 0, 5, text, vec, text))
 
 
+@pytest.mark.integration
 def test_retrieve_returns_result_with_scores_and_ordering(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     # doc A is the exact dense match; doc B is far
@@ -31,6 +32,7 @@ def test_retrieve_returns_result_with_scores_and_ordering(clean_tables, monkeypa
     assert res.chunks[0].dense_score is not None
 
 
+@pytest.mark.integration
 def test_retrieve_empty_on_no_match(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     monkeypatch.setattr(r, "embed_query", lambda q: [1.0] + [0.0] * 1023)
@@ -43,6 +45,7 @@ def test_retrieve_empty_on_no_match(clean_tables, monkeypatch):
 # _rerank_off không ảnh hưởng các test này).
 
 
+@pytest.mark.integration
 def test_rerank_reorders_and_tags_scores(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     _seed(clean_tables, [
@@ -64,6 +67,7 @@ def test_rerank_reorders_and_tags_scores(clean_tables, monkeypatch):
     assert res.top_score == res.chunks[0].rrf_score
 
 
+@pytest.mark.integration
 def test_rerank_pool_wider_than_k(clean_tables, monkeypatch):
     # FIX CHÍNH: chunk hạng-7-theo-RRF (ngoài top-6) phải lọt được vào kết
     # quả khi cross-encoder chấm nó cao nhất — trước fix, rerank chỉ nhận 6
@@ -90,6 +94,7 @@ def test_rerank_pool_wider_than_k(clean_tables, monkeypatch):
     assert res.chunks[0].rerank_score == pytest.approx(10.0)
 
 
+@pytest.mark.integration
 def test_rerank_fail_open_keeps_rrf_order(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     _seed(clean_tables, [
@@ -105,6 +110,7 @@ def test_rerank_fail_open_keeps_rrf_order(clean_tables, monkeypatch):
     assert res.top_score == res.chunks[0].rrf_score
 
 
+@pytest.mark.integration
 def test_rerank_pairs_include_section_path(clean_tables, monkeypatch):
     # Spec 2026-07-15 §3C: tầng nào chấm điểm phải thấy đúng chuỗi đã index —
     # nếu reranker chỉ thấy body, chunk match nhờ crumb sẽ bị dìm xuống.
@@ -139,6 +145,7 @@ def test_rrf_accumulates_into_existing_acc():
     assert merged[1]["rrf"] > 0 and merged[2]["rrf"] > 0
 
 
+@pytest.mark.integration
 def test_retrieve_without_aux_query_never_calls_embed_query_extra(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     _seed(clean_tables, [
@@ -155,6 +162,7 @@ def test_retrieve_without_aux_query_never_calls_embed_query_extra(clean_tables, 
     assert calls == ["chính sách hoàn hàng"]  # default aux_queries=() → no extra call
 
 
+@pytest.mark.integration
 def test_retrieve_aux_query_equal_to_primary_is_skipped(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     _seed(clean_tables, [
@@ -172,6 +180,7 @@ def test_retrieve_aux_query_equal_to_primary_is_skipped(clean_tables, monkeypatc
     assert calls == ["chính sách hoàn hàng"]  # aux == query → no 2nd embed call
 
 
+@pytest.mark.integration
 def test_retrieve_aux_query_pulls_crowded_out_doc_into_pool(clean_tables, monkeypatch):
     """Reproduces the real bug's shape: 20 distractors all rank closer to the
     primary query than the true target doc, pushing it out of _dense()'s
@@ -204,6 +213,7 @@ def test_retrieve_aux_query_pulls_crowded_out_doc_into_pool(clean_tables, monkey
 # ── Task 3: rerank query concatenates aux_queries (spec Finding #7) ────────
 
 
+@pytest.mark.integration
 def test_rerank_query_includes_aux_when_present(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     _seed(clean_tables, [
@@ -222,6 +232,7 @@ def test_rerank_query_includes_aux_when_present(clean_tables, monkeypatch):
     assert seen == ["SLA\nTheo SLA giao hang khan cap"]
 
 
+@pytest.mark.integration
 def test_rerank_query_unchanged_when_no_aux(clean_tables, monkeypatch):
     from src.rag import retrieve as r
     _seed(clean_tables, [
@@ -239,6 +250,7 @@ def test_rerank_query_unchanged_when_no_aux(clean_tables, monkeypatch):
     assert seen == ["SLA"]  # no "\n" join — byte-for-byte pre-Task-3 behavior
 
 
+@pytest.mark.integration
 def test_rerank_recovers_doc_when_bare_query_lacks_context(clean_tables, monkeypatch):
     """Deterministic version of the live bug (spec Finding #7): a fake
     cross-encoder that can only recognize the right doc's content when the
