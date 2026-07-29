@@ -14,12 +14,12 @@ langgraph-checkpoint==4.1.0
 langgraph-checkpoint-postgres==3.1.0
 langgraph-prebuilt==1.0.13
 langchain-mcp-adapters==0.3.0
-# mcp: langchain-mcp-adapters==0.3.0 declares mcp>=1.9.2 with no upper bound,
-# so an unpinned resolve picks the newest mcp (2.0.0), which renamed/moved
-# mcp.shared.context.RequestContext — breaks
-# langchain_mcp_adapters.callbacks's import at collection time (Task 13).
-# Pin to the same 1.28.0 already used by mcp-servers/odoo/requirements.txt
-# (Task 7), known compatible with both the client (this venv) and server side.
+# mcp: langchain-mcp-adapters==0.3.0 khai báo mcp>=1.9.2 không có cận trên,
+# nên resolve không ghim sẽ chọn mcp mới nhất (2.0.0) — bản này đổi tên/dời
+# mcp.shared.context.RequestContext, làm vỡ import của
+# langchain_mcp_adapters.callbacks ngay lúc collection (Task 13). Ghim cùng
+# 1.28.0 đã dùng ở mcp-servers/odoo/requirements.txt (Task 7), đã xác nhận
+# tương thích cho cả phía client (venv này) lẫn phía server.
 mcp==1.28.0
 pgvector==0.4.1
 pypdf==5.1.0
