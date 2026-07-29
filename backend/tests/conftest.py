@@ -1,10 +1,23 @@
 # backend/tests/conftest.py
 import os
+import sys
 
 import pytest
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage
 from unittest.mock import AsyncMock, MagicMock
+
+# Windows: psycopg async (AsyncConnectionPool/AsyncPostgresSaver, dùng bởi
+# erp_agent.setup() — Task 13) không chạy được trên ProactorEventLoop, mặc
+# định của asyncio trên Windows từ 3.8. Thiếu dòng này, MỌI asyncio.run() chạm
+# Postgres qua đường async treo ~30s rồi psycopg_pool.PoolTimeout — dù Postgres
+# đang chạy tốt và một connect SYNC tới đúng conninfo thành công tức thì (xác
+# nhận thực nghiệm khi chạy test_dau_cuoi.py -m live lần đầu). Chỉ ảnh hưởng
+# máy dev Windows chạy pytest trực tiếp; container Linux dùng
+# SelectorEventLoop mặc định nên không cần policy này.
+if sys.platform == "win32":
+    import asyncio
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Nạp .env ở gốc repo TRƯỚC khi bất kỳ test module nào chạy code cấp module
 # (vd rag/config.py đọc os.environ.get("DATABASE_URL", ...) ngay khi import).
