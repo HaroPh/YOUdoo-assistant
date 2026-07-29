@@ -151,7 +151,7 @@ KHÔNG_ĐỦ_THÔNG_TIN
 ```
 ````
 
-Gộp với lượt 2: **5 lần gọi tổng cộng, 2/5 không có fence (parse thẳng OK),
+Gộp với lượt 1 và lượt 2: **5 lần gọi tổng cộng, 2/5 không có fence (parse thẳng OK),
 3/5 có fence bọc bằng ba dấu backtick + `json` (kiểu markdown code fence) TOÀN
 BỘ nội dung (parse thẳng THẤT BẠI)** — cùng prompt, cùng câu hỏi,
 `temperature=0`. Đây là non-determinism thật của Gemini, không phải lỗi đo.
@@ -163,7 +163,7 @@ fenced thật ở trên:
 
 ```python
 >>> parse_plan_tiered(fenced_output)
-({'tool': 'other', 'args': {}, 'summary': 'Kiem tra ton kho san pham ABC'}, 'salvage')
+({'tool': 'other', 'args': {}, 'summary': 'Kiểm tra tồn kho sản phẩm ABC'}, 'salvage')
 ```
 
 **Salvage tier cứu được** — với điều kiện đầu vào là STRING. Chi tiết ở phát
@@ -203,9 +203,10 @@ hiện #5 bên dưới.
 ]
 ```
 
-Không có `ChainExhausted` hay fallback bất ngờ nào trong toàn bộ phép đo (9
-lượt gọi thật tổng cộng) — mọi lượt (trừ router, hỏng SAU khi gọi thành công)
-trả lời ngay ở mắt xích được resolve, không bị 429/cooldown.
+Không có `ChainExhausted` hay fallback bất ngờ nào trong toàn bộ phép đo (11
+lượt gọi thật tổng cộng: Lượt 1 = 3, Lượt 2 = 3, Lượt 3 = 3, Lượt 4 = 2) —
+mọi lượt (trừ router, hỏng SAU khi gọi thành công) trả lời ngay ở mắt xích
+được resolve, không bị 429/cooldown.
 
 ## Kết luận chi phối task sau
 
@@ -219,5 +220,5 @@ trả lời ngay ở mắt xích được resolve, không bị 429/cooldown.
 | 6 | Prompt `WRITE_PLANNER_PROMPT` (hiệu chỉnh qwen3:8b) chạy qua `gemini-3.5-flash-lite`: sau khi gộp `.content` đúng cách (chỉ lấy block `text`), JSON tầng "raw" (`json.loads` trực tiếp) chỉ thành công **2/5 lần đo** — 3/5 lần model tự bọc output trong fence ` ```json ... ``` `, cùng prompt/câu hỏi/`temperature=0`. Đây là non-determinism THẬT của Gemini-3.x, đo lặp lại 3 lần liên tiếp cho cùng kết quả nội dung nhưng khác định dạng bọc. | Task 2, Task 9–13 (node planner / logic A5) | **Không cần viết thêm logic strip-fence mới.** `_parse_plan_tiered` ở repo nguồn (`nodes.py` dòng 148–165) ĐÃ có tầng "salvage": strip `<think>` rồi `_FENCE_RE.fullmatch()` nếu fence bọc TOÀN BỘ phần còn lại. Đã kiểm thực nghiệm: chạy nguyên văn regex đó (đọc từ mã nguồn, không chép trí nhớ) lên output fenced thật ở trên → salvage THÀNH CÔNG, trả đúng dict. Điều kiện DUY NHẤT: `_parse_plan_tiered(raw: str)` phải nhận STRING — nếu nhận `list` nguyên trạng, `raw.strip()` ở dòng đầu hàm sẽ `AttributeError` ngay lập tức, sớm hơn và tệ hơn cả case fence. Vậy đây là lý do CHẶT CHẼ NHẤT khiến phát hiện #1–#4 (chuẩn hoá list→string, đúng vị trí, đúng bộ lọc `type`) là điều kiện TIÊN QUYẾT để logic parse JSON cũ port nguyên vẹn mà không cần sửa gì thêm bên trong `_parse_plan_tiered`. |
 | 7 | `finish_reason` khác dạng chữ theo provider: Google trả `"STOP"` (in hoa), Groq và OpenRouter đều trả `"stop"` (thường) — đo trực tiếp ở cả 5 lượt Google và 2 lượt Groq/OpenRouter pin riêng. `response_metadata` cũng khác cấu trúc hẳn theo provider: Google KHÔNG có khoá `"token_usage"` (chỉ có `finish_reason`, `model_name`, `model_provider`, `safety_ratings` — dùng `usage_metadata` riêng, đúng như docstring `Router._usage()` đã ghi từ trước); Groq/OpenRouter đều có `"token_usage"` lồng bên trong `response_metadata`, hình dạng OpenAI chuẩn (`prompt_tokens`/`completion_tokens`/`completion_tokens_details`), OpenRouter thêm các trường `cost`/`is_byok`/`cost_details` mà Groq không có. | Task 9–13 (bất kỳ chỗ nào so sánh `finish_reason` bằng string, hoặc đọc `response_metadata["token_usage"]` không kiểm tra tồn tại trước) | Nếu code port có so khớp `finish_reason == "stop"` (kiểu OpenAI/Ollama mà repo nguồn dùng), **PHẢI** chuẩn hoá hoa/thường trước khi so sánh (`.upper()`/`.lower()`), nếu không nhánh Google sẽ luôn không khớp một cách âm thầm. Chỗ nào đọc `response_metadata["token_usage"]` trực tiếp (không qua `Router._usage()` đã có sẵn 2 nhánh) sẽ vỡ với Google — ưu tiên luôn đi qua `InvokeResult.total_tokens`/`prompt_tokens`/`completion_tokens` đã chuẩn hoá sẵn ở `router.py`, đừng đọc lại `response_metadata` thô trong `agents/`. |
 | 8 | Vai `synthesis` (`RAG_SYNTHESIS_PROMPT`, hiệu chỉnh qwen3) chạy qua `gemini-3.1-flash-lite`: trả đúng sentinel `"KHÔNG_ĐỦ_THÔNG_TIN"` như prompt yêu cầu khi thiếu ngữ cảnh RAG (script không truyền tool/context nào), sạch — không `<thought>`, không xuống dòng thừa, không markdown lạ. Chain của `synthesis` (`gemini-3.1-flash-lite → groq-llama-3.3-70b → or-nemotron`) **không có Gemma** nên rủi ro tag `<thought>` không áp dụng cho vai này ở bất kỳ mắt xích nào. | Task 2, Task 13 | Không cần xử lý gì thêm ngoài chuẩn hoá list→string chung (#1/#4). Không cần logic riêng cho `<thought>` ở vai `synthesis`. |
-| 9 | Không quan sát được `ChainExhausted` hay fallback bất ngờ nào trong toàn bộ 9 lượt gọi thật — mọi vai (trừ crash TypeError của router, xảy ra SAU khi model trả lời thành công) resolve đúng mắt xích đầu chuỗi ngay từ lần thử đầu, không đụng 429/cooldown. | (tham khảo, không cần hành động) | Xác nhận `BudgetLedger`/`Router.resolve()` hoạt động đúng thiết kế khi ví trống — không có gì cần sửa ở tầng định tuyến/hạn mức từ phép đo này. |
+| 9 | Không quan sát được `ChainExhausted` hay fallback bất ngờ nào trong toàn bộ 11 lượt gọi thật — mọi vai (trừ crash TypeError của router, xảy ra SAU khi model trả lời thành công) resolve đúng mắt xích đầu chuỗi ngay từ lần thử đầu, không đụng 429/cooldown. | (tham khảo, không cần hành động) | Xác nhận `BudgetLedger`/`Router.resolve()` hoạt động đúng thiết kế khi ví trống — không có gì cần sửa ở tầng định tuyến/hạn mức từ phép đo này. |
 | 10 | Phép đo này **không** exercise hình dạng `tool_calls` qua provider nào (không có script nào `bind_tools()` — `co_tool_calls` luôn `false`). `TOOL_ROLES = {read, planner, fusion, synthesis}` đều cần tool thật khi port. | Task 9–13 | Đây là khoảng trống CHƯA đo, không phải "đã đo và ổn". Spike `2026-07-28-thought-signature.md` (SP-1A) có đo tool-calling cho Google (2 lượt, thất bại — đó là lý do đổi sang `ChatGoogleGenerativeAI`) nhưng KHÔNG đo cho Groq/OpenRouter tuning theo prompt tiếng Việt hiệu chỉnh qwen3. Task 9 nên có phép đo tool-calling riêng, không giả định nó "chắc cũng giống". |
