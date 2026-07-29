@@ -6,7 +6,7 @@ from pyvi import ViTokenizer
 
 from . import db as _db
 from .config import RAG_SCHEMA
-from .embed import EmbeddingError, embed_texts
+from .embed import EmbeddingError, embed_texts, get_embedder
 from .parse import parse_docx, parse_pdf, parse_xlsx
 from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
 
@@ -92,6 +92,13 @@ def ingest_path(path: str, conn=None) -> dict:
         conn = _db.connect()
         _db.ensure_schema(conn, RAG_SCHEMA)
     try:
+        # Ghi marker nếu chưa có — để lần khởi động sau assert_embedding_marker()
+        # bắt được cú đổi provider mà không re-index.
+        e = get_embedder()
+        conn.execute(
+            "INSERT INTO rag_embedding_marker (embedding_model, dim) "
+            "SELECT %s, %s WHERE NOT EXISTS (SELECT 1 FROM rag_embedding_marker)",
+            (e.model_name, e.dim))
         totals = {"ingested": 0, "skipped": 0, "chunks": 0}
         files = ([path] if os.path.isfile(path)
                  else [os.path.join(r, f) for r, _, fs in os.walk(path) for f in fs])

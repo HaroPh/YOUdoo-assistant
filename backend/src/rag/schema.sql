@@ -33,3 +33,12 @@ CREATE INDEX IF NOT EXISTS rag_chunks_ts_gin
     ON {schema}.rag_chunks USING gin (ts_vector);
 CREATE INDEX IF NOT EXISTS rag_chunks_doc_id
     ON {schema}.rag_chunks (doc_id);
+
+-- Marker chống lệch embedding (spec SP-1B §3b). Một hàng duy nhất, ghi lúc
+-- index. Provider đang bật lệch với hàng này → app không lên (embed.py
+-- assert_embedding_marker). Vector bge-m3 và vector Gemini nằm ở hai không gian
+-- khác nhau; truy vấn chéo trả rác mà không báo lỗi.
+CREATE TABLE IF NOT EXISTS {schema}.rag_embedding_marker (
+    embedding_model text    NOT NULL,
+    dim             integer NOT NULL
+);
