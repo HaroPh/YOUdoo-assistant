@@ -2,10 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# mcp[cli] kéo FastMCP + SSE transport; psycopg2 cho logging vào PostgreSQL
-RUN pip install --no-cache-dir "mcp[cli]>=1.0.0" "psycopg2-binary>=2.9"
+# Cài đúng version đã pin ở requirements.txt (mcp==1.28.0 — có sẵn FastMCP +
+# SSE transport, không cần extra [cli]; psycopg2-binary cho logging vào
+# PostgreSQL). Cài từ requirements.txt thay vì gõ lại version ở đây để
+# Dockerfile không bao giờ lệch khỏi requirements.txt (bài học từ chính lỗi
+# này: "mcp[cli]>=1.0.0" từng resolve ra mcp 2.0.0, thiếu mcp.server.fastmcp).
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py config.py security.py rate_limit.py event_log.py helpers.py .
+COPY server.py odoo_call.py config.py security.py rate_limit.py event_log.py audit_chain.py helpers.py ./
+COPY tools/ ./tools/
 
 EXPOSE 8001
 

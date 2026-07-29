@@ -5,8 +5,15 @@ module mới mà quên đi qua odoo_call.odoo() sẽ vòng qua CẢ NĂM cổng 
 (xác thực, rate limit, denylist, audit chain, event log) mà không ai thấy —
 nó vẫn chạy đúng, chỉ là không được kiểm.
 
-Test này duyệt registry FastMCP thật, lấy mã nguồn từng tool đã đăng ký, và
-khẳng định không tool nào nói chuyện thẳng với Odoo.
+Test đầu duyệt registry FastMCP thật, lấy mã nguồn từng tool đã đăng ký, và
+khẳng định không tool nào nói chuyện thẳng với Odoo — nhưng chỉ soi được thân
+hàm của chính tool, KHÔNG soi được helper mà tool đó gọi ra (vd 5 helper dùng
+chung nhiều domain — _resolve_partner, _resolve_product, _resolve_location,
+_apply_line_ops, _validate_order_pickings — sống ở helpers.py và tự gọi
+odoo() bên trong). Test thứ hai vì vậy quét TOÀN BỘ file .py ở mcp-servers/odoo
+(cả top-level lẫn tools/), trừ odoo_call.py — nơi DUY NHẤT được phép nhắc
+ServerProxy/execute_kw — để giữ helpers.py và mọi module khác nằm trong vùng
+phủ, không chỉ tools/.
 """
 import inspect
 import pathlib
@@ -56,9 +63,16 @@ def test_khong_tool_nao_goi_thang_odoo(cac_tool):
 
 
 def test_chi_odoo_call_duoc_nhac_ServerProxy():
-    """Quét file, không quét registry — bắt được cả tool chưa đăng ký."""
+    """Quét file, không quét registry — bắt được cả tool chưa đăng ký, và cả
+    helper dùng chung (helpers.py) mà test đầu (chỉ soi thân tool) bỏ lọt.
+    Quét mọi file .py ở mcp-servers/odoo (top-level + tools/), trừ
+    odoo_call.py — đó LÀ nơi ServerProxy/execute_kw được phép xuất hiện."""
     vi_pham = []
-    for path in sorted((MCP_DIR / "tools").glob("*.py")):
+    loai_tru = {"odoo_call.py"}  # cửa DUY NHẤT ra Odoo — được phép nhắc CAM
+    paths = sorted(MCP_DIR.glob("*.py")) + sorted((MCP_DIR / "tools").glob("*.py"))
+    for path in paths:
+        if path.name in loai_tru:
+            continue
         text = path.read_text(encoding="utf-8")
         for cam in CAM:
             if cam in text:
