@@ -760,7 +760,7 @@ docker compose up -d postgres
 docker compose ps
 # (Superseded, Task 3 thực tế: dùng chung Ollama đã có sẵn ở cổng 11434, không tạo service ollama trong compose này — xem ledger Task 3.)
 ```
-Expected: cả hai service `running`; `ollama pull` tải xong bge-m3.
+Expected: service `postgres` running. (Ollama không thuộc compose này — xem ghi chú ngay trên; bge-m3 đã có sẵn trên instance dùng chung, không cần pull lại.)
 
 Kiểm Postgres có extension vector:
 ```bash
