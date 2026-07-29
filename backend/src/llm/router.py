@@ -201,3 +201,65 @@ class Router:
             return self._finish(decision, response, attempts)
         raise ChainExhausted(role, tuple(
             SkippedLink(a.alias, Verdict.COOLDOWN) for a in attempts))
+
+
+from langchain_core.runnables import Runnable
+
+from .catalog import ROLES
+from .store import PostgresUsageStore
+
+
+class RoutedChatModel(Runnable):
+    """Mặt tiền giữ nguyên hợp đồng cũ của agents/.
+
+    Code agents/ ở repo nguồn gọi self._llms["read"].invoke(...) với object
+    dựng sẵn MỘT LẦN. Ngân sách thì đổi theo từng lượt, nên không dựng sẵn
+    được — lớp này giải quyết model TẠI THỜI ĐIỂM INVOKE, giấu chuyện đó đi.
+    Nhờ vậy toàn bộ agents/ port sang không phải sửa dòng nào ở chỗ gọi LLM.
+
+    Trả về AIMessage chứ không phải InvokeResult: hợp đồng cũ là AIMessage, và
+    đổi nó sẽ lan ra khắp agents/. Quyết định định tuyến lấy lại qua
+    .last_decision (kế hoạch C đổ nó vào span Langfuse).
+    """
+
+    def __init__(self, router: "Router", role: str, tools: list | None = None,
+                 pin: str | None = None) -> None:
+        self._router = router
+        self._role = role
+        self._tools = tools
+        self._pin = pin
+        self.last_decision: RouteDecision | None = None
+
+    def bind_tools(self, tools: list, **kwargs) -> "RoutedChatModel":
+        # Trả bản MỚI, không sửa bản gốc — khớp ngữ nghĩa bind_tools của
+        # LangChain. Bản mới dùng chung router nên dùng chung sổ ngân sách.
+        return RoutedChatModel(self._router, self._role, tools, self._pin)
+
+    def invoke(self, input, config=None, **kwargs):
+        result = self._router.invoke(self._role, input, tools=self._tools,
+                                     pin=self._pin)
+        self.last_decision = result.decision
+        return result.message
+
+    async def ainvoke(self, input, config=None, **kwargs):
+        result = await self._router.ainvoke(self._role, input,
+                                            tools=self._tools, pin=self._pin)
+        self.last_decision = result.decision
+        return result.message
+
+
+def build_router(store=None, clock=None) -> Router:
+    """Router cho đường chạy thật. Mặc định dùng sổ Postgres."""
+    return Router(BudgetLedger(store or PostgresUsageStore(), clock=clock))
+
+
+def make_llms(router: Router,
+              pins: dict[str, str] | None = None) -> dict[str, RoutedChatModel]:
+    """dict vai → model, đúng hình dạng make_llms() cũ của repo nguồn.
+
+    pins: ghim từng vai, dùng cho đường eval — eval phải đo MỘT MODEL chứ
+    không phải một trạng thái ngân sách (spec §2).
+    """
+    pins = pins or {}
+    return {role: RoutedChatModel(router, role, pin=pins.get(role))
+            for role in ROLES}
