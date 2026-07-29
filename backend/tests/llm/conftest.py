@@ -32,3 +32,53 @@ class ExplodingStore:
 @pytest.fixture
 def clock() -> FakeClock:
     return FakeClock()
+
+
+from langchain_core.messages import AIMessage
+
+
+class FakeChatClient:
+    """Client giả — trả sẵn kịch bản, đếm số lần bị gọi.
+
+    responses: danh sách phần tử, mỗi phần tử là AIMessage (thành công) HOẶC
+    một Exception (ném ra). Dùng hết thì lặp lại phần tử cuối.
+    """
+
+    def __init__(self, responses) -> None:
+        self.responses = list(responses)
+        self.calls: list[list] = []
+        self.bound_tools = None
+
+    def bind_tools(self, tools):
+        self.bound_tools = tools
+        return self
+
+    def _next(self, messages):
+        self.calls.append(messages)
+        item = self.responses[min(len(self.calls) - 1, len(self.responses) - 1)]
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    def invoke(self, messages, **kwargs):
+        return self._next(messages)
+
+    async def ainvoke(self, messages, **kwargs):
+        return self._next(messages)
+
+
+def fake_ai(content="xong", *, prompt=10, completion=20, total=30):
+    """AIMessage kèm usage ở ĐÚNG chỗ mà provider thật đặt nó."""
+    return AIMessage(
+        content=content,
+        response_metadata={"token_usage": {
+            "prompt_tokens": prompt, "completion_tokens": completion,
+            "total_tokens": total}})
+
+
+class FakeRateLimit(Exception):
+    status_code = 429
+
+
+class FakeServerError(Exception):
+    status_code = 503

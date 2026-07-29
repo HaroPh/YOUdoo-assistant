@@ -1,0 +1,134 @@
+import pytest
+from langchain_core.messages import HumanMessage
+
+from src.llm.budget import BudgetLedger
+from src.llm.catalog import spec_for
+from src.llm.router import COOLDOWN_RATE_LIMIT_S, ChainExhausted, Router
+from src.llm.store import InMemoryUsageStore
+from tests.llm.conftest import (FakeChatClient, FakeRateLimit, FakeServerError,
+                                fake_ai)
+
+MSGS = [HumanMessage("Tồn kho ABC?")]
+
+
+def _router(clock, by_alias):
+    """by_alias: {alias: FakeChatClient} — router lấy client theo alias."""
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    return Router(ledger, client_factory=lambda spec: by_alias[spec.alias])
+
+
+def test_goi_thanh_cong_tra_ve_message_va_quyet_dinh(clock):
+    client = FakeChatClient([fake_ai("Còn 42 cái.")])
+    r = _router(clock, {"gemini-3.5-flash-lite": client})
+    got = r.invoke("read", MSGS)
+    assert got.message.content == "Còn 42 cái."
+    assert got.decision.spec.alias == "gemini-3.5-flash-lite"
+    assert got.decision.fallback_depth == 0
+    assert len(client.calls) == 1
+
+
+def test_ghi_so_ngan_sach_bang_total_tokens_khong_phai_p_cong_c(clock):
+    """Gemma: p=11, c=36, total=337. Cộng p+c đếm thiếu 7 lần."""
+    store = InMemoryUsageStore()
+    ledger = BudgetLedger(store, clock=clock)
+    client = FakeChatClient([fake_ai("ok", prompt=11, completion=36, total=337)])
+    r = Router(ledger, client_factory=lambda spec: client)
+    r.invoke("chitchat", MSGS)
+    got = store.usage_since(since=clock(), alias="gemma-4-31b")
+    assert got.total_tokens == 337
+
+
+def test_429_thi_dat_cooldown_va_tut_xuong_mat_xich_ke(clock):
+    hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
+    tot = FakeChatClient([fake_ai("Còn 42 cái.")])
+    r = _router(clock, {"gemini-3.5-flash-lite": hong,
+                        "groq-llama-3.3-70b": tot})
+    got = r.invoke("read", MSGS)
+    assert got.decision.spec.alias == "groq-llama-3.3-70b"
+    assert got.decision.fallback_depth == 1
+    assert [a.alias for a in got.attempts] == ["gemini-3.5-flash-lite"]
+
+
+def test_sau_429_mat_xich_do_bi_cooldown_o_luot_sau(clock):
+    hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
+    tot = FakeChatClient([fake_ai("ok")])
+    r = _router(clock, {"gemini-3.5-flash-lite": hong,
+                        "groq-llama-3.3-70b": tot})
+    r.invoke("read", MSGS)
+    assert len(hong.calls) == 1
+    r.invoke("read", MSGS)          # lượt 2: không được chạm vào cái đang ốm
+    assert len(hong.calls) == 1
+    assert len(tot.calls) == 2
+
+
+def test_cooldown_cua_429_dai_hon_cooldown_cua_loi_khac(clock):
+    from src.llm.router import COOLDOWN_ERROR_S
+    assert COOLDOWN_RATE_LIMIT_S > COOLDOWN_ERROR_S
+
+
+def test_loi_5xx_cung_lam_tut_mat_xich(clock):
+    hong = FakeChatClient([FakeServerError("sập")])
+    tot = FakeChatClient([fake_ai("ok")])
+    r = _router(clock, {"gemini-3.5-flash-lite": hong,
+                        "groq-llama-3.3-70b": tot})
+    assert r.invoke("read", MSGS).decision.spec.alias == "groq-llama-3.3-70b"
+
+
+def test_moi_mat_xich_deu_hong_thi_nem_ChainExhausted(clock):
+    hong = FakeChatClient([FakeServerError("sập")])
+    r = _router(clock, {"gemini-3.1-flash-lite": hong,
+                        "groq-llama-3.3-70b": hong})
+    with pytest.raises(ChainExhausted):
+        r.invoke("fusion", MSGS)      # chuỗi fusion chỉ có 2 mắt xích
+
+
+def test_go_thought_cho_model_gemma(clock):
+    """chitchat chạy gemma-4-31b (emits_thought_tags=True)."""
+    client = FakeChatClient([fake_ai("<thought>nghĩ ngợi</thought>Chào bạn!")])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: client)
+    assert r.invoke("chitchat", MSGS).message.content == "Chào bạn!"
+
+
+def test_khong_go_gi_voi_model_khong_nha_thought(clock):
+    """read chạy gemini (emits_thought_tags=False) — nội dung giữ nguyên."""
+    client = FakeChatClient([fake_ai("Thẻ <thought> nghĩa là gì?")])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: client)
+    assert r.invoke("read", MSGS).message.content == "Thẻ <thought> nghĩa là gì?"
+
+
+def test_tool_duoc_bind_vao_client(clock):
+    tools = [{"type": "function", "function": {"name": "get_stock"}}]
+    client = FakeChatClient([fake_ai("ok")])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: client)
+    r.invoke("read", MSGS, tools=tools)
+    assert client.bound_tools == tools
+
+
+def test_ghim_khong_tut_khi_loi_ma_nem_thang_ra(clock):
+    """Ghim là ghim — kể cả khi hỏng. Tụt lặng lẽ làm hỏng phép đo eval."""
+    hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: hong)
+    with pytest.raises(ChainExhausted):
+        r.invoke("read", MSGS, pin="or-nemotron")
+    assert len(hong.calls) == 1
+
+
+async def test_ainvoke_hoat_dong_giong_invoke(clock):
+    client = FakeChatClient([fake_ai("Còn 42 cái.")])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: client)
+    got = await r.ainvoke("read", MSGS)
+    assert got.message.content == "Còn 42 cái."
+
+
+async def test_ainvoke_cung_tut_mat_xich_khi_429(clock):
+    hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
+    tot = FakeChatClient([fake_ai("ok")])
+    r = _router(clock, {"gemini-3.5-flash-lite": hong,
+                        "groq-llama-3.3-70b": tot})
+    got = await r.ainvoke("read", MSGS)
+    assert got.decision.spec.alias == "groq-llama-3.3-70b"
