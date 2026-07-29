@@ -18,19 +18,24 @@ mcp = FastMCP("odoo-mcp", host="0.0.0.0", port=8001)
 # Bí danh module hiện tại thành "server" trong sys.modules TRƯỚC khi import
 # tools/* — bắt buộc khi tiến trình được khởi động bằng `python server.py`
 # (script chạy trực tiếp nằm ở sys.modules["__main__"], KHÔNG nằm ở
-# sys.modules["server"]). Thiếu dòng này, `from server import mcp` bên trong
-# mỗi module tools/*.py không tìm thấy "server" trong sys.modules nên import
-# lại TOÀN BỘ file này như một module thứ hai, độc lập, với một FastMCP() —
-# và vì tools.sales (module TRIGGER ra vòng import lại này) đã nằm dở dang
-# trong sys.modules ngay khi việc import nó bắt đầu, nhánh nhập lại đó bỏ qua
-# sales nhưng vẫn nhập purchase/inventory/mrp/crm/accounting đầy đủ — kết quả
-# quan sát thực nghiệm (Task 13, 2026-07-29): HAI đối tượng FastMCP tồn tại
-# trong cùng tiến trình, cái phục vụ request thật (id khác cái mcp ở trên)
-# thiếu tool của sales.py và ngẫu nhiên theo thứ tự import mà có thể trống
-# gần hết — client MCP thấy 0 tool dù tool_manager của module NÀY có đủ.
-# Chuỗi nhân quả xác nhận bằng in id(mcp)/đếm tool ở cả hai điểm nhập.
-# setdefault (không phải gán thẳng) để không phá vỡ trường hợp file này được
-# import bình thường qua `import server` (khi đó Python đã tự đặt đúng khoá
+# sys.modules["server"]). Thiếu dòng này: `tools.sales` (module ĐẦU TIÊN
+# trong danh sách import bên dưới) chạy `from server import mcp`, không thấy
+# "server" trong sys.modules nên Python nhập lại TOÀN BỘ file này lần hai
+# như module độc lập ("FastMCP #2") — nhánh nhập lại đó tự nó chạy tiếp
+# `from tools import sales, purchase, ...`: sales đang dở dang (đã nằm trong
+# sys.modules từ bước ngoài) nên bị bỏ qua, nhưng purchase/inventory/mrp/
+# crm/accounting (25 tool) CHƯA đụng tới nên nhập mới hoàn toàn, đăng ký hết
+# vào FastMCP #2. Nhập lồng xong, sales.py resolve nốt `from server import
+# mcp` của chính nó — nhưng lúc này "server" đã trỏ vào FastMCP #2 (không
+# phải #1!) nên 5 tool của sales cũng đăng ký vào #2 → FastMCP #2 đủ 30/30.
+# FastMCP #1 — đối tượng biến `mcp` Ở TRÊN, cái mcp.run() cuối file thực sự
+# phục vụ — không nhận thêm tool nào cả (mọi module tools/* giờ nằm sẵn
+# trong sys.modules nên Python chỉ gán tên, không chạy lại thân file) →
+# client MCP thấy ĐÚNG 0 tool. Kết quả xác nhận bằng instrumentation vào
+# FastMCP.__init__/ToolManager.add_tool (Task 13, 2026-07-29, xem
+# task-13-report.md phần "Bug: python server.py chạy trực tiếp"). setdefault
+# (không phải gán thẳng) để không phá vỡ trường hợp file này được import
+# bình thường qua `import server` (khi đó Python đã tự đặt đúng khoá
 # "server" rồi, vòng import tools/* vốn đã an toàn như comment cũ mô tả).
 sys.modules.setdefault("server", sys.modules[__name__])
 
