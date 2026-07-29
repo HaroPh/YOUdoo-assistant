@@ -27,10 +27,12 @@ GEMINI_EMBED_DIM = 3072
 
 
 class EmbeddingError(RuntimeError):
-    """Lỗi gọi embedding — cả Ollama lẫn Gemini đều ném loại này, để
-    retrieve.py/ingest.py xử lý một loại lỗi duy nhất bất kể provider nào
-    đang bật (retrieve.py/ingest.py port nguyên từ repo nguồn, vốn chỉ biết
-    một implementation Ollama — giữ đúng hợp đồng cũ)."""
+    """Lỗi gọi embedding — OllamaEmbedder bọc lỗi HTTP/response thành loại này,
+    để retrieve.py/ingest.py xử lý một loại lỗi duy nhất (retrieve.py/ingest.py
+    port nguyên từ repo nguồn, vốn chỉ biết một implementation Ollama — giữ
+    đúng hợp đồng cũ). GeminiEmbedder CHƯA bọc tương tự (để nguyên
+    httpx.HTTPStatusError/RuntimeError thô) — bất đối xứng có chủ đích vì
+    Gemini đang TẮT; cần bọc lại nếu sau này bật thật."""
 
 
 @runtime_checkable
