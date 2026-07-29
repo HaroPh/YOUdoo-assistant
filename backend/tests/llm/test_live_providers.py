@@ -77,7 +77,13 @@ def test_vong_lap_tool_hai_luot_qua_google_van_hoi_tu():
 def test_gemma_van_nha_thought_vao_content():
     """Nếu Google sửa endpoint để tách thinking ra, test này đỏ — và đó là tin
     TỐT: lúc đó strip_thought() thành thừa và nên gỡ bỏ, chứ không phải để lại
-    một cú scrub không ai hiểu vì sao còn ở đó."""
+    một cú scrub không ai hiểu vì sao còn ở đó.
+
+    Phép đo gốc 2026-07-28 chạy TRƯỚC khi Task 7 đổi client Google sang
+    ChatGoogleGenerativeAI. Nếu test này đỏ, kiểm tra trước xem có phải do đổi
+    CLIENT (không phải đổi provider/model) gây ra, trước khi kết luận Gemma đã
+    ngừng nhả <thought> — content vẫn là string thường qua cả hai client nên
+    kết quả không lẽ ra phải đổi, nhưng đáng kiểm chứng lại nếu bất ngờ đỏ."""
     _skip_neu_thieu_key("google")
     spec = CATALOG["gemma-4-26b"]
     response = client_for(spec).invoke([HumanMessage("Xin chào, bạn khoẻ không?")])
@@ -86,16 +92,28 @@ def test_gemma_van_nha_thought_vao_content():
         "emits_thought_tags")
 
 
-def test_gemma_van_dem_thieu_token_neu_cong_prompt_va_completion():
-    """Lý do tồn tại của quy tắc 'total_tokens là con số có thẩm quyền'."""
+def test_gemma_van_co_thought_token_rieng_trong_usage_metadata():
+    """Lý do tồn tại của quy tắc 'total_tokens là con số có thẩm quyền'.
+
+    Phép đo gốc 2026-07-28 (p=11, c=36, total=337) được lấy qua endpoint
+    OpenAI-compat cũ của Google, đọc response_metadata["token_usage"]. Task 7
+    đổi client Google sang ChatGoogleGenerativeAI (spike thought_signature) —
+    client này KHÔNG BAO GIỜ set response_metadata["token_usage"], usage chỉ
+    nằm ở response.usage_metadata (UsageMetadata TypedDict), và output_tokens
+    ở đó đã CỘNG SẴN thought_tokens vào, nên tỉ lệ total > (p+c)*2 không còn
+    áp dụng theo cách cũ. Test này giờ kiểm trực tiếp trường accounting riêng
+    của SDK cho token "thinking" — output_token_details["reasoning"] — thay vì
+    suy luận gián tiếp qua chênh lệch tổng, vì đó là cách chính xác hơn để xác
+    nhận Gemma vẫn còn token thinking ẩn."""
     _skip_neu_thieu_key("google")
     spec = CATALOG["gemma-4-26b"]
     response = client_for(spec).invoke([HumanMessage("Xin chào, bạn khoẻ không?")])
-    usage = response.response_metadata["token_usage"]
-    tong_phan = usage["prompt_tokens"] + usage["completion_tokens"]
-    assert usage["total_tokens"] > tong_phan * 2, (
-        f"total={usage['total_tokens']} không còn lớn hơn hẳn p+c={tong_phan} "
-        "— cân nhắc xem lại quy tắc total_tokens trong budget.py")
+    usage = response.usage_metadata
+    reasoning = (usage.get("output_token_details") or {}).get("reasoning") or 0
+    assert reasoning > 0, (
+        f"usage_metadata không còn output_token_details.reasoning > 0 "
+        f"(usage={usage!r}) — cân nhắc xem lại quy tắc total_tokens trong "
+        "budget.py, có thể Gemma đã ngừng ẩn token thinking")
 
 
 # ─── Catalog không trôi khỏi thực tế ────────────────────────────────────────

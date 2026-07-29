@@ -68,12 +68,37 @@ class FakeChatClient:
 
 
 def fake_ai(content="xong", *, prompt=10, completion=20, total=30):
-    """AIMessage kèm usage ở ĐÚNG chỗ mà provider thật đặt nó."""
+    """AIMessage kèm usage ở ĐÚNG chỗ mà provider thật đặt nó (ChatOpenAI).
+
+    Hình dạng này khớp Groq/OpenRouter: usage nằm ở
+    response_metadata["token_usage"]. KHÔNG khớp Google — xem fake_ai_google()."""
     return AIMessage(
         content=content,
         response_metadata={"token_usage": {
             "prompt_tokens": prompt, "completion_tokens": completion,
             "total_tokens": total}})
+
+
+def fake_ai_google(content="xong", *, prompt=10, completion=20, total=30,
+                   reasoning=0):
+    """AIMessage kèm usage ở ĐÚNG chỗ mà ChatGoogleGenerativeAI thật đặt nó.
+
+    Nguồn sự thật: langchain_google_genai.chat_models._response_to_result()
+    (backend/.venv/Lib/site-packages/langchain_google_genai/chat_models.py,
+    ~dòng 1119-1140, bản 4.2.0). Client này KHÔNG BAO GIỜ set
+    response_metadata["token_usage"] — usage chỉ nằm ở usage_metadata (một
+    UsageMetadata TypedDict), với output_tokens đã CỘNG SẴN
+    candidates_token_count + thoughts_token_count, và total_tokens là
+    total_token_count thô của API (không phải input+output tính lại).
+    response_metadata vẫn tồn tại (prompt_feedback, finish_reason, ...) nhưng
+    không bao giờ mang khoá "token_usage" — nên để rỗng ở đây cho đúng hình
+    dạng thật, không phải vì "không quan trọng"."""
+    meta = {"input_tokens": prompt, "output_tokens": completion,
+             "total_tokens": total}
+    if reasoning:
+        meta["output_token_details"] = {"reasoning": reasoning}
+    return AIMessage(content=content, response_metadata={},
+                     usage_metadata=meta)
 
 
 class FakeRateLimit(Exception):

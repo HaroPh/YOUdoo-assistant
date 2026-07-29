@@ -6,7 +6,7 @@ from src.llm.catalog import spec_for
 from src.llm.router import COOLDOWN_RATE_LIMIT_S, ChainExhausted, Router
 from src.llm.store import InMemoryUsageStore
 from tests.llm.conftest import (FakeChatClient, FakeRateLimit, FakeServerError,
-                                fake_ai)
+                                fake_ai, fake_ai_google)
 
 MSGS = [HumanMessage("Tồn kho ABC?")]
 
@@ -32,6 +32,23 @@ def test_ghi_so_ngan_sach_bang_total_tokens_khong_phai_p_cong_c(clock):
     store = InMemoryUsageStore()
     ledger = BudgetLedger(store, clock=clock)
     client = FakeChatClient([fake_ai("ok", prompt=11, completion=36, total=337)])
+    r = Router(ledger, client_factory=lambda spec: client)
+    r.invoke("chitchat", MSGS)
+    got = store.usage_since(since=clock(), alias="gemma-4-31b")
+    assert got.total_tokens == 337
+
+
+def test_usage_metadata_cua_google_duoc_doc_dung_khong_qua_response_metadata(clock):
+    """chitchat chạy gemma-4-31b, provider="google" → client thật là
+    ChatGoogleGenerativeAI, KHÔNG BAO GIỜ set response_metadata["token_usage"].
+    _usage() phải rơi xuống nhánh usage_metadata và lấy total_tokens THÔ của
+    API (337), không phải p+c tính lại (11+36=47) — cùng phép đo Gemma ở test
+    test_ghi_so_ngan_sach_bang_total_tokens_khong_phai_p_cong_c, nhưng lần này
+    đi qua đúng hình dạng response mà production thật sự nhận được."""
+    store = InMemoryUsageStore()
+    ledger = BudgetLedger(store, clock=clock)
+    client = FakeChatClient([fake_ai_google("ok", prompt=11, completion=36,
+                                            total=337, reasoning=290)])
     r = Router(ledger, client_factory=lambda spec: client)
     r.invoke("chitchat", MSGS)
     got = store.usage_since(since=clock(), alias="gemma-4-31b")

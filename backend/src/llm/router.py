@@ -131,13 +131,32 @@ class Router:
 
     @staticmethod
     def _usage(response) -> tuple[int, int, int]:
-        """Rút (prompt, completion, total) — LẤY total THÔ CỦA PROVIDER.
+        """Rút (prompt, completion, total) — LẤY total THÔ CỦA PROVIDER, không
+        bao giờ tự cộng lại prompt + completion.
 
-        BẪY: một số phiên bản LangChain tự tính lại total = input + output khi
-        dựng usage_metadata. Với họ Gemma đó đúng là con số đếm thiếu 7 lần
-        (đo 2026-07-28: p=11, c=36 nhưng provider báo total=337 — ~290 token
-        "thinking" không nằm trong completion_tokens). Nên ưu tiên
-        response_metadata["token_usage"], nơi giữ nguyên khối usage thô.
+        Hai nhánh, mỗi nhánh ứng với MỘT client khác nhau (xem providers.py):
+
+        1. response_metadata["token_usage"] — ChatOpenAI (Groq, OpenRouter,
+           hình dạng OpenAI-compat). Đây là khối usage thô của endpoint, giữ
+           nguyên total_tokens do provider báo. Phép đo gốc ngày 2026-07-28
+           cho thấy Gemma đếm thiếu 7 lần nếu tự cộng p+c (p=11, c=36, nhưng
+           total=337 — ~290 token "thinking" không nằm trong completion) được
+           lấy QUA NHÁNH NÀY, tại thời điểm đó Google còn chạy qua endpoint
+           OpenAI-compat. Task 7 đã chuyển Google sang client khác (xem nhánh
+           2) chính vì bug thought_signature ở vòng lặp tool — nhánh này từ đó
+           không còn được Google đụng tới nữa, chỉ Groq/OpenRouter còn dùng.
+
+        2. usage_metadata — ChatGoogleGenerativeAI (Google: cả Gemini lẫn
+           Gemma, kể từ Task 7). Client này KHÔNG BAO GIỜ set
+           response_metadata["token_usage"] (xem
+           langchain_google_genai.chat_models._response_to_result(), bản đã
+           cài trong .venv) nên mọi lượt Google đều rơi xuống nhánh này.
+           total_tokens ở đây vẫn là total_token_count THÔ của API — KHÔNG
+           phải input_tokens + output_tokens tính lại — nên đáng tin cậy vì
+           cùng lý do như nhánh 1: không bao giờ tin một tổng p+c tự tính
+           trong cùng một tầng, phải tin con số provider tự báo. (output_tokens
+           ở nhánh này đã CỘNG SẴN token "thinking" của Gemma vào — xem
+           output_token_details["reasoning"] nếu cần tách riêng để chẩn đoán.)
         """
         raw = (getattr(response, "response_metadata", None) or {}).get(
             "token_usage") or {}

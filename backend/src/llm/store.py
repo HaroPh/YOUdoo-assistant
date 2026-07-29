@@ -89,6 +89,30 @@ class PostgresUsageStore:
                                     min_size=1, max_size=4, open=True)
         self._owns_pool = True
 
+        # Fail LOUD ngay lúc dựng pool, không đợi tới lượt record()/usage_since()
+        # đầu tiên: nếu quên chạy migration, mọi lượt gọi sau đó sẽ ném lỗi mà
+        # BudgetLedger (chủ đích, xem docstring lớp) fail-open trên đó — tức
+        # "quên chạy migration" lặng lẽ biến thành "ngân sách còn dư mãi mãi",
+        # với mỗi request một logger.warning làm bằng chứng duy nhất, trong khi
+        # hệ thống trông vẫn khoẻ mạnh. Đây là chỗ DUY NHẤT "fail open" (của
+        # BudgetLedger) và "fail loud" (của providers.client_for(), Task 7)
+        # đụng nhau — nên đi theo mẫu client_for(): chết ngay lúc dựng, không
+        # đợi lúc gọi. Chỉ kiểm khi TỰ dựng pool từ dsn — nhánh pool= tiêm sẵn
+        # là đường test/DI, trách nhiệm đó thuộc về nơi gọi.
+        try:
+            with self._pool.connection() as conn:
+                conn.execute("SELECT 1 FROM llm_usage LIMIT 0")
+        except Exception as exc:
+            self._pool.close()
+            raise RuntimeError(
+                "bảng llm_usage không tồn tại hoặc Postgres không truy cập "
+                "được — chạy backend/migrations/001_llm_usage.sql trước khi "
+                "khởi động. KHÔNG bắt lỗi này ở tầng cao hơn: bỏ qua nó biến "
+                "'quên chạy migration' thành 'ngân sách còn dư mãi mãi' qua "
+                "đường fail-open của BudgetLedger, mà không ai biết ngân sách "
+                "đã tắt hoàn toàn."
+            ) from exc
+
     def close(self) -> None:
         if self._owns_pool:
             self._pool.close()

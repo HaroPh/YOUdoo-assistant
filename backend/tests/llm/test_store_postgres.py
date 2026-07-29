@@ -68,3 +68,62 @@ def test_phai_dua_dung_mot_trong_hai_alias_hoac_provider(store):
         store.usage_since(since=now)
     with pytest.raises(ValueError):
         store.usage_since(since=now, alias="a", provider="p")
+
+
+# ─── Fail-loud khi thiếu migration (review toàn nhánh, không phải task riêng) ─
+#
+# DSN riêng, KHÔNG dùng fixture `store` ở trên: fixture đó giả định bảng
+# llm_usage đã tồn tại (nó DELETE khỏi bảng đó trước mỗi test). Hai test dưới
+# đây cần một database KHÔNG có bảng — phải tự cầm DSN của DATABASE_URL và tự
+# quyết định lúc nào bảng có/không có, không đi qua fixture.
+
+def _skip_neu_thieu_dsn() -> None:
+    if not DSN:
+        pytest.skip("chưa đặt DATABASE_URL")
+
+
+def test_thieu_migration_thi_nem_RuntimeError_ro_rang():
+    """Không có bảng llm_usage → dựng PostgresUsageStore phải chết NGAY tại
+    __init__, không đợi tới lượt record()/usage_since() đầu tiên — đó chính là
+    lỗ hổng mà review toàn nhánh bắt được: BudgetLedger fail-open trên bất kỳ
+    exception nào từ store, nên nếu lỗi "thiếu bảng" chỉ nổi lên muộn (hoặc
+    không nổi lên loud), quên chạy migration sẽ lặng lẽ tắt vĩnh viễn việc
+    kiểm ngân sách."""
+    _skip_neu_thieu_dsn()
+    import psycopg
+    # Xoá bảng nếu có, để chắc chắn đang test đúng kịch bản "chưa migrate".
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        conn.execute("DROP TABLE IF EXISTS llm_usage")
+    try:
+        with pytest.raises(RuntimeError, match="llm_usage"):
+            PostgresUsageStore(DSN)
+    finally:
+        # Dựng lại bảng để không làm hỏng các test khác chạy sau trong cùng
+        # tiến trình (fixture `store` ở trên giả định bảng đã tồn tại).
+        with open("migrations/001_llm_usage.sql", encoding="utf-8") as f:
+            sql = f.read()
+        with psycopg.connect(DSN, autocommit=True) as conn:
+            conn.execute(sql)
+
+
+def test_co_migration_thi_van_dung_binh_thuong():
+    """Đối chứng: bảng đã tồn tại → constructor không được ném gì cả, và store
+    vẫn hoạt động y như trước khi thêm cú kiểm fail-loud này."""
+    _skip_neu_thieu_dsn()
+    import psycopg
+    with open("migrations/001_llm_usage.sql", encoding="utf-8") as f:
+        sql = f.read()
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        conn.execute(sql)   # idempotent (CREATE TABLE IF NOT EXISTS)
+
+    s = PostgresUsageStore(DSN)
+    try:
+        now = datetime.now(timezone.utc)
+        _rec(s, now, alias="test-fail-loud", total=42)
+        got = s.usage_since(since=now - timedelta(minutes=1),
+                            alias="test-fail-loud")
+        assert got == Usage(requests=1, total_tokens=42)
+    finally:
+        with s._pool.connection() as conn:
+            conn.execute("DELETE FROM llm_usage WHERE alias = 'test-fail-loud'")
+        s.close()
