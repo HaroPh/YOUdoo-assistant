@@ -47,24 +47,28 @@ class FakeChatClient:
     def __init__(self, responses) -> None:
         self.responses = list(responses)
         self.calls: list[list] = []
+        self.configs: list = []             # MỚI: config từng lượt
         self.bound_tools = None
+        self.bound_tool_kwargs: dict = {}   # MỚI: kwargs của bind_tools
 
-    def bind_tools(self, tools):
+    def bind_tools(self, tools, **kwargs):
         self.bound_tools = tools
+        self.bound_tool_kwargs = dict(kwargs)
         return self
 
-    def _next(self, messages):
+    def _next(self, messages, config=None):
         self.calls.append(messages)
+        self.configs.append(config)
         item = self.responses[min(len(self.calls) - 1, len(self.responses) - 1)]
         if isinstance(item, Exception):
             raise item
         return item
 
-    def invoke(self, messages, **kwargs):
-        return self._next(messages)
+    def invoke(self, messages, config=None, **kwargs):
+        return self._next(messages, config)
 
-    async def ainvoke(self, messages, **kwargs):
-        return self._next(messages)
+    async def ainvoke(self, messages, config=None, **kwargs):
+        return self._next(messages, config)
 
 
 def fake_ai(content="xong", *, prompt=10, completion=20, total=30):

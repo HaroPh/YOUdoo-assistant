@@ -4,6 +4,7 @@ resolve() CHỈ chọn, không gọi — gọi thật nằm ở Router.invoke() 
 vậy để toàn bộ logic chọn test được bằng sổ ngân sách giả, không cần client.
 """
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 from .budget import BudgetLedger, Verdict
@@ -68,6 +69,60 @@ class InvokeResult:
     attempts: tuple[AttemptError, ...]   # các mắt xích đã thử và hỏng
 
 
+def _gop_content(content) -> str:
+    """Gộp content về string — có thể là list khối, qua HAI nhánh độc lập.
+
+    Nhánh 1 — Gemini 3.x: langchain_google_genai có nhánh
+    _is_gemini_3_or_later() khớp tiền tố "gemini-3", tức CẢ
+    gemini-3.5-flash-lite LẪN gemini-3.1-flash-lite; trên nhánh đó nó phát ra
+    content là list các khối {"type": "text", "text": ...} thay vì string. Hai
+    model này đứng đầu 4 trong 7 chuỗi vai (read, planner, fusion, synthesis),
+    và toàn bộ code agents/ port từ repo nguồn sang đều gọi .content.strip() —
+    không gộp ở ĐÂY thì phải vá rải rác khắp mọi node, và chỗ nào quên thì vỡ
+    lúc chạy chứ không phải lúc test.
+
+    Nhánh 2 — Gemma, KHÔNG LIÊN QUAN tới _is_gemini_3_or_later(): đây là
+    CRASH THẬT, đo được bằng traceback thật ở spike Task 1
+    (docs/spikes/2026-07-29-port-cloud-model.md, phát hiện #2/#3), không phải
+    suy diễn lý thuyết. Xác nhận trực tiếp trong mã nguồn đã cài
+    (backend/.venv/Lib/site-packages/langchain_google_genai/chat_models.py,
+    dòng 916–943): khi `part.thought` truthy — và Gemma KHÔNG BAO GIỜ tắt được
+    thinking, xem emits_thought_tags=True ở catalog.py cho cả gemma-4-26b lẫn
+    gemma-4-31b — thư viện chèn một khối {"type": "thinking", ...} vào content,
+    và MỌI khối text theo sau trong cùng response cũng bị giữ dạng list (dict
+    block) thay vì được nối lại thành string. Vai `router` có mắt xích ĐẦU là
+    gemma-4-26b, nên đây là đường chạy MẶC ĐỊNH của vai đó, không phải edge
+    case. Trước khi có hàm này, Router._finish() gọi thẳng
+    strip_thought(response.content) — hàm chỉ nhận string — lên list này, ném
+    TypeError KHÔNG bị bắt (nằm ngoài try/except của cả invoke()/ainvoke()),
+    vượt qua toàn bộ đường degrade ChainExhausted/SAFE_MSG đã thiết kế.
+
+    Cả hai nhánh xử lý CHUNG bằng một logic không phân biệt tên model/provider:
+    lọc theo `type`, chỉ giữ "text", bỏ "thinking" (và các type lạ khác) — nối
+    thô str(content) sẽ làm rò rỉ nội dung suy nghĩ nội bộ (khối thinking của
+    Gemma có thể dài hàng trăm token reasoning) vào câu trả lời cuối cùng.
+
+    Gộp ở tầng này còn khiến strip_thought() luôn nhận string, đúng chữ ký của
+    nó — sau khi lọc bỏ khối thinking dạng cấu trúc (nhánh 2), strip_thought()
+    (viết cho tag XML <thought> nhúng trong string, cơ chế cũ của endpoint
+    OpenAI-compat) gần như luôn no-op cho Gemma qua SDK mới; vẫn giữ nó lại
+    làm lưới an toàn dự phòng, không xoá.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        phan = []
+        for khoi in content:
+            if isinstance(khoi, str):
+                phan.append(khoi)
+            elif isinstance(khoi, dict) and khoi.get("type") == "text":
+                phan.append(khoi.get("text") or "")
+        return "".join(phan)
+    return str(content)
+
+
 class Router:
     def __init__(self, ledger: BudgetLedger, client_factory=client_for) -> None:
         self._ledger = ledger
@@ -108,7 +163,7 @@ class Router:
 
         raise ChainExhausted(role, tuple(skipped))
 
-    def _client(self, spec: ModelSpec, tools):
+    def _client(self, spec: ModelSpec, tools, tool_kwargs=None):
         # Cache theo alias: dựng lại client mỗi lượt là lãng phí (dù là
         # ChatOpenAI hay ChatGoogleGenerativeAI — client_for() trả loại nào
         # tuỳ provider, xem Task 7), mà tools thì
@@ -117,7 +172,9 @@ class Router:
         if spec.alias not in self._clients:
             self._clients[spec.alias] = self._client_factory(spec)
         client = self._clients[spec.alias]
-        return client.bind_tools(tools) if tools else client
+        if not tools:
+            return client
+        return client.bind_tools(tools, **(tool_kwargs or {}))
 
     @staticmethod
     def _is_rate_limit(exc: Exception) -> bool:
@@ -173,6 +230,7 @@ class Router:
 
     def _finish(self, decision: RouteDecision, response,
                 attempts: list[AttemptError]) -> InvokeResult:
+        response.content = _gop_content(response.content)      # DÒNG MỚI
         if decision.spec.emits_thought_tags:
             response.content = strip_thought(response.content)
         prompt, completion, total = self._usage(response)
@@ -188,13 +246,15 @@ class Router:
         return 1 if pin is not None else len(chain_for(role))
 
     def invoke(self, role: str, messages: list, tools: list | None = None,
-               pin: str | None = None) -> InvokeResult:
+               pin: str | None = None, config=None,
+               tool_kwargs: dict | None = None, **kwargs) -> InvokeResult:
         base = estimate_base_tokens(messages, tools)
         attempts: list[AttemptError] = []
         for _ in range(self._max_attempts(role, pin)):
             decision = self.resolve(role, base, pin=pin)
             try:
-                response = self._client(decision.spec, tools).invoke(messages)
+                response = self._client(decision.spec, tools, tool_kwargs).invoke(
+                    messages, config=config, **kwargs)
             except Exception as exc:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
@@ -205,14 +265,16 @@ class Router:
 
     async def ainvoke(self, role: str, messages: list,
                       tools: list | None = None,
-                      pin: str | None = None) -> InvokeResult:
+                      pin: str | None = None, config=None,
+                      tool_kwargs: dict | None = None, **kwargs) -> InvokeResult:
         base = estimate_base_tokens(messages, tools)
         attempts: list[AttemptError] = []
         for _ in range(self._max_attempts(role, pin)):
             decision = self.resolve(role, base, pin=pin)
             try:
                 response = await self._client(
-                    decision.spec, tools).ainvoke(messages)
+                    decision.spec, tools, tool_kwargs).ainvoke(
+                        messages, config=config, **kwargs)
             except Exception as exc:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
@@ -226,6 +288,28 @@ from langchain_core.runnables import Runnable
 
 from .catalog import ROLES
 from .store import PostgresUsageStore
+
+
+# Quyết định của lượt gọi vừa rồi, tách theo NGỮ CẢNH chứ không theo instance.
+#
+# make_llms() dựng mỗi vai một RoutedChatModel đúng MỘT LẦN, và ERPAgent là
+# singleton dựng trong lifespan của FastAPI — tức mọi request dùng chung đúng
+# những object ấy. Để last_decision làm biến instance thì hai request cùng vai
+# đua nhau, bên thua đọc được quyết định của bên kia. Kế hoạch C chỉ định đúng
+# last_decision làm móc đổ thuộc tính span Langfuse, nên đọc nhầm ở đây là ghi
+# sai trace, loại lỗi không ai phát hiện bằng mắt.
+#
+# Một ContextVar duy nhất giữ dict {khoá vai: quyết định}, KHÔNG tạo ContextVar
+# theo từng instance: bind_tools() sinh instance mới mỗi lượt gọi, mà ContextVar
+# tạo động thì không bao giờ được thu hồi.
+#
+# GIỚI HẠN phải biết: giá trị set() bên trong một asyncio.Task KHÔNG lan ngược
+# về task cha (đã kiểm chứng: gather xong rồi đọc ở cha thì thấy dict rỗng).
+# Nên last_decision phải được đọc TRONG cùng ngữ cảnh đã gọi invoke — đúng như
+# graph làm (FastAPI cấp mỗi request một task, node đọc quyết định ngay trong
+# request đó). Đây chính là tính chất tạo ra sự cô lập: hai request đồng thời
+# cùng vai thấy hai giá trị khác nhau thay vì ghi đè lên nhau.
+_QUYET_DINH: ContextVar[dict] = ContextVar("routed_chat_quyet_dinh", default={})
 
 
 class RoutedChatModel(Runnable):
@@ -242,28 +326,48 @@ class RoutedChatModel(Runnable):
     """
 
     def __init__(self, router: "Router", role: str, tools: list | None = None,
-                 pin: str | None = None) -> None:
+                 pin: str | None = None,
+                 tool_kwargs: dict | None = None) -> None:
         self._router = router
         self._role = role
         self._tools = tools
         self._pin = pin
-        self.last_decision: RouteDecision | None = None
+        self._tool_kwargs = dict(tool_kwargs or {})
+        # Khoá theo vai+ghim: bind_tools() trả instance mới nhưng cùng vai, và
+        # đó vẫn là cùng một lượt gọi logic nên phải cùng khoá.
+        self._khoa = f"{role}\x00{pin or ''}"
+
+    @property
+    def last_decision(self) -> RouteDecision | None:
+        return _QUYET_DINH.get().get(self._khoa)
+
+    def _ghi_quyet_dinh(self, decision: RouteDecision) -> None:
+        # Gán dict MỚI chứ không sửa tại chỗ: dict mặc định của ContextVar dùng
+        # chung mọi ngữ cảnh, sửa tại chỗ là rò rỉ đúng thứ đang đi tránh.
+        _QUYET_DINH.set({**_QUYET_DINH.get(), self._khoa: decision})
 
     def bind_tools(self, tools: list, **kwargs) -> "RoutedChatModel":
         # Trả bản MỚI, không sửa bản gốc — khớp ngữ nghĩa bind_tools của
         # LangChain. Bản mới dùng chung router nên dùng chung sổ ngân sách.
-        return RoutedChatModel(self._router, self._role, tools, self._pin)
+        # kwargs (tool_choice, parallel_tool_calls…) đi theo xuống client:
+        # nhận rồi bỏ im lặng là đổi hành vi âm thầm tại chỗ gọi đã port.
+        return RoutedChatModel(self._router, self._role, tools, self._pin,
+                               tool_kwargs={**self._tool_kwargs, **kwargs})
 
     def invoke(self, input, config=None, **kwargs):
         result = self._router.invoke(self._role, input, tools=self._tools,
-                                     pin=self._pin)
-        self.last_decision = result.decision
+                                     pin=self._pin, config=config,
+                                     tool_kwargs=self._tool_kwargs, **kwargs)
+        self._ghi_quyet_dinh(result.decision)
         return result.message
 
     async def ainvoke(self, input, config=None, **kwargs):
         result = await self._router.ainvoke(self._role, input,
-                                            tools=self._tools, pin=self._pin)
-        self.last_decision = result.decision
+                                            tools=self._tools, pin=self._pin,
+                                            config=config,
+                                            tool_kwargs=self._tool_kwargs,
+                                            **kwargs)
+        self._ghi_quyet_dinh(result.decision)
         return result.message
 
 
