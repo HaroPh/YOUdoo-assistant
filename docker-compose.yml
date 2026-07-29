@@ -1,0 +1,46 @@
+# Hạ tầng SP-1B. KHÔNG có litellm (ADR-011 mục 2 — cả 3 nhà đã
+# OpenAI-compatible nên LiteLLM hết lý do tồn tại) và KHÔNG có open-webui
+# (giao diện chat chỉ có nghĩa khi có /v1, tức kế hoạch C).
+#
+# KHÔNG có ollama: D:\Project đã chạy sẵn một instance ollama dùng chung
+# (localhost:11434, đã pull sẵn bge-m3). Ollama chỉ là model server, không có
+# dữ liệu cần cách ly theo project — dựng thêm một container thứ hai ở đây chỉ
+# tốn thêm ~1.2GB+ disk/VRAM mà không mang lại lợi ích gì, nên dùng chung thay
+# vì trùng lặp. .env.example: OLLAMA_URL đã trỏ thẳng vào instance dùng chung
+# đó (khác với litellm/open-webui — hai cái đó bị bỏ vì hoãn sang kế hoạch
+# khác, không phải vì dùng chung).
+#
+# Postgres THÌ CÓ instance riêng, không dùng chung với D:\Project: D:\Project
+# đã có container postgres của riêng nó trên cổng host 5433, đang chạy với dữ
+# liệu thật của project đó (rag_chunks, rag_documents, erp_action_audit,
+# checkpoints, ...). Dùng chung sẽ rủi ro lẫn dữ liệu giữa hai project, nên
+# Youdoo dựng container Postgres MỚI, hoàn toàn cách ly (image, volume, cổng
+# host riêng — 5434, không phải 5433).
+#
+# Odoo nằm NGOÀI compose này — trỏ qua ODOO_URL. Repo nguồn dùng
+# host.docker.internal:8069.
+
+volumes:
+  youdoo_postgres_data:
+    driver: local
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: youdoo-postgres
+    # Host 5434 — D:\Project đã chiếm 5433 với container postgres riêng của
+    # nó (dữ liệu thật, không được đụng vào). Container/network vẫn dùng 5432.
+    ports: ["5434:5432"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-thay_bang_mat_khau}
+      POSTGRES_DB: ai_assistant
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - youdoo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
