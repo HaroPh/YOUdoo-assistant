@@ -1,0 +1,361 @@
+# backend/evals/cases.py
+"""Eval sets cho gate M3 (ADR-009) — đo model THẬT, không mock.
+
+INTENT_CASES: (câu tiếng Việt, intent kỳ vọng) — 5 nhánh × 8.
+CONFIRM_CASES: (reply, nhãn kỳ vọng) — cases chọn để NÉ keyword fast-path
+(confirmation.py xử lý 'có/không/ok/hủy...' bằng keyword, không tới LLM),
+nên eval này đo đúng chất lượng LLM fallback.
+"""
+
+INTENT_CASES = [
+    # erp_read
+    ("tồn kho Desk Pad còn bao nhiêu?", "erp_read"),
+    ("liệt kê các đơn bán tháng này", "erp_read"),
+    ("doanh thu tháng 6 là bao nhiêu?", "erp_read"),
+    ("top 5 sản phẩm bán chạy nhất", "erp_read"),
+    ("chi tiết đơn S00042", "erp_read"),
+    ("khách Azure Interior có bao nhiêu đơn chưa thanh toán?", "erp_read"),
+    ("hóa đơn nào đang quá hạn?", "erp_read"),
+    ("còn lô nào của Large Cabinet trong kho không?", "erp_read"),
+    ("định mức nguyên liệu của Drawer gồm những gì?", "erp_read"),
+    ("sản phẩm nào đang cần đặt hàng lại?", "erp_read"),
+    ("đơn mua nào có số lượng nhận và hóa đơn không khớp nhau?", "erp_read"),
+    ("phiếu giao hàng nào đang trễ hạn?", "erp_read"),
+    ("công nợ hiện tại của khách Azure Interior là bao nhiêu?", "erp_read"),
+    ("danh sách cơ hội đang mở gần đây", "erp_read"),
+    # erp_write
+    ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "erp_write"),
+    ("xác nhận đơn S00042", "erp_write"),
+    ("giao hàng cho đơn S00040 luôn nhé", "erp_write"),
+    ("đổi số lượng Desk Pad trong S00043 thành 5", "erp_write"),
+    ("tạo đơn mua 10 Cabinet with Doors từ Wood Corner", "erp_write"),
+    ("xuất hóa đơn cho đơn S00039", "erp_write"),
+    ("điều chỉnh tồn kho Desk Pad về 100", "erp_write"),
+    ("làm ơn tạo báo giá mới nhất cho khách Gemini Furniture, số lượng 3 bàn", "erp_write"),  # từng misroute
+    ("tạo lead mới cho khách Green Valley, quan tâm sản phẩm bàn ghế văn phòng", "erp_write"),
+    ("tạo lệnh sản xuất 20 Drawer", "erp_write"),
+    ("cập nhật định mức nguyên liệu của Drawer, thêm 2 ốc vít", "erp_write"),
+    ("chuyển 10 Desk Pad từ kho chính sang kho phụ", "erp_write"),
+    ("loại bỏ 3 Desk Pad bị hỏng khỏi kho", "erp_write"),
+    ("khách Azure Interior trả lại 1 Large Cabinet đã giao", "erp_write"),
+    ("ghi nhận thanh toán cho hóa đơn INV/2026/00016", "erp_write"),
+    # rag
+    ("chính sách đổi trả hàng như thế nào?", "rag"),
+    ("SLA giao hàng nội thành là bao lâu?", "rag"),
+    ("quy trình xử lý khiếu nại khách hàng?", "rag"),
+    ("hàng giảm giá có được hoàn trả không?", "rag"),
+    ("điều kiện bảo hành sản phẩm gỗ?", "rag"),
+    ("quy định về đặt cọc cho đơn hàng lớn?", "rag"),
+    ("thời gian xử lý hoàn tiền là bao lâu?", "rag"),
+    ("SOP nhập kho gồm những bước nào?", "rag"),
+    # mixed
+    ("đơn S00042 có được miễn phí giao không theo chính sách?", "mixed"),
+    ("đơn của Azure Interior trễ SLA chưa?", "mixed"),
+    ("đơn S00040 của khách này đủ điều kiện chiết khấu theo bảng giá không?", "mixed"),
+    ("theo chính sách đổi trả, đơn S00035 còn hạn đổi không?", "mixed"),
+    ("tồn kho Desk Pad có dưới ngưỡng cảnh báo trong SOP không?", "mixed"),
+    ("đơn nào đang vi phạm SLA giao hàng?", "mixed"),
+    ("giá trong đơn S00039 có khớp bảng giá hiện hành không?", "mixed"),
+    ("khách Wood Corner có đơn nào vượt hạn mức công nợ theo chính sách không?", "mixed"),
+    ("lệnh sản xuất mới có cần kiểm tra chất lượng theo SOP trước khi hoàn tất không?", "mixed"),
+    # unknown
+    ("chào bạn", "unknown"),
+    ("cảm ơn nhé", "unknown"),
+    ("bạn là ai?", "unknown"),
+    ("thời tiết hôm nay thế nào?", "unknown"),
+    ("kể chuyện cười đi", "unknown"),
+    ("1+1 bằng mấy?", "unknown"),
+    ("bạn đang dùng model gì vậy?", "unknown"),
+    ("hay đấy", "unknown"),
+]
+
+CONFIRM_CASES = [
+    # CONFIRM kỳ vọng
+    ("chốt luôn đi", "confirm"),
+    ("vậy triển đi nhé", "confirm"),
+    ("gật", "confirm"),
+    ("duyệt nhé", "confirm"),
+    ("cứ thế mà làm", "confirm"),
+    ("chốt đơn giùm mình", "confirm"),
+    ("êm, quất luôn", "confirm"),
+    ("lên đơn đi bạn", "confirm"),
+    # CANCEL kỳ vọng
+    ("để sau đi", "cancel"),
+    ("từ từ đã", "cancel"),
+    ("chưa vội đâu", "cancel"),
+    ("đợi mình xem lại đã", "cancel"),
+    ("bỏ qua giùm", "cancel"),
+    ("để mình suy nghĩ thêm", "cancel"),
+    ("hôm khác làm", "cancel"),
+    ("sai rồi, làm lại cái khác", "cancel"),
+    # UNCLEAR kỳ vọng (câu hỏi / yêu cầu sửa / mơ hồ)
+    ("giá này rẻ hơn hôm qua à?", "unclear"),
+    ("đơn này của khách nào vậy?", "unclear"),
+    ("2 cái hay 3 cái nhỉ?", "unclear"),
+    ("bạn nghĩ sao?", "unclear"),
+    ("quy trình này hoạt động ra sao?", "unclear"),
+    ("cho mình đổi thành 5 cái được chứ?", "unclear"),
+    ("hmm để coi", "unclear"),
+    ("à mà giá bao nhiêu ấy nhỉ?", "unclear"),
+]
+
+# ── Chitchat eval-gate (khóa #10, ADR-009) ────────────────────────────────────
+# respond_unknown() KHÔNG có system prompt (backend/src/agents/nodes.py) — nếu
+# router misroute 1 yêu cầu ERP thật vào đây, model có thể bịa đã thực hiện
+# hành động (không tool nào chạy thật — rủi ro trust/UX, không phải data-sai).
+# Gate tuyệt đối: violations phải = 0. Heuristic từ khóa, không LLM-judge —
+# residual: có thể bỏ sót cách diễn đạt không khớp danh sách (spec §7).
+
+HALLUCINATION_MARKERS = [
+    "đã tạo", "đã xác nhận", "đã hủy", "đã huỷ", "đã giao", "đã nhận hàng",
+    "đã xuất hóa đơn", "đã xuất hoá đơn", "đã điều chỉnh", "đã cập nhật",
+    # "đã lưu" (bare) từng false-positive trên "đã lưu ý" (= đã ghi nhận, không
+    # liên quan hành động ERP) — thay bằng cụm cụ thể có tân ngữ (review finding).
+    "đã lưu đơn", "đã lưu thông tin", "đã lưu thay đổi",
+    "hoàn tất giao dịch", "thực hiện thành công", "giao dịch thành công",
+]
+
+CHITCHAT_CASES = (
+    # Nhóm A: chit-chat thật (tái dùng đúng 8 câu nhãn "unknown" trong
+    # INTENT_CASES — tránh trùng lặp nội dung, cùng input, khác tầng kiểm tra).
+    [text for text, label in INTENT_CASES if label == "unknown"]
+    # Nhóm B: near-miss — hình dạng giống yêu cầu ERP thật, đủ mơ hồ để có thể
+    # bị router misroute vào "unknown" (input thực tế nhất có thể chạm node này).
+    + [
+        "chốt đơn kia luôn nhé",
+        "giao hàng được chưa vậy",
+        "hủy giùm cái đơn lúc nãy",
+        "tồn kho còn không ta",
+        "báo giá xong chưa vậy",
+        "đơn đó sao rồi",
+        "làm luôn đi đừng hỏi nữa",
+        "cập nhật giúp cái kia với",
+    ]
+)
+
+# ── planner set (SP-0) ───────────────────────────────────────────────────────
+# (câu tiếng Việt, tool kỳ vọng, args BẮT BUỘC khớp). Args chỉ khai báo key
+# then chốt — key optional model tự thêm KHÔNG tính sai (planner còn 2 lớp
+# chặn phía sau: confirm-gate + forbid_extra_kwargs tầng MCP).
+# Tên tool + tên arg lấy ĐÚNG theo WRITE_PLANNER_PROMPT (prompts.py).
+PLANNER_CASES = [
+    # chuỗi bán
+    ("xác nhận đơn S00042", "confirm_sale_order", {"order_ref": "S00042"}),
+    ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "create_quotation",
+     {"partner_name": "Azure Interior",
+      "lines": [{"product": "Large Cabinet", "qty": 2}]}),
+    ("giao hàng cho đơn S00040", "deliver_order", {"order_ref": "S00040"}),
+    ("tạo hóa đơn từ đơn S00042", "create_invoice_from_order",
+     {"order_ref": "S00042"}),
+    ("đổi số lượng Desk Pad trong S00043 thành 5", "update_quotation_lines",
+     {"order_ref": "S00043"}),
+    # chuỗi mua
+    ("xác nhận đơn mua P00003", "confirm_purchase_order", {"order_ref": "P00003"}),
+    ("tạo RFQ cho Hồng Phúc, 10 Screw", "create_rfq",
+     {"partner_name": "Hồng Phúc", "lines": [{"product": "Screw", "qty": 10}]}),
+    ("nhận hàng cho đơn mua P00003", "receive_order", {"order_ref": "P00003"}),
+    ("tạo hóa đơn nhà cung cấp từ đơn mua P00003", "create_bill_from_po",
+     {"order_ref": "P00003"}),
+    # phiếu kho — bẫy THẬT round 11 (WH/IN bị nhầm sang confirm_purchase_order)
+    ("xác nhận phiếu WH/OUT/00001", "validate_picking",
+     {"picking_ref": "WH/OUT/00001"}),
+    ("xác nhận phiếu WH/IN/00005", "validate_picking",
+     {"picking_ref": "WH/IN/00005"}),
+    # kho
+    ("đặt tồn kho Desk Pad về 100", "inventory_adjustment",
+     {"new_qty": 100, "product_name": "Desk Pad"}),
+    ("chuyển 5 Screw từ Shelf 1 sang Shelf 2", "internal_transfer",
+     {"product_name": "Screw", "qty": 5,
+      "from_location": "Shelf 1", "to_location": "Shelf 2"}),
+    ("ghi nhận 3 Large Cabinet bị hỏng", "scrap_product",
+     {"product_name": "Large Cabinet", "qty": 3}),
+    # CRM
+    ("tạo lead mới cho anh Trần Phúc, sđt 0901234567", "create_lead",
+     {"phone": "0901234567"}),
+    ("chuyển lead Modernize old offices thành cơ hội", "convert_lead",
+     {"lead_ref": "Modernize old offices"}),
+    ("lên lịch gọi cho lead Modernize old offices", "log_activity",
+     {"lead_ref": "Modernize old offices", "activity_type": "Call"}),
+    # sản xuất
+    ("tạo lệnh sản xuất 10 Drawer", "create_manufacturing_order",
+     {"product_name": "Drawer", "qty": 10}),
+    ("xác nhận lệnh sản xuất WH/MO/00007", "confirm_manufacturing_order",
+     {"order_ref": "WH/MO/00007"}),
+    ("hoàn tất lệnh sản xuất WH/MO/00007", "complete_manufacturing_order",
+     {"order_ref": "WH/MO/00007"}),
+    # BoM
+    ("tạo định mức cho Office Lamp gồm 2 Screw", "create_bom",
+     {"product_name": "Office Lamp",
+      "components": [{"product": "Screw", "qty": 2}]}),
+    # trả hàng / hoàn tiền
+    ("trả hàng cho đơn S00042", "return_order", {"order_ref": "S00042"}),
+    ("tạo credit memo cho hóa đơn INV/2026/00017", "create_credit_memo",
+     {"invoice_ref": "INV/2026/00017"}),
+    # nhà cung cấp (round 12)
+    ("thêm nhà cung cấp mới tên Công ty ABC", "create_vendor",
+     {"name": "Công ty ABC"}),
+    ("khai giá Screw từ Hồng Phúc là 12000", "update_vendor_pricing",
+     {"vendor_name": "Hồng Phúc", "product": "Screw", "price": 12000}),
+]
+
+# Mọi tool GHI hợp lệ — dùng để phân biệt "chọn sai tool ghi" (nguy hiểm) với
+# "other"/thiếu tool ("không biết", an toàn). Đồng bộ WRITE_PLANNER_PROMPT.
+WRITE_TOOL_NAMES = frozenset({
+    "confirm_sale_order", "confirm_purchase_order", "post_invoice",
+    "create_invoice_from_order", "validate_picking", "deliver_order",
+    "receive_order", "create_bill_from_po", "register_payment",
+    "create_quotation", "create_rfq", "update_quotation_lines",
+    "update_rfq_lines", "inventory_adjustment", "internal_transfer",
+    "scrap_product", "create_lead", "convert_lead", "log_activity",
+    "create_manufacturing_order", "confirm_manufacturing_order",
+    "complete_manufacturing_order", "create_bom", "update_bom_lines",
+    "return_order", "create_credit_memo", "create_vendor",
+    "update_vendor_pricing", "create_bulk_rfq",
+})
+
+# ── read set (SP-0) ──────────────────────────────────────────────────────────
+# (câu hỏi, tool erp_query kỳ vọng, args then chốt, entity_keys).
+# entity_keys = arg mang TÊN/MÃ thực thể → giá trị phải xuất hiện trong câu
+# hỏi; nếu không = bịa (lớp lỗi thật round 6/round 3). Tool + tên arg lấy
+# đúng theo backend/src/erp_query/ và SYSTEM_PROMPT.
+READ_CASES = [
+    ("tồn kho Desk Pad còn bao nhiêu?", "get_stock",
+     {"product": "Desk Pad"}, ("product",)),
+    ("liệt kê đơn bán tháng này", "list_sale_orders", {}, ()),
+    ("chi tiết đơn S00042", "get_sale_order_detail",
+     {"ref": "S00042"}, ("ref",)),
+    ("doanh thu tháng này là bao nhiêu?", "sales_summary", {}, ()),
+    # top_products(by, period) KHÔNG có tham số "limit" trong args_schema thật
+    # (backend/src/erp_query/tools.py) — dù hàm nghiệp vụ bên dưới có limit,
+    # tool LangChain không expose nó nên model không thể/không nên đưa "limit"
+    # vào tool call. exp_args để rỗng như các case tham số-tùy-chọn khác.
+    ("top 5 sản phẩm bán chạy nhất", "top_products", {}, ()),
+    ("khách Azure Interior thông tin thế nào?", "find_customer",
+     {"name": "Azure Interior"}, ("name",)),
+    ("hóa đơn nào đang quá hạn?", "get_overdue_invoices", {}, ()),
+    ("công nợ của khách Azure Interior là bao nhiêu?", "get_partner_balance",
+     {"name": "Azure Interior"}, ("name",)),
+    ("còn lô nào của Large Cabinet trong kho không?", "get_lots",
+     {"product": "Large Cabinet"}, ("product",)),
+    ("sản phẩm nào đang cần đặt hàng lại?", "list_reorder_needed", {}, ()),
+    ("định mức nguyên liệu của Drawer gồm những gì?", "get_bom_detail",
+     {"product": "Drawer"}, ("product",)),
+    ("các lệnh sản xuất đang mở", "list_manufacturing_orders", {}, ()),
+    ("đơn mua nào có hóa đơn vượt thực nhận?", "list_po_mismatches", {}, ()),
+    ("đối soát đơn mua P00003", "check_po_matching",
+     {"ref": "P00003"}, ("ref",)),
+    ("danh sách nhà cung cấp", "list_suppliers", {}, ()),
+    ("nhà cung cấp nào bán Screw?", "get_product_suppliers",
+     {"product": "Screw"}, ("product",)),
+    ("phiếu giao hàng nào đang trễ hạn?", "list_late_deliveries", {}, ()),
+    ("hồ sơ nhà cung cấp Hồng Phúc", "get_supplier_detail",
+     {"name": "Hồng Phúc"}, ("name",)),
+    ("danh sách cơ hội đang mở", "list_crm_leads", {}, ()),
+    ("chi tiết đơn mua P00003", "get_purchase_order_detail",
+     {"ref": "P00003"}, ("ref",)),
+]
+
+# ── synthesis set (SP-0) ─────────────────────────────────────────────────────
+# (topic fixture, câu hỏi, kind, expect).
+# kind="answerable" → tài liệu ĐỦ, expect = chuỗi phải có trong câu trả lời.
+# kind="insufficient" → tài liệu KHÔNG đề cập, phải trả KHÔNG_ĐỦ_THÔNG_TIN.
+# Topic đổi so với brief gốc (round: đọc corpus thật trước khi viết case) —
+# "quy_trinh_mua_hang" bị bỏ vì KHÔNG có tài liệu nguồn tương ứng trong RAG DB
+# thật (không module purchase-approval nào được index); thay bằng
+# "chinh_sach_thanh_toan" (payment_policy.docx), khớp corpus thật có sẵn.
+# expect COPY NGUYÊN VĂN từ chunk thật đọc bằng script Task 4 Step 2
+# (backend/evals/fixtures/chunks.json) — không đoán/viết tay.
+SYNTHESIS_CASES = [
+    # sla_giao_hang ← sla.docx "Thỏa thuận mức dịch vụ nhà cung cấp"
+    ("sla_giao_hang", "Đơn hàng khẩn cấp được xử lý trong bao lâu?",
+     "answerable", "3 ngày"),
+    ("sla_giao_hang", "Phạt chậm trễ giao hàng là bao nhiêu mỗi ngày?",
+     "answerable", "0,5%"),
+    # chinh_sach_hoan_hang ← policy.docx "Chính sách hoàn hàng"
+    ("chinh_sach_hoan_hang", "Khách hàng được hoàn hàng trong bao lâu kể từ ngày mua?",
+     "answerable", "30 ngày"),
+    ("chinh_sach_hoan_hang", "Hàng giảm giá có được hoàn trả không?",
+     "answerable", "không được hoàn trả"),
+    # chinh_sach_thanh_toan ← payment_policy.docx "Chính sách thanh toán và công nợ"
+    ("chinh_sach_thanh_toan", "Thời hạn thanh toán mặc định là bao nhiêu ngày?",
+     "answerable", "30 ngày"),
+    ("chinh_sach_thanh_toan", "Quá hạn thanh toán bao lâu thì đơn hàng mới bị tạm dừng xử lý?",
+     "answerable", "tạm dừng xử lý"),
+    # bang_gia_chiet_khau ← discount_policy.docx "Chính sách chiết khấu theo cấp khách hàng"
+    ("bang_gia_chiet_khau", "Khách hàng cấp Thân thiết được chiết khấu bao nhiêu phần trăm?",
+     "answerable", "5%"),
+    ("bang_gia_chiet_khau", "Khách hàng cấp Đối tác chiến lược được chiết khấu bao nhiêu?",
+     "answerable", "10%"),
+    # insufficient: chủ đề HOÀN TOÀN ngoài 4 chunk đóng băng của từng topic
+    ("sla_giao_hang", "Giá cổ phiếu công ty hôm nay là bao nhiêu?",
+     "insufficient", ""),
+    ("chinh_sach_hoan_hang", "Giám đốc công ty tên gì?",
+     "insufficient", ""),
+    ("chinh_sach_thanh_toan", "Thủ đô nước Pháp là thành phố nào?",
+     "insufficient", ""),
+    ("bang_gia_chiet_khau", "Dự báo thời tiết Hà Nội tuần sau thế nào?",
+     "insufficient", ""),
+]
+
+# ── ĐÃ BIẾT: gate multi_source RED trên baseline qwen3:8b (2026-07-26) ──
+# baseline-qwen3-8b-multi_source.json: fabricated_number=4 (gate cứng đòi ==0,
+# xem _gate() trong eval_gate.py). ĐÃ điều tra kỹ — KHÔNG phải hallucination
+# số liệu nghiệp vụ thật. 2 nguyên nhân riêng biệt:
+#  1. (4/6 digit) Basis-mismatch trong eval_multi_source (run_eval.py): biến
+#     `allowed` được dựng từ _digits(chunk.text) nhưng model thực tế được xem
+#     _format_context(chunks) trong prompt — bản này CÓ THÊM nhãn
+#     "[i] (section_path)" chứa "Điều N"/"Mục N" mà `allowed` không tính tới.
+#     Model trích đúng những số NÓ ĐƯỢC XEM (không bịa), nhưng scanner coi
+#     nhầm là bịa vì thiếu basis. LƯU Ý QUAN TRỌNG: FUSION_PROMPT
+#     (backend/src/agents/prompts.py) ĐÃ CÓ SẴN quy tắc cấm nêu "Điều/Mục"
+#     trong câu trả lời — qwen3:8b đang VI PHẠM quy tắc có sẵn này (một phát
+#     hiện thật về chất lượng model, khác hẳn), KHÔNG PHẢI do prompt thiếu
+#     quy tắc.
+#  2. (2/6 digit) Model tính đúng ngày dương lịch từ số ngày nêu trong nguồn
+#     (vd "30 ngày" kể từ 01/07 → 31/07) — kết quả tính không phải substring
+#     nguyên văn của nguồn, bị scanner coi là "bịa" dù phép tính đúng.
+# Quyết định 2026-07-26 (chủ dự án): GIỮ NGUYÊN, KHÔNG sửa trong SP-0 —
+# baseline là phép đo trung thực với scanner hiện tại; sửa `allowed`'s basis
+# giữa lúc chụp baseline sẽ làm mất ý nghĩa "trước" của phép đo. Fix để lại
+# cho round sau: đổi basis thành _digits(_format_context(chunks)), và/hoặc
+# whitelist số ngày-tháng suy ra được từ phép tính hợp lệ.
+# ── multi_source set (SP-0) ──────────────────────────────────────────────────
+# (topic fixture, erp_block đóng băng, câu hỏi, dữ kiện TÀI LIỆU kỳ vọng,
+#  dữ kiện ERP kỳ vọng).
+# Tên set TRUNG TÍNH với cách triển khai có chủ đích: node `fusion` sẽ biến
+# mất ở SP-2 (orchestrator tự dispatch 2 nguồn rồi tổng hợp), nhưng bộ case
+# này phải chạy được trên CẢ HAI để làm phép so sánh trước/sau.
+# expect_doc_fact PHẢI copy nguyên văn từ chunk thật (script Task 4 Step 2).
+# Topic đổi so với brief gốc, cùng lý do Task 4's SYNTHESIS_CASES: bài viết
+# gốc dùng "quy_trinh_mua_hang" 2 lần nhưng KHÔNG có tài liệu nguồn tương ứng
+# trong RAG DB thật; thay bằng "chinh_sach_thanh_toan" (payment_policy.docx),
+# topic thứ 4 khớp corpus thật có sẵn (backend/evals/fixtures/chunks.json).
+MULTI_SOURCE_CASES = [
+    # sla_giao_hang ← sla.docx
+    ("sla_giao_hang", "Đơn S00042 | Azure Interior | trạng thái sale | 1.500.000",
+     "Đơn S00042 có đáp ứng SLA giao hàng không?", "3 ngày", "S00042"),
+    ("sla_giao_hang", "Phiếu giao WH/OUT/00001 | đơn S00040 | trễ 2 ngày",
+     "Phiếu WH/OUT/00001 có vi phạm SLA không?", "0,5%", "WH/OUT/00001"),
+    # chinh_sach_hoan_hang ← policy.docx
+    ("chinh_sach_hoan_hang", "Đơn S00042 | Azure Interior | đã giao 15/07/2026",
+     "Đơn S00042 còn được hoàn hàng theo chính sách không?", "30 ngày", "S00042"),
+    ("chinh_sach_hoan_hang", "Hóa đơn INV/2026/00017 | Azure Interior | đã thanh toán",
+     "Hóa đơn INV/2026/00017 có được hoàn tiền không?", "5 đến 10 ngày",
+     "INV/2026/00017"),
+    # chinh_sach_thanh_toan ← payment_policy.docx (thay quy_trinh_mua_hang)
+    ("chinh_sach_thanh_toan",
+     "Hóa đơn INV/2026/00020 | Khách Wood Corner | xuất ngày 01/07/2026 | chưa thanh toán",
+     "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn thanh toán?",
+     "30 ngày", "INV/2026/00020"),
+    ("chinh_sach_thanh_toan",
+     "Đơn S00050 | Khách Gemini Furniture | quá hạn thanh toán 32 ngày",
+     "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có bị tạm dừng xử lý không?",
+     "tạm dừng xử lý", "S00050"),
+    # bang_gia_chiet_khau ← discount_policy.docx
+    ("bang_gia_chiet_khau", "Khách Azure Interior | đặt 50 Large Cabinet",
+     "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",
+     "chiết khấu", "Azure Interior"),
+    ("bang_gia_chiet_khau", "Khách Azure Interior | đặt 2 Desk Pad",
+     "Đơn 2 Desk Pad của Azure Interior có được chiết khấu không?",
+     "chiết khấu", "Desk Pad"),
+]
