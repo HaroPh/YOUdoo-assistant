@@ -1,0 +1,65 @@
+{
+  "set": "multi_source",
+  "n": 8,
+  "both_source_coverage": 0.75,
+  "citation_validity": 1.0,
+  "fabricated_number": 1,
+  "lat_p50": 7030,
+  "lat_p95": 9595,
+  "fails": [
+    {
+      "topic": "sla_giao_hang",
+      "question": "Đơn S00042 có đáp ứng SLA giao hàng không?",
+      "response": "Không đủ căn cứ để xác định đơn S00042 có đáp ứng SLA giao hàng hay không. Tài liệu quy định thời gian giao hàng là 7 ngày làm việc kể từ khi xác nhận đơn hàng (Điều 3), nhưng dữ liệu ERP hiện tại chưa cung cấp thông tin về ngày xác nhận đơn hàng, ngày giao hàng thực tế, hoặc tình trạng có thông báo",
+      "both": false,
+      "citation_ok": true,
+      "fabricated": []
+    },
+    {
+      "topic": "sla_giao_hang",
+      "question": "Phiếu WH/OUT/00001 có vi phạm SLA không?",
+      "response": "Phiếu giao hàng WH/OUT/00001 có vi phạm SLA. Theo Điều 3, nhà cung cấp phải giao hàng trong 7 ngày làm việc kể từ ngày xác nhận đơn hàng. Trong trường hợp này, phiếu giao bị trễ 2 ngày so với thời hạn quy định, vượt quá thời gian cho phép. Theo Điều 5, vi phạm thời hạn giao hàng sẽ bị phạt 0,5% giá ",
+      "both": true,
+      "citation_ok": true,
+      "fabricated": []
+    },
+    {
+      "topic": "chinh_sach_hoan_hang",
+      "question": "Hóa đơn INV/2026/00017 có được hoàn tiền không?",
+      "response": "Hóa đơn INV/2026/00017 có thể được hoàn tiền nếu đáp ứng các điều kiện sau:  \n- Sản phẩm chưa qua sử dụng, còn nguyên tem mác và trong vòng 30 ngày kể từ ngày mua.  \n- Không thuộc danh sách ngoại lệ như hàng giảm giá, hàng điện tử (áp dụng bảo hành riêng), hoặc thực phẩm/đồ uống đã mở nắp.  \n\nTuy nh",
+      "both": false,
+      "citation_ok": true,
+      "fabricated": []
+    },
+    {
+      "topic": "chinh_sach_thanh_toan",
+      "question": "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn thanh toán?",
+      "response": "Hóa đơn INV/2026/00020 có thời hạn thanh toán mặc định là 30 ngày kể từ ngày xuất hóa đơn (01/07/2026), tức đến ngày 31/07/2026. Nếu khách hàng chưa thanh toán đến ngày này, hóa đơn sẽ bị coi là quá hạn. Theo quy định, sau 15 ngày quá hạn (ngày 15/08/2026), bộ phận kế toán sẽ gửi thông báo nhắc nợ l",
+      "both": true,
+      "citation_ok": true,
+      "fabricated": [
+        "08",
+        "31"
+      ]
+    },
+    {
+      "topic": "bang_gia_chiet_khau",
+      "question": "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",
+      "response": "Azure Interior đặt 50 Large Cabinet chưa đủ thông tin để xác định mức chiết khấu chính xác. Cần thêm dữ liệu về:  \n1. **Giá trị đơn hàng** (để kiểm tra điều kiện chiết khấu theo số lượng: ≥50 triệu đồng).  \n2. **Cấp khách hàng** (Thường, Thân thiết, hoặc Đối tác chiến lược) để áp dụng chiết khấu the",
+      "both": true,
+      "citation_ok": true,
+      "fabricated": []
+    },
+    {
+      "topic": "bang_gia_chiet_khau",
+      "question": "Đơn 2 Desk Pad của Azure Interior có được chiết khấu không?",
+      "response": "Đơn hàng 2 Desk Pad của Azure Interior hiện tại chưa đủ điều kiện áp dụng chiết khấu. Lý do:  \n- Khách hàng Azure Interior là khách mới, mặc định xếp vào cấp **Thường** (theo Mục 1), cấp này **không áp dụng chiết khấu ngoài bảng giá** (Mục 2).  \n- Không có thông tin về giá trị đơn hàng để kiểm tra đ",
+      "both": true,
+      "citation_ok": true,
+      "fabricated": []
+    }
+  ],
+  "errors": [],
+  "original_fabricated_number": 1,
+  "rescored_at": "2026-07-30T05:49:01+00:00"
+}

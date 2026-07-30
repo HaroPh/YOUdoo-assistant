@@ -105,3 +105,21 @@ async def test_multi_source_reports_latency(monkeypatch):
     llm = _ScriptedLLM(["Theo quy định 3 ngày, đơn S00042 đạt.\nNGUỒN_DÙNG: 1"])
     r = await run_eval.eval_multi_source(llm)
     assert "lat_p50" in r and "lat_p95" in r
+
+
+@pytest.mark.asyncio
+async def test_so_trong_nhan_muc_khong_bi_quy_la_bia(monkeypatch):
+    """Tái hiện đúng bug đã sửa: _format_context() gắn chỉ số [i] + nhãn mục
+    (section_path/sheet/basename) vào MỖI chunk. Trước fix, allowed chỉ dựng
+    từ c.text trần nên số trong nhãn mục (vd chunk thứ [3], hay nhãn
+    "(Điều 3.2)") bị quy oan là bịa dù model chỉ đang trích dẫn đúng."""
+    topic = _one_case(monkeypatch)
+    from evals import fixtures
+    chunks = fixtures.load_chunks(topic)
+    # _format_context số hoá chunk từ 1 — chunk đầu chắc chắn mang nhãn "[1]"
+    llm = _ScriptedLLM([
+        "Theo mục [1], đơn S00042 đạt yêu cầu trong 3 ngày.\nNGUỒN_DÙNG: 1"])
+    r = await run_eval.eval_multi_source(llm)
+    assert r["fabricated_number"] == 0, (
+        f"chỉ số [1] trong _format_context() bị quy nhầm là số bịa: "
+        f"{r['fails']}")

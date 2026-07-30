@@ -1,0 +1,11 @@
+{
+  "set": "synthesis",
+  "n": 12,
+  "grounded_acc": 1.0,
+  "false_answer": 0,
+  "false_insufficient": 0,
+  "lat_p50": 3447,
+  "lat_p95": 4822,
+  "fails": [],
+  "errors": []
+}

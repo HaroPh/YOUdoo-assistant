@@ -1,0 +1,12 @@
+{
+  "set": "planner",
+  "n": 25,
+  "tool_acc": 1.0,
+  "args_acc": 1.0,
+  "dangerous_misroute": 0,
+  "parse_fail": 0,
+  "lat_p50": 3672,
+  "lat_p95": 6911,
+  "fails": [],
+  "errors": []
+}

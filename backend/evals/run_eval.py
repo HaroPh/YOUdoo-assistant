@@ -385,7 +385,15 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
         both = _norm(doc_fact) in low and _norm(erp_fact) in low
         cited = _cited_indices(body)
         citation_ok = all(1 <= i <= len(chunks) for i in cited)
-        allowed = _digits(erp_block) | _digits(" ".join(c.text for c in chunks))
+        # BUG (đã sửa, spec §3): model nhìn thấy _format_context(chunks)
+        # (bao gồm chỉ số [i] và nhãn mục), nhưng allowed cũ chỉ dựng từ
+        # c.text trần — số nằm trong nhãn mục bị quy oan là "bịa". allowed
+        # PHẢI khớp đúng thứ model thấy.
+        # Mất mát đã biết: [1]..[len(chunks)] từ nay luôn hợp lệ ở mọi vị trí
+        # (xem rescore_multi_source.py — bước chấm lại là trọng tài, không
+        # phải chủ quan: nếu baseline hiệu chỉnh không tự đạt fabricated=0
+        # thì bản sửa này SAI, phải xem lại).
+        allowed = _digits(erp_block) | _digits(_format_context(chunks))
         # bỏ marker trước khi soi số, tránh coi chính index trích dẫn là số bịa
         m = _MARKER_RE.search(body)
         prose = body[:m.start()] if m else body

@@ -297,28 +297,31 @@ SYNTHESIS_CASES = [
      "insufficient", ""),
 ]
 
-# ── ĐÃ BIẾT: gate multi_source RED trên baseline qwen3:8b (2026-07-26) ──
-# baseline-qwen3-8b-multi_source.json: fabricated_number=4 (gate cứng đòi ==0,
-# xem _gate() trong eval_gate.py). ĐÃ điều tra kỹ — KHÔNG phải hallucination
-# số liệu nghiệp vụ thật. 2 nguyên nhân riêng biệt:
-#  1. (4/6 digit) Basis-mismatch trong eval_multi_source (run_eval.py): biến
+# ── multi_source: basis-mismatch ĐÃ SỬA (SP-1C1 Task 6); 1 case còn lại là
+# giới hạn khác, đã biết và chấp nhận ──────────────────────────────────────
+# Lịch sử: baseline-qwen3-8b-multi_source.json ban đầu (2026-07-26) có
+# fabricated_number=4 (gate cứng đòi ==0, xem _gate() trong eval_gate.py).
+# ĐÃ điều tra kỹ — KHÔNG phải hallucination số liệu nghiệp vụ thật. 2 nguyên
+# nhân riêng biệt:
+#  1. (3/4 case) Basis-mismatch trong eval_multi_source (run_eval.py): biến
 #     `allowed` được dựng từ _digits(chunk.text) nhưng model thực tế được xem
-#     _format_context(chunks) trong prompt — bản này CÓ THÊM nhãn
-#     "[i] (section_path)" chứa "Điều N"/"Mục N" mà `allowed` không tính tới.
+#     _format_context(chunks) trong prompt — bản này CÓ THÊM chỉ số "[i]" và
+#     nhãn "(section_path)" chứa "Điều N"/"Mục N" mà `allowed` không tính tới.
 #     Model trích đúng những số NÓ ĐƯỢC XEM (không bịa), nhưng scanner coi
-#     nhầm là bịa vì thiếu basis. LƯU Ý QUAN TRỌNG: FUSION_PROMPT
-#     (backend/src/agents/prompts.py) ĐÃ CÓ SẴN quy tắc cấm nêu "Điều/Mục"
-#     trong câu trả lời — qwen3:8b đang VI PHẠM quy tắc có sẵn này (một phát
-#     hiện thật về chất lượng model, khác hẳn), KHÔNG PHẢI do prompt thiếu
-#     quy tắc.
-#  2. (2/6 digit) Model tính đúng ngày dương lịch từ số ngày nêu trong nguồn
-#     (vd "30 ngày" kể từ 01/07 → 31/07) — kết quả tính không phải substring
-#     nguyên văn của nguồn, bị scanner coi là "bịa" dù phép tính đúng.
-# Quyết định 2026-07-26 (chủ dự án): GIỮ NGUYÊN, KHÔNG sửa trong SP-0 —
-# baseline là phép đo trung thực với scanner hiện tại; sửa `allowed`'s basis
-# giữa lúc chụp baseline sẽ làm mất ý nghĩa "trước" của phép đo. Fix để lại
-# cho round sau: đổi basis thành _digits(_format_context(chunks)), và/hoặc
-# whitelist số ngày-tháng suy ra được từ phép tính hợp lệ.
+#     nhầm là bịa vì thiếu basis.
+#     ĐÃ SỬA ở SP-1C1 Task 6: allowed = _digits(erp_block) |
+#     _digits(_format_context(chunks)). Baseline đã chấm lại — xem
+#     "rescored_at"/"original_fabricated_number" trong file JSON.
+#  2. (1/4 case, CÒN LẠI) Model tính đúng ngày dương lịch từ số ngày nêu
+#     trong nguồn (vd "30 ngày" kể từ 01/07 → 31/07) — kết quả tính không
+#     phải substring nguyên văn của nguồn, bị scanner coi là "bịa" dù phép
+#     tính đúng. Đây là giới hạn THIẾT KẾ khác của scanner (không xác minh
+#     được suy luận số học), tách biệt khỏi nguyên nhân 1 — Task 6 KHÔNG sửa
+#     (ngoài phạm vi bug được giao). Quyết định (SP-1C1 Task 6, đã trao đổi
+#     với người dùng): chấp nhận, không mở rộng scanner. _gate() áp
+#     fabricated_number==0 lên KẾT QUẢ ĐANG ĐO (không so baseline) nên giới
+#     hạn này áp dụng đối xứng cho mọi model, không thiên vị qwen3:8b.
+#     baseline-qwen3-8b-multi_source.json hiện fabricated_number=1.
 # ── multi_source set (SP-0) ──────────────────────────────────────────────────
 # (topic fixture, erp_block đóng băng, câu hỏi, dữ kiện TÀI LIỆU kỳ vọng,
 #  dữ kiện ERP kỳ vọng).
