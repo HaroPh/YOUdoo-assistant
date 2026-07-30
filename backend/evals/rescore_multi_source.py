@@ -1,5 +1,7 @@
 """Chấm lại baseline-qwen3-8b-multi_source.json sau khi sửa bug scanner
-fabricated_number (spec §3, run_eval.py eval_multi_source()).
+fabricated_number (spec §3, run_eval.py eval_multi_source()) và sau khi thêm
+số suy ra được thủ công cho case ngày-tháng (cases.py
+MULTI_SOURCE_DERIVED_DIGITS, quyết định lại ở SP-1C1 sau 2 lần chạy gate).
 
 KHÔNG chạy lại qwen3:8b — dùng đúng `fabricated` đã lưu trong `fails` của
 baseline gốc (tính trên VĂN BẢN ĐẦY ĐỦ khi baseline được chụp), rồi lọc lại
@@ -7,10 +9,12 @@ theo allowed_new bằng đại số tập hợp:
 
     fabricated_new = fabricated_old \\ allowed_new
 
-Đúng vì allowed_new ⊇ allowed_old (_format_context chứa nguyên c.text cộng
-thêm [i] và nhãn mục — chỉ TO RA, không bao giờ nhỏ đi). KHÔNG dùng trường
-"response" trong bản ghi — nó bị CẮT CỤT ở 300 ký tự (run_eval.py dòng
-"response": body[:300]), quét lại đoạn cắt sẽ đếm thiếu và sai lặng lẽ.
+Đúng vì allowed_new ⊇ allowed_old ở CẢ HAI lần mở rộng: _format_context
+chứa nguyên c.text cộng thêm [i] và nhãn mục; MULTI_SOURCE_DERIVED_DIGITS
+chỉ CỘNG THÊM số cho đúng (topic, question) đã ghi nhận, không bớt gì —
+allowed chỉ TO RA, không bao giờ nhỏ đi. KHÔNG dùng trường "response" trong
+bản ghi — nó bị CẮT CỤT ở 300 ký tự (run_eval.py dòng "response":
+body[:300]), quét lại đoạn cắt sẽ đếm thiếu và sai lặng lẽ.
 
 Chạy: cd backend && .venv/Scripts/python.exe -m evals.rescore_multi_source
 """
@@ -19,16 +23,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from evals import fixtures
-from evals.cases import MULTI_SOURCE_CASES
+from evals.cases import MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS
 from evals.run_eval import _digits
 from src.agents.synthesis import _format_context
 
 _PATH = Path(__file__).resolve().parent / "baseline-qwen3-8b-multi_source.json"
 
 
-def _allowed_new(topic: str, erp_block: str) -> set[str]:
+def _allowed_new(topic: str, erp_block: str, question: str) -> set[str]:
     chunks = fixtures.load_chunks(topic)
-    return _digits(erp_block) | _digits(_format_context(chunks))
+    allowed = _digits(erp_block) | _digits(_format_context(chunks))
+    return allowed | MULTI_SOURCE_DERIVED_DIGITS.get((topic, question), frozenset())
 
 
 def rescore() -> dict:
@@ -48,7 +53,7 @@ def rescore() -> dict:
                 f"không khớp lại được case gốc cho {f['topic']!r}/"
                 f"{f['question']!r} — MULTI_SOURCE_CASES đã đổi so với lúc "
                 "chụp baseline, không chấm lại an toàn được")
-        allowed_new = _allowed_new(f["topic"], erp_block)
+        allowed_new = _allowed_new(f["topic"], erp_block, f["question"])
         fabricated_new = sorted(set(f["fabricated"]) - allowed_new)
         f2 = dict(f, fabricated=fabricated_new)
         new_fails.append(f2)

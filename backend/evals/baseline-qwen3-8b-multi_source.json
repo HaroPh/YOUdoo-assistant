@@ -3,7 +3,7 @@
   "n": 8,
   "both_source_coverage": 0.75,
   "citation_validity": 1.0,
-  "fabricated_number": 1,
+  "fabricated_number": 0,
   "lat_p50": 7030,
   "lat_p95": 9595,
   "fails": [
@@ -37,10 +37,7 @@
       "response": "Hóa đơn INV/2026/00020 có thời hạn thanh toán mặc định là 30 ngày kể từ ngày xuất hóa đơn (01/07/2026), tức đến ngày 31/07/2026. Nếu khách hàng chưa thanh toán đến ngày này, hóa đơn sẽ bị coi là quá hạn. Theo quy định, sau 15 ngày quá hạn (ngày 15/08/2026), bộ phận kế toán sẽ gửi thông báo nhắc nợ l",
       "both": true,
       "citation_ok": true,
-      "fabricated": [
-        "08",
-        "31"
-      ]
+      "fabricated": []
     },
     {
       "topic": "bang_gia_chiet_khau",
@@ -61,5 +58,5 @@
   ],
   "errors": [],
   "original_fabricated_number": 4,
-  "rescored_at": "2026-07-30T07:43:31+00:00"
+  "rescored_at": "2026-07-30T09:55:31+00:00"
 }

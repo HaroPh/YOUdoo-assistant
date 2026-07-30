@@ -17,6 +17,18 @@ def test_multi_source_cases_shape_and_topics_exist():
         assert erp_fact.casefold() in erp_block.casefold()
 
 
+def test_derived_digits_keys_ton_tai_trong_cases():
+    """An toàn (review độc lập, round 1): nếu ai đó sửa lại wording câu hỏi
+    trong MULTI_SOURCE_CASES mà quên cập nhật MULTI_SOURCE_DERIVED_DIGITS,
+    entry cũ trở thành dead code lặng lẽ — allowed thu hẹp lại, gate đỏ lại,
+    chỉ phát hiện được qua một lượt chạy live tốn tiền. Test này bắt lỗi đó
+    ngay ở mức unit, rẻ."""
+    keys = {(t, q) for t, _erp, q, _doc, _erp_fact in cases.MULTI_SOURCE_CASES}
+    assert set(cases.MULTI_SOURCE_DERIVED_DIGITS) <= keys, (
+        "MULTI_SOURCE_DERIVED_DIGITS có key không khớp câu hỏi nào trong "
+        "MULTI_SOURCE_CASES — có thể câu hỏi đã bị sửa mà quên cập nhật")
+
+
 def test_doc_facts_actually_exist_in_fixture():
     """Nửa còn lại của kiểm tra tự-mâu-thuẫn: dữ kiện TÀI LIỆU kỳ vọng phải
     có thật trong chunk. Nếu đỏ → sửa `expect_doc_fact` theo chunk THẬT
@@ -97,6 +109,81 @@ async def test_fabricated_number_detected(monkeypatch):
                         "NGUỒN_DÙNG: 1"])
     r = await run_eval.eval_multi_source(llm)
     assert r["fabricated_number"] == 1
+
+
+def _thanh_toan_case(monkeypatch):
+    """Case thật gây fail ở gate Task 7 (2 lượt chạy) — chinh_sach_thanh_toan/
+    INV-2026-00020, câu hỏi đòi tính ngày dương lịch."""
+    topic = "chinh_sach_thanh_toan"
+    question = ("Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì "
+               "quá hạn thanh toán?")
+    only = [(topic,
+             "Hóa đơn INV/2026/00020 | Khách Wood Corner | xuất ngày "
+             "01/07/2026 | chưa thanh toán",
+             question, "30 ngày", "INV/2026/00020")]
+    monkeypatch.setattr(run_eval, "MULTI_SOURCE_CASES", only)
+    return topic, question
+
+
+@pytest.mark.asyncio
+async def test_so_suy_ra_duoc_cho_case_ngay_thang_khong_bi_quy_la_bia(monkeypatch):
+    """Tái hiện NGUYÊN VĂN response thật đã gây fail ở cổng M3 (2 lượt chạy
+    live, cùng 1 response): model tính đúng 31/07/2026 (01/07 + 30 ngày, Điều
+    3) và 01/08/2026 (quá hạn từ hôm sau) — số học ngày tháng hợp lệ từ dữ
+    kiện có căn cứ, không phải bịa. Đã ghi nhận thủ công trong
+    MULTI_SOURCE_DERIVED_DIGITS (cases.py) sau khi Task 6's quyết định "chấp
+    nhận, không mở rộng" được xem lại — không còn bị quy là bịa nữa."""
+    _thanh_toan_case(monkeypatch)
+    llm = _ScriptedLLM([
+        "Hóa đơn INV/2026/00020 của khách hàng Wood Corner được xuất ngày "
+        "01/07/2026. Theo quy định về thời hạn thanh toán mặc định là 30 "
+        "ngày kể từ ngày xuất hóa đơn, hóa đơn này sẽ đến hạn thanh toán vào "
+        "ngày 31/07/2026. Do đó, hóa đơn sẽ bắt đầu quá hạn từ ngày "
+        "01/08/2026.\nNGUỒN_DÙNG: 3"])
+    r = await run_eval.eval_multi_source(llm)
+    assert r["fabricated_number"] == 0, r["fails"]
+
+
+@pytest.mark.asyncio
+async def test_so_suy_ra_duoc_khong_lan_sang_cau_hoi_khac_cung_topic(monkeypatch):
+    """An toàn: MULTI_SOURCE_DERIVED_DIGITS khoá theo (topic, question) —
+    một câu hỏi KHÁC trên CÙNG topic không được hưởng "08"/"31" đã ghi nhận
+    riêng cho case ngày-tháng.
+
+    Review độc lập (round 1) phát hiện bản đầu của test này KHÔNG thật sự
+    kiểm được rò rỉ: response kịch bản dùng số "99" không liên quan, nên dù
+    có giả lập rò "08"/"31" sang case này, kết quả (fabricated_number=1) vẫn
+    y hệt — test "xanh" mà không chứng minh được gì. Sửa: response giờ
+    chứa CHÍNH "08" và "31" (số đã ghi nhận cho case kia) — nếu có rò rỉ,
+    2 số này sẽ bị coi là hợp lệ và fabricated sẽ RỖNG thay vì chứa đúng
+    2 số đó. Assert trên DANH SÁCH fabricated, không chỉ đếm số lượng."""
+    topic = "chinh_sach_thanh_toan"
+    only = [(topic,
+             "Đơn S00050 | Khách Gemini Furniture | quá hạn thanh toán 32 ngày",
+             "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách "
+             "này có bị tạm dừng xử lý không?",
+             "tạm dừng xử lý", "S00050")]
+    monkeypatch.setattr(run_eval, "MULTI_SOURCE_CASES", only)
+    llm = _ScriptedLLM([
+        "Đơn S00050 quá hạn 32 ngày, tạm dừng xử lý từ 31/08.\nNGUỒN_DÙNG: 1"])
+    r = await run_eval.eval_multi_source(llm)
+    assert r["fails"][0]["fabricated"] == ["08", "31"], (
+        f"'08'/'31' (ghi nhận cho case INV-2026-00020 khác) không được rò "
+        f"sang câu hỏi này — nếu rò, danh sách fabricated sẽ rỗng thay vì "
+        f"chứa đúng 2 số đó: {r['fails']}")
+
+
+@pytest.mark.asyncio
+async def test_so_bia_that_van_bi_bat_du_cung_case_ngay_thang(monkeypatch):
+    """An toàn: dù case này đã có 2 số suy ra được ("08"/"31") trong
+    allowed, một số bịa KHÁC (không xuất hiện trong erp_block/chunk/số suy ra
+    được) vẫn phải bị bắt — nới allowed không mở toang cửa cho mọi số."""
+    _thanh_toan_case(monkeypatch)
+    llm = _ScriptedLLM([
+        "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, quá hạn thanh toán từ "
+        "ngày 27/12/2026 (số 27 và 12 bịa hoàn toàn).\nNGUỒN_DÙNG: 3"])
+    r = await run_eval.eval_multi_source(llm)
+    assert r["fabricated_number"] == 1, r["fails"]
 
 
 @pytest.mark.asyncio

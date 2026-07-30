@@ -313,8 +313,8 @@ SYNTHESIS_CASES = [
      "insufficient", ""),
 ]
 
-# ── multi_source: basis-mismatch ĐÃ SỬA (SP-1C1 Task 6); 1 case còn lại là
-# giới hạn khác, đã biết và chấp nhận ──────────────────────────────────────
+# ── multi_source: basis-mismatch ĐÃ SỬA (SP-1C1 Task 6); case ngày-tháng
+# ĐÃ SỬA TIẾP (SP-1C1, sau khi chạy gate live 2 lần) ─────────────────────────
 # Lịch sử: baseline-qwen3-8b-multi_source.json ban đầu (2026-07-26) có
 # fabricated_number=4 (gate cứng đòi ==0, xem _gate() trong eval_gate.py).
 # ĐÃ điều tra kỹ — KHÔNG phải hallucination số liệu nghiệp vụ thật. 2 nguyên
@@ -328,16 +328,58 @@ SYNTHESIS_CASES = [
 #     ĐÃ SỬA ở SP-1C1 Task 6: allowed = _digits(erp_block) |
 #     _digits(_format_context(chunks)). Baseline đã chấm lại — xem
 #     "rescored_at"/"original_fabricated_number" trong file JSON.
-#  2. (1/4 case, CÒN LẠI) Model tính đúng ngày dương lịch từ số ngày nêu
-#     trong nguồn (vd "30 ngày" kể từ 01/07 → 31/07) — kết quả tính không
-#     phải substring nguyên văn của nguồn, bị scanner coi là "bịa" dù phép
-#     tính đúng. Đây là giới hạn THIẾT KẾ khác của scanner (không xác minh
-#     được suy luận số học), tách biệt khỏi nguyên nhân 1 — Task 6 KHÔNG sửa
-#     (ngoài phạm vi bug được giao). Quyết định (SP-1C1 Task 6, đã trao đổi
-#     với người dùng): chấp nhận, không mở rộng scanner. _gate() áp
-#     fabricated_number==0 lên KẾT QUẢ ĐANG ĐO (không so baseline) nên giới
-#     hạn này áp dụng đối xứng cho mọi model, không thiên vị qwen3:8b.
-#     baseline-qwen3-8b-multi_source.json hiện fabricated_number=1.
+#  2. (1/4 case) Model tính đúng ngày dương lịch từ số ngày nêu trong nguồn
+#     (vd "30 ngày" kể từ 01/07 → 31/07) — kết quả tính không phải substring
+#     nguyên văn của nguồn, bị scanner coi là "bịa" dù phép tính đúng. Đây là
+#     giới hạn THIẾT KẾ khác của scanner (không xác minh được suy luận số
+#     học), tách biệt khỏi nguyên nhân 1 — Task 6 KHÔNG sửa (ngoài phạm vi bug
+#     được giao lúc đó).
+#
+#     Quyết định GỐC của Task 6 (đã trao đổi với người dùng lúc đó): CHẤP
+#     NHẬN baseline dừng ở fabricated_number=1, KHÔNG mở rộng scanner. Lập
+#     luận: `_gate()` áp `fabricated_number==0` lên KẾT QUẢ ĐANG ĐO, không so
+#     baseline (xem eval_gate.py) — nên giới hạn này ĐỐI XỨNG cho mọi model,
+#     không thiên vị qwen3:8b. Task 6 cũng dự đoán rõ: một model cloud gặp
+#     câu hỏi tương tự CÓ THỂ bị FAIL oan giống hệt.
+#
+#     BẰNG CHỨNG MỚI (SP-1C1, sau khi chạy gate live 2 lần, tốn tiền thật):
+#     dự đoán "có thể" của Task 6 không chỉ xảy ra — nó xảy ra CẢ HAI LẦN,
+#     với response byte-for-byte GIỐNG HỆT. Đây không phải rủi ro ngẫu nhiên
+#     mà là hành vi TẤT ĐỊNH của model+case này. Vì `_gate()` không có ngoại
+#     lệ cho giới hạn đã biết, hệ quả thực tế là: multi_source đỏ VĨNH VIỄN,
+#     chặn C2 mãi mãi, bất kể lập luận đối xứng của Task 6 đúng hay không.
+#     Lập luận đối xứng của Task 6 (không thiên vị model nào) VẪN ĐÚNG — cái
+#     thay đổi là bằng chứng về CHI PHÍ của việc giữ nguyên quyết định đó.
+#
+#     QUYẾT ĐỊNH LẠI: KHÔNG xây bộ xác minh số học ngày tháng TỔNG QUÁT (rủi
+#     ro over-engineering/heuristic mờ — học trực tiếp từ 3 vòng review độc
+#     lập bác bỏ 2 thiết kế heuristic liên tiếp ở SYNTHESIS_CASES bên dưới,
+#     cùng ngày). Thay vào đó, ghi nhận THỦ CÔNG các số suy ra được đúng cho
+#     ĐÚNG case này vào `MULTI_SOURCE_DERIVED_DIGITS`, kèm phép suy viết rõ —
+#     cùng kỷ luật với danh sách phương án của SYNTHESIS_CASES: không suy
+#     luận thuật toán, chỉ con người xác minh tay từng trường hợp cụ thể.
+#     Câu hỏi/erp_block/chunk GIỮ NGUYÊN — chỉ mở rộng `allowed` trong
+#     `eval_multi_source()` cho đúng 1 case này.
+#
+#     Mất mát đã biết và chấp nhận: số ghi nhận là DẠNG CHUỖI cụ thể model đã
+#     dùng ("01/08/2026", có số 0 đệm), không phải GIÁ TRỊ ngày trừu tượng —
+#     nếu model đổi cách viết (vd "1/8/2026" không đệm số 0, hay "ngày 1
+#     tháng 8"), case này có thể lại bị quy oan là bịa. Thêm dạng viết mới
+#     vào set nếu/khi nó xuất hiện thật ở một lượt chạy gate sau, cùng cách
+#     xử lý paraphrase mới ở SYNTHESIS_CASES.
+MULTI_SOURCE_DERIVED_DIGITS: dict[tuple[str, str], frozenset[str]] = {
+    ("chinh_sach_thanh_toan",
+     "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn "
+     "thanh toán?"):
+        # 01/07/2026 + 30 ngày (Điều 3, "30 ngày kể từ ngày xuất hóa đơn")
+        # = 31/07/2026 → "31". Quá hạn kể từ hôm sau = 01/08/2026 → "08"
+        # ("01" riêng lẻ đã nằm trong allowed qua erp_block nên không cần
+        # ghi; chỉ "08"/"31" là số CHƯA từng xuất hiện literal ở đâu). Xác
+        # minh bằng tay: 2026 không nhuận, tháng 7 có 31 ngày, nên 01/07 +
+        # 30 ngày = 31/07 (không tràn sang tháng 8); 31/07 + 1 ngày tràn
+        # sang tháng 8 → 01/08.
+        frozenset({"31", "08"}),
+}
 # ── multi_source set (SP-0) ──────────────────────────────────────────────────
 # (topic fixture, erp_block đóng băng, câu hỏi, dữ kiện TÀI LIỆU kỳ vọng,
 #  dữ kiện ERP kỳ vọng).

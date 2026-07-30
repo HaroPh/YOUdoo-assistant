@@ -60,11 +60,13 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         return (result["false_answer"] == 0
                 and result["grounded_acc"] >= base["grounded_acc"])
     if set_name == "multi_source":
-        # Baseline qwen3:8b hiện fabricated_number=1 (đã chấm lại ở Task 6, gốc
-        # là 4) — 1 ca còn lại là giới hạn số học ngày-tháng đã biết của
-        # scanner, được CHẤP NHẬN như một giới hạn đối xứng đã ghi nhận rõ ràng
-        # (không phải "bỏ qua không xem xét"). Lý do đầy đủ + quyết định: xem
-        # comment trên MULTI_SOURCE_CASES trong cases.py (dòng ~300-324).
+        # Baseline qwen3:8b hiện fabricated_number=0 (đã chấm lại ở Task 6 —
+        # gốc 4 → 1 sửa basis-mismatch; rồi ở SP-1C1 sau khi chạy gate live 2
+        # lần đều fail cùng 1 ca ngày-tháng → 1 → 0 bằng
+        # MULTI_SOURCE_DERIVED_DIGITS, số suy ra được ghi nhận thủ công cho
+        # đúng case đó). Lý do đầy đủ + lịch sử quyết định (bao gồm vì sao
+        # quyết định "chấp nhận, không mở rộng" ban đầu của Task 6 bị xem lại):
+        # xem comment trên MULTI_SOURCE_CASES trong cases.py (dòng ~316-360).
         return (result["citation_validity"] == 1.0
                 and result["fabricated_number"] == 0
                 and result["both_source_coverage"] >= base["both_source_coverage"])

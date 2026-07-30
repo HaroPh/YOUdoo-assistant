@@ -18,8 +18,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
-                         MULTI_SOURCE_CASES, PLANNER_CASES,
-                         READ_CASES, SYNTHESIS_CASES,
+                         MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
+                         PLANNER_CASES, READ_CASES, SYNTHESIS_CASES,
                          WRITE_TOOL_NAMES)
 from evals import fixtures
 from src.agents.prompts import INTENT_ROUTER_PROMPT, CHITCHAT_PROMPT
@@ -430,6 +430,12 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
         # phải chủ quan: nếu baseline hiệu chỉnh không tự đạt fabricated=0
         # thì bản sửa này SAI, phải xem lại).
         allowed = _digits(erp_block) | _digits(_format_context(chunks))
+        # Số suy ra được HỢP LỆ cho ĐÚNG case này (spec cases.py
+        # MULTI_SOURCE_DERIVED_DIGITS) — vd model tính đúng ngày dương lịch
+        # từ số ngày nêu trong nguồn. Ghi nhận THỦ CÔNG từng case cụ thể, có
+        # phép suy kèm theo tại cases.py — KHÔNG xây bộ xác minh số học ngày
+        # tháng tổng quát (xem lịch sử quyết định tại cases.py).
+        allowed |= MULTI_SOURCE_DERIVED_DIGITS.get((topic, question), frozenset())
         # bỏ marker trước khi soi số, tránh coi chính index trích dẫn là số bịa
         m = _MARKER_RE.search(body)
         prose = body[:m.start()] if m else body
