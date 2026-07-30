@@ -57,3 +57,33 @@ def test_noi_dung_rong_khong_lam_no_vo():
 def test_ket_qua_la_so_nguyen_khong_am():
     got = estimate_base_tokens([HumanMessage("Tồn kho ABC?")])
     assert isinstance(got, int) and got >= 0
+
+
+def test_tiktoken_khong_nap_duoc_thi_tut_ve_uoc_luong_tho(monkeypatch):
+    """Blocker #3: đường mặc định không được chạm mạng. Mô phỏng lỗi nạp
+    (giống lần đầu chạy không có cache, CI lạnh) — hàm vẫn phải trả số dùng
+    được, không ném lỗi, không thử nạp lại lần thứ hai trong cùng test."""
+    import src.llm.tokens as tokens_mod
+
+    monkeypatch.setattr(tokens_mod, "_enc", None)
+    monkeypatch.setattr(tokens_mod, "_enc_failed", False)
+
+    def _no_mang(*a, **k):
+        raise OSError("network is unreachable (mô phỏng)")
+
+    monkeypatch.setattr(tokens_mod.tiktoken, "get_encoding", _no_mang)
+
+    from langchain_core.messages import HumanMessage
+    n = tokens_mod.estimate_base_tokens([HumanMessage("một hai ba bốn")])
+    assert n > 0
+    assert tokens_mod._enc_failed is True
+
+    # Gọi lại lần 2 KHÔNG được thử nạp lại (đã đánh dấu thất bại)
+    calls_before = 0
+    def _dem(*a, **k):
+        nonlocal calls_before
+        calls_before += 1
+        raise OSError("vẫn không có mạng")
+    monkeypatch.setattr(tokens_mod.tiktoken, "get_encoding", _dem)
+    tokens_mod.estimate_base_tokens([HumanMessage("lượt hai")])
+    assert calls_before == 0

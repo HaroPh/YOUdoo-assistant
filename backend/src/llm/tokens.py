@@ -11,19 +11,34 @@ cl100k_base chỉ là thước đo thay thế cho tokenizer thật của từng 
 trường usage của response (span Langfuse ở kế hoạch C hiển thị cả hai).
 """
 import json
+import logging
 
 import tiktoken
 
+logger = logging.getLogger(__name__)
+
 _ENCODING = "cl100k_base"
 _enc = None
+_enc_failed = False
 
 
 def _encoder():
     # Nạp lười: tiktoken tải bảng mã ở lần dùng đầu, không nên trả giá đó lúc
-    # import module.
-    global _enc
-    if _enc is None:
-        _enc = tiktoken.get_encoding(_ENCODING)
+    # import module. Blocker #3: lần nạp đầu tiên CẦN MẠNG — nằm trên đường
+    # test mặc định vốn phải không chạm mạng. Máy dev có cache nên không lộ;
+    # CI lạnh sẽ vỡ. Nạp lỗi thì đánh dấu và không thử lại mỗi lượt gọi (thử
+    # lại mỗi lần sẽ làm MỌI request đều trả giá network timeout).
+    global _enc, _enc_failed
+    if _enc is None and not _enc_failed:
+        try:
+            _enc = tiktoken.get_encoding(_ENCODING)
+        except Exception:
+            _enc_failed = True
+            logger.warning(
+                "không nạp được tiktoken (%s) — tụt về ước lượng thô "
+                "ký tự/4. Không ảnh hưởng kế toán: total_tokens từ response "
+                "mới là con số có thẩm quyền, đây chỉ dùng để ước lượng "
+                "TRƯỚC khi gọi.", _ENCODING, exc_info=True)
     return _enc
 
 
@@ -48,11 +63,21 @@ def _text_of(message) -> str:
     return " ".join(parts)
 
 
+def _estimate_crude(messages: list, tools: list | None) -> int:
+    total = sum(len(_text_of(m)) for m in messages)
+    if tools:
+        blob = json.dumps(tools, ensure_ascii=False, default=str)
+        total += len(blob)
+    return total // 4
+
+
 def estimate_base_tokens(messages: list, tools: list | None = None) -> int:
     """Ước lượng token đầu vào cho một lượt gọi, chưa nhân hệ số provider."""
     if not messages and not tools:
         return 0
     enc = _encoder()
+    if enc is None:
+        return _estimate_crude(messages, tools)
     total = sum(len(enc.encode(_text_of(m))) for m in messages)
     if tools:
         # Schema tool đi vào prompt dưới dạng JSON. Với agent ERP bind hàng
