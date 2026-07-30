@@ -27,3 +27,5 @@ python-docx==1.1.2
 openpyxl==3.1.5
 pyvi==0.1.1
 langfuse==4.14.1
+fastapi==0.141.1
+uvicorn==0.46.0
