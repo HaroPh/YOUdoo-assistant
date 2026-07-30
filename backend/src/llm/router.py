@@ -364,6 +364,8 @@ class RoutedChatModel(Runnable):
                                tool_kwargs={**self._tool_kwargs, **kwargs})
 
     def invoke(self, input, config=None, **kwargs):
+        # Giới hạn đã biết: span này KHÔNG lồng chung trace hội thoại — xem
+        # tracing.routed_span()'s docstring hoặc báo cáo Task 8 (mục "Bước 7").
         with tracing.routed_span(self._role) as span:
             result = self._router.invoke(self._role, input, tools=self._tools,
                                          pin=self._pin, config=config,
@@ -373,6 +375,8 @@ class RoutedChatModel(Runnable):
         return result.message
 
     async def ainvoke(self, input, config=None, **kwargs):
+        # Giới hạn đã biết: span này KHÔNG lồng chung trace hội thoại — xem
+        # tracing.routed_span()'s docstring hoặc báo cáo Task 8 (mục "Bước 7").
         with tracing.routed_span(self._role) as span:
             result = await self._router.ainvoke(self._role, input,
                                                 tools=self._tools, pin=self._pin,

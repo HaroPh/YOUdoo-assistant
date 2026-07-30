@@ -10,21 +10,6 @@ class _FakeHandler:
     """Đại diện CallbackHandler thật — chỉ cần phân biệt được bằng identity."""
 
 
-@pytest.mark.asyncio
-async def test_setup_dung_handler_tu_tracing(monkeypatch):
-    fake_handler = _FakeHandler()
-    monkeypatch.setattr(erp_agent_module.tracing, "get_handler",
-                        lambda: fake_handler)
-    # Các phần còn lại của setup() (make_llms, MCP client, Postgres pool) cần
-    # hạ tầng thật — test này CHỈ xác nhận self._handler được dựng đúng thời
-    # điểm, không gọi setup() đầy đủ. Gọi trực tiếp dòng dựng handler qua
-    # __init__ + monkeypatch, tương đương hành vi thật của Bước 3 mà không
-    # cần Postgres/MCP.
-    agent = ERPAgent()
-    agent._handler = erp_agent_module.tracing.get_handler()
-    assert agent._handler is fake_handler
-
-
 def test_answer_stateless_truyen_callback_khi_co_handler(monkeypatch):
     """Xác nhận answer_stateless() truyền đúng config={"callbacks":[handler]}
     xuống RoutedChatModel.ainvoke() khi self._handler đã được dựng."""

@@ -134,9 +134,8 @@ context. `context.attach()` bên trong bản sao đó không bao giờ lan ngư�
 coroutine đang gọi `RoutedChatModel.ainvoke()` — nên mọi lệnh gọi
 `update_current_span()` sau đó đều thấy "không có span nào đang mở".
 
-**Quyết định:** người dùng chọn mở task sửa ngay (không hoãn) → **Task 9**
-(xem `.superpowers/sdd/2026-07-30-sp1c2-http-langfuse/task-9-brief.md` +
-`task-9-report.md`): thay `annotate_current_span()` bằng
+**Quyết định:** người dùng chọn mở task sửa ngay (không hoãn) → **Task 9**:
+thay `annotate_current_span()` bằng
 `routed_span()`/`annotate_span()` — `RoutedChatModel` tự dựng và tự giữ tham
 chiếu TRỰC TIẾP tới một span riêng, gắn metadata thẳng lên đối tượng đó,
 không tra "current" ở đâu cả. Đã review (spec ✅, code quality ✅), 1 fix
@@ -183,6 +182,27 @@ vọng thiết kế gốc. Nếu cần khắc phục, hướng đi đúng là th
 bằng một `BaseCallbackHandler` tự viết, dùng `run_id`/`parent_run_id` tường
 minh (tham số hàm, không phải context) để nối đúng span cha — việc này để
 ngỏ cho một vòng làm việc sau nếu observability trở thành ưu tiên cao hơn.
+
+**Mức độ nghiêm trọng thật (bổ sung sau review toàn nhánh cuối cùng, Task
+10):** mô tả "không tiện tra cứu" ở trên nhẹ hơn thực tế. Span `route:*`
+KHÔNG mang bất kỳ khoá tương quan nào với hội thoại — không chung `traceId`,
+không `session_id`/`user_id`/`thread_id`, chỉ có timestamp + `role`. Với
+NHIỀU LƯỢT CHAT ĐỒNG THỜI cùng vai (vd nhiều user cùng hỏi qua vai "router"
+cùng lúc), KHÔNG THỂ xác định span `route:router` nào ứng với hội thoại nào
+— đây không chỉ là bất tiện tra cứu, mà là KHÔNG THỂ tương quan dưới tải
+đồng thời.
+
+Hướng khắc phục rẻ hơn cách đã đề xuất ở trên (tự viết `BaseCallbackHandler`
+riêng): tiêm `role`/`alias`/`provider`/`upstream`/`fallback_depth`/
+`est_tokens`/`budget_verdict` thẳng vào `config["metadata"]` trước khi gọi
+`self._client(...).ainvoke()` trong `Router.invoke()`/`ainvoke()`
+(`router.py`) — CallbackHandler của Langfuse đã tự đọc `metadata` từ
+LangChain run và gắn đúng field đó lên ĐÚNG span GENERATION nó tạo bên trong
+trace thật (cơ chế parent-linkage riêng của SDK, không qua ambient context,
+không chịu giới hạn context-propagation nói trên). `actual_tokens` Langfuse
+đã tự bắt qua usage tracking nội bộ của chính CallbackHandler, không cần
+tiêm lại. Đây là khuyến nghị cho một vòng làm việc sau, CHƯA làm ở phạm vi
+Task 10 này.
 
 ## Bước 8 — Đối chiếu "SP-1C2 xong" (spec §7)
 

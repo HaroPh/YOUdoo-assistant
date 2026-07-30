@@ -117,6 +117,8 @@ def test_routed_span_gan_dung_span_lam_cha_qua_otel_that(monkeypatch):
     # nhanh (401) ở máy này vì có sẵn 1 Langfuse Docker đang chạy ở
     # localhost:3001; trên CI thiếu .env hoặc mạng bị chặn kiểu drop gói,
     # có thể treo/không đoán trước được.
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test-0000")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test-0000")
     client = Langfuse(public_key="pk-lf-test-0000", secret_key="sk-lf-test-0000",
                       tracer_provider=provider, flush_at=1,
                       should_export_span=lambda span: False)

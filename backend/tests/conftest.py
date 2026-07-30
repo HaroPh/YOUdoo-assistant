@@ -58,3 +58,15 @@ def semantic_resolve_off(monkeypatch):
     không bao giờ chạm reranker 2.3GB (spec 2026-07-13 §11). Test nào bật
     "1" phải mock cả semantic.semantic_candidates lẫn reranker.score_pairs."""
     monkeypatch.setenv("ERP_SEMANTIC_RESOLVE", "0")
+
+
+@pytest.fixture(autouse=True)
+def langfuse_tat_cho_test_khong_live(request, monkeypatch):
+    """Test không đánh dấu `live` không bao giờ được chạm Langfuse thật — dù
+    .env cục bộ CÓ sẵn LANGFUSE_PUBLIC_KEY/SECRET_KEY thật (vd sau khi chạy
+    xác nhận sống SP-1C2, Task 8 — đúng tình huống thường gặp trong worktree
+    này). Bất biến toàn dự án: test mặc định không chạm mạng (xem Global
+    Constraints, spec SP-1C2). Test đánh dấu `live` giữ nguyên biến thật."""
+    if request.node.get_closest_marker("live") is None:
+        monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+        monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)

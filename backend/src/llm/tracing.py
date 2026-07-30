@@ -27,11 +27,25 @@ span in current context" trên đường async thật, dù mọi test mock get_c
 
 Sửa bằng cách: RoutedChatModel tự dựng span RIÊNG (routed_span), giữ tham
 chiếu trực tiếp, gắn metadata thẳng lên đối tượng đó (annotate_span) — không
-tra "current" ở đâu cả. Span mới vẫn lồng đúng làm cha của GENERATION gốc vì
-context.attach() cho nó chạy TRỰC TIẾP trong coroutine gọi, TRƯỚC khi
-copy_context() của CallbackHandler chạy cho dispatch on_chat_model_start —
-bản sao đó thấy đúng span cha tại thời điểm sao chép."""
+tra "current" ở đâu cả.
+
+GIỚI HẠN ĐÃ BIẾT (xác nhận bằng chạy sống 2026-07-30, KHÔNG như dự đoán ban
+đầu): span mới KHÔNG lồng làm con của cây trace hội thoại — nó xuất hiện
+như MỘT TRACE GỐC RIÊNG (parentObservationId=null, traceId khác trace
+LangGraph/intent_router/...). Lý do: việc gắn span CHA cho routed_span()
+cũng dựa vào "current span" ambient (qua start_as_current_observation()),
+nên chịu ĐÚNG loại giới hạn context-propagation nói trên — không chỉ riêng
+update_current_span() mới bị. Metadata VẪN tra cứu đúng, đủ field qua API/UI
+Langfuse (tìm theo tên span "route:<role>"), chỉ KHÔNG cùng trace với hội
+thoại. Muốn khắc phục triệt để: dùng run_id/parent_run_id TƯỜNG MINH (tham
+số hàm callback, không phải context) — ví dụ tiêm role/alias/provider/…
+thẳng vào config["metadata"] trước khi gọi self._client(...).ainvoke(), để
+CallbackHandler của Langfuse tự gắn field đó lên ĐÚNG span GENERATION nó đã
+tạo bên trong trace thật (cơ chế parent-linkage của chính SDK, không đi qua
+ambient context) — chưa làm ở lần sửa này, xem báo cáo Task 8 mục "Bước 7"
+để biết đầy đủ."""
 import logging
+import os
 from contextlib import contextmanager
 
 from langfuse import get_client
@@ -79,11 +93,24 @@ def routed_span(role: str):
     thường, không có span bọc (bất biến toàn module: một lượt chat không bao
     giờ vỡ vì lỗi tracing).
 
+    Tự kiểm tra LANGFUSE_PUBLIC_KEY/SECRET_KEY TRƯỚC khi gọi get_client() —
+    khác get_handler() (không tự kiểm tra env, vì CallbackHandler() no-op êm
+    và chỉ construct MỘT LẦN lúc ERPAgent.setup()). routed_span() gọi MỖI
+    lượt LLM — nếu thiếu khoá, get_client() (hàm của SDK) vẫn construct một
+    Langfuse() rỗng mỗi lần và tự log WARNING "initialized without
+    public_key" KHÔNG cache/không im lặng lần 2 (đo được thật: N lượt gọi ->
+    N dòng warning) — khác hẳn CallbackHandler's no-op. Tự kiểm tra ở đây
+    né hẳn đường đó, không dựa "SDK tự no-op êm" như get_handler().
+
     start_as_current_observation() (SDK) chỉ hỗ trợ `with` đồng bộ (kiểm tra
     trực tiếp: lớp trả về, _AgnosticContextManager, kế thừa
     contextlib._GeneratorContextManager và CHỈ override __enter__, không có
     __aenter__/__aexit__) — nên dùng `with` thường ở CẢ invoke() (sync) LẪN
     ainvoke() (async) của RoutedChatModel là đúng, không cần async with."""
+    if not (os.environ.get("LANGFUSE_PUBLIC_KEY")
+            and os.environ.get("LANGFUSE_SECRET_KEY")):
+        yield None
+        return
     cm = None
     span = None
     try:
