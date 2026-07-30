@@ -108,6 +108,33 @@ def test_pace_override_wins(monkeypatch):
     assert fi.calls[0]["pace"] == 1.5
 
 
+def test_router_reset_between_sets(monkeypatch):
+    """Important #1 (final review SP-1C1): mỗi set chạy asyncio.run() riêng =
+    event loop riêng; client async bám vào loop đã tạo ra nó, nên
+    run_eval._router (cache cả tiến trình) phải bị xoá GIỮA hai set để set
+    sau không tái sử dụng client bám loop đã đóng ("Event loop is closed").
+    Xác nhận rẻ: bắt giá trị run_eval._router tại đúng thời điểm _llm() được
+    gọi cho mỗi set — set đầu thấy giá trị CŨ (chưa bị đụng tới), set sau
+    (confirm) phải thấy None (đã bị run() reset ở cuối vòng lặp set trước)."""
+    seen = []
+
+    def fake_llm(model, role=None):
+        seen.append(run_eval._router)
+        return object()
+
+    fi, fc = _patch(monkeypatch)
+    monkeypatch.setattr(run_eval, "_llm", fake_llm)
+    sentinel = object()
+    monkeypatch.setattr(run_eval, "_router", sentinel)
+
+    eval_gate.run(_args())
+
+    assert seen == [sentinel, None]
+    # Sau khi cả hai set chạy xong, router cũng phải ở lại None (rebuild lười
+    # ở lượt gọi kế tiếp bên ngoài job này), không rò rỉ instance nào ra ngoài.
+    assert run_eval._router is None
+
+
 def test_registered_and_schedulable():
     from jobs.registry import JOBS
     assert "eval-gate" in JOBS and JOBS["eval-gate"].schedulable is True

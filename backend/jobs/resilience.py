@@ -23,8 +23,8 @@ from pathlib import Path
 
 class CircuitBreakerOpen(RuntimeError):
     """Quá breaker_threshold item lỗi LIÊN TIẾP (mỗi item đã hết retry riêng)
-    — lỗi mang tính hệ thống (key chết, LiteLLM sập), dừng ngay để không đốt
-    quota/thời gian retry vô ích trên các item còn lại."""
+    — lỗi mang tính hệ thống (key chết, hạ tầng LLM sập), dừng ngay để không
+    đốt quota/thời gian retry vô ích trên các item còn lại."""
 
 
 def _write_checkpoint(path: Path, total: int, done: int,
@@ -58,7 +58,7 @@ async def run_resilient(items, call_fn, *, pace: float = 0.0,
     total = len(items)
     for i, item in enumerate(items):
         if i and pace:
-            await asyncio.sleep(pace)   # R8: giãn cách giữa 2 ITEM (cloud RPM=15)
+            await asyncio.sleep(pace)   # R8: giãn cách giữa 2 ITEM (pace suy từ rpm model đang ghim)
         for attempt in range(1, max_retries + 2):
             try:
                 record = await call_fn(item)

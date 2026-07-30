@@ -115,5 +115,5 @@ async def test_retry_delay_defaults_to_pace_when_pacing(monkeypatch):
         sleeps.append(s)
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
     fails, errors = await run_resilient([1], _flaky(1), pace=5.0)
-    # 1 item duy nhất: không pace-sleep; 1 retry-sleep = pace (R8 cloud RPM)
+    # 1 item duy nhất: không pace-sleep; 1 retry-sleep = pace (R8)
     assert sleeps == [5.0] and errors == []

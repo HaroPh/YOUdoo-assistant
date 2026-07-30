@@ -35,8 +35,9 @@ BASELINES = {
 }
 ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitchat",
                 "planner": "planner", "read": "read", "synthesis": "synthesis",
-                # role thật vẫn tên "fusion" trong models.py — "multi_source"
-                # chỉ là tên SET đo (trung tính, sống sót qua đổi kiến trúc).
+                # role thật vẫn tên "fusion" trong catalog.py (CHAINS) —
+                # "multi_source" chỉ là tên SET đo (trung tính, sống sót qua
+                # đổi kiến trúc).
                 "multi_source": "fusion"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
@@ -59,9 +60,11 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         return (result["false_answer"] == 0
                 and result["grounded_acc"] >= base["grounded_acc"])
     if set_name == "multi_source":
-        # Baseline qwen3:8b hiện KHÔNG đạt gate này (fabricated_number=4) — lý do
-        # đầy đủ + quyết định giữ nguyên: xem comment trên MULTI_SOURCE_CASES
-        # trong cases.py.
+        # Baseline qwen3:8b hiện fabricated_number=1 (đã chấm lại ở Task 6, gốc
+        # là 4) — 1 ca còn lại là giới hạn số học ngày-tháng đã biết của
+        # scanner, được CHẤP NHẬN như một giới hạn đối xứng đã ghi nhận rõ ràng
+        # (không phải "bỏ qua không xem xét"). Lý do đầy đủ + quyết định: xem
+        # comment trên MULTI_SOURCE_CASES trong cases.py (dòng ~300-324).
         return (result["citation_validity"] == 1.0
                 and result["fabricated_number"] == 0
                 and result["both_source_coverage"] >= base["both_source_coverage"])
@@ -95,9 +98,22 @@ def run(args) -> JobResult:
             if set_name in BASELINES:
                 base = json.loads(BASELINES[set_name].read_text(encoding="utf-8"))
             checkpoint = registry.LOGS_DIR / f"_checkpoint-eval-gate-{set_name}.json"
-            result = asyncio.run(EVAL_FN[set_name](
-                run_eval._llm(model, role=role), pace=pace, checkpoint_path=checkpoint))
-        except Exception as e:  # noqa: BLE001 — hạ tầng (LiteLLM/key/model/baseline hỏng)
+            try:
+                result = asyncio.run(EVAL_FN[set_name](
+                    run_eval._llm(model, role=role), pace=pace, checkpoint_path=checkpoint))
+            finally:
+                # Mỗi set chạy trong MỘT asyncio.run() riêng → một event loop
+                # MỚI mỗi lần qua vòng lặp này. run_eval._router (và bên trong
+                # nó, Router._clients) là cache CẢ TIẾN TRÌNH — client async
+                # (ChatOpenAI/ChatGoogleGenerativeAI) bám vào loop đã tạo ra
+                # nó, nên router dựng ở set trước mang theo client CHẾT khi
+                # set sau chạy trên loop mới ("Event loop is closed", đã thấy
+                # thật ở Task 7). Reset ở ĐÂY (resource lifecycle, không phải
+                # cosmetic, không đụng công thức _gate()) để _get_router() bắt
+                # buộc dựng lại router+client MỚI cho set kế tiếp — đặt trong
+                # finally để chạy cả khi set này raise.
+                run_eval._router = None
+        except Exception as e:  # noqa: BLE001 — hạ tầng LLM sập (key/model/baseline hỏng)
             detail[set_name] = {"model": model, "error": str(e)}
             return JobResult("eval-gate", INFRA_ERROR, "ERROR", detail)
         # S2 spec §3: có case lỗi sau retry = đo không trọn vẹn → INFRA_ERROR,

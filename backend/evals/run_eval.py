@@ -1,7 +1,8 @@
 # backend/evals/run_eval.py
-"""Runner eval M3 — đo model THẬT qua LiteLLM (không mock).
+"""Runner eval M3 — đo model THẬT qua RoutedChatModel/router (không mock,
+không còn LiteLLM — proxy này đã bị gỡ bỏ hoàn toàn từ SP-1).
 
-  python -m evals.run_eval --set intent --model qwen3:8b --save-baseline
+  python -m evals.run_eval --set intent --model gemma-4-26b --save-baseline
   python -m evals.run_eval --set intent --model gemini-flash-lite \
       --baseline evals/baseline-qwen3-8b-intent.json
 
@@ -433,7 +434,8 @@ async def main(argv=None):
     ap.add_argument("--save-baseline", action="store_true")
     ap.add_argument("--baseline")
     ap.add_argument("--pace", type=float, default=0.0,
-                    help="giây giãn cách giữa 2 call (R8: cloud RPM=15 → dùng 5.0)")
+                    help="giây giãn cách giữa 2 call (suy từ catalog: "
+                         "(60/rpm)*1.2 cho model đang ghim — vd rpm=15 → ~4.8)")
     args = ap.parse_args(argv)
 
     try:
@@ -442,7 +444,7 @@ async def main(argv=None):
                "read": eval_read, "synthesis": eval_synthesis,
                "multi_source": eval_multi_source}
         result = await _FN[args.set](_llm(args.model, role=args.set), pace=args.pace)
-    except Exception as e:   # noqa: BLE001 — hạ tầng (LiteLLM/key/model) hỏng
+    except Exception as e:   # noqa: BLE001 — hạ tầng LLM sập (key/model/router hỏng)
         print(f"INFRA ERROR: {e}"); sys.exit(2)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))

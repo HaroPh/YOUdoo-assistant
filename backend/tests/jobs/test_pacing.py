@@ -1,5 +1,6 @@
 # backend/tests/jobs/test_pacing.py
-"""R8: pacing giữa các call eval — cloud RPM=15 cần giãn cách, local thì không."""
+"""R8: pacing giữa các call eval — giãn cách suy từ (60/rpm)*1.2 của model
+đang ghim trong catalog (không còn phân biệt cloud/local kể từ SP-1)."""
 import asyncio
 
 from evals import run_eval

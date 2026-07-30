@@ -57,7 +57,13 @@ def rescore() -> dict:
 
     data["fails"] = new_fails
     data["fabricated_number"] = fabricated_number_new
-    data["original_fabricated_number"] = original
+    # setdefault, KHÔNG gán thẳng: `original` đọc từ TRẠNG THÁI HIỆN TẠI của
+    # file mỗi lần script chạy. Idempotency (Task 6 Bước 7 yêu cầu chạy lại
+    # để xác nhận không đổi) có nghĩa script này chạy ≥2 lần trên cùng file —
+    # gán thẳng ở lần chạy thứ 2 sẽ ghi đè provenance thật (4) bằng kết quả
+    # rescore lần đầu (1), xóa mất lịch sử gốc. setdefault chỉ ghi lần ĐẦU
+    # TIÊN khi field chưa tồn tại, giữ nguyên giá trị đã có ở mọi lần sau.
+    data.setdefault("original_fabricated_number", original)
     data["rescored_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     _PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2),

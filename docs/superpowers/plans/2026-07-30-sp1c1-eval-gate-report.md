@@ -1,6 +1,8 @@
 # SP-1C1 Task 7 — Báo cáo chạy cổng M3 thật
 
-**Ngày chạy:** 2026-07-30, 14:15:41 (giờ bắt đầu job, `logs/jobs/eval-gate-20260730T141541.json`).
+**Ngày chạy:** 2026-07-30, giờ bắt đầu thật `started_at: 2026-07-30T13:54:23`
+(14:15:41 trong tên file là giờ GHI KẾT QUẢ — `registry.py`'s `write_result()`
+đóng dấu lúc job HOÀN TẤT, không phải lúc bắt đầu — `logs/jobs/eval-gate-20260730T141541.json`).
 **Lệnh:** `cd backend && python -m jobs run eval-gate --set all` (159 ca, model ghim theo `chain_for(role)[0]`, nhịp `(60/rpm)*1.2`).
 
 ## Kết quả tổng: **FAIL** (exit code 1)
