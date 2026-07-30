@@ -16,6 +16,7 @@ from .graph import build_graph
 from .confirmation import CONFIRM, UNCLEAR, classify_confirmation
 from .disambiguation import parse_selection
 from .models import make_llms
+from src.llm import tracing
 
 MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8001/sse")
 PG_CONN      = os.environ.get(
@@ -131,8 +132,10 @@ class ERPAgent:
         self._pool = None
         self._llms = None
         self._checkpointer = None
+        self._handler = None
 
     async def setup(self) -> None:
+        self._handler = tracing.get_handler()
         self._llms = make_llms()
         client = MultiServerMCPClient(
             {"odoo": {"url": MCP_ODOO_URL, "transport": "sse"}}
@@ -172,6 +175,8 @@ class ERPAgent:
 
         tid = thread_id or uuid.uuid4().hex
         config = {"configurable": {"thread_id": tid}}
+        if self._handler:
+            config["callbacks"] = [self._handler]
 
         is_fresh = (reset_if_fresh and thread_id is not None
                     and len(messages) == 1 and messages[0].get("role") == "user")
@@ -251,7 +256,9 @@ class ERPAgent:
         (e.g. once this system carries non-demo data), this choice needs a
         fresh look rather than resting on the stale CLOUD_ALLOWED premise.
         """
-        response = await self._llms["synthesis"].ainvoke([HumanMessage(content=content)])
+        config = {"callbacks": [self._handler]} if self._handler else None
+        response = await self._llms["synthesis"].ainvoke(
+            [HumanMessage(content=content)], config=config)
         return response.content
 
     async def _invoke_fresh(self, messages: list[dict], config: dict):
