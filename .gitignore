@@ -30,3 +30,7 @@ htmlcov/
 .idea/
 Thumbs.db
 desktop.ini
+
+# ─── Claude Code — worktree/scratch state, không phải nội dung repo ─────────
+.claude/worktrees/
+.superpowers/
