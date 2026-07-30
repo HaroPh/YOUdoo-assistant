@@ -8,6 +8,7 @@ import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+from . import tracing
 from .budget import BudgetLedger, Verdict
 from .catalog import ModelSpec, chain_for, spec_for
 from .providers import client_for, strip_thought      # mở rộng import cũ
@@ -367,6 +368,7 @@ class RoutedChatModel(Runnable):
                                      pin=self._pin, config=config,
                                      tool_kwargs=self._tool_kwargs, **kwargs)
         self._ghi_quyet_dinh(result.decision)
+        tracing.annotate_current_span(result.decision, result)
         return result.message
 
     async def ainvoke(self, input, config=None, **kwargs):
@@ -376,6 +378,7 @@ class RoutedChatModel(Runnable):
                                             tool_kwargs=self._tool_kwargs,
                                             **kwargs)
         self._ghi_quyet_dinh(result.decision)
+        tracing.annotate_current_span(result.decision, result)
         return result.message
 
 

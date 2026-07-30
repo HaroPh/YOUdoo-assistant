@@ -3,7 +3,8 @@ from langchain_core.messages import HumanMessage
 
 from src.llm.budget import BudgetLedger
 from src.llm.catalog import spec_for
-from src.llm.router import COOLDOWN_RATE_LIMIT_S, ChainExhausted, Router
+from src.llm.router import (COOLDOWN_RATE_LIMIT_S, ChainExhausted,
+                            RoutedChatModel, Router)
 from src.llm.store import InMemoryUsageStore
 from tests.llm.conftest import (FakeChatClient, FakeRateLimit, FakeServerError,
                                 fake_ai, fake_ai_google)
@@ -184,3 +185,38 @@ async def test_ainvoke_khong_chan_event_loop_khi_store_cham(clock):
     assert len(progressed) >= 4, (
         f"chỉ tiến {len(progressed)}/6 nhịp — event loop có vẻ bị chặn "
         "trong lúc ainvoke chạy resolve()/_finish() đồng bộ")
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_goi_annotate_current_span_dung_tham_so(clock, monkeypatch):
+    from src.llm import tracing
+    calls = []
+    monkeypatch.setattr(tracing, "annotate_current_span",
+                        lambda decision, result: calls.append((decision, result)))
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
+    llm = RoutedChatModel(router, "router")
+
+    await llm.ainvoke([HumanMessage("hi")])
+
+    assert len(calls) == 1
+    decision, result = calls[0]
+    assert decision is result.decision
+    assert result.total_tokens == 30
+
+
+def test_invoke_goi_annotate_current_span_dung_tham_so(clock, monkeypatch):
+    from src.llm import tracing
+    calls = []
+    monkeypatch.setattr(tracing, "annotate_current_span",
+                        lambda decision, result: calls.append((decision, result)))
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
+    llm = RoutedChatModel(router, "router")
+
+    llm.invoke([HumanMessage("hi")])
+
+    assert len(calls) == 1
+    decision, result = calls[0]
+    assert decision is result.decision
+    assert result.total_tokens == 30
