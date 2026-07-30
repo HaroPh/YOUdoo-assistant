@@ -188,35 +188,59 @@ async def test_ainvoke_khong_chan_event_loop_khi_store_cham(clock):
 
 
 @pytest.mark.asyncio
-async def test_ainvoke_goi_annotate_current_span_dung_tham_so(clock, monkeypatch):
+async def test_ainvoke_dung_routed_span_va_annotate_span(clock, monkeypatch):
     from src.llm import tracing
-    calls = []
-    monkeypatch.setattr(tracing, "annotate_current_span",
-                        lambda decision, result: calls.append((decision, result)))
+    import contextlib
+    span_calls = []
+    annotate_calls = []
+
+    @contextlib.contextmanager
+    def _fake_routed_span(role):
+        span_calls.append(role)
+        yield "FAKE_SPAN"
+
+    monkeypatch.setattr(tracing, "routed_span", _fake_routed_span)
+    monkeypatch.setattr(
+        tracing, "annotate_span",
+        lambda span, decision, result: annotate_calls.append((span, decision, result)))
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
     llm = RoutedChatModel(router, "router")
 
     await llm.ainvoke([HumanMessage("hi")])
 
-    assert len(calls) == 1
-    decision, result = calls[0]
+    assert span_calls == ["router"]
+    assert len(annotate_calls) == 1
+    span, decision, result = annotate_calls[0]
+    assert span == "FAKE_SPAN"
     assert decision is result.decision
     assert result.total_tokens == 30
 
 
-def test_invoke_goi_annotate_current_span_dung_tham_so(clock, monkeypatch):
+def test_invoke_dung_routed_span_va_annotate_span(clock, monkeypatch):
     from src.llm import tracing
-    calls = []
-    monkeypatch.setattr(tracing, "annotate_current_span",
-                        lambda decision, result: calls.append((decision, result)))
+    import contextlib
+    span_calls = []
+    annotate_calls = []
+
+    @contextlib.contextmanager
+    def _fake_routed_span(role):
+        span_calls.append(role)
+        yield "FAKE_SPAN"
+
+    monkeypatch.setattr(tracing, "routed_span", _fake_routed_span)
+    monkeypatch.setattr(
+        tracing, "annotate_span",
+        lambda span, decision, result: annotate_calls.append((span, decision, result)))
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
     llm = RoutedChatModel(router, "router")
 
     llm.invoke([HumanMessage("hi")])
 
-    assert len(calls) == 1
-    decision, result = calls[0]
+    assert span_calls == ["router"]
+    assert len(annotate_calls) == 1
+    span, decision, result = annotate_calls[0]
+    assert span == "FAKE_SPAN"
     assert decision is result.decision
     assert result.total_tokens == 30

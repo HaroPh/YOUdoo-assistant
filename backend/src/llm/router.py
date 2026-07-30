@@ -364,21 +364,23 @@ class RoutedChatModel(Runnable):
                                tool_kwargs={**self._tool_kwargs, **kwargs})
 
     def invoke(self, input, config=None, **kwargs):
-        result = self._router.invoke(self._role, input, tools=self._tools,
-                                     pin=self._pin, config=config,
-                                     tool_kwargs=self._tool_kwargs, **kwargs)
-        self._ghi_quyet_dinh(result.decision)
-        tracing.annotate_current_span(result.decision, result)
+        with tracing.routed_span(self._role) as span:
+            result = self._router.invoke(self._role, input, tools=self._tools,
+                                         pin=self._pin, config=config,
+                                         tool_kwargs=self._tool_kwargs, **kwargs)
+            self._ghi_quyet_dinh(result.decision)
+            tracing.annotate_span(span, result.decision, result)
         return result.message
 
     async def ainvoke(self, input, config=None, **kwargs):
-        result = await self._router.ainvoke(self._role, input,
-                                            tools=self._tools, pin=self._pin,
-                                            config=config,
-                                            tool_kwargs=self._tool_kwargs,
-                                            **kwargs)
-        self._ghi_quyet_dinh(result.decision)
-        tracing.annotate_current_span(result.decision, result)
+        with tracing.routed_span(self._role) as span:
+            result = await self._router.ainvoke(self._role, input,
+                                                tools=self._tools, pin=self._pin,
+                                                config=config,
+                                                tool_kwargs=self._tool_kwargs,
+                                                **kwargs)
+            self._ghi_quyet_dinh(result.decision)
+            tracing.annotate_span(span, result.decision, result)
         return result.message
 
 
