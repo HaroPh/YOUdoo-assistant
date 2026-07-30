@@ -85,8 +85,16 @@ class PostgresUsageStore:
 
         from psycopg_pool import ConnectionPool
 
+        # timeout ngắn (mặc định ConnectionPool là 30s cho pool.connection(),
+        # cộng bản thân TCP connect không giới hạn nếu thiếu connect_timeout —
+        # quan sát thực tế ~90s trước khi BudgetLedger fail-open). Sổ ngân
+        # sách là TƯ VẤN, đã fail-open sẵn (budget.py can_afford/record) — chặn
+        # lượt của người dùng vài giây chỉ để tra một cuốn sổ tư vấn là đánh
+        # đổi sai. Thà mất một dòng kế toán.
         self._pool = ConnectionPool(dsn or os.environ["DATABASE_URL"],
-                                    min_size=1, max_size=4, open=True)
+                                    min_size=1, max_size=4, open=True,
+                                    timeout=2.0,
+                                    kwargs={"connect_timeout": 2})
         self._owns_pool = True
 
         # Fail LOUD ngay lúc dựng pool, không đợi tới lượt record()/usage_since()

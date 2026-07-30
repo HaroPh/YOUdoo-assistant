@@ -149,3 +149,38 @@ async def test_ainvoke_cung_tut_mat_xich_khi_429(clock):
                         "groq-llama-3.3-70b": tot})
     got = await r.ainvoke("read", MSGS)
     assert got.decision.spec.alias == "groq-llama-3.3-70b"
+
+
+async def test_ainvoke_khong_chan_event_loop_khi_store_cham(clock):
+    """Blocker #2: to_thread phải thực sự nhường event loop, không chỉ gọi
+    hàm đồng bộ trong 1 thread khác mà vẫn await liền — task khác PHẢI
+    tiến được trong lúc resolve()/_finish() đang chạy trên thread."""
+    import asyncio
+    import time
+
+    class SlowStore:
+        def usage_since(self, **kwargs):
+            time.sleep(0.3)          # mô phỏng round-trip Postgres đồng bộ
+            from src.llm.store import Usage
+            return Usage(requests=0, total_tokens=0)
+
+        def record(self, **kwargs):
+            time.sleep(0.3)
+
+    ledger = BudgetLedger(SlowStore(), clock=clock)
+    router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
+
+    progressed = []
+
+    async def dem_nhip():
+        for i in range(6):
+            await asyncio.sleep(0.05)
+            progressed.append(i)
+
+    task = asyncio.create_task(dem_nhip())
+    await router.ainvoke("router", [HumanMessage("hi")])
+    await task
+
+    assert len(progressed) >= 4, (
+        f"chỉ tiến {len(progressed)}/6 nhịp — event loop có vẻ bị chặn "
+        "trong lúc ainvoke chạy resolve()/_finish() đồng bộ")

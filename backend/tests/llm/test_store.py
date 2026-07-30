@@ -77,3 +77,33 @@ def test_phai_dua_dung_mot_trong_hai_alias_hoac_provider():
         store.usage_since(since=T0)
     with pytest.raises(ValueError):
         store.usage_since(since=T0, alias="a1", provider="p1")
+
+
+def test_postgres_store_dung_pool_voi_timeout_ngan(monkeypatch):
+    """Blocker #1: pool không có timeout → chặn ~90s trước khi fail-open.
+    Xác nhận cấu hình timeout ngắn thật sự được truyền xuống ConnectionPool,
+    không chỉ "đã sửa" trong lời commit."""
+    calls = []
+
+    class FakePool:
+        def __init__(self, dsn, **kwargs):
+            calls.append(kwargs)
+            self._dsn = dsn
+
+        def connection(self):
+            import contextlib
+
+            class _Conn:
+                def execute(self, *a, **k):
+                    return None
+            @contextlib.contextmanager
+            def _cm():
+                yield _Conn()
+            return _cm()
+
+    monkeypatch.setattr("psycopg_pool.ConnectionPool", FakePool)
+    from src.llm.store import PostgresUsageStore
+    PostgresUsageStore(dsn="postgresql://fake/db")
+    assert len(calls) == 1
+    assert calls[0]["timeout"] <= 3.0
+    assert calls[0]["kwargs"]["connect_timeout"] <= 3

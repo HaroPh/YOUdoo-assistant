@@ -3,6 +3,7 @@
 resolve() CHỈ chọn, không gọi — gọi thật nằm ở Router.invoke() (Task 9). Tách
 vậy để toàn bộ logic chọn test được bằng sổ ngân sách giả, không cần client.
 """
+import asyncio
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -267,10 +268,17 @@ class Router:
                       tools: list | None = None,
                       pin: str | None = None, config=None,
                       tool_kwargs: dict | None = None, **kwargs) -> InvokeResult:
+        # Blocker #2: resolve()/_finish() chạm Postgres ĐỒNG BỘ (qua
+        # BudgetLedger.can_afford/record) — chặn event loop dưới FastAPI/
+        # LangGraph async nếu gọi trực tiếp trong coroutine. to_thread đẩy
+        # đúng hai điểm đó ra khỏi event loop. BudgetLedger/UsageStore KHÔNG
+        # đổi một dòng — giữ nguyên tuyên bố thiết kế "chính sách thuần,
+        # KHÔNG biết Postgres tồn tại" (budget.py), nên toàn bộ test SP-1A
+        # của chúng còn nguyên giá trị. Đường invoke() đồng bộ không đổi.
         base = estimate_base_tokens(messages, tools)
         attempts: list[AttemptError] = []
         for _ in range(self._max_attempts(role, pin)):
-            decision = self.resolve(role, base, pin=pin)
+            decision = await asyncio.to_thread(self.resolve, role, base, pin=pin)
             try:
                 response = await self._client(
                     decision.spec, tools, tool_kwargs).ainvoke(
@@ -279,7 +287,7 @@ class Router:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
                 continue
-            return self._finish(decision, response, attempts)
+            return await asyncio.to_thread(self._finish, decision, response, attempts)
         raise ChainExhausted(role, tuple(
             SkippedLink(a.alias, Verdict.COOLDOWN) for a in attempts))
 
