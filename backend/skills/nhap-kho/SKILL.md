@@ -7,10 +7,11 @@ description: >-
   nhắc tới kiểm đếm/đối chiếu/QC trước khi nhận, hoặc mô tả nhiều bước cũng
   tính (vd "xác nhận đã kiểm đếm hàng cho đơn mua P00021 rồi mới nhập kho").
   KHÔNG dùng khi: người dùng chỉ HỎI về quy trình nhập kho hoặc SOP nhập kho
-  (đó là tra cứu tài liệu), hoặc ra một lệnh nhận hàng NGẮN GỌN một bước,
-  không kèm điều kiện hay yêu cầu kiểm tra gì thêm (đó là lệnh ghi trực
-  tiếp, đi qua planner tier-1), hoặc người dùng muốn điều chỉnh tồn kho trực
-  tiếp không qua đơn mua.
+  một cách CHUNG CHUNG, KHÔNG nhắc mã đơn cụ thể nào (đó là tra cứu tài
+  liệu, vd "quy trình nhập kho là gì?"), hoặc ra một lệnh nhận hàng NGẮN
+  GỌN một bước, không kèm điều kiện hay yêu cầu kiểm tra gì thêm (đó là
+  lệnh ghi trực tiếp, đi qua planner tier-1), hoặc người dùng muốn điều
+  chỉnh tồn kho trực tiếp không qua đơn mua.
 tools:
   read: [get_purchase_order_detail]
   write:
