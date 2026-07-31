@@ -160,8 +160,18 @@ def _make_gated_write_tool(mcp_tool, wspec):
 
 def _load_entry_module(spec: SkillSpec):
     path = spec.dir / spec.entry
+    # Phòng thủ lớp 2 (review Finding 1, 2026-07-31): layer 1
+    # (skill_manifest.parse_skill_md) đã chặn '/', '\\', '..' trong entry —
+    # đây là lưới đỡ ĐỘC LẬP phòng khi một SkillSpec tới đây KHÔNG đi qua
+    # parse_skill_md (vd construct thủ công, bug tương lai khác). resolve()
+    # rồi so sánh parent — chỉ chấp nhận file NẰM THẲNG trong spec.dir.
+    resolved = path.resolve()
+    if resolved.parent != spec.dir.resolve():
+        raise SkillManifestError(
+            f"{path}: entry phải resolve về một file NẰM TRONG {spec.dir} — "
+            "chặn thực thi module Python ngoài thư mục skill")
     mod_name = f"youdoo_skill_{spec.name.replace('-', '_')}"
-    mod_spec = importlib.util.spec_from_file_location(mod_name, path)
+    mod_spec = importlib.util.spec_from_file_location(mod_name, resolved)
     if mod_spec is None or mod_spec.loader is None:
         raise SkillManifestError(f"{path}: không nạp được entry module")
     module = importlib.util.module_from_spec(mod_spec)

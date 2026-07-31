@@ -263,13 +263,15 @@ qua Odoo thật ở báo cáo này.
    chứng chính cần có ở bước này.
 4. **Nhánh bắc cầu "không có PO"** — ⚠️ **PHÁT HIỆN KHOẢNG TRỐNG THẬT, CHƯA
    XỬ LÝ.** Xem chi tiết §8.4 bên dưới.
-5. **`agentic_context_sync` bàn giao `working_context`** — ⚠️ **KHÔNG KIỂM
-   ĐƯỢC** — đã ghi nhận từ review Task 7/9: `agentic_context_sync` đã port
-   và có test riêng (Task 1) nhưng **không được wire vào `build_graph()`**
-   trong phạm vi SP-2a (không có task nào trong 11 task nối nó vào graph
-   thật — spec §0 liệt kê rõ đây là hạn chế đã biết, không phải lỗi). Do đó
-   không có handoff `working_context` thật giữa lượt SOP và lượt tier-1 kế
-   tiếp trong repo này.
+5. **`agentic_context_sync` bàn giao `working_context`** — ⚠️ **SỬA
+   (2026-07-31, final review fix wave, Finding 2): đoạn dưới đây ban đầu nói
+   SAI là "chưa nối vào graph"** — thực tế `agentic_context_sync` ĐÃ được
+   nối vào `build_graph()` thật (Task 9, `graph.py` dòng ~108-110) — nhưng
+   việc bàn giao `working_context` qua nó CHƯA được kiểm chứng qua một lượt
+   chạy `build_graph()` thật (mọi test flow hiện có đều tự dựng `StateGraph`
+   tối giản riêng, không đi qua `build_graph()` thật — xem Finding 3). Khoảng
+   trống đó nay đã được lấp bằng `test_build_graph_skill_integration.py`
+   (fix wave 2026-07-31) — xem `final-review-fix-report.md`.
 
 ---
 
@@ -319,10 +321,15 @@ dựa vào mã đơn — cả hai đều ngoài phạm vi file của SP-2a).
    (đã port và test xanh) sẽ xử lý đúng NẾU được đề cử.
 2. **Nhánh bắc cầu "không có PO" của `nhap-kho` không truy cập được** (§8.4)
    — phát hiện mới, chưa xử lý.
-3. **`agentic_context_sync` không được wire vào `build_graph()`** — đã biết
-   từ Task 7/9's review, nằm ngoài phạm vi 11 task của plan này (không task
-   nào giao việc nối nó vào graph thật). `working_context` không bàn giao
-   được giữa lượt SOP và lượt tier-1 kế tiếp.
+3. **SỬA (2026-07-31, final review fix wave, Finding 2):** mục này ban đầu
+   nói SAI là "chưa được wire vào `build_graph()`". Thực tế
+   `agentic_context_sync` ĐÃ được nối vào `build_graph()` thật (Task 9,
+   `graph.py` dòng ~108-110) — nhưng việc bàn giao `working_context` qua nó
+   CHƯA được kiểm chứng qua một lượt chạy `build_graph()` thật (mọi test
+   flow hiện có đều tự dựng `StateGraph` tối giản riêng, không đi qua
+   `build_graph()` thật — xem Finding 3 của `final-review-fix-report.md`).
+   Khoảng trống đó nay đã được lấp bằng
+   `test_build_graph_skill_integration.py` (fix wave 2026-07-31).
 4. **Chưa có UI soạn SOP, chưa hot-reload, chưa có orchestrator, `fusion`
    vẫn còn** — đúng như spec §9 đã liệt kê là "chưa làm được sau SP-2a", cố
    ý, không phải thiếu sót.

@@ -158,6 +158,42 @@ def test_reject_empty_prose(tmp_path):
         parse_skill_md(p)
 
 
+def test_reject_entry_with_path_separator(tmp_path):
+    # Finding 1 (final review fix wave, 2026-07-31): entry KHÔNG được chứa
+    # '/' — SKILL.md thuần văn bản không được phép thực thi file .py bất kỳ
+    # trên đĩa qua path traversal, phá bất biến thẩm quyền của loader.
+    p = _write_skill(tmp_path, "x", """
+name: x
+description: Dùng khi X.
+entry: ../khac/logic.py
+declares_tools: [t]
+""".strip())
+    with pytest.raises(SkillManifestError, match="TÊN FILE"):
+        parse_skill_md(p)
+
+
+def test_reject_entry_with_backslash(tmp_path):
+    p = _write_skill(tmp_path, "x", (
+        "name: x\n"
+        "description: Dùng khi X.\n"
+        "entry: ..\\khac\\logic.py\n"
+        "declares_tools: [t]"
+    ))
+    with pytest.raises(SkillManifestError, match="TÊN FILE"):
+        parse_skill_md(p)
+
+
+def test_reject_entry_dotdot_alone(tmp_path):
+    p = _write_skill(tmp_path, "x", """
+name: x
+description: Dùng khi X.
+entry: ..
+declares_tools: [t]
+""".strip())
+    with pytest.raises(SkillManifestError, match="TÊN FILE"):
+        parse_skill_md(p)
+
+
 def test_fixed_args_parsed(tmp_path):
     p = _write_skill(tmp_path, "nhap-kho", """
 name: nhap-kho

@@ -125,8 +125,11 @@ def parse_skill_md(path: Path) -> SkillSpec:
     tools = data.get("tools") or {}
     _require(isinstance(tools, dict), f"{where}: 'tools' phải là mapping")
     entry = data.get("entry")
-    _require(entry is None or (isinstance(entry, str) and entry.strip()),
-             f"{where}: 'entry' phải là tên file")
+    _require(entry is None or (isinstance(entry, str) and entry.strip()
+             and "/" not in entry and "\\" not in entry and entry not in (".", "..")),
+             f"{where}: 'entry' phải là TÊN FILE nằm trong chính thư mục skill "
+             "(không đường dẫn, không '..') — nếu không, markdown chọn được file .py "
+             "bất kỳ để thực thi, phá đúng bất biến thẩm quyền của loader")
 
     raw_write = tools.get("write") or []
     _require(not (raw_write and entry),

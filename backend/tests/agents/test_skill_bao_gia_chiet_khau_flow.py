@@ -27,20 +27,26 @@ tích đầy đủ; tóm tắt nối dây áp dụng ở đây:
 - Test E2E cuối file (nguồn: test_discount_skill_e2e_confirm_gate_and_
   working_context, dòng 262-345) được viết lại cấu trúc graph ngoài — xem
   chi tiết đầy đủ trong task-7-report.md. Tóm tắt: nguồn dùng
-  `backend.src.agents.graph.build_graph()` (production graph THẬT, có
-  intent_router route vào skill + node agentic_context_sync set
-  working_context + cờ môi trường ERP_SKILLS_ENABLED). Không cái nào trong 3
-  thứ đó tồn tại trong D:\\Youdoo tại thời điểm Task 7: graph.py (dòng 67) nói
-  rõ 3 skill agentic "KHÔNG port ở SP-1 — hoãn sang SP-2", plan SP-2a này kết
-  thúc ở Task 7 (không có task nối dây graph.py), ERP_SKILLS_ENABLED có 0 kết
-  quả grep trong toàn bộ backend/, và agentic_context_sync chỉ là tên dự trữ
-  trong skill_loader.RESERVED_NODE_NAMES chưa có node thật. Test được viết lại
-  dùng ĐÚNG pattern Task 6 đã lập tiền lệ cho 2 skill anh em (build_skill_node
-  gắn thẳng vào StateGraph tối giản tự dựng, không qua build_graph()) — giữ
-  nguyên 100% các assertion thuộc phạm vi skill này (interrupt kind=confirm
-  với đúng 7%, không ghi gì trước khi xác nhận, resume=True gọi MCP đúng
-  partner_id + price_unit đã chiết khấu), chỉ bỏ phần phụ thuộc hạ tầng ngoài
-  phạm vi SP-2a (routing sản xuất + đồng bộ working_context)."""
+  `backend.src.agents.graph.build_graph()` (production graph THẬT). Test ở
+  đây dùng ĐÚNG pattern Task 6 đã lập tiền lệ cho 2 skill anh em
+  (build_skill_node gắn thẳng vào StateGraph tối giản tự dựng, không qua
+  build_graph()) — giữ nguyên 100% các assertion thuộc phạm vi skill này
+  (interrupt kind=confirm với đúng 7%, không ghi gì trước khi xác nhận,
+  resume=True gọi MCP đúng partner_id + price_unit đã chiết khấu).
+
+  SỬA (final review fix wave, 2026-07-31, Finding 3): đoạn trên từng liệt kê
+  3 lý do KỸ THUẬT cho việc không dùng build_graph() thật (agentic_context_
+  sync "chưa có node thật", ERP_SKILLS_ENABLED "0 kết quả grep", SP-2a "kết
+  thúc ở Task 7 không có task nối dây graph.py") — cả 3 đều SAI: Task 9 đã
+  nối agentic_context_sync vào build_graph() thật, và ERP_SKILLS_ENABLED tồn
+  tại từ SP-1B (không phải chưa có trong SP-2a). Lý do ĐÚNG các test flow
+  port từ Task 6/7 (file này + 2 skill anh em) vẫn cố ý dùng StateGraph tối
+  giản: mục tiêu của chúng là khớp BEHAVIOR-EQUIVALENCE với module gốc
+  D:\\Project (port nguyên văn assertion), không cần một graph đầy đủ để làm
+  việc đó — không phải vì thiếu hạ tầng. Coverage qua `build_graph()` sản
+  xuất thật (routing intent_router → node SOP THẬT, và hành vi thật của
+  agentic_context_sync bàn giao working_context) nằm ở
+  `test_build_graph_skill_integration.py` (file mới, cùng fix wave)."""
 import json
 import pytest
 from typing import TypedDict, Annotated

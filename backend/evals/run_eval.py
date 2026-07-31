@@ -22,7 +22,7 @@ from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
 from evals import fixtures
-from src.agents.prompts import INTENT_ROUTER_PROMPT, CHITCHAT_PROMPT
+from src.agents.prompts import CHITCHAT_PROMPT
 from src.agents.confirmation import _LLM_PROMPT
 from src.agents.prompts import WRITE_PLANNER_PROMPT
 from src.agents.prompts import SYSTEM_PROMPT
@@ -268,17 +268,31 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
     khi Task 8 đổi INTENT_ROUTER_PROMPT sang 2 dòng: cả chuỗi 2 dòng không
     bao giờ khớp VALID_INTENTS nên MỌI case rơi về "unknown" (đo thật:
     acc 0.870 → 0.148). Unit test không bắt được vì không gọi LLM thật —
-    đúng loại lỗi bước xác nhận sống này tồn tại để bắt."""
+    đúng loại lỗi bước xác nhận sống này tồn tại để bắt.
+
+    Sửa lần 2 (final review fix wave, 2026-07-31, Finding 4): SystemMessage
+    trước đó dùng INTENT_ROUTER_PROMPT TRẦN, không nối worker block — khác
+    với hợp đồng production thật (nodes.py.make_intent_router_node LUÔN gọi
+    render_intent_router_prompt(worker_block), worker_block mô tả ~40 dòng
+    của 3 skill SOP hiện có). eval_sop_select đã dựng prompt đúng cách này từ
+    đầu; eval_intent giờ dùng LẠI đúng cách dựng đó (load_skill_specs +
+    render_worker_block + render_intent_router_prompt) — một nguồn sự thật
+    duy nhất, không tự viết lại. Trước fix này, điều kiện "bộ intent cũ
+    không được thụt" (spec §5.3 điều kiện 2) đo trên một cấu hình prompt
+    KHÔNG PHẢI production thật (ngắn hơn, thiếu phần mô tả SOP có thể ảnh
+    hưởng phân loại)."""
+    specs = load_skill_specs()
+    prompt = render_intent_router_prompt(render_worker_block(specs))
+    valid_sops = frozenset(s.name for s in specs)
     lat: list[float] = []
-    empty_valid_sops: frozenset = frozenset()
 
     async def call(case):
         text, expected = case
         resp, ms = await _timed(llm.ainvoke(
-            [SystemMessage(content=INTENT_ROUTER_PROMPT),
+            [SystemMessage(content=prompt),
              HumanMessage(content=text)]))
         lat.append(ms)
-        got, _sop = _parse_router_output(resp.content, empty_valid_sops)
+        got, _sop = _parse_router_output(resp.content, valid_sops)
         if got != expected:
             return {"text": text, "expected": expected, "got": got}
         return None

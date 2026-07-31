@@ -8,10 +8,11 @@ from langchain_core.tools import StructuredTool
 from langchain_core.tools import tool as lc_tool
 
 from src.agents.agentic_gate import REFUSED_MSG
-from src.agents.skill_manifest import SkillManifestError, parse_skill_md
+from src.agents.skill_manifest import SkillManifestError, SkillSpec, parse_skill_md
 from src.agents.skill_loader import (RESERVED_NODE_NAMES, SKILLS_DIR,
-                                     build_skill_node, build_skill_tools,
-                                     load_skill_specs, render_worker_block)
+                                     _load_entry_module, build_skill_node,
+                                     build_skill_tools, load_skill_specs,
+                                     render_worker_block)
 
 
 def _write_skill(root: Path, name: str, frontmatter: str,
@@ -67,6 +68,27 @@ def test_reserved_set_covers_every_tier1_node():
             "erp_write_planner", "erp_write_executor", "respond_unknown",
             "write_continuation", "agentic_context_sync"} <= RESERVED_NODE_NAMES
     assert {s.node for s in WRITE_COORDINATORS.values()} <= RESERVED_NODE_NAMES
+
+
+def test_load_entry_module_rejects_path_escaping_skill_dir(tmp_path):
+    """Phòng thủ lớp 2 (skill_loader._load_entry_module, Finding 1 review
+    2026-07-31). Lớp 1 (skill_manifest.parse_skill_md) đã chặn '/'/'\\'/'..'
+    trong entry nên KHÔNG có đường thực tế nào qua parse_skill_md tới được
+    đây với entry mang path traversal — construct SkillSpec TRỰC TIẾP (bỏ
+    qua lớp 1 hoàn toàn) để xác nhận loader tự đứng vững ĐỘC LẬP, không dựa
+    hoàn toàn vào lớp 1 đã chặn trước đó."""
+    skill_dir = tmp_path / "victim"
+    skill_dir.mkdir()
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    (outside_dir / "evil.py").write_text(
+        "def build_tools(mcp_tools):\n    return []\n", encoding="utf-8")
+
+    bad_spec = SkillSpec(name="victim", description="Dùng khi X.", prose="x",
+                         dir=skill_dir, entry="../outside/evil.py",
+                         declares_tools=("t",))
+    with pytest.raises(SkillManifestError, match="NẰM TRONG"):
+        _load_entry_module(bad_spec)
 
 
 def test_reject_entry_file_missing(tmp_path):

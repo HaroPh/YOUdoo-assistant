@@ -88,7 +88,14 @@ def run(args) -> JobResult:
     if args.set == "both":
         sets = ["intent", "confirm"]
     elif args.set == "all":
-        sets = list(EVAL_FN)
+        # sop_select CỐ Ý không nằm trong "all" (quyết định người dùng, final
+        # review fix wave 2026-07-31, Finding 5): gate tuyệt đối biết trước
+        # FAIL 16/17 (ca hồi quy 2026-07-16, xem docs/superpowers/plans/
+        # 2026-07-31-sp2a-sop-skills-report.md §2) — để nó trong "all" sẽ làm
+        # job hàng đêm đỏ VĨNH VIỄN, che tín hiệu 7 gate khác đang khỏe. Vẫn
+        # đăng ký đầy đủ trong EVAL_FN/add_args choices — theo dõi riêng qua
+        # `--set sop_select`.
+        sets = [s for s in EVAL_FN if s != "sop_select"]
     else:
         sets = [args.set]
     detail, any_fail = {}, False

@@ -5,7 +5,7 @@ description: >-
   nhận theo đúng quy trình đầy đủ — tra đơn, kiểm tra, rồi mới xác nhận giao.
   Nhận diện theo Ý ĐỊNH, KHÔNG cần đúng chữ "quy trình": câu có yêu cầu kiểm
   tra/đối chiếu trước khi giao, nêu điều kiện, hoặc mô tả nhiều bước cũng
-  tính (vd "giao hàng cho đơn S00012 nhưng kiểm tra kỹ hàng trước khi giao").
+  tính (vd "giao hàng cho đơn S00012, đối chiếu số lượng trước khi giao").
   KHÔNG dùng khi: người dùng chỉ HỎI về quy trình giao hàng (đó là tra cứu
   tài liệu), hoặc ra một lệnh giao NGẮN GỌN một bước, không kèm điều kiện
   hay yêu cầu kiểm tra gì thêm (đó là lệnh ghi trực tiếp, đi qua planner

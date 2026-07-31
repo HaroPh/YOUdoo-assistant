@@ -6,6 +6,8 @@ import os
 
 import pytest
 
+from src.agents.agentic_gate import REFUSED_MSG
+
 pytestmark = pytest.mark.live
 
 CAN_CO = ("GOOGLE_API_KEY", "ODOO_URL", "DATABASE_URL", "MCP_ODOO_URL")
@@ -55,8 +57,15 @@ def test_cau_hoi_ve_quy_trinh_khong_bi_sop_cuop(agent, event_loop_sop):
 
 def test_tu_choi_xac_nhan_thi_khong_ghi_gi(agent, event_loop_sop):
     """Cổng xác nhận tại tool boundary — lưới đỡ CUỐI, tất định, fail-closed.
-    Trả lời "không" ở bước confirm phải cho ra REFUSED_MSG-flavored reply và
-    KHÔNG ghi gì vào Odoo."""
+    Trả lời "không" ở bước confirm phải cho ra phản hồi MANG DẤU HIỆU TỪ CHỐI
+    thật sự (không chỉ "không lỗi") và KHÔNG ghi gì vào Odoo.
+
+    Sửa 2026-07-31 (final review fix wave, Finding 7): bản trước chỉ assert
+    isinstance/non-empty/không chứa "đã có lỗi xảy ra" — PASS ngay cả khi
+    write THẬT SỰ xảy ra (không phân biệt được từ chối thật với ghi thành
+    công). Giờ assert nội dung chứa fragment đặc trưng của REFUSED_MSG
+    (agentic_gate.py) — đúng chuỗi đã quan sát được model echo nguyên văn ở
+    lượt chạy sống thật (báo cáo Task 11 §7 mục 2)."""
     tid = "test-sop-refuse-1"
     event_loop_sop.run_until_complete(agent.chat(
         [{"role": "user", "content": "làm quy trình giao hàng cho đơn bán S00012"}],
@@ -65,3 +74,8 @@ def test_tu_choi_xac_nhan_thi_khong_ghi_gi(agent, event_loop_sop):
         [{"role": "user", "content": "không"}], thread_id=tid))
     assert isinstance(tra_loi, str) and tra_loi.strip()
     assert "đã có lỗi xảy ra" not in tra_loi.lower()
+    tu_choi_fragment = "TỪ CHỐI xác nhận"
+    assert tu_choi_fragment in REFUSED_MSG  # sanity: fragment thật thuộc REFUSED_MSG
+    assert tu_choi_fragment in tra_loi, (
+        f"phản hồi không mang dấu hiệu REFUSED_MSG — có thể write đã xảy ra "
+        f"thật thay vì bị chặn: {tra_loi[:300]}")

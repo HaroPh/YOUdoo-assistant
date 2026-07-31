@@ -290,15 +290,20 @@ def test_planner_dangerous_misroute_fails_even_with_perfect_acc(monkeypatch, tmp
     assert result.detail["planner"]["gate"] == "FAIL"
 
 
-def test_set_all_runs_every_registered_set(monkeypatch, tmp_path):
-    """--set all phải chạy TẤT CẢ set đã đăng ký.
+def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_path):
+    """--set all phải chạy TẤT CẢ set đã đăng ký, TRỪ sop_select (Finding 5,
+    final review fix wave 2026-07-31, quyết định người dùng): sop_select là
+    gate tuyệt đối biết trước FAIL 16/17 (ca hồi quy 2026-07-16) — để nó
+    trong "all" sẽ làm job hàng đêm đỏ vĩnh viễn, che tín hiệu 7 gate khác.
+    Vẫn đăng ký đầy đủ trong EVAL_FN — chỉ loại khỏi tập "all" chạy mặc định.
+
     Bẫy thật (2 lần: 1 lần Task 2's fix round, rồi TÁI PHÁT khi Task 3/4/5
     thêm read/synthesis/multi_source mà quên patch vào test này) — nếu 1 set
     không được patch, hàm eval THẬT sẽ chạy, lỗi (thiếu LLM/baseline thật),
     bị run()'s except nuốt mất, và assertion cũ (chỉ check 4 key cố định)
     vẫn qua dù set đó CHƯA BAO GIỜ thực sự chạy thành công. Assert bằng
-    set(eval_gate.EVAL_FN) (không phải danh sách cứng) + exit_code + mỗi
-    fake gọi đúng 1 lần, để không tái phát."""
+    set(eval_gate.EVAL_FN) - {"sop_select"} (không phải danh sách cứng) +
+    exit_code + mỗi fake gọi đúng 1 lần, để không tái phát."""
     fi, fc = _patch(monkeypatch)
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -325,15 +330,41 @@ def test_set_all_runs_every_registered_set(monkeypatch, tmp_path):
     fms = _fake_ms_eval(coverage=0.75)
     monkeypatch.setitem(eval_gate.EVAL_FN, "multi_source", fms)
 
-    fsop = _fake_sop_select_eval(acc=1.0, hijack=0)
+    # sop_select FAKE trả FAIL nếu lỡ chạy — nếu test này vẫn PASS thì chứng
+    # minh nó KHÔNG được gọi (không phải "gọi và tình cờ pass").
+    fsop = _fake_sop_select_eval(acc=0.0, hijack=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fsop)
 
     result = eval_gate.run(_args(set_="all"))
 
-    assert set(result.detail) == set(eval_gate.EVAL_FN)
+    assert set(result.detail) == set(eval_gate.EVAL_FN) - {"sop_select"}
+    assert "sop_select" not in result.detail
     assert result.exit_code == PASS
-    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop):
+    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
+    assert fsop.calls == [], "sop_select KHÔNG được chạy dưới --set all"
+
+
+def test_set_sop_select_still_runs_standalone(monkeypatch):
+    """sop_select vẫn đăng ký đầy đủ và chạy được RIÊNG qua --set sop_select
+    — Finding 5 chỉ loại nó khỏi tập "all", không xoá đăng ký."""
+    fsop = _fake_sop_select_eval(acc=1.0, hijack=0)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fsop)
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    result = eval_gate.run(_args(set_="sop_select"))
+    assert result.exit_code == PASS
+    assert list(result.detail) == ["sop_select"]
+    assert len(fsop.calls) == 1
+
+
+def test_sop_select_still_a_valid_set_choice():
+    # add_args vẫn đăng ký "sop_select" trong choices --set dù đã loại khỏi
+    # "all" — dựng parser thật, parse để xác nhận.
+    import argparse as _argparse
+    p = _argparse.ArgumentParser()
+    eval_gate.add_args(p)
+    ns = p.parse_args(["--set", "sop_select"])
+    assert ns.set == "sop_select"
 
 
 def _fake_read_eval(tool_acc=1.0, fabricated_param=0, n=20):
