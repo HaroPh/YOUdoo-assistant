@@ -14,12 +14,18 @@ hiệu — gate nằm trong Python, không nằm trong prose.
 Chạy đúng MỘT LẦN lúc build_graph()."""
 import importlib.util
 import logging
+import string
 import sys
 from pathlib import Path
 
+from langchain_core.tools import StructuredTool
+from pydantic import create_model
+
+from .agentic_gate import REFUSED_MSG, _confirm_write, ask_human
 from .skill_manifest import (MISSING_NEGATIVE_WARNING, SkillManifestError,
                              SkillSpec, parse_skill_md)
 from .write_registry import WRITE_COORDINATORS
+from ..erp_query.tools import build_erp_query_tools
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +89,138 @@ def render_worker_block(specs) -> str:
         return ""
     entries = "\n\n".join(f"worker: {s.name}\nmô tả: {s.description}" for s in specs)
     return f"Danh sách worker quy trình nghiệp vụ (SOP):\n\n{entries}"
+
+
+def _param_names(mcp_tool) -> set[str]:
+    """Tên tham số tool MCP. langchain-mcp-adapters đặt args_schema = chính
+    JSON Schema (dict) của MCP inputSchema; tool @tool thuần Python thì
+    args_schema là lớp pydantic. Đỡ cả hai."""
+    schema = mcp_tool.args_schema
+    if isinstance(schema, dict):
+        return set((schema.get("properties") or {}).keys())
+    return set(getattr(schema, "model_fields", {}).keys())
+
+
+def _visible_schema(mcp_tool, fixed: dict):
+    """Schema model NHÌN THẤY = schema tool MCP TRỪ các khoá fixed_args.
+
+    Markdown không có quyền mô tả tham số của một tool ghi — schema chép từ
+    chính tool MCP. Việc DUY NHẤT manifest được làm là GIẤU bớt tham số bằng
+    cách ghim giá trị hằng cho nó (fixed_args); giấu đi thì model không đặt
+    được, nên đây là thu hẹp thẩm quyền, không phải mở rộng.
+
+    Đỡ CẢ HAI hình dạng args_schema, không phải để tổng quát hoá vu vơ mà vì
+    hai đường đều xảy ra thật: langchain-mcp-adapters gán args_schema = chính
+    JSON Schema (DICT) của MCP inputSchema (tools.py:531) — đường production;
+    còn tool dựng bằng @tool trong test cho ra LỚP PYDANTIC."""
+    schema = mcp_tool.args_schema
+    if not fixed:
+        return schema
+    if isinstance(schema, dict):
+        out = dict(schema)
+        out["properties"] = {k: v for k, v in (out.get("properties") or {}).items()
+                             if k not in fixed}
+        required = [r for r in (out.get("required") or []) if r not in fixed]
+        if required:
+            out["required"] = required
+        else:
+            out.pop("required", None)
+        return out
+    kept = {n: (f.annotation, f) for n, f in schema.model_fields.items()
+            if n not in fixed}
+    return create_model(f"{mcp_tool.name}_visible_args", **kept)
+
+
+def _make_gated_write_tool(mcp_tool, wspec):
+    """Sinh wrapper CÙNG TÊN bọc _confirm_write quanh một tool ghi MCP.
+
+    Đây là boilerplate mà 3 skill viết tay ở D:\\Project đang chép đi chép lại
+    (lấy tool theo tên → bọc _confirm_write → ainvoke). Sinh tự động để không
+    có đường nào quên gate: model KHÔNG BAO GIỜ thấy tool ghi thô (chỉ wrapper
+    này được bind vào create_agent), nên không có đường vòng bỏ qua cổng."""
+
+    async def _gated(**kwargs) -> str:
+        if not _confirm_write(wspec.confirm.format(**kwargs, **wspec.fixed_args)):
+            return REFUSED_MSG
+        return await mcp_tool.ainvoke({**kwargs, **wspec.fixed_args})
+
+    return StructuredTool.from_function(
+        func=None, coroutine=_gated, name=mcp_tool.name,
+        description=mcp_tool.description,
+        args_schema=_visible_schema(mcp_tool, wspec.fixed_args))
+
+
+def _load_entry_module(spec: SkillSpec):
+    path = spec.dir / spec.entry
+    mod_name = f"youdoo_skill_{spec.name.replace('-', '_')}"
+    mod_spec = importlib.util.spec_from_file_location(mod_name, path)
+    if mod_spec is None or mod_spec.loader is None:
+        raise SkillManifestError(f"{path}: không nạp được entry module")
+    module = importlib.util.module_from_spec(mod_spec)
+    sys.modules[mod_name] = module
+    mod_spec.loader.exec_module(module)
+    if not callable(getattr(module, "build_tools", None)):
+        raise SkillManifestError(
+            f"{path}: entry phải cung cấp hàm build_tools(mcp_tools) -> list[BaseTool]")
+    return module
+
+
+def build_skill_tools(spec: SkillSpec, mcp_tools) -> list:
+    """Tool của một node SOP: ask_human + tool đọc + (wrapper ghi ĐÃ GATE
+    HOẶC tool do entry sinh). ask_human luôn được cấp, không cần khai — mọi SOP
+    đều cần, bắt khai chỉ tạo chỗ để quên.
+
+    registry MCP RỖNG = đường test (build_graph(tools=[])), không phải đường
+    production: ERPAgent.setup() gọi await client.get_tools() TRƯỚC build_graph
+    và lệnh đó ném lỗi nếu MCP sập, nên production không bao giờ tới đây với
+    registry rỗng. Rỗng → không có hợp đồng MCP để đối chiếu, bỏ qua kiểm tra
+    tồn tại, dựng node chỉ-đọc. KHÔNG rỗng mà thiếu tool đã khai → fail-loud."""
+    by_name = {t.name: t for t in mcp_tools}
+    read_by_name = {t.name: t for t in build_erp_query_tools()}
+
+    tools = [ask_human]
+    for rname in spec.read_tools:
+        if rname not in read_by_name:
+            raise SkillManifestError(
+                f"skill {spec.name!r}: tool đọc {rname!r} không có trong "
+                "build_erp_query_tools()")
+        tools.append(read_by_name[rname])
+
+    if spec.entry:
+        module = _load_entry_module(spec)
+        produced = list(module.build_tools(mcp_tools))
+        allowed = set(spec.declares_tools) | {"ask_human"}
+        extra = sorted({t.name for t in produced} - allowed)
+        # Chỉ chặn chiều LEO THANG (trả tool KHÔNG khai). Chiều thiếu là hợp lệ:
+        # registry MCP rỗng thì build_tools() không dựng được tool ghi nào.
+        if extra:
+            raise SkillManifestError(
+                f"skill {spec.name!r}: entry {spec.entry!r} trả tool không khai "
+                f"trong declares_tools: {extra}")
+        tools.extend(t for t in produced if t.name != "ask_human")
+        return tools
+
+    for wspec in spec.write_tools:
+        mcp_tool = by_name.get(wspec.name)
+        if mcp_tool is None:
+            if not by_name:
+                continue          # registry rỗng — xem docstring
+            raise SkillManifestError(
+                f"skill {spec.name!r}: tool ghi {wspec.name!r} không có trong "
+                "registry MCP")
+        params = _param_names(mcp_tool)
+        unknown_fixed = sorted(set(wspec.fixed_args) - params)
+        if unknown_fixed:
+            raise SkillManifestError(
+                f"skill {spec.name!r}/{wspec.name}: fixed_args {unknown_fixed} "
+                f"không phải tham số của tool đó (tham số hợp lệ: {sorted(params)})")
+        placeholders = {f for _l, f, _s, _c in string.Formatter().parse(wspec.confirm)
+                        if f}
+        unknown_ph = sorted(placeholders - params)
+        if unknown_ph:
+            raise SkillManifestError(
+                f"skill {spec.name!r}/{wspec.name}: confirm nội suy {unknown_ph} "
+                f"không phải tham số của tool đó (tham số hợp lệ: {sorted(params)})")
+        tools.append(_make_gated_write_tool(mcp_tool, wspec))
+
+    return tools
