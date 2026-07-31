@@ -36,8 +36,6 @@ from src.agents.skill_loader import load_skill_specs, render_worker_block
 from src.erp_query.tools import build_erp_query_tools
 from jobs.resilience import run_resilient
 
-VALID_INTENTS = {"erp_read", "erp_write", "rag", "mixed", "unknown"}
-
 
 # Router dựng LƯỜI, dùng CHUNG cho mọi lượt gọi eval trong một tiến trình —
 # không phải một router mới mỗi case. build_router() mở PostgresUsageStore

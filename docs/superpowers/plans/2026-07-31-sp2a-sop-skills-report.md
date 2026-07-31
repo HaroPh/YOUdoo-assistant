@@ -119,10 +119,12 @@ dụng phụ không lường trước.
 [intent] model=gemma-4-26b pace=2.4s acc=0.148 baseline=0.870 → FAIL
 ```
 
-**Không phải lỗi model — lỗi code thật.** Mọi case (52/56) rơi về `"unknown"`.
-Nguyên nhân: Task 8 đổi `INTENT_ROUTER_PROMPT` từ "trả 1 từ intent" sang "trả
-2 dòng `intent:`/`sop:`", nhưng `eval_intent()` ở `backend/evals/run_eval.py`
-(hàm ĐO, không nằm trong phạm vi sửa của Task 8) vẫn parse kiểu cũ:
+**Không phải lỗi model — lỗi code thật.** Mọi response đều bị parse thành
+`"unknown"` — 46/54 case tính là fail (8 case còn lại có expected chính là
+`"unknown"` nên tình cờ "khớp" dù không đo được gì thật). Nguyên nhân: Task 8
+đổi `INTENT_ROUTER_PROMPT` từ "trả 1 từ intent" sang "trả 2 dòng
+`intent:`/`sop:`", nhưng `eval_intent()` ở `backend/evals/run_eval.py` (hàm
+ĐO, không nằm trong phạm vi sửa của Task 8) vẫn parse kiểu cũ:
 `got = resp.content.strip().lower()` rồi so trực tiếp với `VALID_INTENTS`.
 Chuỗi 2 dòng không bao giờ khớp 1 từ trong tập đó → mọi case (dù model phân
 loại đúng hay sai) đều rơi về `"unknown"`.
@@ -230,6 +232,22 @@ Cần `mcp-odoo` :8001 (đã khởi động, venv mới dựng), Odoo :8069 (đ�
 sẵn), Postgres :5434 (`youdoo-postgres`, đã chạy sẵn), backend :8000 (đã
 khởi động).
 
+**Thay đổi so với plan, công khai ở đây:** kế hoạch gốc chọn `nhap-kho`/đơn
+mua P00021 làm flow kiểm bằng tay (5 bước, gồm cả nhánh hỏi số lượng thực
+nhận, đối chiếu, và nhánh QC/lệch số lượng). Thực tế chạy bên dưới dùng
+`giao-hang`/đơn bán S00012 thay thế — flow ngắn hơn, không có nhánh rẽ QC/
+lệch số lượng. **5 mục dưới đây đánh số theo plan gốc nhưng nội dung mục 1-3
+lấy từ flow `giao-hang` đã chạy thật, KHÔNG phải từ `nhap-kho`.** Hệ quả:
+nhánh "hỏi số lượng thực nhận" (bước 3 prose `nhap-kho`) và nhánh "lệch số
+lượng → `flag_order_for_review`, KHÔNG được gọi `receive_order`" (bước 5
+prose `nhap-kho`) — hai nhánh an toàn quan trọng nhất của `nhap-kho` —
+**CHƯA được đi qua bằng tay qua Odoo thật trong Task 11**. Chúng đã có test
+port hành vi tương đương (Task 6, mock MCP, xanh) và routing của `nhap-kho`
+đã xác nhận thật qua §6 (`test_dau_cuoi_sop.py`, câu lệnh có mã đơn P00021
+vào đúng node, hỏi lại đúng như bước 1/3 của SOP) — nhưng bản thân bước
+"đối chiếu số lượng lệch → flag thay vì receive" chưa có bằng chứng sống
+qua Odoo thật ở báo cáo này.
+
 1. **Câu xác nhận đúng nguyên văn** — PASS, xem §5.
    `"Xác nhận GIAO HÀNG cho đơn bán S00012?"`.
 2. **Trả lời "không" → không ghi gì** — PASS.
@@ -265,7 +283,7 @@ khởi động).
 | 4 | `SOP_SELECT_CASES` xanh toàn bộ + `intent` không thụt | ⚠️ **Một phần**: `intent` PASS (0.944 ≥ 0.870, sau khi sửa bug thật). `sop_select` **FAIL 16/17** — rủi ro đã biết, chấp nhận theo quyết định người dùng (§2). Ca hồi quy nguyên văn 2026-07-16 CÓ mặt trong `SOP_SELECT_CASES` (đúng yêu cầu) nhưng KHÔNG đạt. |
 | 5 | Test bất biến bảo mật mở rộng xanh | ✅ Review Task 9: 5 thuộc tính an toàn cốt lõi hand-verify + test thật, xanh sau 1 vòng fix |
 | 6 | Toàn bộ test xanh ở cả ba chế độ | ✅ §1: mặc định 1031 passed, integration 27 passed, live 3 passed |
-| 7 | Một flow SOP thật chạy đầu-cuối qua Odoo thật | ✅ **Một phần**: §7 mục 1-3 PASS thật; mục 4 (bắc cầu) phát hiện khoảng trống; mục 5 (context handoff) không kiểm được do hạn chế đã biết từ trước |
+| 7 | Một flow SOP thật chạy đầu-cuối qua Odoo thật | ⚠️ **Một phần**: §7 mục 1-3 PASS thật nhưng chạy trên `giao-hang`/S00012 thay vì `nhap-kho`/P00021 như plan gốc (công khai đầu §7) — 2 nhánh an toàn quan trọng nhất của `nhap-kho` (hỏi số lượng thực nhận, lệch số lượng → flag thay vì receive) CHƯA đi qua Odoo thật; mục 4 (bắc cầu) phát hiện khoảng trống; mục 5 (context handoff) không kiểm được do hạn chế đã biết từ trước |
 
 ### 8.4. Chi tiết khoảng trống: nhánh bắc cầu "không có PO"
 
