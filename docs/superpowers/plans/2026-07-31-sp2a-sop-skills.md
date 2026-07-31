@@ -430,7 +430,7 @@ Thêm vào `backend/tests/agents/test_skill_manifest.py`:
 
 ```python
 def test_reject_missing_name(tmp_path):
-    p = _write_skill(tmp_path, "x", "description: Dùng khi X. KHÔNG dùng khi: Y.")
+    p = _write_skill(tmp_path, "x", 'description: "Dùng khi X. KHÔNG dùng khi: Y."')
     with pytest.raises(SkillManifestError, match="thiếu 'name'"):
         parse_skill_md(p)
 
@@ -548,7 +548,7 @@ def test_reject_empty_prose(tmp_path):
 def test_fixed_args_parsed(tmp_path):
     p = _write_skill(tmp_path, "nhap-kho", """
 name: nhap-kho
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 tools:
   write:
     - name: flag_order_for_review
@@ -618,7 +618,7 @@ def _write_skill(root: Path, name: str, frontmatter: str,
     return d
 
 
-_OK = "name: {n}\ndescription: Dùng khi THỰC HIỆN {n}. KHÔNG dùng khi: chỉ HỎI về {n}."
+_OK = 'name: {n}\ndescription: "Dùng khi THỰC HIỆN {n}. KHÔNG dùng khi: chỉ HỎI về {n}."'
 
 
 def test_skills_dir_is_backend_skills_and_cwd_independent():
@@ -667,7 +667,7 @@ def test_reserved_set_covers_every_tier1_node():
 def test_reject_entry_file_missing(tmp_path):
     _write_skill(tmp_path, "bao-gia", """
 name: bao-gia
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 entry: logic.py
 declares_tools: [create_discount_quote]
 """.strip())
@@ -872,7 +872,7 @@ def _fake_mcp_tools():
 
 _GIAO_HANG = """
 name: giao-hang
-description: Dùng khi THỰC HIỆN giao hàng. KHÔNG dùng khi: chỉ HỎI về quy trình.
+description: "Dùng khi THỰC HIỆN giao hàng. KHÔNG dùng khi: chỉ HỎI về quy trình."
 tools:
   read: [get_sale_order_detail]
   write:
@@ -923,7 +923,7 @@ async def test_generated_wrapper_refuses_without_calling_mcp(tmp_path):
 async def test_fixed_args_merged_into_payload_and_hidden_from_model(tmp_path):
     spec = _spec(tmp_path, "nhap-kho", """
 name: nhap-kho
-description: Dùng khi THỰC HIỆN nhập kho. KHÔNG dùng khi: chỉ HỎI về quy trình.
+description: "Dùng khi THỰC HIỆN nhập kho. KHÔNG dùng khi: chỉ HỎI về quy trình."
 tools:
   write:
     - name: flag_order_for_review
@@ -970,7 +970,7 @@ def test_empty_mcp_registry_builds_read_only_node(tmp_path):
 def test_reject_unknown_read_tool(tmp_path):
     spec = _spec(tmp_path, "giao-hang", """
 name: giao-hang
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 tools:
   read: [khong_co_tool_nay]
 """.strip())
@@ -981,7 +981,7 @@ tools:
 def test_reject_confirm_placeholder_not_a_tool_param(tmp_path):
     spec = _spec(tmp_path, "giao-hang", """
 name: giao-hang
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 tools:
   write:
     - name: deliver_order
@@ -995,7 +995,7 @@ tools:
 def test_reject_fixed_arg_not_a_tool_param(tmp_path):
     spec = _spec(tmp_path, "giao-hang", """
 name: giao-hang
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 tools:
   write:
     - name: deliver_order
@@ -1011,7 +1011,7 @@ tools:
 def test_entry_logic_py_tools_loaded(tmp_path):
     d = _write_skill(tmp_path, "bao-gia", """
 name: bao-gia
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 entry: logic.py
 declares_tools: [create_discount_quote]
 """.strip())
@@ -1031,7 +1031,7 @@ declares_tools: [create_discount_quote]
 def test_reject_logic_py_returning_undeclared_tool(tmp_path):
     d = _write_skill(tmp_path, "bao-gia", """
 name: bao-gia
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 entry: logic.py
 declares_tools: [create_discount_quote]
 """.strip())
@@ -1055,7 +1055,7 @@ declares_tools: [create_discount_quote]
 def test_reject_logic_py_without_build_tools(tmp_path):
     d = _write_skill(tmp_path, "bao-gia", """
 name: bao-gia
-description: Dùng khi X. KHÔNG dùng khi: Y.
+description: "Dùng khi X. KHÔNG dùng khi: Y."
 entry: logic.py
 declares_tools: [create_discount_quote]
 """.strip())
