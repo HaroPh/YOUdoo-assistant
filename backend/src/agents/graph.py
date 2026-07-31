@@ -15,6 +15,10 @@ from .fusion import make_fusion_node
 from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS
 from .continuation import make_write_continuation_node, _route_after_continuation
 from .models import llms_from_single
+from . import skill_gate
+from .skill_gate import _fold
+from .skill_loader import build_skill_node, load_skill_specs, render_worker_block
+from .agentic_context_sync import make_agentic_context_sync_node
 
 
 _QUESTION_MARKERS = (
@@ -29,11 +33,35 @@ def _looks_like_question(folded: str) -> bool:
 
 
 def _route_by_intent(state: ERPAgentState) -> str:
-    # AGENTIC_SKILLS/agentic_registry KHÔNG port ở SP-1 (spec §3: đây chính là
-    # hình dạng "specialist agent" SP-2 sẽ dựng lại — port vào cấu trúc sắp bị
-    # thay là công toi). _looks_like_question()/_QUESTION_MARKERS bên dưới vẫn
-    # giữ (rẻ, không hại) làm móc sẵn cho SP-2 nối lại routing này.
-    return state.get("intent") or "unknown"
+    """Quyết định cuối là TẤT ĐỊNH. Đề cử SOP (state["sop"]) chỉ là một trong
+    hai điều kiện; điều kiện kia — câu KHÔNG mang dấu hiệu câu hỏi — là lớp
+    phủ quyết không phụ thuộc phân loại LLM.
+
+    Vì sao lớp phủ quyết này CỐ Ý tất định và KHÔNG được tháo ra: bản đầu (chỉ
+    AND với intent=="erp_write") đóng đúng ca hijack gốc ("quy trình nhập kho
+    là gì?" → skill thay vì RAG) nhưng live-verify 2026-07-16 lộ ra chiều lỗi
+    ngược — router phân loại "mixed"/"erp_read" cho chính 2 câu lệnh dùng
+    nguyên văn ngôn ngữ quy trình ("quy trình nhập kho cho đơn mua P00021",
+    "nhập kho theo quy trình cho đơn mua P00021"), khiến lệnh thật bị lỡ route
+    3/3 LẦN THỬ — vì router chưa từng được tune để phân biệt "hỏi VỀ SOP" khỏi
+    "thực thi SOP cho 1 đơn cụ thể" (đọc rất giống định nghĩa "mixed" trong
+    prompts.py dù ý người dùng là hành động). Chuyển gate sang tất định (đánh
+    dấu câu hỏi) giữ nguyên bất biến an toàn (câu hỏi không hijack) mà không
+    phụ thuộc phân loại LLM cho quyết định này. Model to hơn CÓ THỂ đủ — nhưng
+    "có thể" không phải cơ sở để tháo một lớp phòng thủ đã chứng minh giá trị,
+    khi giữ nó tốn 10 dòng.
+
+    Lưới đỡ cuối không phải lớp này: router sai chiều nào thì confirm-gate tại
+    tool boundary vẫn chặn mọi write chưa được duyệt."""
+    intent = state.get("intent") or "unknown"
+    sop = state.get("sop")
+    if sop and skill_gate.skills_enabled():
+        last_human = next((m.content for m in reversed(state["messages"])
+                           if m.type == "human"), "")
+        folded = _fold(last_human)
+        if intent == "erp_write" or not _looks_like_question(folded):
+            return sop            # SOP nhận trọn lượt
+    return intent                 # phủ quyết: rớt sop, dùng intent
 
 
 def _route_after_write_planner(state: ERPAgentState) -> str:
@@ -54,7 +82,14 @@ def build_graph(llm, tools, checkpointer) -> object:
 
     g = StateGraph(ERPAgentState)
 
-    g.add_node("intent_router", make_intent_router_node(llms["router"]))
+    # Nạp SOP MỘT LẦN, fail-loud: SKILL.md sai thẩm quyền/cấu trúc → ném
+    # SkillManifestError ra ngoài build_graph → ERPAgent.setup() → app KHÔNG
+    # LÊN. Thà không lên còn hơn lên sai (cùng triết lý assert_embedding_marker).
+    skill_specs = load_skill_specs()
+
+    g.add_node("intent_router", make_intent_router_node(
+        llms["router"], render_worker_block(skill_specs),
+        frozenset(s.name for s in skill_specs)))
     g.add_node("erp_read", make_erp_read_node(llms["read"], build_erp_query_tools()))
     g.add_node("erp_write_planner", make_erp_write_planner_node(llms["planner"]))
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
@@ -64,7 +99,15 @@ def build_graph(llm, tools, checkpointer) -> object:
     for spec in WRITE_COORDINATORS.values():
         g.add_node(spec.node, spec.build(llms["planner"], tools))
     g.add_node("write_continuation", make_write_continuation_node())
-    # 3 skill agentic tier-2 (agentic_registry/agentic_context_sync) KHÔNG port ở SP-1 — hoãn sang SP-2 (spec §3). Node/edge của chúng bỏ theo.
+
+    for spec in skill_specs:
+        # Node SOP add THẲNG vào graph ngoài (không bọc hàm async viết tay) —
+        # điều kiện để interrupt() trong tool của nó compose đúng với
+        # checkpointer. recursion_limit áp trong build_skill_node (wiring).
+        g.add_node(spec.name, build_skill_node(spec, llms["planner"], tools))
+        g.add_edge(spec.name, "agentic_context_sync")
+    g.add_node("agentic_context_sync", make_agentic_context_sync_node())
+    g.add_edge("agentic_context_sync", END)
 
     g.set_entry_point("intent_router")
 
@@ -75,6 +118,7 @@ def build_graph(llm, tools, checkpointer) -> object:
         "mixed": "mixed",
         "unknown": "respond_unknown",
     }
+    intent_targets.update({s.name: s.name for s in skill_specs})
     g.add_conditional_edges("intent_router", _route_by_intent, intent_targets)
 
     g.add_edge("erp_read", END)

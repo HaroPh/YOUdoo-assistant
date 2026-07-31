@@ -143,9 +143,9 @@ def test_build_graph_accepts_role_mapping(monkeypatch):
     captured = {}
 
     def spy_llm_only(name, real):
-        def _spy(llm):
+        def _spy(llm, *args, **kwargs):
             captured[name] = llm
-            return real(llm)
+            return real(llm, *args, **kwargs)
         return _spy
 
     def spy_llm_tools(name, real):
@@ -257,3 +257,133 @@ def test_looks_like_question_false_for_plain_commands():
     ]
     for c in commands:
         assert not _looks_like_question(_fold(c)), c
+
+
+# ── SP-2a: định tuyến hybrid ─────────────────────────────────────────────────
+# Tầng 1 (description → đề cử `sop`) là XÁC SUẤT. Tầng 2 (_looks_like_question
+# phủ quyết) là TẤT ĐỊNH và cố ý — live-verify 2026-07-16 cho thấy router LLM
+# thua đúng bài này 3/3 lần. Bảng dưới đo tầng 2.
+
+from langchain_core.messages import HumanMessage
+
+
+def _state(text, intent, sop):
+    return {"messages": [HumanMessage(content=text)], "intent": intent, "sop": sop}
+
+
+def test_route_sop_wins_for_plain_execute_command():
+    from src.agents.graph import _route_by_intent
+    # Router phân loại SAI (mixed) nhưng câu không mang dấu hiệu câu hỏi →
+    # SOP vẫn nhận trọn lượt. Đây CHÍNH LÀ ca thua 3/3 lần ngày 2026-07-16.
+    assert _route_by_intent(
+        _state("quy trình nhập kho cho đơn mua P00021", "mixed", "nhap-kho")) == "nhap-kho"
+    assert _route_by_intent(
+        _state("nhập kho theo quy trình cho đơn mua P00021", "erp_read", "nhap-kho")) == "nhap-kho"
+
+
+def test_route_sop_wins_when_intent_is_erp_write_even_if_question_shaped():
+    from src.agents.graph import _route_by_intent
+    # Nhánh OR: router tự tin nói erp_write thì lối tắt vẫn mở.
+    assert _route_by_intent(
+        _state("giao hàng cho đơn S1 được không", "erp_write", "giao-hang")) == "giao-hang"
+
+
+def test_route_question_vetoes_sop_proposal():
+    from src.agents.graph import _route_by_intent
+    # Ca hijack GỐC: "quy trình nhập kho là gì?" phải đi RAG, không đi SOP.
+    assert _route_by_intent(
+        _state("quy trình nhập kho là gì?", "rag", "nhap-kho")) == "rag"
+    assert _route_by_intent(
+        _state("quy trình giao hàng như thế nào", "rag", "giao-hang")) == "rag"
+
+
+def test_route_without_sop_proposal_returns_intent():
+    from src.agents.graph import _route_by_intent
+    assert _route_by_intent(_state("giao hàng cho đơn S00040", "erp_write", None)) == "erp_write"
+    assert _route_by_intent(_state("chào bạn", "unknown", None)) == "unknown"
+    assert _route_by_intent(_state("x", None, None)) == "unknown"
+
+
+def test_route_kill_switch_drops_every_sop_proposal(monkeypatch):
+    from src.agents.graph import _route_by_intent
+    monkeypatch.setenv("ERP_SKILLS_ENABLED", "0")
+    assert _route_by_intent(
+        _state("quy trình nhập kho cho đơn mua P00021", "mixed", "nhap-kho")) == "mixed"
+
+
+def test_route_kill_switch_only_off_value_is_zero(monkeypatch):
+    from src.agents.graph import _route_by_intent
+    for value in ("1", "true", "yes", ""):
+        monkeypatch.setenv("ERP_SKILLS_ENABLED", value)
+        assert _route_by_intent(
+            _state("quy trình nhập kho cho đơn mua P00021", "mixed", "nhap-kho")) == "nhap-kho"
+
+
+def test_build_graph_registers_every_skill_node_and_context_sync():
+    from src.agents.skill_loader import load_skill_specs
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    nodes = set(graph.get_graph().nodes)
+    assert "agentic_context_sync" in nodes
+    for spec in load_skill_specs():
+        assert spec.name in nodes
+
+
+def test_every_skill_node_edges_into_context_sync():
+    from src.agents.skill_loader import load_skill_specs
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    edges = [(e.source, e.target) for e in graph.get_graph().edges]
+    for spec in load_skill_specs():
+        assert (spec.name, "agentic_context_sync") in edges
+        assert (spec.name, "__end__") not in edges
+    assert ("agentic_context_sync", "__end__") in edges
+
+
+def test_skill_nodes_reachable_only_from_intent_router():
+    """Bất biến bảo mật toàn đồ thị (nối dài test_all_write_mutating_nodes_...):
+    một node SOP mang tool ghi đã gate, nhưng chỉ được vào từ intent_router —
+    nơi DUY NHẤT áp phủ quyết tất định. Một cạnh tương lai chọc thẳng vào node
+    SOP từ chỗ khác sẽ đi vòng qua lớp phòng thủ đó và phải fail test này."""
+    from src.agents.skill_loader import load_skill_specs
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    edges = [(e.source, e.target) for e in graph.get_graph().edges]
+    skill_nodes = {s.name for s in load_skill_specs()}
+    assert skill_nodes, "không có skill nào — test này vô nghĩa nếu rỗng"
+    for source, target in edges:
+        if target in skill_nodes:
+            assert source == "intent_router", (
+                f"cạnh {source} -> {target} vào node SOP không qua intent_router")
+
+
+def test_every_write_tool_in_a_skill_node_is_gated():
+    """Bất biến bảo mật: không tool ghi TRẦN nào lọt vào node SOP. So sánh theo
+    ĐỐI TƯỢNG (is), không theo tên — wrapper cố ý mang cùng tên."""
+    import json
+    from langchain_core.tools import tool as lc_tool
+    from src.agents.skill_loader import build_skill_tools, load_skill_specs
+
+    @lc_tool("deliver_order")
+    async def deliver_order(order_ref: str) -> str:
+        """fake"""
+        return "{}"
+
+    @lc_tool("receive_order")
+    async def receive_order(order_ref: str) -> str:
+        """fake"""
+        return "{}"
+
+    @lc_tool("flag_order_for_review")
+    async def flag_order_for_review(model: str, order_ref: str, note: str) -> str:
+        """fake"""
+        return "{}"
+
+    @lc_tool("create_quotation")
+    async def create_quotation(partner_id: int, lines: list) -> str:
+        """fake"""
+        return "{}"
+
+    mcp = [deliver_order, receive_order, flag_order_for_review, create_quotation]
+    raw = {t.name: t for t in mcp}
+    for spec in load_skill_specs():
+        for t in build_skill_tools(spec, mcp):
+            assert t is not raw.get(t.name), (
+                f"{spec.name}: tool ghi {t.name} bind THẲNG, không qua gate")
