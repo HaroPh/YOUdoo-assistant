@@ -140,6 +140,13 @@ def _make_gated_write_tool(mcp_tool, wspec):
     này được bind vào create_agent), nên không có đường vòng bỏ qua cổng."""
 
     async def _gated(**kwargs) -> str:
+        # Giới hạn đã biết (2026-07-31, review Task 4): unknown_ph chỉ kiểm
+        # placeholder nằm trong TẬP THAM SỐ của tool, không kiểm nó có
+        # "required" không — nếu một SKILL.md tương lai viết confirm nội suy
+        # tham số TÙY CHỌN mà model bỏ qua lúc gọi, dòng .format() dưới đây sẽ
+        # KeyError thay vì lỗi rõ ràng. Không ảnh hưởng 3 skill hiện có (mọi
+        # placeholder confirm đều trỏ tham số bắt buộc). Sửa đúng cần quyết
+        # định hành vi khi thiếu tham số tùy chọn — để lại cho vòng sau.
         if not _confirm_write(wspec.confirm.format(**kwargs, **wspec.fixed_args)):
             return REFUSED_MSG
         return await mcp_tool.ainvoke({**kwargs, **wspec.fixed_args})

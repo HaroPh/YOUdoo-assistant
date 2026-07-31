@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from langchain_core.tools import StructuredTool
 from langchain_core.tools import tool as lc_tool
 
 from src.agents.agentic_gate import REFUSED_MSG
@@ -316,3 +317,55 @@ declares_tools: [create_discount_quote]
     spec = parse_skill_md(d / "SKILL.md")
     with pytest.raises(SkillManifestError, match="build_tools"):
         build_skill_tools(spec, [])
+
+
+def _fake_mcp_tool_dict_schema(name, coroutine):
+    """Fake tool MCP với args_schema DẠNG DICT — mô phỏng đúng hình dạng
+    thật langchain-mcp-adapters gán (tools.py:531: args_schema=tool.inputSchema),
+    khác với @tool Python cho ra lớp pydantic (hình dạng DUY NHẤT mà mọi test
+    khác trong file này dùng qua _fake_mcp_tools)."""
+    return StructuredTool(
+        name=name, description="fake dict-schema MCP tool",
+        args_schema={"type": "object",
+                     "properties": {"model": {"type": "string"},
+                                    "order_ref": {"type": "string"},
+                                    "note": {"type": "string"}},
+                     "required": ["model", "order_ref", "note"]},
+        coroutine=coroutine)
+
+
+@pytest.mark.asyncio
+async def test_visible_schema_strips_fixed_args_from_dict_shaped_schema(tmp_path):
+    """Nhánh DICT của _visible_schema — hình dạng thật production, khác hẳn
+    các test còn lại (đều dùng @tool → schema pydantic). Không có test này,
+    một refactor tương lai có thể âm thầm phá nhánh dict mà không test nào bắt
+    được — đây là module gate ghi thật vào ERP."""
+    calls = []
+
+    async def _flag(**kwargs):
+        calls.append(kwargs)
+        return json.dumps({"ok": True, "display": "Đã ghi chú."}, ensure_ascii=False)
+
+    mcp_tool = _fake_mcp_tool_dict_schema("flag_order_for_review", _flag)
+    spec = _spec(tmp_path, "nhap-kho", """
+name: nhap-kho
+description: "Dùng khi X. KHÔNG dùng khi: Y."
+tools:
+  write:
+    - name: flag_order_for_review
+      confirm: 'Xác nhận GHI CHÚ lên đơn mua {order_ref}: "{note}"?'
+      fixed_args:
+        model: purchase.order
+""".strip())
+
+    tools = {t.name: t for t in build_skill_tools(spec, [mcp_tool])}
+    flag = tools["flag_order_for_review"]
+
+    # model KHÔNG nằm trong schema model nhìn thấy (nhánh dict của _visible_schema)
+    assert set(flag.args) == {"order_ref", "note"}
+
+    with patch("src.agents.skill_loader._confirm_write", lambda q: True):
+        await flag.ainvoke({"order_ref": "P00021", "note": "thiếu 2 cái"})
+
+    # nhưng fixed_args vẫn có mặt trong payload thật gửi MCP
+    assert calls == [{"model": "purchase.order", "order_ref": "P00021", "note": "thiếu 2 cái"}]
