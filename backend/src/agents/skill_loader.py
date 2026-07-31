@@ -18,6 +18,7 @@ import string
 import sys
 from pathlib import Path
 
+from langchain.agents import create_agent
 from langchain_core.tools import StructuredTool
 from pydantic import create_model
 
@@ -231,3 +232,19 @@ def build_skill_tools(spec: SkillSpec, mcp_tools) -> list:
         tools.append(_make_gated_write_tool(mcp_tool, wspec))
 
     return tools
+
+
+def build_skill_node(spec: SkillSpec, llm, mcp_tools):
+    """Node SOP = CompiledStateGraph của create_agent, TRẢ VỀ TRỰC TIẾP.
+
+    Node này PHẢI được add_node thẳng vào graph ngoài — không bao giờ bọc trong
+    một hàm async viết tay. Đó là điều kiện để interrupt() bên trong tool của nó
+    (ask_human / _confirm_write) compose đúng với checkpointer của graph ngoài.
+
+    .with_config áp TẠI ĐÂY (wiring), không trong create_agent: spike v10 chứng
+    minh binding giữ nguyên interrupt/resume; spike v10b chứng minh KHÔNG có nó
+    thì subgraph chạy không giới hạn (mặc định 25 của LangGraph không truyền
+    vào subgraph-as-node, chỉ giá trị tường minh trong config mới kế thừa)."""
+    agent = create_agent(llm, build_skill_tools(spec, mcp_tools),
+                         system_prompt=spec.prose)
+    return agent.with_config({"recursion_limit": spec.max_steps})

@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from langchain_core.tools import StructuredTool
@@ -10,8 +10,8 @@ from langchain_core.tools import tool as lc_tool
 from src.agents.agentic_gate import REFUSED_MSG
 from src.agents.skill_manifest import SkillManifestError, parse_skill_md
 from src.agents.skill_loader import (RESERVED_NODE_NAMES, SKILLS_DIR,
-                                     build_skill_tools, load_skill_specs,
-                                     render_worker_block)
+                                     build_skill_node, build_skill_tools,
+                                     load_skill_specs, render_worker_block)
 
 
 def _write_skill(root: Path, name: str, frontmatter: str,
@@ -369,3 +369,39 @@ tools:
 
     # nhưng fixed_args vẫn có mặt trong payload thật gửi MCP
     assert calls == [{"model": "purchase.order", "order_ref": "P00021", "note": "thiếu 2 cái"}]
+
+
+def test_build_skill_node_uses_prose_as_system_prompt_and_binds_gated_tools(
+        tmp_path, monkeypatch):
+    import src.agents.skill_loader as loader_mod
+    captured = {}
+
+    def fake_create_agent(llm, tools, system_prompt=None):
+        captured["llm"] = llm
+        captured["tools"] = [t.name for t in tools]
+        captured["system_prompt"] = system_prompt
+        return MagicMock()
+
+    monkeypatch.setattr(loader_mod, "create_agent", fake_create_agent)
+    spec = _spec(tmp_path, "giao-hang", _GIAO_HANG)
+    llm = MagicMock()
+    build_skill_node(spec, llm, _fake_mcp_tools()[0])
+
+    assert captured["llm"] is llm
+    assert captured["system_prompt"] == spec.prose
+    assert set(captured["tools"]) == {"ask_human", "get_sale_order_detail",
+                                      "deliver_order"}
+
+
+def test_build_skill_node_applies_recursion_limit_at_wiring(tmp_path, monkeypatch):
+    # Spike v10b: KHÔNG có trần này thì subgraph chạy KHÔNG GIỚI HẠN — mặc định
+    # 25 của LangGraph không truyền vào subgraph-as-node. Phải áp bằng
+    # .with_config TẠI wiring, không trong hàm dựng agent.
+    import src.agents.skill_loader as loader_mod
+    compiled = MagicMock()
+    monkeypatch.setattr(loader_mod, "create_agent",
+                        lambda llm, tools, system_prompt=None: compiled)
+    spec = _spec(tmp_path, "giao-hang", _GIAO_HANG + "\nmax_steps: 20")
+    node = build_skill_node(spec, MagicMock(), [])
+    compiled.with_config.assert_called_once_with({"recursion_limit": 20})
+    assert node is compiled.with_config.return_value
