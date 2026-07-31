@@ -29,3 +29,7 @@ pyvi==0.1.1
 langfuse==4.14.1
 fastapi==0.141.1
 uvicorn==0.46.0
+# PyYAML: đang có sẵn như dep bắc cầu (langchain), nay là dep TRỰC TIẾP —
+# skill_manifest.py parse frontmatter SKILL.md bằng yaml.safe_load. Ghim
+# tường minh để một lần gỡ dep bắc cầu không lặng lẽ làm app không lên.
+PyYAML==6.0.3
