@@ -38,11 +38,12 @@ ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitcha
                 # role thật vẫn tên "fusion" trong catalog.py (CHAINS) —
                 # "multi_source" chỉ là tên SET đo (trung tính, sống sót qua
                 # đổi kiến trúc).
-                "multi_source": "fusion"}
+                "multi_source": "fusion", "sop_select": "router"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
            "read": run_eval.eval_read, "synthesis": run_eval.eval_synthesis,
-           "multi_source": run_eval.eval_multi_source}
+           "multi_source": run_eval.eval_multi_source,
+           "sop_select": run_eval.eval_sop_select}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -50,6 +51,13 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
     # chitchat: gate tuyệt đối, không baseline-relative.
     if set_name == "chitchat":
         return result["violations"] == 0
+    if set_name == "sop_select":
+        # Gate TUYỆT ĐỐI (§5.3 điều kiện 1: "xanh toàn bộ"), không
+        # baseline-relative: đây là hàng rào an toàn định tuyến, không phải phép
+        # đo chất lượng tương đối. hijack==0 là hệ quả của acc==1.0 nhưng vẫn
+        # kiểm riêng — nó là hướng lỗi đã xảy ra THẬT (live-verify 2026-07-16)
+        # và phải nổi rõ trong báo cáo khi gate trượt.
+        return result["hijack"] == 0 and result["acc"] == 1.0
     if set_name == "planner":
         return (result["dangerous_misroute"] == 0
                 and result["tool_acc"] >= base["tool_acc"])
@@ -151,11 +159,22 @@ def run(args) -> JobResult:
                   f"{acc_key}={result[acc_key]:.3f} "
                   f"baseline={base[acc_key]:.3f} → {'PASS' if ok else 'FAIL'}")
         else:
-            entry["violations"] = result["violations"]
-            entry.update(lat_p50=result.get("lat_p50"),
-                         lat_p95=result.get("lat_p95"))
-            print(f"[{set_name}] model={model} pace={pace}s "
-                  f"violations={result['violations']} → {'PASS' if ok else 'FAIL'}")
+            # base is None: chitchat (violations) hoặc sop_select (acc + hijack)
+            if set_name == "sop_select":
+                entry["acc"] = result.get("acc")
+                entry["hijack"] = result.get("hijack")
+                entry.update(lat_p50=result.get("lat_p50"),
+                             lat_p95=result.get("lat_p95"))
+                print(f"[{set_name}] model={model} pace={pace}s "
+                      f"acc={result.get('acc')} hijack={result.get('hijack')} "
+                      f"→ {'PASS' if ok else 'FAIL'}")
+            else:
+                # chitchat
+                entry["violations"] = result["violations"]
+                entry.update(lat_p50=result.get("lat_p50"),
+                             lat_p95=result.get("lat_p95"))
+                print(f"[{set_name}] model={model} pace={pace}s "
+                      f"violations={result['violations']} → {'PASS' if ok else 'FAIL'}")
         detail[set_name] = entry
     verdict = "FAIL" if any_fail else "PASS"
     return JobResult("eval-gate", GATE_FAIL if any_fail else PASS, verdict, detail)
@@ -166,7 +185,7 @@ def add_args(p):
                    help="candidate model (mặc định: đầu chuỗi chain_for(role) trong catalog)")
     p.add_argument("--set",
                    choices=["both", "all", "intent", "confirm", "chitchat",
-                            "planner", "read", "synthesis", "multi_source"],
+                            "planner", "read", "synthesis", "multi_source", "sop_select"],
                    default="both")
     p.add_argument("--pace", type=float, default=None,
                    help="giây/call (mặc định auto: (60/rpm)*1.2 suy từ catalog)")

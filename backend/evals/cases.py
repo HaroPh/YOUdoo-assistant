@@ -26,6 +26,13 @@ INTENT_CASES = [
     # erp_write
     ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "erp_write"),
     ("xác nhận đơn S00042", "erp_write"),
+    # RANH GIỚI SOP (SP-2a §5.1) — ĐỪNG "sửa giúp" kỳ vọng này. Câu không nhắc
+    # tới QUY TRÌNH nên đi tier-1 (erp_write → planner), KHÔNG đi SOP
+    # giao-hang. Ranh giới cũ "có chữ 'bán' hay không" đã chết (nó không bảo
+    # vệ được: với người dùng, có/không có chữ "bán" là một ý). Ranh giới mới
+    # bảo vệ được: CÓ ngôn ngữ quy trình → SOP; KHÔNG có → tier-1. Đi tier-1
+    # còn rẻ hơn (một call planner thay vì cả ReAct loop) và vẫn có confirm-gate
+    # riêng. Đo trực tiếp bởi SOP_SELECT_CASES.
     ("giao hàng cho đơn S00040 luôn nhé", "erp_write"),
     ("đổi số lượng Desk Pad trong S00043 thành 5", "erp_write"),
     ("tạo đơn mua 10 Cabinet with Doors từ Wood Corner", "erp_write"),
@@ -144,6 +151,8 @@ PLANNER_CASES = [
     ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "create_quotation",
      {"partner_name": "Azure Interior",
       "lines": [{"product": "Large Cabinet", "qty": 2}]}),
+    # RANH GIỚI SOP (SP-2a §5.1) — xem chú thích ở INTENT_CASES. Lệnh trực tiếp
+    # không nhắc quy trình → planner tier-1 chọn deliver_order, KHÔNG phải SOP.
     ("giao hàng cho đơn S00040", "deliver_order", {"order_ref": "S00040"}),
     ("tạo hóa đơn từ đơn S00042", "create_invoice_from_order",
      {"order_ref": "S00042"}),
@@ -419,4 +428,60 @@ MULTI_SOURCE_CASES = [
     ("bang_gia_chiet_khau", "Khách Azure Interior | đặt 2 Desk Pad",
      "Đơn 2 Desk Pad của Azure Interior có được chiết khấu không?",
      "chiết khấu", "Desk Pad"),
+]
+
+# ── SOP_SELECT_CASES ────────────────────────────────────────────────────────
+# (câu tiếng Việt, ĐÍCH ĐỊNH TUYẾN CUỐI kỳ vọng).
+#
+# Đích là giá trị _route_by_intent() TRẢ VỀ: tên skill SOP ("giao-hang",
+# "nhap-kho", "bao-gia-chiet-khau") hoặc một trong 5 từ intent tier-1. Nghĩa
+# là bộ này đo TOÀN BỘ chuỗi quyết định (LLM đề cử + phủ quyết tất định), không
+# chỉ đầu ra thô của model — vì lớp tất định LÀ một phần của cơ chế.
+#
+# Mỗi skill tối thiểu 4 hướng, và HAI HƯỚNG ÂM quan trọng ngang hai hướng
+# dương: lỗi đã xảy ra thật là lỗi HIJACK (câu hỏi VỀ quy trình bị SOP cướp).
+#
+# QUYẾT ĐỊNH (2026-07-31, xem lại lúc viết plan SP-2a): ranh giới SOP là NGỮ
+# NGHĨA (ý định "làm đủ quy trình, có kiểm tra/điều kiện" hay không), KHÔNG
+# phải khớp chữ "quy trình" — router là LLM đọc `description`, không string-
+# match. Mỗi skill dưới đây có ÍT NHẤT một ca dương KHÔNG chứa chữ "quy
+# trình" để tự đo đúng việc đó (không phải chỉ nói suông trong description).
+SOP_SELECT_CASES = [
+    # ── giao-hang ──
+    ("làm quy trình giao hàng cho đơn bán S00012", "giao-hang"),
+    ("thực hiện quy trình xuất kho cho đơn bán S00015", "giao-hang"),
+    # dương, KHÔNG chữ "quy trình" — đo đúng ranh giới ngữ nghĩa (xem quyết
+    # định ở trên): có điều kiện/yêu cầu kiểm tra → vẫn là SOP.
+    ("giao hàng cho đơn bán S00012 nhưng kiểm tra kỹ hàng trước khi giao",
+     "giao-hang"),
+    ("quy trình giao hàng gồm những bước nào?", "rag"),          # hỏi VỀ
+    ("giao hàng cho đơn S00040 luôn nhé", "erp_write"),          # lệnh trực tiếp, trùng INTENT_CASES:29
+
+    # ── nhap-kho ──
+    # 3 ca HỒI QUY 2026-07-16, lấy NGUYÊN VĂN từ live-verify (router phân loại
+    # mixed/erp_read cho chính các câu này → lệnh thật lỡ route 3/3 lần thử).
+    # Không diễn giải lại — đó là toàn bộ giá trị của chúng.
+    ("quy trình nhập kho cho đơn mua P00021", "nhap-kho"),
+    ("nhập kho theo quy trình cho đơn mua P00021", "nhap-kho"),
+    ("làm quy trình nhập kho cho đơn mua P00021", "nhap-kho"),
+    # dương, KHÔNG chữ "quy trình" — cùng lý do với ca giao-hang ở trên.
+    ("xác nhận đã kiểm đếm hàng cho đơn mua P00021 rồi mới nhập kho", "nhap-kho"),
+    ("quy trình nhập kho là gì?", "rag"),                        # ca hijack GỐC
+    ("SOP nhập kho gồm những bước nào?", "rag"),                 # trùng INTENT_CASES:50
+    ("nhận hàng cho đơn mua P00003", "erp_write"),               # lệnh trực tiếp
+
+    # ── bao-gia-chiet-khau ──
+    # Skill này vốn đã không dựa "quy trình" — ranh giới là "có/không có chiết
+    # khấu", một từ khoá miền nghiệp vụ chứ không phải marker quy trình.
+    ("làm quy trình báo giá chiết khấu cho Cửa hàng ABC, 5 Tủ gỗ", "bao-gia-chiet-khau"),
+    ("báo giá kèm chiết khấu theo cấp khách cho Wood Corner, 10 Desk Pad",
+     "bao-gia-chiet-khau"),
+    ("chính sách chiết khấu theo cấp khách như thế nào?", "rag"),  # hỏi VỀ
+    ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "erp_write"),  # trùng INTENT_CASES:27
+
+    # ── câu bắc cầu (§6.4) ──
+    # Ràng buộc kế thừa từ bản gốc: câu gợi ý trong NO_PO_BRIDGE_MSG (prose của
+    # nhap-kho) KHÔNG được tự kích hoạt lại chính SOP vừa thoát ra — nếu không
+    # người dùng làm đúng lời khuyên sẽ rơi lại vào vòng lặp.
+    ("điều chỉnh tồn kho Desk Pad về 100", "erp_write"),
 ]

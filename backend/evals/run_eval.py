@@ -19,8 +19,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
                          MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
-                         PLANNER_CASES, READ_CASES, SYNTHESIS_CASES,
-                         WRITE_TOOL_NAMES)
+                         PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
+                         SYNTHESIS_CASES, WRITE_TOOL_NAMES)
 from evals import fixtures
 from src.agents.prompts import INTENT_ROUTER_PROMPT, CHITCHAT_PROMPT
 from src.agents.confirmation import _LLM_PROMPT
@@ -28,8 +28,11 @@ from src.agents.prompts import WRITE_PLANNER_PROMPT
 from src.agents.prompts import SYSTEM_PROMPT
 from src.agents.prompts import RAG_SYNTHESIS_PROMPT
 from src.agents.prompts import FUSION_PROMPT
+from src.agents.prompts import render_intent_router_prompt
 from src.agents.synthesis import SENTINEL, _format_context, _MARKER_RE
-from src.agents.nodes import _parse_plan_tiered
+from src.agents.nodes import _parse_plan_tiered, _parse_router_output
+from src.agents.graph import _route_by_intent
+from src.agents.skill_loader import load_skill_specs, render_worker_block
 from src.erp_query.tools import build_erp_query_tools
 from jobs.resilience import run_resilient
 
@@ -279,6 +282,49 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
+async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None):
+    """Đo việc CHỌN SOP end-to-end: gọi router thật với prompt thật (đã nối
+    khối mô tả worker), parse bằng chính _parse_router_output của node, rồi áp
+    chính _route_by_intent của graph. Đo cả chuỗi vì lớp phủ quyết tất định LÀ
+    một phần của cơ chế — đo riêng đầu ra thô của model sẽ không nói lên điều
+    gì về hành vi thật.
+
+    Gate TUYỆT ĐỐI (giống chitchat, không baseline-relative): đây là hàng rào
+    an toàn định tuyến, không phải phép đo chất lượng tương đối. Hướng nguy
+    hiểm được đếm riêng: `hijack` = ca kỳ vọng KHÔNG phải SOP mà lại rơi vào
+    SOP — đúng lỗi đã xảy ra thật."""
+    specs = load_skill_specs()
+    prompt = render_intent_router_prompt(render_worker_block(specs))
+    valid_sops = frozenset(s.name for s in specs)
+    lat: list[float] = []
+
+    async def call(case):
+        text, expected = case
+        resp, ms = await _timed(llm.ainvoke(
+            [SystemMessage(content=prompt), HumanMessage(content=text)]))
+        lat.append(ms)
+        intent, sop = _parse_router_output(resp.content, valid_sops)
+        got = _route_by_intent({"messages": [HumanMessage(content=text)],
+                                "intent": intent, "sop": sop})
+        if got != expected:
+            return {"text": text, "expected": expected, "got": got,
+                    "raw_intent": intent, "raw_sop": sop,
+                    "hijack": expected not in valid_sops and got in valid_sops}
+        return None
+
+    fails, errors = await run_resilient(SOP_SELECT_CASES, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(SOP_SELECT_CASES)
+    # CHỈ đếm từ fails (phép đo thành công) — lỗi API không bao giờ là hijack.
+    hijack = sum(1 for f in fails if f["hijack"])
+    p50, p95 = _percentiles(lat)
+    return {"set": "sop_select", "n": n,
+            "acc": (n - len(fails) - len(errors)) / n if n else 0.0,
+            "hijack": hijack,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
 async def eval_confirm(llm, pace: float = 0.0, checkpoint_path=None):
     lat: list[float] = []
 
@@ -469,7 +515,7 @@ async def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",
-                             "synthesis", "multi_source"],
+                             "synthesis", "multi_source", "sop_select"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--save-baseline", action="store_true")
@@ -483,7 +529,7 @@ async def main(argv=None):
         _FN = {"intent": eval_intent, "confirm": eval_confirm,
                "chitchat": eval_chitchat, "planner": eval_planner,
                "read": eval_read, "synthesis": eval_synthesis,
-               "multi_source": eval_multi_source}
+               "multi_source": eval_multi_source, "sop_select": eval_sop_select}
         result = await _FN[args.set](_llm(args.model, role=args.set), pace=args.pace)
     except Exception as e:   # noqa: BLE001 — hạ tầng LLM sập (key/model/router hỏng)
         print(f"INFRA ERROR: {e}"); sys.exit(2)

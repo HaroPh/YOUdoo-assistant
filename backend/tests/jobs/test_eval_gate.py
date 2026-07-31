@@ -151,6 +151,20 @@ def _fake_chitchat_eval(violations=0, n=16):
     return fn
 
 
+def _fake_sop_select_eval(acc=1.0, hijack=0, n=20):
+    async def fn(llm, pace=0.0, checkpoint_path=None):
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
+        fails = []
+        # Đơn giản hóa: nếu hijack > 0, có 1 fail
+        if hijack > 0:
+            fails.append({"text": "x", "expected": "tier1", "got": "sop",
+                         "hijack": True})
+        return {"set": "sop_select", "n": n, "acc": acc, "hijack": hijack,
+                "lat_p50": 1000, "lat_p95": 2000, "fails": fails, "errors": []}
+    fn.calls = []
+    return fn
+
+
 def test_chitchat_zero_violations_passes(monkeypatch):
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -277,14 +291,14 @@ def test_planner_dangerous_misroute_fails_even_with_perfect_acc(monkeypatch, tmp
 
 
 def test_set_all_runs_every_registered_set(monkeypatch, tmp_path):
-    """--set all phải chạy TẤT CẢ 7 set đã đăng ký, không chỉ 4 set cũ.
+    """--set all phải chạy TẤT CẢ set đã đăng ký.
     Bẫy thật (2 lần: 1 lần Task 2's fix round, rồi TÁI PHÁT khi Task 3/4/5
     thêm read/synthesis/multi_source mà quên patch vào test này) — nếu 1 set
     không được patch, hàm eval THẬT sẽ chạy, lỗi (thiếu LLM/baseline thật),
     bị run()'s except nuốt mất, và assertion cũ (chỉ check 4 key cố định)
     vẫn qua dù set đó CHƯA BAO GIỜ thực sự chạy thành công. Assert bằng
     set(eval_gate.EVAL_FN) (không phải danh sách cứng) + exit_code + mỗi
-    fake gọi đúng 1 lần, để không tái phát lần thứ 3 khi có set #8."""
+    fake gọi đúng 1 lần, để không tái phát."""
     fi, fc = _patch(monkeypatch)
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -311,11 +325,14 @@ def test_set_all_runs_every_registered_set(monkeypatch, tmp_path):
     fms = _fake_ms_eval(coverage=0.75)
     monkeypatch.setitem(eval_gate.EVAL_FN, "multi_source", fms)
 
+    fsop = _fake_sop_select_eval(acc=1.0, hijack=0)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fsop)
+
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == set(eval_gate.EVAL_FN)
     assert result.exit_code == PASS
-    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms):
+    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
 
 
