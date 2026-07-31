@@ -259,7 +259,20 @@ async def eval_read(llm, pace: float = 0.0, checkpoint_path=None):
 
 
 async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
+    """Đo trên ĐÚNG hợp đồng router thật (SP-2a Task 8): INTENT_ROUTER_PROMPT
+    giờ đòi 2 dòng "intent:"/"sop:", không còn 1 từ trần — parse bằng
+    _parse_router_output CHUNG với node thật (nodes.py) và eval_sop_select,
+    không tự viết lại logic parse ở đây.
+
+    Lỗi thật bắt được lúc xác nhận sống (Task 11, 2026-07-31): bản cũ của
+    hàm này làm got = resp.content.strip().lower() rồi so trực tiếp với
+    VALID_INTENTS — đúng khi router trả 1 từ trần, nhưng SAI HOÀN TOÀN sau
+    khi Task 8 đổi INTENT_ROUTER_PROMPT sang 2 dòng: cả chuỗi 2 dòng không
+    bao giờ khớp VALID_INTENTS nên MỌI case rơi về "unknown" (đo thật:
+    acc 0.870 → 0.148). Unit test không bắt được vì không gọi LLM thật —
+    đúng loại lỗi bước xác nhận sống này tồn tại để bắt."""
     lat: list[float] = []
+    empty_valid_sops: frozenset = frozenset()
 
     async def call(case):
         text, expected = case
@@ -267,8 +280,7 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
             [SystemMessage(content=INTENT_ROUTER_PROMPT),
              HumanMessage(content=text)]))
         lat.append(ms)
-        got = resp.content.strip().lower()
-        got = got if got in VALID_INTENTS else "unknown"   # đúng logic node thật
+        got, _sop = _parse_router_output(resp.content, empty_valid_sops)
         if got != expected:
             return {"text": text, "expected": expected, "got": got}
         return None
