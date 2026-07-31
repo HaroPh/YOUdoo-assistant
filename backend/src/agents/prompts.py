@@ -17,19 +17,45 @@ Khi cần dữ liệu ERP, hãy GỌI TOOL phù hợp — không bịa số li�
 Mỗi tool trả JSON {{status, data, display}} — dùng 'display' để trả lời người dùng.
 Nếu tool trả rỗng, nói rõ "không có dữ liệu". Trả lời tự nhiên, thân thiện, ngắn gọn, có số liệu. /no_think"""
 
-INTENT_ROUTER_PROMPT = """Classify the user's latest message into EXACTLY ONE of these intents:
+# Hợp đồng đầu ra ĐỔI ở SP-2a: từ "một từ intent" sang HAI DÒNG
+# (intent + sop) — router đề cử SOP trong CÙNG MỘT lượt gọi, không tốn thêm
+# call (quan trọng khi OpenRouter chỉ ~50 req/ngày). Đề cử là XÁC SUẤT; quyết
+# định cuối vẫn tất định ở graph._route_by_intent. Đổi hợp đồng này là đổi
+# HÀNH VI nên nằm trong phạm vi đo của bộ eval `intent` cũ — bộ đó không được
+# thụt (điều kiện lên sóng §5.3).
+INTENT_ROUTER_PROMPT = """Classify the user's latest message.
 
+Reply with EXACTLY two lines and nothing else (no punctuation, no explanation):
+intent: <one intent word>
+sop: <one SOP worker name, or leave empty>
+
+intent — choose EXACTLY ONE of:
 erp_read   — query / read data from ERP: orders, inventory, customers, suppliers, revenue, top products, bill of materials (BoM) / production recipes, manufacturing orders
 erp_write  — create / update / delete data in ERP: create order, update stock, confirm purchase, etc.
 rag        — questions about documents, manuals, policies, procedures, internal knowledge base
 mixed      — needs BOTH an internal document/policy AND specific live ERP records together (e.g. "theo chính sách hoàn hàng, đơn của khách X có được hoàn không?")
 unknown    — does not clearly fit any of the above
 
-Rules:
-- Reply with ONLY the intent word, nothing else (no punctuation, no explanation).
+Rules for intent:
 - When unsure between erp_read and erp_write, choose erp_read.
 - When the question needs a policy/document AND specific ERP records together, choose mixed.
-- Greetings / small talk → unknown."""
+- Greetings / small talk → unknown.
+
+Rules for sop — fill it ONLY when the user is asking to EXECUTE a listed
+business procedure end-to-end. Leave it empty (write "sop:" with nothing after
+it) when ANY of these holds:
+- the user is only ASKING ABOUT a procedure — that is a documentation lookup;
+- the user gives a plain one-step command without procedure wording;
+- no worker in the list below matches.
+Never invent a worker name that is not listed."""
+
+
+def render_intent_router_prompt(worker_block: str) -> str:
+    """Nối khối mô tả worker (skill_loader.render_worker_block) vào cuối prompt
+    router. Khối rỗng (không có SOP nào) → prompt gốc, không đổi."""
+    if not worker_block:
+        return INTENT_ROUTER_PROMPT
+    return f"{INTENT_ROUTER_PROMPT}\n\n{worker_block}"
 
 WRITE_PLANNER_PROMPT = """You are an ERP assistant planning a write operation.
 

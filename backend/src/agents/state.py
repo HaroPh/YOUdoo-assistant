@@ -7,6 +7,12 @@ from langgraph.graph.message import add_messages
 class ERPAgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     intent: str | None            # "erp_read" | "erp_write" | "rag" | "unknown"
+    sop: str | None               # tên skill SOP router ĐỀ CỬ cho lượt này
+                                  # (hoặc None). TRANSIENT như pending_action —
+                                  # intent_router ghi key này trên MỌI return
+                                  # nên không sống sót sang lượt sau; quyết
+                                  # định cuối vẫn do graph._route_by_intent
+                                  # (phủ quyết tất định), không do trường này.
     pending_action: dict | None   # {"tool": str, "args": dict, "summary": str}
     confirmed: bool | None        # None=not asked, True=yes, False=no
     last_write: dict | None       # last write result handle:
