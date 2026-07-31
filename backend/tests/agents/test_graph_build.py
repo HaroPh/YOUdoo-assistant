@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.agents.graph import build_graph
 
 
@@ -387,3 +389,66 @@ def test_every_write_tool_in_a_skill_node_is_gated():
         for t in build_skill_tools(spec, mcp):
             assert t is not raw.get(t.name), (
                 f"{spec.name}: tool ghi {t.name} bind THẲNG, không qua gate")
+
+
+@pytest.mark.asyncio
+async def test_entry_based_skill_tool_gates_via_confirm_write_not_name_match(monkeypatch):
+    """test_every_write_tool_in_a_skill_node_is_gated (trên) phát hiện leak bằng
+    so TÊN với tool MCP gốc — vô dụng với bao-gia-chiet-khau vì tool nó lộ ra
+    (create_discount_quote) KHÁC tên tool MCP gốc (create_quotation), nên
+    raw.get("create_discount_quote") luôn None và assertion `is not None` luôn
+    đúng bất kể logic.py có thực sự gate hay không (cảm giác an toàn giả).
+
+    Test này xác nhận TRỰC TIẾP thuộc tính thật: logic.py (entry của
+    bao-gia-chiet-khau) gọi _confirm_write TRƯỚC khi ainvoke tool MCP thật,
+    không phụ thuộc quy ước đặt tên. _confirm_write patch trên chính module
+    logic.py đã nạp — đây là skill DUY NHẤT tự gọi _confirm_write bên trong
+    entry (2 skill kia dùng wrapper do skill_loader sinh), như
+    test_skill_bao_gia_chiet_khau_flow.py (Task 7) đã xác lập pattern
+    _patch_confirm/_patch_reads; test này chỉ tái dùng đúng pattern đó ở tầng
+    bất biến toàn đồ thị của Task 9, không phát minh lại."""
+    from langchain_core.tools import tool as lc_tool
+    from src.agents.agentic_gate import REFUSED_MSG
+    from src.agents.skill_loader import (SKILLS_DIR, _load_entry_module,
+                                         load_skill_specs)
+
+    spec = next(s for s in load_skill_specs() if s.name == "bao-gia-chiet-khau")
+    logic = _load_entry_module(spec)
+
+    calls = {"confirm": [], "ainvoke": []}
+
+    def fake_confirm_write(question):
+        calls["confirm"].append(question)
+        return False   # từ chối — assert KHÔNG có ainvoke nào xảy ra sau đó
+
+    monkeypatch.setattr(logic, "_confirm_write", fake_confirm_write)
+    # Đẩy qua resolve khách/sản phẩm để chạm tới _confirm_write — cùng pattern
+    # _patch_reads của test_skill_bao_gia_chiet_khau_flow.py.
+    monkeypatch.setattr(logic.sales, "find_customer", lambda *a, **k: {
+        "status": "success",
+        "data": {"matches": [{"id": 41, "name": "Azur", "score": 1}],
+                 "needs_disambiguation": False},
+        "display": "x"})
+    monkeypatch.setattr(logic.inventory, "find_product", lambda *a, **k: {
+        "status": "success",
+        "data": {"matches": [{"id": 552, "name": "Tủ", "score": 1}],
+                 "needs_disambiguation": False},
+        "display": "x"})
+    monkeypatch.setattr(logic.sales, "get_product_price", lambda *a, **k: {
+        "status": "success", "data": {"price": 30_000_000.0}, "display": "x"})
+
+    @lc_tool("create_quotation")
+    async def fake_create_quotation(partner_id: int, lines: list) -> str:
+        """fake MCP create_quotation — ghi nhận nếu bị gọi."""
+        calls["ainvoke"].append({"partner_id": partner_id, "lines": lines})
+        return "{}"
+
+    tools = {t.name: t for t in logic.build_tools([fake_create_quotation])}
+    result = await tools["create_discount_quote"].ainvoke(
+        {"customer": "Azur", "lines": [{"product": "Tủ", "qty": 2}],
+         "tier": "thuong"})
+
+    assert calls["confirm"], "logic.py không hề gọi _confirm_write"
+    assert calls["ainvoke"] == [], (
+        "logic.py gọi ainvoke dù _confirm_write trả False — gate bị bỏ qua")
+    assert result == REFUSED_MSG
