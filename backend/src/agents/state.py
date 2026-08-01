@@ -29,3 +29,18 @@ class ERPAgentState(TypedDict):
                                   # working_context: erp_write_planner và
                                   # write_continuation ghi key này trên MỌI return;
                                   # không node nào khác đụng tới.
+    doc_context: list[dict] | None  # chân TÀI LIỆU của fan-out `mixed`:
+                                  # [dataclasses.asdict(chunk), ...]. JSON
+                                  # THUẦN — Chunk là @dataclass(frozen=True),
+                                  # nhét thẳng vào state là loại lỗi CHỈ hỏng
+                                  # khi checkpointer Postgres thật chạy (bài
+                                  # học SP-1C2). TRANSIENT, dọn ở HAI chỗ với
+                                  # HAI lý do: node `mixed` xoá lúc VÀO là lớp
+                                  # chịu lực chống dữ liệu ôi qua lượt (channel
+                                  # semantics của LangGraph giữ giá trị khi node
+                                  # bỏ qua key); `fuse_answer` xoá lúc RA là vệ
+                                  # sinh (lượt erp_read sau không vác theo cả
+                                  # đống chunk trong checkpoint và trace).
+    erp_facts: str | None         # chân ERP của fan-out `mixed`: dữ kiện thô
+                                  # dạng văn bản (KHÔNG phải câu trả lời), hoặc
+                                  # "". Cùng vòng đời với doc_context.
