@@ -351,8 +351,9 @@ def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_pa
     fsop = _fake_sop_select_eval(acc=0.0, hijack=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fsop)
 
-    # gather FAKE trả FAIL nếu lỡ chạy — nếu test này vẫn PASS thì chứng
-    # minh nó KHÔNG được gọi (không phải "gọi và tình cờ pass").
+    # gather's gate always returns True by design (no threshold yet) —
+    # the real detector for accidental invocation is `calls == []` below,
+    # not a FAIL verdict.
     fgather = _fake_gather_eval(tool_recall=0.0, fact_coverage=0.0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "gather", fgather)
 
@@ -378,6 +379,24 @@ def test_set_sop_select_still_runs_standalone(monkeypatch):
     assert result.exit_code == PASS
     assert list(result.detail) == ["sop_select"]
     assert len(fsop.calls) == 1
+
+
+def test_set_gather_still_runs_standalone(monkeypatch):
+    """gather vẫn đăng ký đầy đủ và chạy được RIÊNG qua --set gather
+    — loại khỏi tập "all" nhưng không xoá đăng ký. Regression test:
+    end-to-end run() không crash với KeyError: 'violations' (bug fix task-4
+    round 1)."""
+    fgather = _fake_gather_eval(tool_recall=0.95, fact_coverage=0.90)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "gather", fgather)
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    result = eval_gate.run(_args(set_="gather"))
+    assert result.exit_code == PASS
+    assert list(result.detail) == ["gather"]
+    assert result.detail["gather"]["tool_recall"] == 0.95
+    assert result.detail["gather"]["fact_coverage"] == 0.90
+    assert result.detail["gather"]["branch"] is None
+    assert "violations" not in result.detail["gather"]
+    assert len(fgather.calls) == 1
 
 
 def test_sop_select_still_a_valid_set_choice():

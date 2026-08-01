@@ -180,7 +180,9 @@ def run(args) -> JobResult:
                   f"{acc_key}={result[acc_key]:.3f} "
                   f"baseline={base[acc_key]:.3f} → {'PASS' if ok else 'FAIL'}")
         else:
-            # base is None: chitchat (violations) hoặc sop_select (acc + hijack)
+            # base is None: chitchat (violations), sop_select (acc + hijack),
+            # hoặc gather (tool_recall + fact_coverage — không có ngưỡng
+            # tuyệt đối, xem _gate())
             if set_name == "sop_select":
                 entry["acc"] = result.get("acc")
                 entry["hijack"] = result.get("hijack")
@@ -188,6 +190,16 @@ def run(args) -> JobResult:
                              lat_p95=result.get("lat_p95"))
                 print(f"[{set_name}] model={model} pace={pace}s "
                       f"acc={result.get('acc')} hijack={result.get('hijack')} "
+                      f"→ {'PASS' if ok else 'FAIL'}")
+            elif set_name == "gather":
+                entry["tool_recall"] = result.get("tool_recall")
+                entry["fact_coverage"] = result.get("fact_coverage")
+                entry["branch"] = result.get("branch")
+                entry.update(lat_p50=result.get("lat_p50"),
+                             lat_p95=result.get("lat_p95"))
+                print(f"[{set_name}] model={model} pace={pace}s "
+                      f"tool_recall={result.get('tool_recall')} "
+                      f"fact_coverage={result.get('fact_coverage')} "
                       f"→ {'PASS' if ok else 'FAIL'}")
             else:
                 # chitchat
