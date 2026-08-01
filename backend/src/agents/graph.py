@@ -11,7 +11,8 @@ from .nodes import (
     make_rag_node,
     make_respond_unknown_node,
 )
-from .fusion import make_fusion_node
+from .fanout import (make_fuse_answer_node, make_gather_docs_node,
+                     make_gather_erp_node, make_mixed_node)
 from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS
 from .continuation import make_write_continuation_node, _route_after_continuation
 from .models import llms_from_single
@@ -94,7 +95,15 @@ def build_graph(llm, tools, checkpointer) -> object:
     g.add_node("erp_write_planner", make_erp_write_planner_node(llms["planner"]))
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
     g.add_node("rag", make_rag_node(llms["synthesis"]))
-    g.add_node("mixed", make_fusion_node(llms["fusion"], build_erp_query_tools()))
+    # Fan-out đường đọc (SP-2b): `mixed` giữ TÊN và giữ chỗ trong intent_targets
+    # để _route_by_intent không phải đổi — hàm đó là thứ SOP_SELECT_CASES đo
+    # trực tiếp. Hai chân chạy cùng superstep (hai cạnh thẳng ra), fuse_answer
+    # có hai cạnh vào nên chỉ chạy sau khi CẢ HAI xong.
+    g.add_node("mixed", make_mixed_node())
+    g.add_node("gather_docs", make_gather_docs_node())
+    g.add_node("gather_erp", make_gather_erp_node(
+        llms["fusion"], build_erp_query_tools()))
+    g.add_node("fuse_answer", make_fuse_answer_node(llms["fusion"]))
     g.add_node("respond_unknown", make_respond_unknown_node(llms["chitchat"]))
     for spec in WRITE_COORDINATORS.values():
         g.add_node(spec.node, spec.build(llms["planner"], tools))
@@ -131,7 +140,11 @@ def build_graph(llm, tools, checkpointer) -> object:
     g.add_conditional_edges("write_continuation", _route_after_continuation,
                             {"erp_write_executor": "erp_write_executor", END: END})
     g.add_edge("rag", END)
-    g.add_edge("mixed", END)
+    g.add_edge("mixed", "gather_docs")
+    g.add_edge("mixed", "gather_erp")
+    g.add_edge("gather_docs", "fuse_answer")
+    g.add_edge("gather_erp", "fuse_answer")
+    g.add_edge("fuse_answer", END)
     g.add_edge("respond_unknown", END)
 
     return g.compile(checkpointer=checkpointer)
