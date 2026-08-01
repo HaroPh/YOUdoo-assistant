@@ -16,7 +16,7 @@ import argparse, asyncio, json, math, os, re, sys, time
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES,
+from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
                          MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
@@ -187,6 +187,87 @@ def _stub_erp_tools(tool_fixtures: dict, called: list) -> list:
 
         t.func = _stub
     return tools
+
+
+def _score_gather(erp_facts: str, called: list,
+                  required_tools: tuple, required_facts: tuple) -> tuple[bool, bool]:
+    """Tách riêng khỏi vòng lặp async để test được KHÔNG cần mock LLM/agent
+    — cùng kỷ luật _grounded_match/_args_match/_digits. required_tools là
+    TẬP CON của called (model gọi thêm tool khác không bị tính lỗi)."""
+    tool_recall_ok = set(required_tools) <= set(called)
+    low = _norm(erp_facts)
+    fact_coverage_ok = all(_norm(f) in low for f in required_facts)
+    return tool_recall_ok, fact_coverage_ok
+
+
+async def _run_gather_with_prompt(llm, tools, system_prompt: str, messages: list) -> dict:
+    """CHỈ dùng cho branch="policy" của eval_gather — production CHƯA CÓ
+    nhánh này (spec 2026-08-01-sp2c §1.3), không có node thật để gọi. Cố ý
+    mirror thân make_gather_erp_node (fanout.py) NHƯNG với system_prompt
+    khác — một thí nghiệm có kiểm soát, KHÔNG phải hợp đồng phải chống trôi
+    như branch="base" (không gate, không được coi là "khớp production")."""
+    try:
+        agent = _create_agent(llm, tools, system_prompt=system_prompt)
+        result = await agent.ainvoke({"messages": messages})
+        msgs = result["messages"]
+        facts = (msgs[-1].content or "").strip() if msgs else ""
+        tool_outputs = [m.content for m in msgs if m.type == "tool"]
+        if facts and tool_outputs:
+            facts = await verify_erp_grounding(facts, tool_outputs, llm)
+    except Exception:
+        facts = ""
+    return {"erp_facts": facts}
+
+
+async def eval_gather(llm, pace: float = 0.0, checkpoint_path=None, branch: str = "base"):
+    """Đo bước THU THẬP của gather_erp — multi_source đo bước TỔNG HỢP trên
+    erp_block viết tay, KHÔNG đo được liệu gather_erp thật có lấy đủ field
+    hay không (spec 2026-08-01-sp2c). branch="base": gọi make_gather_erp_node
+    THẬT — số này được gate GÁC (không có baseline model cũ, gate tuyệt đối
+    trả True ở lượt đầu, xem eval_gate.py). branch="policy": ghép thêm
+    _format_context(chunks) vào prompt trước khi hỏi — KHÔNG gọi node thật
+    (production chưa có nhánh này), chỉ GHI NHẬN, không gate."""
+    assert branch in ("base", "policy")
+    lat: list[float] = []
+
+    async def call(case):
+        topic, question, required_tools, required_facts, tool_fixtures = case
+        called: list = []
+        tools = _stub_erp_tools(tool_fixtures, called)
+        messages = [HumanMessage(content=question)]
+        if branch == "base":
+            node = make_gather_erp_node(llm, tools)
+            out, ms = await _timed(node({"messages": messages}))
+        else:
+            chunks = fixtures.load_chunks(topic)
+            policy_prompt = (GATHER_ERP_PROMPT
+                            + "\n\nCHÍNH SÁCH LIÊN QUAN:\n"
+                            + _format_context(chunks))
+            out, ms = await _timed(_run_gather_with_prompt(
+                llm, tools, policy_prompt, messages))
+        lat.append(ms)
+        erp_facts = out.get("erp_facts") or ""
+        tool_recall_ok, fact_coverage_ok = _score_gather(
+            erp_facts, called, required_tools, required_facts)
+        if tool_recall_ok and fact_coverage_ok:
+            return None
+        return {"topic": topic, "question": question, "called": called,
+                "required_tools": list(required_tools),
+                "erp_facts": erp_facts[:300],
+                "tool_recall_ok": tool_recall_ok,
+                "fact_coverage_ok": fact_coverage_ok}
+    fails, errors = await run_resilient(GATHER_CASES, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(GATHER_CASES)
+    measured = n - len(errors)
+    tool_recall_bad = sum(1 for f in fails if not f["tool_recall_ok"])
+    fact_bad = sum(1 for f in fails if not f["fact_coverage_ok"])
+    p50, p95 = _percentiles(lat)
+    return {"set": "gather", "branch": branch, "n": n,
+            "tool_recall": (measured - tool_recall_bad) / n if n else 0.0,
+            "fact_coverage": (measured - fact_bad) / n if n else 0.0,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
 
 
 async def eval_planner(llm, pace: float = 0.0, checkpoint_path=None):

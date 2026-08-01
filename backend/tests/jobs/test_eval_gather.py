@@ -90,3 +90,106 @@ def test_stub_erp_tools_no_late_binding_closure_bug():
     c = next(t for t in tools if t.name == "find_product").func()
     assert (a, b, c) == ("A", "B", "C")
     assert called == ["get_stock", "find_customer", "find_product"]
+
+
+from evals import run_eval
+
+
+def test_score_gather_both_ok():
+    tool_ok, fact_ok = run_eval._score_gather(
+        "Đơn xác nhận 18/07/2026, giao dự kiến 20/07/2026",
+        ["get_sale_order_detail"],
+        ("get_sale_order_detail",), ("18/07/2026", "20/07/2026"))
+    assert tool_ok and fact_ok
+
+
+def test_score_gather_tool_recall_fails_when_required_tool_not_called():
+    tool_ok, _fact_ok = run_eval._score_gather(
+        "18/07/2026, 20/07/2026", ["find_customer"],
+        ("get_sale_order_detail",), ("18/07/2026",))
+    assert not tool_ok
+
+
+def test_score_gather_fact_coverage_fails_when_fact_missing():
+    tool_ok, fact_ok = run_eval._score_gather(
+        "Đơn xác nhận 18/07/2026", ["get_sale_order_detail"],
+        ("get_sale_order_detail",), ("18/07/2026", "20/07/2026"))
+    assert tool_ok and not fact_ok
+
+
+def test_score_gather_extra_tool_call_does_not_fail_recall():
+    """required_tools là TẬP CON của called, không phải khớp tuyệt đối —
+    model gọi thêm tool khác (dò tìm thêm) không bị tính là lỗi."""
+    tool_ok, _fact_ok = run_eval._score_gather(
+        "18/07/2026", ["find_customer", "get_sale_order_detail"],
+        ("get_sale_order_detail",), ("18/07/2026",))
+    assert tool_ok
+
+
+def test_score_gather_fact_match_is_case_insensitive_normalized():
+    tool_ok, fact_ok = run_eval._score_gather(
+        "quá hạn 32 NGÀY", ["get_overdue_invoices"],
+        ("get_overdue_invoices",), ("32 ngày",))
+    assert tool_ok and fact_ok
+
+
+def test_eval_gather_base_branch_calls_real_gather_erp_node():
+    """Chống trôi: nhánh base PHẢI gọi make_gather_erp_node thật, không dựng
+    lại logic thu thập (Global Constraint) — kiểm bằng đọc mã nguồn, cùng
+    khuôn Task 8 SP-2b đã dùng cho eval_multi_source/render_fuse_input."""
+    import inspect
+    src = inspect.getsource(run_eval.eval_gather)
+    assert "make_gather_erp_node" in src
+    assert "_stub_erp_tools" in src
+    assert "_score_gather" in src
+
+
+def test_eval_gather_policy_branch_does_not_call_real_node():
+    """Nhánh policy KHÔNG gọi make_gather_erp_node — production chưa có
+    nhánh này, gọi hàm thật sẽ chỉ chạy lại đúng prompt cũ, không đo được gì
+    mới. Phải đi qua _run_gather_with_prompt riêng."""
+    import inspect
+    src = inspect.getsource(run_eval.eval_gather)
+    assert "_run_gather_with_prompt" in src
+
+
+def test_run_gather_with_prompt_returns_erp_facts_key():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    async def _run():
+        agent = MagicMock()
+        agent.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="18/07/2026")]})
+        import src.agents.fanout as fanout_mod
+        import unittest.mock
+        with unittest.mock.patch.object(
+                run_eval, "_create_agent",
+                lambda llm, tools, system_prompt=None: agent):
+            out = await run_eval._run_gather_with_prompt(
+                MagicMock(), [], "prompt bất kỳ",
+                [HumanMessage(content="q?")])
+        return out
+
+    out = asyncio.run(_run())
+    assert out == {"erp_facts": "18/07/2026"}
+
+
+def test_run_gather_with_prompt_degrades_to_empty_on_exception():
+    import asyncio
+    from unittest.mock import MagicMock
+    from langchain_core.messages import HumanMessage
+    import unittest.mock
+
+    async def _run():
+        with unittest.mock.patch.object(
+                run_eval, "_create_agent",
+                lambda llm, tools, system_prompt=None: (_ for _ in ()).throw(
+                    RuntimeError("llm down"))):
+            return await run_eval._run_gather_with_prompt(
+                MagicMock(), [], "prompt bất kỳ",
+                [HumanMessage(content="q?")])
+
+    out = asyncio.run(_run())
+    assert out == {"erp_facts": ""}
