@@ -59,6 +59,65 @@ hoặc đơn thuần là nhiễu non-determinism của 1 lần gọi LLM thật)
 controller quyết định bước tiếp theo trước khi động vào `GATHER_ERP_PROMPT`
 (Task 2).
 
+## Điều tra thêm của controller — quyết định về BLOCKED
+
+Trước khi hỏi người dùng, controller tự làm 2 việc để loại trừ khả năng
+"chỉ là nhiễu":
+
+1. **Chạy lại `--set gather` lần 2** (log
+   `logs/jobs/eval-gate-20260801T231348.json`): kết quả giống hệt lần 1 —
+   `tool_recall=0.75`, `fact_coverage=0.75`, `fails` chỉ chứa
+   `chinh_sach_hoan_hang` (`called: ["get_sale_order_detail"]`).
+   `sla_giao_hang` PASS lại. → không phải nhiễu ngẫu nhiên của 1 lần gọi,
+   đây là hành vi tái lập được.
+
+2. **Diagnostic riêng cho `sla_giao_hang`** (script tạm, không commit, gọi
+   trực tiếp `make_gather_erp_node` thật với đúng câu hỏi + fixture của
+   case này, in ra TOÀN BỘ `called` bất kể pass/fail — log không ghi lại
+   chi tiết này cho case pass):
+
+   ```
+   QUESTION: Đơn S00042 có đáp ứng SLA giao hàng không?
+   CALLED: ['get_sale_order_detail', 'list_sale_orders', 'list_late_deliveries']
+   ```
+
+   Kết quả: model VẪN gọi `get_sale_order_detail` ĐẦU TIÊN (khớp với chẩn
+   đoán trực tiếp qua Odoo thật ở phiên trước khi viết plan này — xu hướng
+   mặc định gọi tool này trước là có thật và nhất quán). Nhưng sau đó, cho
+   riêng câu hỏi này, model TỰ gọi thêm `list_sale_orders` (lấy được cả 2
+   ngày) và `list_late_deliveries` (không có trong `tool_fixtures`, stub
+   trả "Không có dữ liệu liên quan." — model diễn giải đúng thành "không có
+   đơn trong danh sách trễ hạn"). Việc gọi thêm `list_sale_orders` khiến
+   `tool_recall_ok` đạt (kiểm tra tập con: `required_tools ⊆ called`, xem
+   `evals/run_eval.py::_score_gather` dòng ~205).
+
+   Với câu hỏi `chinh_sach_hoan_hang`, model KHÔNG tự gọi thêm tool nào sau
+   `get_sale_order_detail` — có thể vì câu trả lời "trạng thái: done (đã
+   giao)" của fixture (cố ý viết cụt, không có ngày) "trông đủ" để dừng
+   vòng lặp ReAct, trong khi câu hỏi `sla_giao_hang` ("có đáp ứng SLA
+   không?") tự nó gợi ý cần xác minh thêm (ngày, phiếu giao trễ) nên model
+   chủ động tra cứu tiếp.
+
+**Kết luận của điều tra:** cơ chế gốc (mặc định gọi `get_sale_order_detail`
+trước, KHÔNG có quy tắc nào dẫn dắt dùng `list_sale_orders`) là CÓ THẬT và
+nhất quán ở cả hai case — khớp với chẩn đoán Odoo thật trước đó. Điều khác
+biệt là liệu model có TỰ ý gọi thêm tool thứ hai hay không, và điều đó phụ
+thuộc vào cách đặt câu hỏi — không ổn định, không phải điều plan có thể
+kiểm soát bằng cách viết fixture. Đây chính là lý do Task 2 (thêm quy tắc
+tường minh vào prompt) vẫn có giá trị: mục tiêu không phải "làm case FAIL
+2/2 cho đẹp" mà là loại bỏ sự phụ thuộc vào việc model có "tự suy luận
+thêm" hay không.
+
+**Quyết định (do người dùng chọn qua AskUserQuestion, không phải controller
+tự quyết):** **Tiếp tục Task 2**, không dừng ở BLOCKED. Ghi nhận trung thực:
+Task 1 chỉ tái hiện được lỗi tất định 1/2 case
+(`chinh_sach_hoan_hang`); case còn lại (`sla_giao_hang`) đã tự vượt qua
+nhờ hành vi gọi tool phụ không ổn định của model, KHÔNG phải nhờ
+`GATHER_ERP_PROMPT` đã được sửa. Task 2 vẫn tiến hành như kế hoạch: thêm
+quy tắc chọn tool vào prompt, đo lại `--set gather` để xác nhận CẢ HAI case
+đều PASS sau khi sửa (không chỉ dựa vào diễn biến may rủi của
+`sla_giao_hang` như ở bước này).
+
 ## Ghi chú vận hành (ngoài phạm vi bug đang đo)
 
 `python -m jobs run eval-gate --set gather` gọi thẳng ban đầu (không export
