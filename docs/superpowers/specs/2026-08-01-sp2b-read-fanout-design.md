@@ -454,23 +454,44 @@ Toàn bộ phải xanh ở **cả ba chế độ** pytest của repo.
 
 ---
 
-## §7. Hợp đồng với SP-2c
+## §7. Hợp đồng với giai đoạn sau
 
-SP-2b để lại cho SP-2c đúng ba thứ, và cố ý **không** để lại gì hơn:
+**Sửa tên (2026-08-01):** cái tên "SP-2c" cuối cùng đi vào một spec nhỏ hơn
+mục này dự tính — bộ đo `gather_erp` (`2026-08-01-sp2c-gather-eval-design.md`),
+không phải supervisor. Nội dung §7 dưới đây vẫn đúng, chỉ đổi cách gọi: đây
+là hợp đồng cho **giai đoạn supervisor**, hiện chưa đặt số, chưa bắt đầu.
+
+SP-2b để lại cho giai đoạn sau đúng ba thứ, và cố ý **không** để lại gì hơn:
 
 1. **Nguyên thuỷ join**: worker ghi *dữ kiện* vào key state JSON thuần; một
    node tổng hợp gộp. Thêm worker = thêm key + thêm cạnh, không đụng node cũ.
 2. **Khuôn "chống trôi"** giữa node thật và eval: một hàm dựng input dùng
-   chung (§5.2). Worker mới của SP-2c thừa hưởng khuôn này.
+   chung (§5.2). Worker mới thừa hưởng khuôn này.
 3. **Lớp định tuyến nguyên vẹn**: `_route_by_intent`, `intent_targets`, phủ
-   quyết `_looks_like_question`, `SOP_SELECT_CASES` — SP-2b không chạm, nên
-   SP-2c bắt đầu từ đúng trạng thái SP-2a đã chứng minh.
+   quyết `_looks_like_question`, `SOP_SELECT_CASES` — SP-2b không chạm.
 
-Câu hỏi SP-2c phải trả lời mà SP-2b cố tình **không** trả lời trước: một
-supervisor LLM có được phép **thay** lớp phủ quyết tất định không, hay chỉ được
-**đứng trước** nó. Bằng chứng hiện có (sự cố 3/3 lần 2026-07-16; thí nghiệm
-model 2026-07-31 cho thấy model to hơn *không* cứu được, thậm chí đẻ hijack
-mới) nghiêng hẳn về vế sau — nhưng đó là spec khác, đo bằng số khác.
+**Câu hỏi mở đã có câu trả lời (2026-08-01, research độc lập ngoài dự án):**
+một supervisor LLM có được phép **thay** lớp phủ quyết tất định không, hay
+chỉ được **đứng trước** nó — **KHÔNG được thay.** Bằng chứng nội bộ (sự cố
+3/3 lần 2026-07-16; thí nghiệm model 2026-07-31 cho thấy model to hơn *không*
+cứu được, thậm chí đẻ hijack mới) khớp với bằng chứng ngoài dự án: đây là
+hiện tượng *inverse/U-shaped scaling* đã công bố (McKenzie et al., "Inverse
+Scaling: When Bigger Isn't Better," TMLR 2023) — mô hình to hơn dựa vào
+prior lúc pretrain nhiều hơn, bám prompt ít hơn, đúng cơ chế khiến
+`groq-gpt-oss-120b` sinh hijack mới thay vì sửa được ca cũ. Pattern chuẩn
+ngành cho đúng tình huống này là **hybrid: lớp đề xuất (embeddings/LLM) +
+veto tất định**, không đảo ngược thứ tự — khớp thiết kế `_route_by_intent`
+đang có. **Không cần đo thêm để đóng câu hỏi này** — giữ nguyên veto, một
+supervisor (nếu làm) chỉ được đứng TRƯỚC nó, y hệt vai trò router hiện tại.
+
+**Khoảng trống thật còn lại không phải "cần supervisor"** — là năng lực
+truy xuất lại khi thiếu căn cứ mà `fusion` cũ có (ReAct loop) và fan-out
+không có (§1.4). Research chỉ đúng tên: **Corrective RAG / Adaptive-RAG**
+— một node chấm điểm tin cậy trên cạnh có điều kiện, bắn ĐÚNG MỘT lượt truy
+xuất bổ sung khi `fuse_answer` báo thiếu căn cứ, giữ nguyên fan-out song
+song cho lượt đầu. Nhỏ hơn, có tên, có tiền lệ (LangGraph tự có cookbook
+cho đúng pattern này) — không phải orchestrator tổng quát. Đây là ứng viên
+hợp lý hơn cho giai đoạn kế tiếp, thay vì supervisor.
 
 ---
 
