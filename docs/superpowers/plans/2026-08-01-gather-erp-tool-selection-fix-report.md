@@ -218,3 +218,143 @@ tệ đi. Nó chỉ đơn giản là CHƯA ĐỦ RỘNG để bắt case `chinh_
 làm lại từ đầu. Chi tiết vận hành đầy đủ (lệnh, log, đối chiếu số liệu
 Bước 1 vs Bước 2):
 `.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`.
+
+## Bước 2b — mở rộng quy tắc sau BLOCKED, đo lại — kết quả: BLOCKED (regression ngoài phạm vi)
+
+**Lý do mở rộng:** quy tắc hẹp ở Bước 2 (bám sát bề mặt câu hỏi — "cần
+NGÀY... hoặc TRẠNG THÁI GIAO") không bắt được câu hỏi ngụ ý — câu hỏi
+`chinh_sach_hoan_hang` ("Đơn S00042 còn được hoàn hàng theo chính sách
+không?") không nói thẳng chữ "ngày"/"trạng thái giao", dù về bản chất cần
+ngày giao để tính hạn hoàn hàng. Người dùng thật đã xem finding BLOCKED
+này và CHỌN mở rộng quy tắc thay vì dừng lại hoặc chấp nhận giới hạn —
+lệch khỏi văn bản Step 2 gốc của brief Task 2, được người dùng thật duyệt
+tường minh (không phải controller/tôi tự quyết). Controller đã tự kiểm
+chứng bản mở rộng bằng script tạm (không commit) trước khi giao lại: PASS
+sạch 2/2 lần cho riêng case `chinh_sach_hoan_hang`.
+
+**Quy tắc mở rộng** (`backend/src/agents/prompts.py:152`, thay 1 dòng):
+
+```
+- Câu hỏi cần NGÀY (xác nhận, đặt hàng, giao hàng) hoặc TRẠNG THÁI GIAO của MỘT đơn bán cụ thể — kể cả khi câu hỏi không nói thẳng chữ "ngày"/"trạng thái giao" mà hỏi về SLA, chính sách hoàn hàng, bảo hành, đổi trả trên một đơn cụ thể (những câu hỏi này CẦN ngày giao thực tế để tính hạn) — dùng `list_sale_orders` (lọc theo tên khách hàng hoặc điều kiện, tìm đúng dòng có mã đơn khớp trong kết quả) — KHÔNG dùng `get_sale_order_detail` cho việc này (tool đó chỉ có dòng sản phẩm, KHÔNG có ngày hay trạng thái giao).
+```
+
+Full unit test: 1 lần đầu `1 failed` — flake timing hệ thống không liên
+quan (`tests/jobs/test_eval_latency.py`, `assert 9.8745 >= 10.0`, chạy
+riêng file đó `8 passed`, xác nhận flake). Chạy lại toàn bộ: `1095
+passed, 4 skipped` — sạch.
+
+Đo thật `--set gather`, TOÀN BỘ 4 case (không chỉ 2 case mục tiêu), 2 lần
+độc lập:
+
+| | Bước 2 (quy tắc hẹp) | Bước 2b lần 1 (mở rộng) | Bước 2b lần 2 (kiểm tra lại) |
+|---|---|---|---|
+| `tool_recall` | 0.75 | 1.0 | 1.0 |
+| `fact_coverage` | 0.75 | 0.75 | 0.75 |
+| `sla_giao_hang` | PASS | PASS | PASS |
+| `chinh_sach_hoan_hang` | FAIL | **PASS** | **PASS** |
+| `chinh_sach_thanh_toan` | PASS | **FAIL** (mới) | **FAIL** (mới) |
+| `bang_gia_chiet_khau` | PASS | PASS | PASS |
+| log | `eval-gate-20260801T232742.json` | `eval-gate-20260801T233859.json` | `eval-gate-20260801T234007.json` |
+
+**Tin tốt:** cả 2 case mục tiêu của toàn bộ plan (`sla_giao_hang`,
+`chinh_sach_hoan_hang`) đều PASS ở cả 2 lần chạy — đúng như controller đã
+kiểm chứng bằng script tạm.
+
+**Tin xấu — regression ngoài phạm vi:** `chinh_sach_thanh_toan` (KHÔNG bị
+đụng ở Task 1, vẫn PASS bình thường ở Bước 2) bắt đầu FAIL sau khi mở
+rộng quy tắc, tái lập giống hệt 2/2 lần (`called`, `erp_facts` nguyên văn
+giống nhau):
+
+```json
+{
+  "topic": "chinh_sach_thanh_toan",
+  "question": "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có bị tạm dừng xử lý không?",
+  "called": ["get_overdue_invoices", "list_sale_orders", "list_sale_orders", "find_customer"],
+  "required_tools": ["get_overdue_invoices"],
+  "erp_facts": "Xin lỗi, tôi không chắc chắn về độ chính xác của câu trả lời này. Vui lòng kiểm tra lại trực tiếp trên hệ thống hoặc hỏi lại cụ thể hơn.",
+  "tool_recall_ok": true,
+  "fact_coverage_ok": false
+}
+```
+
+**Chẩn đoán (căn cứ mã nguồn, không suy đoán):** câu hỏi có cụm "đơn hàng
+mới... tạm dừng xử lý" — đủ giống mẫu "TRẠNG THÁI... của một đơn bán cụ
+thể" trong quy tắc mở rộng khiến model tự gọi thêm `list_sale_orders` +
+`find_customer` ngoài `get_overdue_invoices` (required). `tool_recall_ok`
+vẫn `true` (tập required vẫn là tập con của called) — vấn đề nằm ở
+`fact_coverage_ok: false`: `erp_facts` là nguyên văn
+`ERP_GROUNDING_FALLBACK_MSG` (`backend/src/agents/erp_grounding.py:19-22`)
+— message thay thế TOÀN BỘ câu trả lời khi bước `verify_erp_grounding`
+(LLM-judge riêng, so khớp câu trả lời nháp với tool outputs thô) phán
+quyết phát hiện mâu thuẫn. Với 4 lượt gọi tool thay vì 1, khả năng tổng
+hợp sai lệch dữ liệu giữa nhiều nguồn tăng, kích hoạt fallback. Đây đúng
+là lớp vấn đề `verify_erp_grounding` mà brief Task 2 gốc đã lường trước
+("...ghi nhận đây là một lớp vấn đề KHÁC... KHÔNG tự ý sửa thêm") — chỉ
+khác là xuất hiện ở case NGOÀI phạm vi mục tiêu, do side effect của việc
+mở rộng quy tắc.
+
+**Kết luận Bước 2b: BLOCKED.** Không đạt 4/4 case PASS — quy tắc mở rộng
+giải quyết đúng 2 case mục tiêu nhưng đổi lấy 1 regression mới. Theo đúng
+chỉ dẫn của coordinator cho nhánh "không đủ 4/4": DỪNG LẠI, không tự ý
+mở rộng/thu hẹp quy tắc thêm nữa, báo cáo lại để quyết định. **KHÔNG
+commit** thay đổi lần này (khác Bước 2 — nơi vẫn commit vì không có
+regression mới). `backend/src/agents/prompts.py` hiện đang ở trạng thái
+ĐÃ SỬA (bản mở rộng) nhưng CHƯA COMMIT trong worktree, chờ quyết định
+tiếp theo. Chi tiết đầy đủ:
+`.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`
+(mục "Bước 2b").
+
+## Bước 2c — thu hẹp lại quy tắc sau khi bản mở rộng làm hỏng `chinh_sach_thanh_toan`, đo lại 4/4 x 2 lần — DONE
+
+**Lý do thu hẹp:** bản mở rộng ở Bước 2b dùng cụm khái quát "TRẠNG THÁI
+GIAO của MỘT đơn bán cụ thể" — cụm này đủ tổng quát để model tự suy rộng
+sang câu hỏi thanh toán ("đơn hàng mới... tạm dừng xử lý" đọc giống
+"trạng thái của một đơn"), khiến nó tự gọi thêm `list_sale_orders` +
+`find_customer` ngoài `get_overdue_invoices` (required), kích hoạt
+fallback của `verify_erp_grounding`. Controller đã thu hẹp lại: (1) bỏ
+cụm khái quát "trạng thái của đơn", thay bằng liệt kê ĐÍCH DANH 4 chủ đề
+(SLA giao hàng / chính sách hoàn hàng / bảo hành / đổi trả); (2) thêm câu
+loại trừ tường minh cuối dòng cho thanh toán/hoá đơn/chiết khấu, chỉ định
+rõ dùng đúng tool tương ứng, không tự ý gọi thêm `list_sale_orders`. Đã
+kiểm chứng bằng script tạm (không commit) chạy đủ 4 case, 2 lần độc lập —
+4/4 PASS cả 2 lần — trước khi giao lại để áp dụng vào file thật. Đây là
+vòng chỉnh sửa thứ 3, mỗi vòng đều được đo bằng LLM thật (không mock) và
+được người dùng thật + controller duyệt qua AskUserQuestion trước khi áp
+dụng.
+
+**Quy tắc cuối cùng** (`backend/src/agents/prompts.py:152`, thay 1 dòng,
+không đổi gì khác):
+
+```
+- Câu hỏi hỏi về SLA giao hàng, chính sách hoàn hàng, bảo hành, hoặc đổi trả trên MỘT đơn bán cụ thể (kể cả khi không nói thẳng chữ "ngày"/"trạng thái giao" — những câu hỏi này CẦN ngày giao thực tế để tính hạn): dùng `list_sale_orders` (lọc theo tên khách hàng hoặc điều kiện, tìm đúng dòng có mã đơn khớp trong kết quả) — KHÔNG dùng `get_sale_order_detail` cho việc này (tool đó chỉ có dòng sản phẩm, KHÔNG có ngày hay trạng thái giao). Quy tắc này KHÔNG áp dụng cho câu hỏi về thanh toán, hoá đơn, hay chiết khấu — với những câu hỏi đó chỉ dùng đúng tool tương ứng (ví dụ `get_overdue_invoices`, `get_product_price`), KHÔNG tự ý gọi thêm `list_sale_orders`.
+```
+
+Full unit test: `1095 passed, 4 skipped` — sạch ngay lần đầu (không lặp
+lại flake timing của Bước 2b). Khôi phục 2 file fixture nhị phân
+`tests/rag/` như thường lệ.
+
+Đo thật `--set gather`, TOÀN BỘ 4 case, 2 lần độc lập:
+
+- Lần 1 (`logs/jobs/eval-gate-20260801T234839.json`): `"fails": []`,
+  `tool_recall: 1.0`, `fact_coverage: 1.0`.
+- Lần 2 (`logs/jobs/eval-gate-20260801T234924.json`): `"fails": []`,
+  `tool_recall: 1.0`, `fact_coverage: 1.0` — giống hệt lần 1.
+
+**Tóm tắt 3 vòng đo (Bước 2 → 2b → 2c):**
+
+| | Bước 2 (quy tắc hẹp gốc) | Bước 2b (mở rộng quá tay) | Bước 2c (thu hẹp lại — cuối cùng) |
+|---|---|---|---|
+| `tool_recall` | 0.75 | 1.0 | **1.0** |
+| `fact_coverage` | 0.75 | 0.75 | **1.0** |
+| `sla_giao_hang` | PASS | PASS | PASS |
+| `chinh_sach_hoan_hang` | FAIL | PASS | **PASS** |
+| `chinh_sach_thanh_toan` | PASS | FAIL (mới) | **PASS** (khôi phục) |
+| `bang_gia_chiet_khau` | PASS | PASS | PASS |
+| log | `...T232742.json` | `...T234007.json` | `...T234839.json`, `...T234924.json` |
+
+**Kết luận Bước 2c: DONE.** 4/4 case PASS, tái lập 2/2 lần đo độc lập
+(LLM thật, không mock). Không có case nào khác bị ảnh hưởng phụ. Đã
+commit `backend/src/agents/prompts.py` + file report này cùng nhau — xem
+`git log` cho hash. Chi tiết vận hành đầy đủ (lệnh, log gốc):
+`.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`
+(mục "Bước 2c").
