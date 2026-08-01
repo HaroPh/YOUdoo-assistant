@@ -270,3 +270,158 @@ async def test_gather_erp_skips_grounding_when_no_tool_output(monkeypatch):
     out = await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
     assert calls == []
     assert out == {"erp_facts": "Không tìm được dữ kiện ERP liên quan."}
+
+
+def test_render_fuse_input_shape():
+    from src.agents.fanout import render_fuse_input
+    from src.agents.synthesis import _format_context
+    chunks = [_chunk()]
+    out = render_fuse_input(chunks, "- Đơn S00042 giao 15/07/2026", "Hoàn được không?")
+    assert out == (f"TÀI LIỆU:\n{_format_context(chunks)}\n\n"
+                   f"DỮ LIỆU ERP:\n- Đơn S00042 giao 15/07/2026\n\n"
+                   f"CÂU HỎI: Hoàn được không?")
+
+
+def test_render_fuse_input_numbers_from_one():
+    """fusion cũ phải tự quản start= tăng dần vì agent gọi search_documents
+    nhiều lần. Fan-out truy xuất ĐÚNG MỘT LẦN nên sổ sách đó biến mất."""
+    from src.agents.fanout import render_fuse_input
+    out = render_fuse_input([_chunk(), _chunk(chunk_id=2)], "", "q?")
+    assert "[1] " in out and "[2] " in out
+
+
+def _fuse_state(doc_context, erp_facts, text="Đơn S00042 hoàn được không?"):
+    return {"messages": [HumanMessage(content=text)], "intent": "mixed",
+            "doc_context": doc_context, "erp_facts": erp_facts}
+
+
+def _passthrough_cite():
+    """Thay cite_and_verify: giữ nguyên thân, đính footer khi có chunk."""
+    async def _cite(body, chunks, llm):
+        return body + ("\n\n📄 Nguồn: policy.docx, tr.1" if chunks else "")
+    return _cite
+
+
+async def test_fuse_answer_happy_path_appends_citation_footer(monkeypatch):
+    import src.agents.fanout as fanout
+    c = _chunk(dense_score=0.7, section_path="Chính sách hoàn hàng › Điều 4",
+               source_file="C:/docs/policy.docx", page=1)
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(
+        content="Đơn đã quá 30 ngày nên không hoàn được."))
+    monkeypatch.setattr(fanout, "verify_erp_grounding",
+                        AsyncMock(side_effect=lambda a, t, l: a))
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    out = await fanout.make_fuse_answer_node(llm)(
+        _fuse_state([asdict(c)], "- Đơn S00042 giao 15/07/2026"))
+    content = out["messages"][0].content
+    assert "Đơn đã quá 30 ngày nên không hoàn được." in content
+    assert "📄 Nguồn: policy.docx, tr.1" in content
+
+
+async def test_fuse_answer_both_empty_returns_safe_msg():
+    import src.agents.fanout as fanout
+    from src.agents.synthesis import SAFE_MSG
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(side_effect=AssertionError("không được gọi LLM"))
+    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([], ""))
+    assert out["messages"][0].content == SAFE_MSG
+
+
+async def test_fuse_answer_clears_keys_on_happy_path(monkeypatch):
+    import src.agents.fanout as fanout
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="xong"))
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    monkeypatch.setattr(fanout, "verify_erp_grounding",
+                        AsyncMock(side_effect=lambda a, t, l: a))
+    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([asdict(_chunk())], "dữ kiện"))
+    assert out["doc_context"] is None
+    assert out["erp_facts"] is None
+
+
+async def test_fuse_answer_clears_keys_on_safe_msg_path():
+    import src.agents.fanout as fanout
+    llm = MagicMock()
+    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([], ""))
+    assert out["doc_context"] is None
+    assert out["erp_facts"] is None
+
+
+async def test_fuse_answer_clears_keys_on_exception():
+    import src.agents.fanout as fanout
+    from src.agents.synthesis import SAFE_MSG
+    llm = MagicMock()
+
+    async def boom(msgs):
+        raise RuntimeError("llm down")
+
+    llm.ainvoke = boom
+    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([asdict(_chunk())], "x"))
+    assert out["messages"][0].content == SAFE_MSG
+    assert out["doc_context"] is None
+    assert out["erp_facts"] is None
+
+
+async def test_fuse_answer_empty_llm_answer_returns_safe_msg():
+    import src.agents.fanout as fanout
+    from src.agents.synthesis import SAFE_MSG
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="   "))
+    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([asdict(_chunk())], "x"))
+    assert out["messages"][0].content == SAFE_MSG
+
+
+async def test_fuse_answer_uses_fuse_prompt_and_render(monkeypatch):
+    import src.agents.fanout as fanout
+    from src.agents.prompts import FUSE_PROMPT
+    captured = {}
+
+    async def spy_ainvoke(msgs):
+        captured["system"] = msgs[0].content
+        captured["human"] = msgs[1].content
+        return AIMessage(content="xong")
+
+    llm = MagicMock()
+    llm.ainvoke = spy_ainvoke
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    monkeypatch.setattr(fanout, "verify_erp_grounding",
+                        AsyncMock(side_effect=lambda a, t, l: a))
+    c = _chunk()
+    await fanout.make_fuse_answer_node(llm)(
+        _fuse_state([asdict(c)], "- dữ kiện", text="Hoàn được không?"))
+    assert captured["system"] == FUSE_PROMPT
+    assert captured["human"] == fanout.render_fuse_input([c], "- dữ kiện",
+                                                         "Hoàn được không?")
+
+
+async def test_fuse_answer_verifies_grounding_against_erp_facts(monkeypatch):
+    import src.agents.fanout as fanout
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="Có 9 đơn trễ."))
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    calls = []
+
+    async def fake_verify(answer, tool_outputs, llm_):
+        calls.append((answer, tool_outputs))
+        return answer
+
+    monkeypatch.setattr(fanout, "verify_erp_grounding", fake_verify)
+    await fanout.make_fuse_answer_node(llm)(_fuse_state([], "- Có 5 đơn trễ"))
+    assert calls == [("Có 9 đơn trễ.", ["- Có 5 đơn trễ"])]
+
+
+async def test_fuse_answer_skips_grounding_when_no_erp_facts(monkeypatch):
+    import src.agents.fanout as fanout
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="Theo tài liệu, 30 ngày."))
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    calls = []
+
+    async def fake_verify(answer, tool_outputs, llm_):
+        calls.append(answer)
+        return answer
+
+    monkeypatch.setattr(fanout, "verify_erp_grounding", fake_verify)
+    await fanout.make_fuse_answer_node(llm)(_fuse_state([asdict(_chunk())], ""))
+    assert calls == []

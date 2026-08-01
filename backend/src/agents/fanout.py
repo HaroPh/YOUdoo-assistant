@@ -120,3 +120,58 @@ def make_gather_erp_node(llm, tools):
         return {"erp_facts": facts}
 
     return gather_erp
+
+
+def render_fuse_input(chunks, erp_facts: str, question: str) -> str:
+    """NGUỒN SỰ THẬT DUY NHẤT cho hình dạng input của fuse_answer.
+
+    Dùng bởi CẢ node thật LẪN evals.run_eval.eval_multi_source — bắt buộc, không
+    phải tiện tay. Bài học SP-2a: eval_intent() mirror hợp đồng đầu ra của router
+    ở một module khác; Task 8 đổi hợp đồng, eval không đổi theo, acc rơi
+    0.870 → 0.148 với MỌI ca parse thành "unknown", và không ai nghi ngờ vì lỗi
+    trông y hệt lỗi chất lượng model. Dùng chung một hàm thì mirror KHÔNG THỂ
+    trôi khỏi node thật.
+
+    fusion cũ phải tự quản `start=` tăng dần vì agent gọi search_documents nhiều
+    lần; fan-out truy xuất ĐÚNG MỘT LẦN nên _format_context chạy start=1 và sổ
+    sách đó biến mất.
+    """
+    return (f"TÀI LIỆU:\n{_format_context(chunks)}\n\n"
+            f"DỮ LIỆU ERP:\n{erp_facts}\n\n"
+            f"CÂU HỎI: {question}")
+
+
+def make_fuse_answer_node(llm):
+    """Node JOIN: một lượt LLM trên cả hai nguồn, rồi trích dẫn + verify.
+
+    Xoá hai key join lúc RA là VỆ SINH (một lượt erp_read sau đó không vác theo
+    cả đống chunk trong checkpoint và trace Langfuse) — KHÁC với việc node
+    `mixed` xoá lúc VÀO, vốn là lớp chịu lực cho TÍNH ĐÚNG. Hai chỗ, hai lý do,
+    không phải hai lớp cho cùng một việc.
+    """
+    async def fuse_answer(state: ERPAgentState) -> dict:
+        clear = {"doc_context": None, "erp_facts": None}
+        chunks = chunks_from_dicts(state.get("doc_context"))
+        erp_facts = state.get("erp_facts") or ""
+        if not chunks and not erp_facts:
+            # Hai chân cùng rỗng → không có gì để suy luận. Kiểm tra TẤT ĐỊNH,
+            # không giao cho model tự nhận ra.
+            return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
+        try:
+            resp = await llm.ainvoke([
+                SystemMessage(content=FUSE_PROMPT),
+                HumanMessage(content=render_fuse_input(
+                    chunks, erp_facts, _last_human(state))),
+            ])
+            answer = (resp.content or "").strip()
+            if not answer:
+                return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
+            answer = await cite_and_verify(answer, chunks, llm)
+            if erp_facts:
+                answer = await verify_erp_grounding(answer, [erp_facts], llm)
+        except Exception:
+            logger.exception("fuse_answer failed")
+            answer = SAFE_MSG
+        return {"messages": [AIMessage(content=answer)], **clear}
+
+    return fuse_answer
