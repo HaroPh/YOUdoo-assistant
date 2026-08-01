@@ -493,3 +493,63 @@ SOP_SELECT_CASES = [
     # người dùng làm đúng lời khuyên sẽ rơi lại vào vòng lặp.
     ("điều chỉnh tồn kho Desk Pad về 100", "erp_write"),
 ]
+
+# ── GATHER_CASES ─────────────────────────────────────────────────────────────
+# Đo bước THU THẬP của gather_erp (SP-2b/fanout.py) — TÁCH KHỎI bước tổng hợp
+# mà MULTI_SOURCE_CASES đã đo trên erp_block viết tay. topic tái dùng ĐÚNG
+# fixture chính sách của multi_source (fixtures.load_chunks) để hai bộ đo kể
+# cùng một câu chuyện về cùng một chính sách.
+#
+# tool_fixtures: dữ liệu HAND-WRITTEN (không phải Odoo thật — fixture eval
+# thật của multi_source cũng viết tay, cùng kỷ luật) cho MỖI tool trong
+# required_tools; tool nào không có trong dict này thì stub trả "Không có dữ
+# liệu liên quan." (xem run_eval._stub_erp_tools). required_facts PHẢI xuất
+# hiện nguyên văn trong tool_fixtures của chính case (test chốt ở
+# test_eval_gather.py) — tự-mâu-thuẫn là lỗi, không phải điều kiện khó.
+GATHER_CASES = [
+    # sla_giao_hang — hồi quy thật quan sát được ở Task 10 (SP-2b): model
+    # đọc đúng chính sách 3-ngày-SLA nhưng nói "không cung cấp thông tin về
+    # ngày xác nhận đơn hàng, ngày giao hàng thực tế" rồi từ chối kết luận
+    # (logs/jobs/eval-gate-20260801T130223.json). Case này đo: nếu tool CÓ
+    # đủ hai ngày đó, gather_erp có lấy và truyền đạt được không.
+    ("sla_giao_hang", "Đơn S00042 có đáp ứng SLA giao hàng không?",
+     ("get_sale_order_detail",),
+     ("18/07/2026", "20/07/2026"),
+     {"get_sale_order_detail":
+      "Đơn S00042 | Azure Interior | trạng thái: sale (đã xác nhận) | "
+      "ngày xác nhận: 18/07/2026 | ngày giao dự kiến: 20/07/2026 | "
+      "loại đơn: thường"}),
+    # chinh_sach_hoan_hang — cùng hình dạng: chính sách cần "ngày giao thực
+    # tế" để tính hạn 30 ngày hoàn hàng.
+    ("chinh_sach_hoan_hang", "Đơn S00042 còn được hoàn hàng theo chính sách không?",
+     ("get_sale_order_detail",),
+     ("15/07/2026",),
+     {"get_sale_order_detail":
+      "Đơn S00042 | Azure Interior | trạng thái: done (đã giao) | "
+      "ngày giao thực tế: 15/07/2026"}),
+    # chinh_sach_thanh_toan — câu hỏi giống hệt MULTI_SOURCE_CASES (S00050),
+    # nhưng ở đây đo bước THU THẬP: "quá hạn 32 ngày" có nổi lên từ tool
+    # get_overdue_invoices không, giữa nhiều dòng dữ liệu khác.
+    ("chinh_sach_thanh_toan",
+     "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có "
+     "bị tạm dừng xử lý không?",
+     ("get_overdue_invoices",),
+     ("32 ngày",),
+     {"get_overdue_invoices":
+      "3 hóa đơn quá hạn:\n"
+      "  INV/2026/00030 | Gemini Furniture | đến hạn 30/06/2026 | "
+      "quá hạn 32 ngày | còn 4.200.000\n"
+      "  INV/2026/00031 | Wood Corner | đến hạn 05/07/2026 | "
+      "quá hạn 20 ngày | còn 1.000.000"}),
+    # bang_gia_chiet_khau — ca 3 tool nối chuỗi (find_customer → find_product
+    # → get_product_price), đo tool_recall trên một chuỗi nhiều bước thay vì
+    # một lượt gọi đơn.
+    ("bang_gia_chiet_khau", "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",
+     ("find_customer", "find_product", "get_product_price"),
+     ("12%",),
+     {"find_customer": "Tìm thấy 1 khách hàng: Azure Interior (ID 42)",
+      "find_product": "Tìm thấy 1 sản phẩm: Large Cabinet (ID 108)",
+      "get_product_price":
+      "Giá bán Large Cabinet cho khách Azure Interior (số lượng 50): "
+      "2.400.000đ/sp (đã áp chiết khấu số lượng 12%)"}),
+]
