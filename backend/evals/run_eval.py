@@ -29,6 +29,9 @@ from src.agents.prompts import SYSTEM_PROMPT
 from src.agents.prompts import RAG_SYNTHESIS_PROMPT
 from src.agents.prompts import FUSE_PROMPT
 from src.agents.fanout import render_fuse_input
+from src.agents.prompts import GATHER_ERP_PROMPT
+from src.agents.fanout import make_gather_erp_node, _create_agent
+from src.agents.erp_grounding import verify_erp_grounding
 from src.agents.prompts import render_intent_router_prompt
 from src.agents.synthesis import SENTINEL, _format_context, _MARKER_RE
 from src.agents.nodes import _parse_plan_tiered, _parse_router_output
@@ -161,6 +164,29 @@ def _args_match(expected: dict, got: dict) -> bool:
         if _norm(act) != _norm(exp):
             return False
     return True
+
+
+def _stub_erp_tools(tool_fixtures: dict, called: list) -> list:
+    """Bọc TOÀN BỘ tool đọc thật (build_erp_query_tools()) — giữ nguyên
+    name/description/args_schema (allow-list y hệt production), chỉ thay
+    THÂN hàm bằng tra cứu fixture. KHÔNG rút gọn tập lựa chọn: độ khó
+    chọn-đúng-tool giữa 25 tool phải giữ nguyên như production (spec
+    2026-08-01-sp2c §1.1) — rút gọn làm bài dễ đi, số đo vô nghĩa.
+
+    BẪY late-binding closure: t/fixture PHẢI chốt bằng default-argument
+    (_name=t.name, _fixture=fixture), không phải đọc trực tiếp t/fixture
+    trong thân hàm lồng trong vòng lặp — nếu không MỌI stub sẽ trả fixture
+    của tool CUỐI CÙNG trong vòng lặp, im lặng sai."""
+    tools = build_erp_query_tools()
+    for t in tools:
+        fixture = tool_fixtures.get(t.name, "Không có dữ liệu liên quan.")
+
+        def _stub(_name=t.name, _fixture=fixture, **kwargs):
+            called.append(_name)
+            return _fixture
+
+        t.func = _stub
+    return tools
 
 
 async def eval_planner(llm, pace: float = 0.0, checkpoint_path=None):

@@ -46,3 +46,47 @@ def test_gather_cases_required_tools_are_real_erp_tool_names():
             assert t in real_names, (
                 f"required_tools có {t!r} — không phải tên tool thật nào "
                 f"trong build_erp_query_tools()")
+
+
+def test_stub_erp_tools_wraps_all_real_tools():
+    from evals.run_eval import _stub_erp_tools
+    from src.erp_query.tools import build_erp_query_tools
+    called = []
+    tools = _stub_erp_tools({}, called)
+    real_names = {t.name for t in build_erp_query_tools()}
+    stub_names = {t.name for t in tools}
+    assert stub_names == real_names
+
+
+def test_stub_erp_tools_returns_fixture_for_named_tool():
+    from evals.run_eval import _stub_erp_tools
+    called = []
+    tools = _stub_erp_tools({"get_stock": "Còn 10 Desk Pad."}, called)
+    t = next(t for t in tools if t.name == "get_stock")
+    out = t.func(product="Desk Pad")
+    assert out == "Còn 10 Desk Pad."
+    assert called == ["get_stock"]
+
+
+def test_stub_erp_tools_default_no_data_for_unlisted_tool():
+    from evals.run_eval import _stub_erp_tools
+    called = []
+    tools = _stub_erp_tools({}, called)
+    t = next(t for t in tools if t.name == "find_customer")
+    out = t.func(name="anyone")
+    assert out == "Không có dữ liệu liên quan."
+    assert called == ["find_customer"]
+
+
+def test_stub_erp_tools_no_late_binding_closure_bug():
+    """Chốt đúng bẫy nêu trong docstring _stub_erp_tools — mỗi stub phải trả
+    ĐÚNG fixture của TOOL CỦA NÓ, không phải fixture của tool cuối vòng lặp."""
+    from evals.run_eval import _stub_erp_tools
+    called = []
+    tools = _stub_erp_tools(
+        {"get_stock": "A", "find_customer": "B", "find_product": "C"}, called)
+    a = next(t for t in tools if t.name == "get_stock").func()
+    b = next(t for t in tools if t.name == "find_customer").func()
+    c = next(t for t in tools if t.name == "find_product").func()
+    assert (a, b, c) == ("A", "B", "C")
+    assert called == ["get_stock", "find_customer", "find_product"]
