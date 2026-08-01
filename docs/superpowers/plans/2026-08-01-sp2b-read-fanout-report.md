@@ -109,7 +109,9 @@ seed sẵn có trong repo (gồm `policy.docx` — "Chính sách hoàn hàng") �
    (gọi `build_graph()` thật, PASS trong lượt suite Bước 1 — xác nhận lại độc
    lập: `5 passed` khi chạy riêng file này).
 3. Cổng `multi_source` PASS **và** `both_source_coverage` SAU ≥ TRƯỚC,
-   `fabricated_number`=0, `citation_validity`=1.0 — **KHÔNG đạt**. verdict SAU
+   `fabricated_number`=0, `citation_validity`=1.0 — **đạt (cập nhật Task 11,
+   xem ghi chú cuối điều này và mục `## Task 11` bên dưới)**. Tại thời điểm
+   Task 10 đo, verdict SAU
    = `FAIL`; `both_source_coverage` 0.625 < TRƯỚC 0.75 (phân loại tái lập được
    ở lần chạy thứ hai — cùng 3 ca fail, cùng điểm số, dù văn bản câu trả lời
    không phải lúc nào cũng y hệt — xem ghi chú "Sửa sau review round 1" ở mục
@@ -140,6 +142,13 @@ seed sẵn có trong repo (gồm `policy.docx` — "Chính sách hoàn hàng") �
    mất thông tin thật — nhưng đây là quan sát để người sửa tiếp theo dõi
    theo, KHÔNG phải kết luận đã điều tra xong (nằm ngoài phạm vi đo của Task
    10, xem "Tổng kết" bên dưới).
+
+   **Cập nhật Task 11 (2026-08-01):** giả thuyết trên đã được xác nhận. Đổi
+   `erp_fact` của ca S00050 thành tuple `("S00050", "Gemini Furniture")` và
+   tái dùng `_grounded_match` đã có sẵn (không viết heuristic mờ mới — xem
+   mục `## Task 11` bên dưới). Chạy lại gate thật: verdict `PASS`,
+   `both_source_coverage` quay về `0.75` (= TRƯỚC), `citation_validity=1.0`,
+   `fabricated_number=0` — cả ba vế của điều kiện điều 3 nay đều đạt.
 4. Cổng `intent` PASS; `sop_select` hijack=0 và acc≥16/17 — **đạt**. `intent`
    acc=0.9444444444444444 → PASS, y hệt TRƯỚC. `sop_select`
    acc=0.9411764705882353=16/17 đúng ngưỡng, hijack=0 — FAIL biết trước như
@@ -171,12 +180,16 @@ Latency là số **quan sát, không phải cổng** (spec §5.3): `multi_source
 lat_p50/p95 SAU 1149/1444ms so TRƯỚC 1061/1484ms — dao động nhỏ cùng cỡ độ
 lớn; không dùng để kết luận đạt/không đạt bất kỳ điều nào ở trên.
 
-**Tổng kết: 6/7 điều kiện đạt, điều 3 KHÔNG đạt.** `both_source_coverage` hồi
-quy đo được thật (0.75 → 0.625), phân loại tái lập được ở hai lần chạy độc
+**Tổng kết: 7/7 điều kiện đạt (cập nhật Task 11 — xem mục `## Task 11` bên
+dưới).** Số đo GỐC của Task 10 là 6/7, điều 3 KHÔNG đạt: `both_source_coverage`
+hồi quy đo được (0.75 → 0.625), phân loại tái lập được ở hai lần chạy độc
 lập — không phải nhiễu lấy mẫu quyết định toàn bộ kết quả.
 `fabricated_number`=0 và `citation_validity`=1.0 xác nhận đây KHÔNG phải một
-lỗ hổng an toàn (không bịa đặt), nhưng vẫn là hồi quy thật trên đúng chỉ số mà
-spec §8 điều 3 yêu cầu không được tệ đi so với TRƯỚC.
+lỗ hổng an toàn (không bịa đặt). Điều tra (round 1 + re-review) quy toàn bộ
+hồi quy về ĐÚNG MỘT ca (`chinh_sach_thanh_toan`/S00050) — một false negative
+của cách chấm, không phải mất chất lượng thật. Task 11 đã sửa cách chấm ca
+này (tái dùng `_grounded_match`) và đo lại: `both_source_coverage=0.75` (=
+TRƯỚC), gate PASS — điều 3 nay đạt, tổng kết cập nhật thành 7/7.
 
 **Sửa sau review round 1 — nguyên nhân, đối chiếu lại với chính log TRƯỚC đã
 trích ở trên (`eval-gate-20260801T104522.json`):** giả thuyết ban đầu của bản
@@ -193,9 +206,97 @@ negative hay không — TRƯỚC khi nghĩ tới việc chỉnh `FUSE_PROMPT`. �
 một câu hỏi mở, chưa điều tra tới cùng — Task 10 chỉ đo và báo cáo, không sửa
 mã hay chạy thêm thực nghiệm để xác nhận.
 
-SP-2b **CHƯA đủ điều kiện đóng** theo đúng định nghĩa của chính spec §8 —
-6/7 điều đạt, nhưng điều 3 (một trong hai cổng eval bắt buộc PASS) không đạt
-và là hồi quy đo được thật, không phải false alarm ở tầng gate. Cần một vòng
-xem xét/sửa trước khi có thể coi SP-2b là xong — bắt đầu từ việc xác minh ca
-`chinh_sach_thanh_toan` có phải false negative của cách chấm hay không (xem
-điều 3), không phải giả định ngay là lỗi hành vi của `FUSE_PROMPT`.
+Tại thời điểm Task 10 đo, SP-2b **CHƯA đủ điều kiện đóng** theo đúng định
+nghĩa của chính spec §8 — 6/7 điều đạt, nhưng điều 3 (một trong hai cổng eval
+bắt buộc PASS) không đạt và là hồi quy đo được thật, không phải false alarm ở
+tầng gate. Cần một vòng xem xét/sửa trước khi có thể coi SP-2b là xong — bắt
+đầu từ việc xác minh ca `chinh_sach_thanh_toan` có phải false negative của
+cách chấm hay không (xem điều 3), không phải giả định ngay là lỗi hành vi của
+`FUSE_PROMPT`.
+
+**Cập nhật Task 11 (2026-08-01):** đã xác minh — ca `chinh_sach_thanh_toan`/
+S00050 ĐÚNG LÀ false negative của cách chấm (`erp_fact` đòi khớp literal mã
+đơn, model trả lời đúng nhưng dùng tên khách hàng thay vì mã đơn). Đã sửa
+eval case + đo lại gate thật (xem mục `## Task 11` bên dưới):
+`both_source_coverage` quay về `0.75` (= TRƯỚC), verdict `PASS`. SP-2b **nay
+đủ điều kiện đóng** theo spec §8 — 7/7 điều kiện đạt.
+
+## Task 11 — sửa false negative eval S00050
+
+**Ad hoc, thêm sau khi plan gốc 10 task đã xong.** Task 10 đo SAU phát hiện
+cổng `multi_source` hồi quy (`both_source_coverage` 0.75→0.625). Hai lượt
+điều tra độc lập (review round 1 + re-review, cả hai ghi nhận trong "Kết
+luận" ở trên) quy toàn bộ hồi quy về ĐÚNG MỘT ca mới:
+`chinh_sach_thanh_toan`/đơn S00050. Model trả lời ĐÚNG, khẳng định, dùng cả
+hai nguồn — nhưng trượt phép đo `both` (`run_eval.py`:
+`both = _norm(doc_fact) in low and _norm(erp_fact) in low`, dòng 499 trước
+sửa) chỉ vì gọi khách hàng bằng TÊN ("Gemini Furniture") thay vì lặp lại mã
+đơn "S00050" như `erp_fact` cũ của case đòi khớp nguyên văn. Chủ dự án xác
+nhận (2026-08-01) sửa ca eval theo đúng kỷ luật đã dùng cho
+`SYNTHESIS_CASES`/`_grounded_match` (SP-1C1) và `MULTI_SOURCE_DERIVED_DIGITS`
+(trục `fabricated_number`) — hand-verified, per-case literal allowlist,
+KHÔNG heuristic mờ chung.
+
+### Thay đổi
+
+- `backend/evals/cases.py`: `erp_fact` của ĐÚNG MỘT case trong
+  `MULTI_SOURCE_CASES` (`chinh_sach_thanh_toan`/S00050) đổi từ chuỗi đơn
+  `"S00050"` thành tuple 2 phương án đã quan sát thật:
+  `("S00050", "Gemini Furniture")`, kèm comment tại chỗ dẫn evidence (log
+  gốc + mục này). 7 case còn lại của `MULTI_SOURCE_CASES` giữ nguyên `str`
+  đơn — đã xác nhận bằng cách đọc lại toàn bộ 8 case và bằng test đơn vị mới
+  (`test_chi_case_s00050_doi_kieu_erp_fact_7_case_con_lai_van_la_str`).
+- `backend/evals/run_eval.py`: `eval_multi_source()`'s `both` computation đổi
+  từ so khớp chuỗi thô (`_norm(doc_fact) in low and _norm(erp_fact) in low`)
+  sang tái dùng `_grounded_match(doc_fact, body)` và
+  `_grounded_match(erp_fact, body)` — cơ chế ĐÃ CÓ SẴN (dùng cho
+  `SYNTHESIS_CASES`), không viết heuristic mới. Biến `low` cục bộ (chỉ dùng
+  cho phép so cũ) bị xoá theo vì không còn nơi dùng. Khối
+  `allowed`/`fabricated`/`MULTI_SOURCE_DERIVED_DIGITS` (trục
+  `fabricated_number`) KHÔNG bị đụng tới.
+- `backend/tests/jobs/test_eval_multi_source.py`: sửa
+  `test_multi_source_cases_shape_and_topics_exist` để chịu được `erp_fact`
+  dạng tuple (chuẩn hoá về tuple rồi kiểm từng phương án, thay vì gọi
+  `.casefold()` trực tiếp trên `erp_fact` — sẽ vỡ với tuple); thêm 4 test đơn
+  vị mới theo đúng yêu cầu brief: (1) `body` chứa "Gemini Furniture" (không
+  chứa "S00050") vẫn khớp `erp_fact`; (2) `body` chứa CẢ HAI phương án vẫn
+  khớp; (3) `body` KHÔNG chứa phương án nào thì KHÔNG khớp; (4) đúng 1/8 case
+  (S00050) có `erp_fact` kiểu tuple, 7 case còn lại vẫn `str`.
+
+### Số đo `multi_source` MỚI (sau sửa)
+
+Chạy trên nhánh này, cùng model đầu chuỗi catalog (`gemini-3.1-flash-lite`,
+không truyền `--model`), lệnh
+`PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m jobs run eval-gate --set multi_source`:
+
+- verdict: **`PASS`**
+- `both_source_coverage`: **`0.75`** (TRƯỚC/baseline: `0.75` — đạt ngưỡng ≥
+  TRƯỚC yêu cầu ở brief)
+- `citation_validity`: `1.0`
+- `fabricated_number`: `0`
+- `lat_p50` / `lat_p95`: `959` / `1543` ms
+- log gốc: `logs/jobs/eval-gate-20260801T130223.json`
+- 2 ca còn fail (`both=false`) sau sửa: `sla_giao_hang`/"Đơn S00042 có đáp
+  ứng SLA giao hàng không?" và `chinh_sach_hoan_hang`/"Hóa đơn
+  INV/2026/00017 có được hoàn tiền không?" — CẢ HAI đã fail SẴN ở TRƯỚC
+  (`logs/jobs/eval-gate-20260801T104522.json`) và ở baseline
+  (`evals/baseline-qwen3-8b-multi_source.json`), không liên quan gì tới sửa
+  của Task 11. Case S00050 KHÔNG còn trong danh sách fail — xác nhận sửa
+  đúng chỗ, không mở rộng lọt sai ở case nào khác.
+
+### Test
+
+- `backend/tests/jobs/test_eval_multi_source.py`: `18 passed` (14 test cũ +
+  4 test mới của Task 11).
+- Full suite unit-only (`pytest -m "not integration and not live"`):
+  `1070 passed, 4 skipped, 43 deselected`.
+- Hai fixture nhị phân (`tests/rag/fixtures/bang_gia.xlsx`, `policy.docx`) bị
+  chạm bởi test suite (hành vi đã biết) — khôi phục bằng `git checkout --`
+  trước khi commit.
+
+### Phạm vi không đụng (xác nhận)
+
+Không sửa `_digits`/`allowed`/`MULTI_SOURCE_DERIVED_DIGITS`/trục
+`fabricated_number`; không sửa production code (`fanout.py`, `prompts.py`,
+`graph.py`); không thêm phương án cho case nào khác ngoài S00050 (không quan
+sát được bằng chứng thật nào khác khi chạy lại gate).

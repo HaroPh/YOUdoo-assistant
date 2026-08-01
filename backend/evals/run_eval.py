@@ -495,8 +495,7 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
         ]))
         lat.append(ms)
         body = (resp.content or "").strip()
-        low = _norm(body)
-        both = _norm(doc_fact) in low and _norm(erp_fact) in low
+        both = _grounded_match(doc_fact, body) and _grounded_match(erp_fact, body)
         cited = _cited_indices(body)
         citation_ok = all(1 <= i <= len(chunks) for i in cited)
         # BUG (đã sửa, spec §3): model nhìn thấy _format_context(chunks)

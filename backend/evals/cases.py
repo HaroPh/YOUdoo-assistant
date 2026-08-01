@@ -420,7 +420,15 @@ MULTI_SOURCE_CASES = [
     ("chinh_sach_thanh_toan",
      "Đơn S00050 | Khách Gemini Furniture | quá hạn thanh toán 32 ngày",
      "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có bị tạm dừng xử lý không?",
-     "tạm dừng xử lý", "S00050"),
+     "tạm dừng xử lý",
+     # Task 11 (2026-08-01): erp_fact là tuple 2 phương án, không phải "S00050"
+     # đơn — model trả lời ĐÚNG, khẳng định, dùng cả 2 nguồn nhưng gọi khách
+     # hàng bằng TÊN ("Gemini Furniture") thay vì lặp mã đơn "S00050"
+     # (logs/jobs/eval-gate-20260801T121135.json, tái lập ở
+     # eval-gate-20260801T121335.json; xem docs/superpowers/plans/
+     # 2026-08-01-sp2b-read-fanout-report.md § Task 11). Khớp qua
+     # _grounded_match đã có sẵn (SP-1C1) — KHÔNG heuristic mờ mới.
+     ("S00050", "Gemini Furniture")),
     # bang_gia_chiet_khau ← discount_policy.docx
     ("bang_gia_chiet_khau", "Khách Azure Interior | đặt 50 Large Cabinet",
      "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",

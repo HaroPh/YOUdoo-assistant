@@ -11,10 +11,17 @@ def test_multi_source_cases_shape_and_topics_exist():
     for topic, erp_block, question, doc_fact, erp_fact in cases.MULTI_SOURCE_CASES:
         assert topic in topics, f"topic {topic} không có trong fixture"
         assert erp_block.strip() and question.strip()
-        assert doc_fact.strip() and erp_fact.strip()
-        # dữ kiện ERP kỳ vọng PHẢI có trong erp_block đóng băng, nếu không
-        # case tự mâu thuẫn (đòi model nói điều dữ liệu không hề chứa)
-        assert erp_fact.casefold() in erp_block.casefold()
+        assert doc_fact.strip()
+        # erp_fact: str đơn (7/8 case) hoặc tuple nhiều phương án đã quan sát
+        # thật (Task 11, case S00050) — chuẩn hoá về tuple để kiểm đồng nhất,
+        # cùng khuôn với _grounded_match().
+        alts = erp_fact if isinstance(erp_fact, tuple) else (erp_fact,)
+        for alt in alts:
+            assert alt.strip()
+            # dữ kiện ERP kỳ vọng PHẢI có trong erp_block đóng băng, nếu không
+            # case tự mâu thuẫn (đòi model nói điều dữ liệu không hề chứa)
+            assert alt.casefold() in erp_block.casefold(), (
+                f"phương án {alt!r} không có trong erp_block của case {topic}")
 
 
 def test_derived_digits_keys_ton_tai_trong_cases():
@@ -37,6 +44,61 @@ def test_doc_facts_actually_exist_in_fixture():
         corpus = " ".join(c.text for c in fixtures.load_chunks(topic)).casefold()
         assert doc_fact.casefold() in corpus, (
             f"doc_fact {doc_fact!r} không có trong chunk của topic {topic}")
+
+
+def _s00050_case():
+    """Case thật gây hồi quy both_source_coverage ở Task 10 (đo SAU) — trả
+    về entry gốc từ MULTI_SOURCE_CASES (không hard-code lại tuple) để test
+    luôn đi cùng dữ liệu thật, không lệch nếu case đổi sau này."""
+    return next(c for c in cases.MULTI_SOURCE_CASES
+                if c[0] == "chinh_sach_thanh_toan"
+                and c[2].startswith("Đơn S00050"))
+
+
+def test_s00050_grounded_match_khop_qua_ten_khach_hang():
+    """Tái hiện NGUYÊN VĂN lý do hồi quy Task 10: model trả lời ĐÚNG, khẳng
+    định, dùng cả 2 nguồn — nhưng gọi khách hàng bằng TÊN thay vì lặp mã đơn.
+    _grounded_match phải khớp erp_fact qua phương án "Gemini Furniture" dù
+    body KHÔNG chứa "S00050"."""
+    erp_fact = _s00050_case()[4]
+    body = ("Có, đơn hàng mới của Gemini Furniture sẽ bị tạm dừng xử lý. "
+            "Theo quy định, khi khách hàng có đơn hàng quá hạn thanh toán "
+            "trên 30 ngày, các đơn hàng mới sẽ bị tạm dừng cho đến khi "
+            "khách hàng hoàn tất thanh toán các khoản nợ cũ.")
+    assert "S00050" not in body
+    assert run_eval._grounded_match(erp_fact, body)
+
+
+def test_s00050_grounded_match_khop_khi_ca_hai_phuong_an_cung_co_mat():
+    """Không loại trừ lẫn nhau — body chứa CẢ HAI phương án ("S00050" và
+    "Gemini Furniture") vẫn phải khớp, không phải "chỉ đúng 1 trong 2"."""
+    erp_fact = _s00050_case()[4]
+    body = "Đơn S00050 của khách Gemini Furniture sẽ bị tạm dừng xử lý."
+    assert run_eval._grounded_match(erp_fact, body)
+
+
+def test_s00050_grounded_match_khong_khop_khi_thieu_ca_hai_phuong_an():
+    """An toàn: tuple KHÔNG được làm phép đo lỏng lẻo tuỳ tiện — body không
+    chứa "S00050" lẫn "Gemini Furniture" vẫn phải bị coi là KHÔNG khớp."""
+    erp_fact = _s00050_case()[4]
+    body = "Đơn hàng mới của khách này sẽ bị tạm dừng xử lý."
+    assert not run_eval._grounded_match(erp_fact, body)
+
+
+def test_chi_case_s00050_doi_kieu_erp_fact_7_case_con_lai_van_la_str():
+    """Ranh giới thay đổi (Global Constraints task 11): CHỈ case S00050 được
+    đổi erp_fact thành tuple; 7 case còn lại của MULTI_SOURCE_CASES phải giữ
+    nguyên kiểu str đơn — không bị đổi kiểu nhầm khi sửa case này."""
+    tuple_cases = [
+        (topic, question) for topic, _erp, question, _doc, erp_fact
+        in cases.MULTI_SOURCE_CASES if isinstance(erp_fact, tuple)
+    ]
+    assert tuple_cases == [("chinh_sach_thanh_toan",
+                             "Đơn S00050 quá hạn thanh toán 32 ngày, đơn "
+                             "hàng mới của khách này có bị tạm dừng xử lý "
+                             "không?")]
+    s00050_erp_fact = _s00050_case()[4]
+    assert s00050_erp_fact == ("S00050", "Gemini Furniture")
 
 
 def test_cited_indices_parses_marker():
