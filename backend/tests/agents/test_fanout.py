@@ -427,6 +427,22 @@ async def test_fuse_answer_skips_grounding_when_no_erp_facts(monkeypatch):
     assert calls == []
 
 
+async def test_fuse_answer_malformed_doc_context_degrades_to_safe_msg():
+    """Fix (final review SP-2b): Chunk(**d) chạy TRONG try — schema trôi
+    (dict thiếu field) không được thoát ra ngoài, phải suy biến về SAFE_MSG
+    + xoá key, giống mọi lỗi khác, không phải ERROR_MSG chung của main.py."""
+    import src.agents.fanout as fanout
+    from src.agents.synthesis import SAFE_MSG
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(side_effect=AssertionError("không được gọi LLM"))
+    malformed = [{"chunk_id": 1}]  # thiếu các field bắt buộc khác của Chunk
+    out = await fanout.make_fuse_answer_node(llm)(
+        _fuse_state(malformed, ""))
+    assert out["messages"][0].content == SAFE_MSG
+    assert out["doc_context"] is None
+    assert out["erp_facts"] is None
+
+
 async def test_mixed_node_clears_both_join_keys():
     """LangGraph GIỮ giá trị channel khi node bỏ qua key. Nếu lượt sau
     gather_docs ngã và không ghi gì, fuse_answer sẽ trích dẫn chunk của lượt

@@ -591,7 +591,7 @@ git commit -m "feat(sp2b): gather_docs — chân tài liệu 0 lượt LLM, stat
 - Test: `backend/tests/agents/test_fanout.py` (thêm vào)
 
 **Interfaces:**
-- Consumes: `fanout._last_human`, `prompts.GATHER_ERP_PROMPT`,
+- Consumes: `prompts.GATHER_ERP_PROMPT`,
   `langchain.agents.create_agent` (import sẵn trong `fanout.py` với tên
   `_create_agent`), `erp_grounding.verify_erp_grounding(answer, tool_outputs, llm) -> str`.
 - Produces: `fanout.make_gather_erp_node(llm, tools) -> async node(state) -> {"erp_facts": str}`

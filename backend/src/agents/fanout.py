@@ -96,12 +96,13 @@ def make_gather_docs_node():
             result = await asyncio.to_thread(retrieve, query)
             chunks = ([] if result.is_empty() or not passes_floor(result)
                       else result.chunks)
+            doc_context = [chunk_to_dict(c) for c in chunks]
         except Exception:
             # KHÔNG để exception thoát ra: LangGraph để lỗi một nhánh giết CẢ
             # superstep, tức chân ERP đang chạy song song cũng mất theo.
             logger.exception("gather_docs failed")
-            chunks = []
-        return {"doc_context": [chunk_to_dict(c) for c in chunks]}
+            doc_context = []
+        return {"doc_context": doc_context}
 
     return gather_docs
 
@@ -174,13 +175,13 @@ def make_fuse_answer_node(llm):
     """
     async def fuse_answer(state: ERPAgentState) -> dict:
         clear = {"doc_context": None, "erp_facts": None}
-        chunks = chunks_from_dicts(state.get("doc_context"))
         erp_facts = state.get("erp_facts") or ""
-        if not chunks and not erp_facts:
-            # Hai chân cùng rỗng → không có gì để suy luận. Kiểm tra TẤT ĐỊNH,
-            # không giao cho model tự nhận ra.
-            return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
         try:
+            chunks = chunks_from_dicts(state.get("doc_context"))
+            if not chunks and not erp_facts:
+                # Hai chân cùng rỗng → không có gì để suy luận. Kiểm tra TẤT
+                # ĐỊNH, không giao cho model tự nhận ra.
+                return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
             resp = await llm.ainvoke([
                 SystemMessage(content=FUSE_PROMPT),
                 HumanMessage(content=render_fuse_input(
@@ -189,6 +190,18 @@ def make_fuse_answer_node(llm):
             answer = (resp.content or "").strip()
             if not answer:
                 return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
+            # `chunks` ở đây LUÔN là TOÀN BỘ kết quả gather_docs của lượt này
+            # — khác `fusion` cũ, nơi `collected` chỉ gồm chunk agent THẬT SỰ
+            # gọi search_documents lấy về (gather_docs không phải agent, nó
+            # truy xuất một lần, không chọn lọc theo yêu cầu model). Hệ quả:
+            # nếu model bỏ dòng NGUỒN_DÙNG (trả lời chỉ dựa ERP), extract_
+            # used_citations() (synthesis.py) fallback về TOÀN BỘ chunks, và
+            # verify_citations() fail-open (lỗi LLM → giữ nguyên toàn bộ) —
+            # nên về lý thuyết có thể đính "📄 Nguồn:" vào câu trả lời không
+            # thực sự dùng tài liệu. Chấp nhận: câu hỏi mixed luôn có ý định
+            # cần tài liệu, passes_floor lọc truy xuất lạc đề trước khi tới
+            # đây, và chưa quan sát thấy xảy ra thật (final review SP-2b,
+            # 2026-08-01) — nhưng đây là lý do nếu xảy ra.
             answer = await cite_and_verify(answer, chunks, llm)
             if erp_facts:
                 answer = await verify_erp_grounding(answer, [erp_facts], llm)

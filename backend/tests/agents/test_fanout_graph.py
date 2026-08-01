@@ -62,7 +62,6 @@ async def test_real_graph_mixed_turn_produces_one_answer(monkeypatch):
     """Một lượt `mixed` đầu-cuối qua build_graph() THẬT: cả hai chân chạy, ra
     ĐÚNG MỘT AIMessage, cả hai key join về None ở state cuối."""
     import src.agents.fanout as fanout
-    import src.agents.nodes as nodes_mod
     from src.rag.types import Chunk, RetrievalResult
 
     c = Chunk(chunk_id=1, doc_id="d", source_file="C:/docs/policy.docx",

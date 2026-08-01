@@ -178,7 +178,14 @@ seed sẵn có trong repo (gồm `policy.docx` — "Chính sách hoàn hàng") �
 
 Latency là số **quan sát, không phải cổng** (spec §5.3): `multi_source`
 lat_p50/p95 SAU 1149/1444ms so TRƯỚC 1061/1484ms — dao động nhỏ cùng cỡ độ
-lớn; không dùng để kết luận đạt/không đạt bất kỳ điều nào ở trên.
+lớn; không dùng để kết luận đạt/không đạt bất kỳ điều nào ở trên. Số p50/p95
+này chỉ đo MỘT lệnh gọi `llm.ainvoke` trên fixture đông cứng của eval mirror
+(so sánh chi phí prompt công bằng, cùng điều kiện); node `fuse_answer` thật
+trên production còn thêm các lệnh gọi LLM khác mỗi lượt ngoài phạm vi đo của
+eval — vòng lặp ReAct của `gather_erp`, bước verify_erp_grounding riêng của
+nó, cộng thêm cite_and_verify và verify_erp_grounding của chính `fuse_answer`
+— nên con số này KHÔNG phải một so sánh độ trễ đầu-cuối (end-to-end) đầy đủ
+của production.
 
 **Tổng kết: 7/7 điều kiện đạt (cập nhật Task 11 — xem mục `## Task 11` bên
 dưới).** Số đo GỐC của Task 10 là 6/7, điều 3 KHÔNG đạt: `both_source_coverage`
