@@ -27,7 +27,8 @@ from src.agents.confirmation import _LLM_PROMPT
 from src.agents.prompts import WRITE_PLANNER_PROMPT
 from src.agents.prompts import SYSTEM_PROMPT
 from src.agents.prompts import RAG_SYNTHESIS_PROMPT
-from src.agents.prompts import FUSION_PROMPT
+from src.agents.prompts import FUSE_PROMPT
+from src.agents.fanout import render_fuse_input
 from src.agents.prompts import render_intent_router_prompt
 from src.agents.synthesis import SENTINEL, _format_context, _MARKER_RE
 from src.agents.nodes import _parse_plan_tiered, _parse_router_output
@@ -472,18 +473,25 @@ def _digits(s: str) -> set[str]:
 
 
 async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
-    """Đo tổng hợp 2 nguồn trên fixture đóng băng. Mirror FUSION_PROMPT thật;
-    khối tài liệu dựng bằng chính _format_context() của production."""
+    """Đo tổng hợp 2 nguồn trên fixture đóng băng — mirror node fuse_answer.
+
+    Prompt VÀ hình dạng input đều lấy từ production (FUSE_PROMPT,
+    render_fuse_input) — KHÔNG dựng lại bằng tay. Đây là điều kiện để mirror
+    không trôi khỏi node thật: ở SP-2a, eval_intent() dựng lại cách parse đầu
+    ra router ở module riêng, hợp đồng đổi mà eval không đổi theo, acc rơi
+    0.870 → 0.148 và trông y hệt lỗi chất lượng model.
+
+    erp_block của fixture đóng vai erp_facts — cả hai đều là văn bản dữ kiện
+    ERP thô do chân gather_erp nộp lên, không phải câu trả lời.
+    """
     lat: list[float] = []
 
     async def call(case):
         topic, erp_block, question, doc_fact, erp_fact = case
         chunks = fixtures.load_chunks(topic)
         resp, ms = await _timed(llm.ainvoke([
-            SystemMessage(content=FUSION_PROMPT),
-            HumanMessage(content=f"TÀI LIỆU:\n{_format_context(chunks)}\n\n"
-                                 f"DỮ LIỆU ERP:\n{erp_block}\n\n"
-                                 f"CÂU HỎI: {question}"),
+            SystemMessage(content=FUSE_PROMPT),
+            HumanMessage(content=render_fuse_input(chunks, erp_block, question)),
         ]))
         lat.append(ms)
         body = (resp.content or "").strip()

@@ -443,3 +443,21 @@ async def test_mixed_node_never_writes_messages():
     import src.agents.fanout as fanout
     out = await fanout.make_mixed_node()(_state("x?"))
     assert "messages" not in out
+
+
+def test_eval_multi_source_uses_shared_render_and_fuse_prompt():
+    """Chống trôi giữa node thật và eval — bài học SP-2a (eval_intent mirror
+    hợp đồng router cũ, acc 0.870 → 0.148)."""
+    import inspect
+    from evals import run_eval
+    src = inspect.getsource(run_eval.eval_multi_source)
+    assert "render_fuse_input" in src
+    assert "FUSE_PROMPT" in src
+    assert "FUSION_PROMPT" not in src
+    # eval KHÔNG được dựng lại chuỗi input bằng tay
+    assert "TÀI LIỆU:" not in src
+
+
+def test_fusion_prompt_is_gone():
+    from src.agents import prompts
+    assert not hasattr(prompts, "FUSION_PROMPT")

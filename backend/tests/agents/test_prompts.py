@@ -99,7 +99,7 @@ def test_planner_prompt_advertises_scrap_product():
     assert "scrap_product(product_name" in WRITE_PLANNER_PROMPT
 
 
-from src.agents.prompts import RAG_SYNTHESIS_PROMPT, FUSION_PROMPT
+from src.agents.prompts import RAG_SYNTHESIS_PROMPT, FUSE_PROMPT
 
 
 def test_rag_synthesis_prompt_forbids_inline_section_numbers():
@@ -109,16 +109,16 @@ def test_rag_synthesis_prompt_forbids_inline_section_numbers():
     assert "KHÔNG nêu số thứ tự Điều/Mục/Khoản" in RAG_SYNTHESIS_PROMPT
 
 
-def test_fusion_prompt_forbids_inline_section_numbers():
-    assert "KHÔNG nêu số thứ tự Điều/Mục/Khoản" in FUSION_PROMPT
+def test_fuse_prompt_forbids_inline_section_numbers():
+    assert "KHÔNG nêu số thứ tự Điều/Mục/Khoản" in FUSE_PROMPT
 
 
 def test_rag_synthesis_prompt_forbids_bracket_index_citation():
     assert "HAY số thứ tự đoạn tài liệu" in RAG_SYNTHESIS_PROMPT
 
 
-def test_fusion_prompt_forbids_bracket_index_citation():
-    assert "HAY số thứ tự đoạn tài liệu" in FUSION_PROMPT
+def test_fuse_prompt_forbids_bracket_index_citation():
+    assert "HAY số thứ tự đoạn tài liệu" in FUSE_PROMPT
 
 
 def test_register_payment_signature_shows_either_identifier_optional():

@@ -53,7 +53,7 @@ def test_chain_until_documented_in_planner_prompt():
 def test_cloud_bound_prompts_have_no_think_suffix():
     # QĐ M2: router/evaluator/chitchat được phép chạy cloud (Gemini/Gemma) —
     # prompt của chúng không được chứa chỉ thị đặc thù Qwen '/no_think'.
-    # (3 prompt local — SYSTEM_PROMPT, RAG_SYNTHESIS, FUSION — GIỮ /no_think.)
+    # (3 prompt local — SYSTEM_PROMPT, RAG_SYNTHESIS, FUSE — GIỮ /no_think.)
     from src.agents.prompts import INTENT_ROUTER_PROMPT
     from src.agents.confirmation import _LLM_PROMPT
     assert "/no_think" not in INTENT_ROUTER_PROMPT
@@ -66,6 +66,6 @@ def test_cloud_bound_prompts_have_no_think_suffix():
 def test_local_prompts_keep_no_think():
     # S4 (ADR-009): 3 prompt local giữ /no_think — guard chống rớt khi chỉnh tông.
     from src.agents.prompts import (SYSTEM_PROMPT, RAG_SYNTHESIS_PROMPT,
-                                            FUSION_PROMPT)
-    for p in (SYSTEM_PROMPT, RAG_SYNTHESIS_PROMPT, FUSION_PROMPT):
+                                            FUSE_PROMPT)
+    for p in (SYSTEM_PROMPT, RAG_SYNTHESIS_PROMPT, FUSE_PROMPT):
         assert "/no_think" in p
