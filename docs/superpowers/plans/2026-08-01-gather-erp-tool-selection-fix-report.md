@@ -217,7 +217,8 @@ tệ đi. Nó chỉ đơn giản là CHƯA ĐỦ RỘNG để bắt case `chinh_
 — giữ lại làm nền cho quyết định mở rộng tiếp theo, thay vì bỏ đi và phải
 làm lại từ đầu. Chi tiết vận hành đầy đủ (lệnh, log, đối chiếu số liệu
 Bước 1 vs Bước 2):
-`.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`.
+`.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`
+(gitignored).
 
 ## Bước 2b — mở rộng quy tắc sau BLOCKED, đo lại — kết quả: BLOCKED (regression ngoài phạm vi)
 
@@ -302,7 +303,7 @@ regression mới). `backend/src/agents/prompts.py` hiện đang ở trạng thá
 ĐÃ SỬA (bản mở rộng) nhưng CHƯA COMMIT trong worktree, chờ quyết định
 tiếp theo. Chi tiết đầy đủ:
 `.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`
-(mục "Bước 2b").
+(gitignored) (mục "Bước 2b").
 
 ## Bước 2c — thu hẹp lại quy tắc sau khi bản mở rộng làm hỏng `chinh_sach_thanh_toan`, đo lại 4/4 x 2 lần — DONE
 
@@ -330,8 +331,13 @@ không đổi gì khác):
 ```
 
 Full unit test: `1095 passed, 4 skipped` — sạch ngay lần đầu (không lặp
-lại flake timing của Bước 2b). Khôi phục 2 file fixture nhị phân
-`tests/rag/` như thường lệ.
+lại flake timing của Bước 2b). Chạy `git checkout --` cho 2 file fixture
+nhị phân `tests/rag/` theo thói quen phòng ngừa sau khi chạy test (không
+có `git status` ghi lại tại thời điểm đó xác nhận 2 file này có thực sự bị
+đổi hay không — đây là lượt chạy test KHÁC với lượt ở mục "Xác minh test"
+phía dưới, nơi `git status` được ghi lại tường minh và cho kết quả sạch;
+hai kết quả không mâu thuẫn nhau, chỉ là hai lần chạy khác nhau, xem chú
+thích ở đó).
 
 Đo thật `--set gather`, TOÀN BỘ 4 case, 2 lần độc lập:
 
@@ -357,7 +363,7 @@ lại flake timing của Bước 2b). Khôi phục 2 file fixture nhị phân
 commit `backend/src/agents/prompts.py` + file report này cùng nhau — xem
 `git log` cho hash. Chi tiết vận hành đầy đủ (lệnh, log gốc):
 `.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`
-(mục "Bước 2c").
+(gitignored) (mục "Bước 2c").
 
 ## Bước 3 — `multi_source` thật (thước đo cuối cùng)
 
@@ -451,14 +457,66 @@ việc `erp_block` của case này chưa từng bị đổi.
   4 skipped, 43 deselected`**.
 - Integration (`pytest -m integration`): **`27 passed, 1115 deselected`**.
 - 2 file fixture nhị phân (`tests/rag/fixtures/bang_gia.xlsx`,
-  `policy.docx`): `git status` sau cả 2 lượt chạy — sạch, không bị đổi, không
-  cần `git checkout --`.
-- Đối chiếu `git diff main..HEAD --stat` (toàn bộ 4 commit của plan): chỉ
+  `policy.docx`): `git status` sau cả 2 lượt chạy (unit-only, integration)
+  ở Bước 3 này — sạch, không bị đổi, không cần `git checkout --`. (Đây là
+  lượt chạy test KHÁC với lượt ở Bước 2c phía trên, nơi `git checkout --`
+  được chạy theo thói quen phòng ngừa mà không có `git status` ghi lại —
+  hai đoạn không mâu thuẫn, chỉ phản ánh 2 lần chạy test riêng biệt, có
+  thể cho kết quả khác nhau.)
+- Đối chiếu `git diff main..HEAD --stat` (toàn bộ 6 commit của plan): chỉ
   `backend/evals/cases.py`, `backend/src/agents/prompts.py`, và file report
   này bị đổi. `graph.py`, `fanout.py`, `state.py`, mô tả 25 tool dùng chung
   (`erp_query/tools.py`) — **0 dòng thay đổi**.
 
 ## Kết luận
+
+**CẢNH BÁO QUAN TRỌNG — đọc trước khi xem 6 điều dưới đây:** bằng chứng đã
+đo được trong chính report này (mục "Điều tra thêm của controller — chẩn
+đoán trực tiếp qua Odoo thật (sau Task 3)" ở dưới) cho thấy bản sửa này CÓ
+THỂ làm production TỆ HƠN — không chỉ "chưa đủ tốt" — cho đúng lớp câu hỏi
+plan này nhắm sửa: câu hỏi hỏi về một đơn bán CỤ THỂ bằng MÃ ĐƠN (ví dụ
+"S00042"), không kèm tên khách hàng. Nối lại 4 sự kiện đã có sẵn nhưng rời
+rạc trong report:
+
+(a) Người dùng gọi đơn bán bằng MÃ ĐƠN (ví dụ "S00042"), không phải tên
+khách hàng — đây chính là hình dạng của cả 2 case mục tiêu gốc của plan.
+(b) `list_sale_orders` (`backend/src/erp_query/sales.py:24-46`) KHÔNG có
+tham số tìm theo mã đơn — chỉ lọc theo `state`/`customer`/`date_from`/
+`date_to`.
+(c) `backend/src/erp_query/tools.py` có `_reject_ref_shaped_partner_names`
+(khoảng dòng 16-24, áp dụng cho mọi tool qua `build_erp_query_tools()`
+dòng ~222) — CHẶN CỨNG (raise lỗi validation) khi model gọi
+`list_sale_orders(customer="S00042")`, vì giá trị đó CÓ HÌNH DẠNG mã đơn,
+bị coi là model gán nhầm mã tham chiếu vào tham số tên.
+(d) `get_sale_order_detail` là con đường DUY NHẤT tra được mã đơn → tên
+khách hàng (`sales.py:49-68`, tìm theo `name = ref`), nhưng quy tắc prompt
+mới ("KHÔNG dùng `get_sale_order_detail` cho việc này") lại bị model đọc
+theo nghĩa đen là cấm hoàn toàn dùng tool đó cho câu hỏi này — nên model bỏ
+qua bước tra tên khách hàng cần thiết.
+
+Kết quả quan sát được (đã ghi nguyên văn ở mục điều tra bên dưới): với câu
+hỏi S00042/SLA giao hàng, kết quả cuối là `ERP_GROUNDING_FALLBACK_MSG` —
+TOÀN BỘ câu trả lời bị thay bằng "Xin lỗi, tôi không chắc chắn...". TRƯỚC
+khi có bản sửa này, `gather_erp` (dù chọn sai tool `get_sale_order_detail`)
+ít nhất còn trả về được tên khách hàng/trạng thái/tổng tiền — CÓ dữ kiện,
+dù thiếu ngày. SAU khi sửa: KHÔNG CÒN dữ kiện nào cả (fallback trắng). Đây
+là dấu hiệu REGRESSION THẬT trên đúng lớp câu hỏi plan nhắm sửa, không chỉ
+đơn thuần "chưa đủ để giải quyết" như điều 4 dưới đây diễn đạt.
+
+`gather` (bộ đo eval, báo 4/4 PASS) KHÔNG phát hiện được vì `_stub_erp_tools`
+(`backend/evals/run_eval.py`) trả cố định fixture text BẤT KỂ tham số gọi
+tool là gì — kể cả gọi `list_sale_orders(customer="S00042")` (dạng lẽ ra bị
+`_reject_ref_shaped_partner_names` chặn khi dùng tool thật), stub vẫn trả
+đúng dòng S00042 như không có chuyện gì. Bộ đo `gather` vì vậy chỉ đo được
+"model có gọi đúng TÊN tool hay không", KHÔNG đo được "tham số gọi tool có
+hợp lệ/tìm ra đúng bản ghi với dữ liệu Odoo thật hay không" — đây chính là
+lỗ hổng khiến 4/4 xanh trong khi production thật có thể tệ hơn trước bản
+sửa.
+
+Ghi nhận đúng mức độ nghiêm trọng ở đây — KHÔNG tự ý sửa thêm
+`GATHER_ERP_PROMPT`: người dùng thật đã xem xét và quyết định chốt plan
+như hiện tại, để lỗ hổng này cho phase sau xử lý (xem thêm khoảng trống
+phủ kiểm thử đã nêu ở điều 4 dưới đây).
 
 Đối chiếu từng điều của §5 "Xong nghĩa là"
 (`docs/superpowers/specs/2026-08-01-gather-erp-tool-selection-design.md`):
@@ -494,10 +552,29 @@ việc `erp_block` của case này chưa từng bị đổi.
    `fuse_answer` nhận đầu vào thật từ `gather_erp`, không phải `erp_block`
    đóng băng) hay không — câu hỏi đó nằm ngoài những gì 2 bộ đo hiện có
    (`gather`, `multi_source`) có thể trả lời.
-5. **Toàn bộ test xanh cả 3 chế độ. ĐẠT (2/2 chế độ pytest brief yêu cầu
-   chạy).** Unit-only: `1095 passed, 4 skipped`. Integration: `27 passed`.
-   (Brief Task 3 Step 2 chỉ liệt kê đúng 2 lệnh pytest này; không có lệnh
-   `-m live` nào được giao — không tự ý chạy thêm ngoài phạm vi brief.)
+5. **2/2 chế độ pytest brief Task 3 Step 2 yêu cầu (unit-only,
+   integration) — ĐẠT, sạch.** Unit-only: `1095 passed, 4 skipped`.
+   Integration: `27 passed`. (Brief chỉ liệt kê đúng 2 lệnh pytest này.)
+
+   Ngoài phạm vi brief, controller ĐÃ THỬ thêm chế độ `-m live` cho đúng
+   test liên quan chủ đề nhất — `backend/tests/agents/test_dau_cuoi_fanout.py`
+   (câu hỏi trong test: "Theo chính sách hoàn hàng, đơn S00042 còn hoàn
+   được không?" — đúng lớp câu hỏi plan này sửa):
+   `PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe -m pytest
+   tests/agents/test_dau_cuoi_fanout.py -m live -v` (từ `backend/`, sau khi
+   export `.env`) — **FAILED**: `httpx.ConnectError: All connection
+   attempts failed`. Nguyên nhân: test này đi qua `ERPAgent` →
+   `MultiServerMCPClient` → cần MCP Odoo server thật chạy ở
+   `http://localhost:8001/sse` (`backend/src/agents/erp_agent.py:21,140`);
+   service đó KHÔNG chạy trong worktree/môi trường này (đã xác nhận cổng
+   8001 không nghe). Đây là THIẾU HẠ TẦNG cục bộ (không có server MCP),
+   KHÔNG PHẢI lỗi của bản sửa — các chẩn đoán trực tiếp Task 1/2/3 trong
+   plan này đều CỐ Ý bypass MCP, gọi thẳng `build_erp_query_tools()` qua
+   XML-RPC thật (không cần MCP cho việc ĐỌC). Bằng chứng tương đương đã có:
+   xem mục "Điều tra thêm của controller — chẩn đoán trực tiếp qua Odoo
+   thật (sau Task 3)" bên dưới — vẫn phủ được cùng cơ chế thật (real
+   `gather_erp` node, real Odoo), dù không đi qua đúng lớp MCP/audit mà
+   test `-m live` này kiểm tra.
 6. **`graph.py`, `fanout.py`, `state.py`, mô tả 25 tool dùng chung — 0 dòng
    thay đổi. ĐẠT.** Xác nhận bằng `git diff main..HEAD --stat` (mục "Xác
    minh test" ở trên).

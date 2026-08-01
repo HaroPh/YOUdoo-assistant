@@ -78,6 +78,23 @@ khớp đúng cách job CLI resolve role cho set `gather`).
 
 ## Kết luận
 
+**Đính chính (bổ sung sau review toàn nhánh của plan sau —
+`docs/superpowers/plans/2026-08-01-gather-erp-tool-selection-fix-report.md`,
+mục "Bước 1", commit `b9fef00`):** 2 trong 4 case gốc dùng để đo ở nhánh
+`base` phía trên (`sla_giao_hang`, `chinh_sach_hoan_hang`) chạy trên
+fixture SAI — gán field ngày cho `get_sale_order_detail`, một khả năng
+tool đó không có thật (`backend/src/erp_query/sales.py:49-68`, tool này
+chỉ trả dòng sản phẩm, KHÔNG có ngày/trạng thái giao; chỉ `list_sale_orders`
+mới có field đó). Fixture đã được sửa ở plan sau. Do đó kết luận "4/4
+`gather_erp` đã lấy đủ field" ở dưới đây KHÔNG còn tự động đúng cho 2 case
+này — số đo gốc `fact_coverage=1.0` của nhánh `base` một phần dựa trên
+fixture sai, cần đọc kèm đính chính này. Đồng thời, số đo nhánh `policy`
+phía trên (`fact_coverage=0.75`) được đo trên `GATHER_ERP_PROMPT` PHIÊN
+BẢN CŨ — prompt đó đã đổi ở plan sau (`backend/src/agents/prompts.py:152`,
+quy tắc chọn tool mới cho SLA/hoàn hàng/bảo hành/đổi trả), nên con số
+`policy` này không còn đại diện cho prompt hiện tại. Không đo lại ở đây —
+chỉ ghi nhận để tránh đọc nhầm 2 con số trên là vẫn đúng nguyên trạng.
+
 **`fact_coverage` nhánh `base` đã cao (gần 1.0 — thực tế đúng 1.0)**, nên
 áp dụng nhánh kết luận thứ nhất của template: giả thuyết "gather_erp không
 thấy chính sách nên lấy thiếu field" **SAI**. Với 4 ca đo được thiết kế mô
