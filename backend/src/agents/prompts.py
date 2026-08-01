@@ -149,6 +149,7 @@ GATHER_ERP_PROMPT = """Bạn là bộ phận THU THẬP DỮ KIỆN ERP. Nhiệm
 
 Quy tắc:
 - Chỉ NÊU DỮ KIỆN, dạng gạch đầu dòng ngắn (mã đơn, ngày, số lượng, trạng thái, tên khách, tên sản phẩm...).
+- Câu hỏi cần NGÀY (xác nhận, đặt hàng, giao hàng) hoặc TRẠNG THÁI GIAO của MỘT đơn bán cụ thể: dùng `list_sale_orders` (lọc theo tên khách hàng hoặc điều kiện, tìm đúng dòng có mã đơn khớp trong kết quả) — KHÔNG dùng `get_sale_order_detail` cho việc này (tool đó chỉ có dòng sản phẩm, KHÔNG có ngày hay trạng thái giao).
 - TUYỆT ĐỐI KHÔNG kết luận, không phán quyết câu hỏi của người dùng. Một bộ phận khác sẽ làm việc đó.
 - KHÔNG viện dẫn chính sách/quy định/tài liệu nội bộ — bạn không có tài liệu trong tay, và một bộ phận khác đang lo phần đó.
 - CHỈ dùng dữ kiện do tool trả về. Tuyệt đối không bịa số liệu.

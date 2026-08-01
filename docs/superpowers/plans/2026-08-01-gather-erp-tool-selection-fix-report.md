@@ -132,3 +132,89 @@ thời để chạy được Step 4 thật: export toàn bộ `.env` vào shell 
 gọi job (`set -a && source ../.env && set +a`) — KHÔNG sửa bất kỳ file
 source nào trong repo. Đây là vấn đề hạ tầng độc lập với bug đang sửa,
 ghi lại ở đây để controller biết (không nằm trong phạm vi sửa của Task 1).
+
+## Bước 2 — xác nhận đã sửa (SAU khi sửa prompt)
+
+Sửa `GATHER_ERP_PROMPT` (`backend/src/agents/prompts.py:152`), thêm ĐÚNG
+một gạch đầu dòng mới theo văn bản Step 2 của brief Task 2 (không đổi gì
+khác trong file):
+
+```
+- Câu hỏi cần NGÀY (xác nhận, đặt hàng, giao hàng) hoặc TRẠNG THÁI GIAO của MỘT đơn bán cụ thể: dùng `list_sale_orders` (lọc theo tên khách hàng hoặc điều kiện, tìm đúng dòng có mã đơn khớp trong kết quả) — KHÔNG dùng `get_sale_order_detail` cho việc này (tool đó chỉ có dòng sản phẩm, KHÔNG có ngày hay trạng thái giao).
+```
+
+Full unit test (`-m "not integration and not live"`): `1095 passed, 4
+skipped, 43 deselected` — không hồi quy, không test nào assert nguyên văn
+prompt cũ.
+
+Chạy `jobs run eval-gate --set gather`, cùng model
+(`gemini-3.1-flash-lite`), SAU khi sửa `GATHER_ERP_PROMPT`. Chạy 2 lần độc
+lập để loại trừ nhiễu non-determinism (theo đúng kỷ luật đã dùng ở Bước 1
+khi gặp kết quả bất ngờ):
+
+- `tool_recall`: `0.75` (Bước 1: `0.75`) — KHÔNG đổi
+- `fact_coverage`: `0.75` (Bước 1: `0.75`) — KHÔNG đổi
+- log gốc lần 1: `logs/jobs/eval-gate-20260801T232648.json`
+- log gốc lần 2 (lặp lại để kiểm tra nhiễu): `logs/jobs/eval-gate-20260801T232742.json`
+  — kết quả GIỐNG HỆT lần 1 (cùng `called`, cùng `erp_facts` nguyên văn) →
+  không phải nhiễu ngẫu nhiên, là hành vi tái lập được.
+- Case `sla_giao_hang`: **PASS** ở cả 2 lần — nhưng đây là hành vi ĐÃ CÓ
+  TỪ TRƯỚC khi sửa prompt (xem Bước 1, mục "Điều tra thêm của
+  controller": model tự gọi thêm `list_sale_orders` +
+  `list_late_deliveries` không cần quy tắc prompt nào). Không có bằng
+  chứng nào cho thấy quy tắc prompt mới là NGUYÊN NHÂN case này pass —
+  case này pass độc lập với việc sửa prompt, KHÔNG phải bằng chứng cho
+  việc sửa có tác dụng.
+- Case `chinh_sach_hoan_hang`: **VẪN FAIL** — `called`:
+  `["get_sale_order_detail"]`, giống hệt tín hiệu FAIL ở Bước 1 (trước khi
+  sửa prompt). Chi tiết đầy đủ (giống hệt cả 2 lần chạy):
+  ```json
+  {
+    "topic": "chinh_sach_hoan_hang",
+    "question": "Đơn S00042 còn được hoàn hàng theo chính sách không?",
+    "called": ["get_sale_order_detail"],
+    "required_tools": ["list_sale_orders"],
+    "erp_facts": "Dữ kiện về đơn hàng S00042:\n*   Khách hàng: Azure Interior\n*   Trạng thái: done (đã giao)",
+    "tool_recall_ok": false,
+    "fact_coverage_ok": false
+  }
+  ```
+
+### Chẩn đoán — vì sao quy tắc prompt mới không đổi được hành vi cho case này
+
+Đối chiếu với fixture (`backend/evals/cases.py:524-530`): câu hỏi "Đơn
+S00042 còn được hoàn hàng theo chính sách không?" KHÔNG nhắc từ khoá
+"ngày" hay "trạng thái giao" trong bề mặt câu chữ — nó hỏi về TÍNH ĐỦ
+ĐIỀU KIỆN hoàn hàng (return eligibility). Quy tắc mới thêm vào
+`GATHER_ERP_PROMPT` được viết bám theo bề mặt câu hỏi ("Câu hỏi cần
+NGÀY... hoặc TRẠNG THÁI GIAO") — câu hỏi này không khớp mẫu đó theo nghĩa
+đen, dù về bản chất việc trả lời đúng phụ thuộc vào ngày giao (chính sách
+hoàn hàng luôn có mốc thời gian, đây là suy luận thuộc về bước FUSE, gather_erp
+không được yêu cầu tự suy luận vậy). Thêm vào đó, fixture
+`get_sale_order_detail` trả sẵn "trạng thái: done (đã giao)" — bề ngoài
+có vẻ đã trả lời được "trạng thái giao", nên model dừng vòng lặp ReAct
+sớm mà không tra cứu thêm. So sánh: `sla_giao_hang` ("có đáp ứng SLA giao
+hàng không?") tự thân câu hỏi gợi ý cần xác minh thêm (khớp quan sát của
+Bước 1 — model chủ động gọi thêm tool ngay cả khi KHÔNG có quy tắc
+prompt), còn `chinh_sach_hoan_hang` thì không.
+
+**Kết luận Bước 2: BLOCKED.** Quy tắc prompt mới (đúng nguyên văn Step 2
+của brief) KHÔNG đủ để đổi hành vi chọn tool của case
+`chinh_sach_hoan_hang` — tái lập 2/2 lần chạy độc lập, không phải nhiễu.
+Đây KHÔNG phải vấn đề tầng `verify_erp_grounding` (tool đúng nhưng
+`fact_coverage_ok` sai) — tool bị chọn SAI ngay từ đầu
+(`get_sale_order_detail` thay vì `list_sale_orders`), giống hệt tín hiệu
+FAIL ở Bước 1. Theo đúng phạm vi brief, KHÔNG tự ý viết thêm quy tắc mở
+rộng ngoài văn bản Step 2 đã cho — cần quyết định riêng của
+controller/người dùng (ví dụ: mở rộng quy tắc để bắt cả các câu hỏi dạng
+"hoàn hàng/đổi trả/bảo hành" ngụ ý cần ngày dù không nói thẳng, hay hướng
+khác).
+
+Thay đổi `prompts.py` VẪN được giữ lại và commit (không revert): đây là
+thay đổi đúng về mặt kỹ thuật theo văn bản Step 2, đã qua đầy đủ unit
+test, không gây hồi quy, không làm case nào khác (kể cả `sla_giao_hang`)
+tệ đi. Nó chỉ đơn giản là CHƯA ĐỦ RỘNG để bắt case `chinh_sach_hoan_hang`
+— giữ lại làm nền cho quyết định mở rộng tiếp theo, thay vì bỏ đi và phải
+làm lại từ đầu. Chi tiết vận hành đầy đủ (lệnh, log, đối chiếu số liệu
+Bước 1 vs Bước 2):
+`.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`.
