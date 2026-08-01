@@ -358,3 +358,164 @@ commit `backend/src/agents/prompts.py` + file report này cùng nhau — xem
 `git log` cho hash. Chi tiết vận hành đầy đủ (lệnh, log gốc):
 `.superpowers/sdd/2026-08-01-gather-erp-tool-selection-fix/task-2-report.md`
 (mục "Bước 2c").
+
+## Bước 3 — `multi_source` thật (thước đo cuối cùng)
+
+Chạy đúng lệnh brief Task 3 Step 1
+(`cd backend && set -a && source ../.env && set +a && PYTHONIOENCODING=utf-8
+.venv/Scripts/python.exe -m jobs run eval-gate --set multi_source`), model
+`gemini-3.1-flash-lite` (không truyền `--model`), **KHÔNG sửa code gì thêm**
+(`cases.py`, `prompts.py` giữ nguyên trạng thái đã commit ở Bước 1/2c).
+
+- verdict: **`PASS`** — nhưng gate `multi_source` là điều kiện SÀN, không
+  phải "phải tăng": `jobs/eval_gate.py:82`,
+  `result["both_source_coverage"] >= base["both_source_coverage"]`. `0.75 >=
+  0.75` → PASS. PASS ở đây nghĩa là "không tệ đi", KHÔNG có nghĩa là "đã sửa
+  xong 2 ca mục tiêu".
+- `both_source_coverage`: **`0.75`** (TRƯỚC, SP-2b report: `0.75`) — **KHÔNG
+  đổi, dù đã cộng thêm 4/4 case `gather` PASS ở Bước 2c**.
+- `citation_validity`: `1.0`
+- `fabricated_number`: `0`
+- `lat_p50` / `lat_p95`: `989` / `1454` ms
+- log gốc: `logs/jobs/eval-gate-20260801T235708.json`
+- 2 ca fail hiện tại (nguyên văn từ log):
+  1. `sla_giao_hang` / "Đơn S00042 có đáp ứng SLA giao hàng không?" —
+     `both: false`, `citation_ok: true`, `fabricated: []`. Response: "...dữ
+     liệu này không cung cấp thông tin về ngày xác nhận đơn hàng, ngày giao
+     hàng thực tế hoặc loại đơn hàng... để đối chiếu với quy định về thời
+     gian giao hàng."
+  2. `chinh_sach_hoan_hang` / "Hóa đơn INV/2026/00017 có được hoàn tiền
+     không?" — `both: false`, `citation_ok: true`, `fabricated: []`.
+     Response: "...tôi chưa thể khẳng định hóa đơn INV/2026/00017 có được
+     hoàn tiền hay không..."
+
+### Vì sao KHÔNG đổi — bằng chứng mã nguồn, không suy đoán
+
+Hai phát hiện độc lập, cả hai đều xác minh được từ mã nguồn (không phải
+suy luận):
+
+**(A) `eval_multi_source()` không hề gọi `gather_erp`/`GATHER_ERP_PROMPT`.**
+Đọc `backend/evals/run_eval.py:590-657`: hàm `call()` bên trong lấy
+`erp_block` — trường **viết tay, cố định** của mỗi case trong
+`MULTI_SOURCE_CASES` — rồi truyền THẲNG làm `erp_facts` cho
+`render_fuse_input()` (dòng 605-609), gọi `FUSE_PROMPT` một lượt duy nhất.
+Không có `make_gather_erp_node`, không `bind_tools`, không vòng lặp
+ReAct nào được thực thi. Đây không phải khoảng trống mới phát hiện — chính
+`eval_gather()` (hàm được sửa ở Task 1) tự ghi rõ trong docstring của nó
+(`run_eval.py:230-233`):
+
+> "Đo bước THU THẬP của gather_erp — multi_source đo bước TỔNG HỢP trên
+> erp_block viết tay, KHÔNG đo được liệu gather_erp thật có lấy đủ field
+> hay không (spec 2026-08-01-sp2c)."
+
+Nói cách khác: **quy tắc mới thêm vào `GATHER_ERP_PROMPT` ở Task 2 không
+có đường dẫn cơ học nào để ảnh hưởng tới điểm `both_source_coverage`** —
+eval này được thiết kế (từ SP-2c, trước plan này) để đo bước FUSE trên dữ
+liệu ERP đã đóng băng, tách biệt hoàn toàn khỏi việc `gather_erp` chọn tool
+nào. Đối chiếu git diff `b9fef00` (Task 1): chỉ `GATHER_CASES` bị sửa,
+`MULTI_SOURCE_CASES` — bao gồm đúng `erp_block` của 2 case đang fail ở
+trên — **0 dòng thay đổi** trong suốt cả plan này.
+
+**(B) Ca mục tiêu thứ hai của plan (`chinh_sach_hoan_hang`) không khớp với
+ca đang fail thật trong `multi_source`.** Đối chiếu `MULTI_SOURCE_CASES`
+(`backend/evals/cases.py:409-414`), topic `chinh_sach_hoan_hang` có 2 case:
+`"Đơn S00042 còn được hoàn hàng theo chính sách không?"` (đơn S00042) và
+`"Hóa đơn INV/2026/00017 có được hoàn tiền không?"` (hoá đơn, KHÔNG phải
+đơn S00042). Case đơn S00042 **KHÔNG nằm trong `fails`** — nó PASS, cả ở
+lần đo này lẫn ở báo cáo SP-2b gốc
+(`docs/superpowers/plans/2026-08-01-sp2b-read-fanout-report.md:286-292`,
+nơi 2 ca fail baseline `0.75` được liệt kê tường minh là
+`sla_giao_hang`/"Đơn S00042 có đáp ứng SLA giao hàng không?" và
+`chinh_sach_hoan_hang`/"Hóa đơn INV/2026/00017 có được hoàn tiền không?").
+Case `chinh_sach_hoan_hang` mà `GATHER_CASES` (Task 1) sửa lại dùng câu hỏi
+**"Đơn S00042 còn được hoàn hàng theo chính sách không?"** — đúng chữ,
+đúng topic, nhưng là case KHÔNG fail trong `multi_source` (cả trước và sau
+plan này). Ca thật đang fail (hoá đơn INV/2026/00017) chưa từng được
+`GATHER_CASES` hay bất kỳ phần nào của plan này chạm tới.
+
+**Tóm lại:** trong 2 ca fail hiện tại của `multi_source`, đúng 1 ca
+(`sla_giao_hang`) khớp câu hỏi với case mục tiêu gốc của plan — nhưng ngay
+cả case này cũng không thể đổi kết quả vì lý do (A). Ca còn lại
+(`chinh_sach_hoan_hang`/hoá đơn) chưa từng là mục tiêu sửa của
+`GATHER_CASES` — chữ "2 ca mục tiêu" trong khung đo Bước 3 của brief, khi
+đối chiếu ngược với chính log gốc SP-2b, hoá ra chỉ khớp câu hỏi 1/2 với
+plan này. Văn bản `response` của ca `sla_giao_hang` ở log lần này gần như
+nguyên văn với mô tả hồi quy gốc bị xoá khỏi comment `cases.py` ở Task 1
+(git diff `b9fef00`: "...nói 'không cung cấp thông tin về ngày xác nhận
+đơn hàng, ngày giao hàng thực tế' rồi từ chối kết luận") — nhất quán với
+việc `erp_block` của case này chưa từng bị đổi.
+
+## Xác minh test
+
+- Unit-only (`pytest -m "not integration and not live"`): **`1095 passed,
+  4 skipped, 43 deselected`**.
+- Integration (`pytest -m integration`): **`27 passed, 1115 deselected`**.
+- 2 file fixture nhị phân (`tests/rag/fixtures/bang_gia.xlsx`,
+  `policy.docx`): `git status` sau cả 2 lượt chạy — sạch, không bị đổi, không
+  cần `git checkout --`.
+- Đối chiếu `git diff main..HEAD --stat` (toàn bộ 4 commit của plan): chỉ
+  `backend/evals/cases.py`, `backend/src/agents/prompts.py`, và file report
+  này bị đổi. `graph.py`, `fanout.py`, `state.py`, mô tả 25 tool dùng chung
+  (`erp_query/tools.py`) — **0 dòng thay đổi**.
+
+## Kết luận
+
+Đối chiếu từng điều của §5 "Xong nghĩa là"
+(`docs/superpowers/specs/2026-08-01-gather-erp-tool-selection-design.md`):
+
+1. **`GATHER_ERP_PROMPT` có quy tắc chọn tool mới (§2). ĐẠT.**
+   `backend/src/agents/prompts.py:152` có quy tắc cuối cùng (bản thu hẹp,
+   Bước 2c) — xem `git log` commit `54accc5`.
+2. **2 case `GATHER_CASES` phản ánh đúng khả năng thật của tool, test
+   tự-nhất-quán vẫn PASS. ĐẠT.** Commit `b9fef00`; test suite lần này (mục
+   "Xác minh test" ở trên) chạy sạch `1095 passed`, bao gồm
+   `test_gather_cases_required_facts_exist_in_fixtures` và
+   `test_gather_cases_required_tools_are_real_erp_tool_names`.
+3. **Số đo TRƯỚC (FAIL) và SAU (PASS) của `gather` đều ghi vào báo cáo,
+   TRƯỚC bắt buộc phải FAIL. ĐẠT.** Bước 1 (TRƯỚC: `tool_recall=0.75`,
+   `chinh_sach_hoan_hang` FAIL đúng kỳ vọng) → Bước 2/2b/2c (SAU cuối cùng:
+   `tool_recall=1.0`, `fact_coverage=1.0`, `"fails": []`, 2 lần đo độc
+   lập).
+4. **`multi_source` đo lại thật, `both_source_coverage` không tệ hơn 0.75
+   và lý tưởng tăng lên. ĐẠT PHẦN SÀN, KHÔNG ĐẠT PHẦN LÝ TƯỞNG — nói
+   thẳng, không suy diễn thêm.** Số đo SAU = `0.75`, bằng hệt TRƯỚC —
+   không tệ đi (đạt điều kiện gate), nhưng cũng không tăng. **2 ca mục
+   tiêu gốc của toàn bộ plan (nêu ở Bối cảnh của spec, lấy từ SP-2b report)
+   VẪN còn trong `fails`, KHÔNG hết** — đây là điểm khác với kịch bản brief
+   dự trù ("dù 2 ca mục tiêu đã hết"): thực tế 2 ca mục tiêu CHƯA hết, và
+   có bằng chứng mã nguồn (mục "Vì sao KHÔNG đổi" ở trên, phát hiện A) cho
+   thấy chúng **không thể hết được bằng cách sửa `GATHER_ERP_PROMPT`**, vì
+   `eval_multi_source()` không đi qua node đó — đây là giới hạn kiến trúc
+   của chính bộ đo `multi_source`, không phải bug mới hay lỗi thực thi của
+   plan này. Không suy diễn xa hơn: KHÔNG có bằng chứng nào trong phạm vi
+   đo được của plan này (chỉ gồm `gather` và `multi_source`, không chạy
+   graph thật end-to-end qua Odoo sống) để khẳng định hay phủ nhận việc
+   sửa `GATHER_ERP_PROMPT` có cải thiện hành vi PRODUCTION thật (nơi
+   `fuse_answer` nhận đầu vào thật từ `gather_erp`, không phải `erp_block`
+   đóng băng) hay không — câu hỏi đó nằm ngoài những gì 2 bộ đo hiện có
+   (`gather`, `multi_source`) có thể trả lời.
+5. **Toàn bộ test xanh cả 3 chế độ. ĐẠT (2/2 chế độ pytest brief yêu cầu
+   chạy).** Unit-only: `1095 passed, 4 skipped`. Integration: `27 passed`.
+   (Brief Task 3 Step 2 chỉ liệt kê đúng 2 lệnh pytest này; không có lệnh
+   `-m live` nào được giao — không tự ý chạy thêm ngoài phạm vi brief.)
+6. **`graph.py`, `fanout.py`, `state.py`, mô tả 25 tool dùng chung — 0 dòng
+   thay đổi. ĐẠT.** Xác nhận bằng `git diff main..HEAD --stat` (mục "Xác
+   minh test" ở trên).
+
+**Tổng kết trung thực, không tô hồng:** plan này sửa đúng và sửa sạch một
+lỗi thật ở tầng `gather_erp` (điều 1-3, 5, 6 đạt đầy đủ, đo bằng LLM thật,
+tái lập nhiều lần, review sạch). Nhưng mục tiêu GỐC nêu ngay dòng đầu của
+spec ("Sửa đúng nguyên nhân đã xác minh của 2 ca `multi_source` còn FAIL
+từ trước SP-2b") **không đo được là đã đạt** — điều 4 chỉ đạt phần sàn.
+Nguyên nhân không phải bản sửa sai, mà là **bộ đo `multi_source` được
+thiết kế (từ trước plan này, ở SP-2c) theo cách tách rời khỏi chính node
+mà plan này sửa**, nên không có cách nào để một thay đổi ở
+`GATHER_ERP_PROMPT` phản ánh vào con số `both_source_coverage`, bất kể bản
+sửa đó đúng hay sai. Đây là một khoảng trống phủ kiểm thử (test-coverage
+gap) giữa `gather` và `multi_source` chưa từng được nêu ra trước — nằm
+ngoài phạm vi brief Task 3 ("không sửa code thêm"), nên KHÔNG được đóng ở
+đây, chỉ được đo và ghi nhận trung thực để controller/người dùng quyết
+định bước tiếp theo (ví dụ: một task riêng nối `gather_erp` thật vào
+`eval_multi_source()`, hoặc chấp nhận giới hạn đo hiện tại và xác minh
+production bằng cách khác, ví dụ chẩn đoán trực tiếp qua Odoo thật như đã
+làm ở §0 spec).
