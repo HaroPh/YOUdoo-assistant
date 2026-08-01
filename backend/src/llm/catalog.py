@@ -122,6 +122,13 @@ CHAINS: dict[str, tuple[str, ...]] = {
     "evaluator": ("groq-gpt-oss-20b", "gemma-4-26b"),
     "planner":   ("gemini-3.5-flash-lite", "groq-gpt-oss-120b", "or-nemotron"),
     "read":      ("gemini-3.5-flash-lite", "groq-llama-3.3-70b", "or-nemotron"),
+    # SP-2b (2026-08-01): node `fusion` trong graph đã bị XOÁ (thay bằng fan-out
+    # mixed → gather_docs ‖ gather_erp → fuse_answer, xem agents/fanout.py).
+    # VAI model tên "fusion" thì SỐNG NGUYÊN: gather_erp và fuse_answer đều dùng
+    # nó. Đổi tên vai sẽ lan sang models.py, router.py, main.py và
+    # eval_gate.py:ROLE_FOR_SET — và QĐ M3 (ADR-009) cấm đổi model/prompt khi
+    # chưa qua eval gate. Tên set đo đã là "multi_source" (trung tính) chính vì
+    # lường trước việc này.
     "fusion":    ("gemini-3.1-flash-lite", "groq-llama-3.3-70b"),
     "synthesis": ("gemini-3.1-flash-lite", "groq-llama-3.3-70b", "or-nemotron"),
 }

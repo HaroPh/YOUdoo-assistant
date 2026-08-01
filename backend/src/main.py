@@ -150,7 +150,7 @@ async def chat_completions(req: Request):
         # hiccup/timeout/rate-limit) here used to propagate uncaught → FastAPI
         # 500, forcing Open WebUI's own retry to paper over it (and the
         # traceback was never captured — logs on this host truncate on every
-        # restart). rag_node/fusion_node already degrade to a safe message on
+        # restart). rag_node/fuse_answer already degrade to a safe message on
         # failure; this is the same pattern at the endpoint's outermost layer,
         # covering EVERY node (chitchat included, which lacked its own guard).
         logger.exception("chat_completions failed")

@@ -89,7 +89,7 @@ async def verify_citations(answer: str, chunks: list, llm) -> list:
 
 
 async def cite_and_verify(body: str, chunks: list, llm) -> str:
-    """Full citation pipeline shared by synthesize() and fusion_node:
+    """Full citation pipeline shared by synthesize() and fuse_answer:
     resolve which chunks the marker claims were used (extract_used_citations),
     verify that claim against real chunk content (verify_citations), then
     build the footer from whatever survives (build_citations)."""
