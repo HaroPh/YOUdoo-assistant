@@ -425,3 +425,21 @@ async def test_fuse_answer_skips_grounding_when_no_erp_facts(monkeypatch):
     monkeypatch.setattr(fanout, "verify_erp_grounding", fake_verify)
     await fanout.make_fuse_answer_node(llm)(_fuse_state([asdict(_chunk())], ""))
     assert calls == []
+
+
+async def test_mixed_node_clears_both_join_keys():
+    """LangGraph GIỮ giá trị channel khi node bỏ qua key. Nếu lượt sau
+    gather_docs ngã và không ghi gì, fuse_answer sẽ trích dẫn chunk của lượt
+    TRƯỚC — sai kiểu không ai thấy. Xoá tất định tại một chỗ khiến tính đúng
+    không phụ thuộc vào việc mọi đường lỗi đều nhớ ghi key."""
+    import src.agents.fanout as fanout
+    stale = {"messages": [HumanMessage(content="câu mới")], "intent": "mixed",
+             "doc_context": [asdict(_chunk())], "erp_facts": "dữ kiện lượt trước"}
+    out = await fanout.make_mixed_node()(stale)
+    assert out == {"doc_context": None, "erp_facts": None}
+
+
+async def test_mixed_node_never_writes_messages():
+    import src.agents.fanout as fanout
+    out = await fanout.make_mixed_node()(_state("x?"))
+    assert "messages" not in out

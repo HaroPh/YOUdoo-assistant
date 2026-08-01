@@ -54,6 +54,29 @@ def chunks_from_dicts(ds) -> list[Chunk]:
     return [Chunk(**d) for d in (ds or [])]
 
 
+def make_mixed_node():
+    """Điểm FAN-OUT. Không LLM, không I/O.
+
+    Giữ nguyên TÊN `mixed` và nguyên chỗ trong intent_targets là quyết định có
+    chủ đích: nhờ vậy `_route_by_intent` KHÔNG ĐỔI MỘT KÝ TỰ, mà hàm đó chính
+    là thứ bộ eval SOP_SELECT_CASES đo trực tiếp ("Đích là giá trị
+    _route_by_intent() TRẢ VỀ" — cases.py). Cho hàm đó trả về list
+    ["gather_docs","gather_erp"] trông gọn hơn một dòng nhưng phá hợp đồng đầu
+    ra mà bộ eval đang đo, và kéo theo cả lớp phủ quyết _looks_like_question
+    của SP-2a phải chứng minh lại. Đổi 1 dòng lấy 1 bộ eval là lỗ.
+
+    Node KHÔNG rỗng: xoá hai key join lúc VÀO là lớp CHỊU LỰC chống dữ liệu ôi
+    qua lượt. LangGraph giữ giá trị channel khi node bỏ qua key, nên nếu ở lượt
+    sau gather_docs ngã và không ghi gì, fuse_answer sẽ lặng lẽ trích dẫn chunk
+    của lượt TRƯỚC. Xoá tất định tại đúng một chỗ khiến tính đúng KHÔNG phụ
+    thuộc vào việc mọi đường lỗi của mọi chân đều nhớ ghi key.
+    """
+    async def mixed(state: ERPAgentState) -> dict:
+        return {"doc_context": None, "erp_facts": None}
+
+    return mixed
+
+
 def make_gather_docs_node():
     """Chân TÀI LIỆU: retrieve() thuần, KHÔNG gọi LLM lần nào.
 
