@@ -46,8 +46,16 @@ và cùng công thức `--pace` mặc định (suy từ RPM catalog) như lượ
   trước khi ghi vào báo cáo): lần 2 ra ĐÚNG `both_source_coverage=0.625`, ĐÚNG
   3 ca fail giống hệt lần 1 (`sla_giao_hang`, `chinh_sach_hoan_hang`,
   `chinh_sach_thanh_toan`) — log `logs/jobs/eval-gate-20260801T121335.json`.
-  Kết quả tất định trên input này (mô hình trả lời giống hệt hai lần), không
-  phải nhiễu ngẫu nhiên của lấy mẫu LLM.
+  **Sửa sau review round 1:** cái tái lập được là PHÂN LOẠI (0.625, đúng 3
+  chủ đề fail giống nhau) — không phải văn bản câu trả lời. So từng cặp
+  response giữa hai log: `sla_giao_hang` và `chinh_sach_thanh_toan` byte-y-hệt
+  giữa hai lần chạy, nhưng `chinh_sach_hoan_hang` có văn bản KHÁC hẳn (câu mở
+  đầu khác, cách lập luận khác — lần 1 "tôi chưa thể khẳng định...", lần 2
+  "đã được thanh toán, vì vậy... đủ điều kiện để xem xét") dù vẫn fail cùng
+  một lý do (thiếu literal "INV/2026/00017"). Kết luận đúng: verdict/phân loại
+  tái lập được, KHÔNG phải "mô hình trả lời giống hệt hai lần" — không phải
+  nhiễu lấy mẫu quyết định toàn bộ kết quả, nhưng câu chữ vẫn có biến thiên
+  bình thường của LLM.
 
 ### intent (vai `router`)
 - verdict: `PASS` — `acc`: `0.9444444444444444` (TRƯỚC: `0.9444444444444444`)
@@ -102,11 +110,36 @@ seed sẵn có trong repo (gồm `policy.docx` — "Chính sách hoàn hàng") �
    lập: `5 passed` khi chạy riêng file này).
 3. Cổng `multi_source` PASS **và** `both_source_coverage` SAU ≥ TRƯỚC,
    `fabricated_number`=0, `citation_validity`=1.0 — **KHÔNG đạt**. verdict SAU
-   = `FAIL`; `both_source_coverage` 0.625 < TRƯỚC 0.75 (hồi quy thật, tái lập
-   y hệt ở lần chạy thứ hai — cùng 3 ca fail, cùng điểm số). Hai vế còn lại
-   của điều kiện (`fabricated_number`=0, `citation_validity`=1.0) VẪN đạt —
-   không có bịa đặt hay trích dẫn sai — nhưng điều kiện spec đòi CẢ BA vế
-   cùng đạt, nên tổng thể điều 3 không đạt.
+   = `FAIL`; `both_source_coverage` 0.625 < TRƯỚC 0.75 (phân loại tái lập được
+   ở lần chạy thứ hai — cùng 3 ca fail, cùng điểm số, dù văn bản câu trả lời
+   không phải lúc nào cũng y hệt — xem ghi chú "Sửa sau review round 1" ở mục
+   Số đo SAU). Hai vế còn lại của điều kiện (`fabricated_number`=0,
+   `citation_validity`=1.0) VẪN đạt — không có bịa đặt hay trích dẫn sai —
+   nhưng điều kiện spec đòi CẢ BA vế cùng đạt, nên tổng thể điều 3 không đạt.
+   **Sửa sau review round 1 — so trực tiếp SAU với log TRƯỚC
+   (`eval-gate-20260801T104522.json`), không chỉ nhìn con số:** 2/3 ca fail
+   của SAU đã fail TỪ TRƯỚC, dưới thiết kế `fusion`/`FUSION_PROMPT` CŨ, không
+   liên quan gì đến thay đổi của SP-2b — `sla_giao_hang` (câu hỏi SLA đơn
+   S00042) và `chinh_sach_hoan_hang` (câu hỏi hoàn tiền hoá đơn
+   INV/2026/00017) đều đã fail ở TRƯỚC với cùng kiểu né tránh "không đủ căn
+   cứ/thiếu thông tin". Toàn bộ phần hồi quy đo được (0.75→0.625, tức 1/8) rút
+   gọn về ĐÚNG MỘT ca MỚI xuất hiện: `chinh_sach_thanh_toan` (đơn S00050).
+   Đọc nguyên văn câu trả lời của ca này — "Có, đơn hàng mới của Gemini
+   Furniture sẽ bị tạm dừng xử lý. Theo quy định, khi khách hàng có đơn hàng
+   quá hạn thanh toán trên 30 ngày, các đơn hàng mới sẽ bị tạm dừng cho đến
+   khi khách hàng hoàn tất thanh toán các khoản nợ cũ." — đây là một câu trả
+   lời ĐÚNG, KHẲNG ĐỊNH, tự tin, dùng cả hai nguồn (chính sách "quá hạn > 30
+   ngày → tạm dừng" và dữ kiện ERP "khách Gemini Furniture, quá hạn 32
+   ngày"). Nó fail phép đo `both` (`run_eval.py`:
+   `both = _norm(doc_fact) in low and _norm(erp_fact) in low`) CHỈ vì
+   `erp_fact` của ca này (`cases.py` dòng 423, đặt `"S00050"` làm chuỗi ERP
+   bắt buộc) đòi khớp literal mã đơn "S00050", còn model gọi khách hàng bằng
+   TÊN ("Gemini Furniture") thay vì lặp lại mã đơn — model vẫn dùng đúng dữ
+   kiện ERP, chỉ diễn đạt khác cách phép đo mong đợi. Đây nhiều khả năng là
+   MỘT false negative của cách chấm eval (khớp chuỗi literal), không phải
+   mất thông tin thật — nhưng đây là quan sát để người sửa tiếp theo dõi
+   theo, KHÔNG phải kết luận đã điều tra xong (nằm ngoài phạm vi đo của Task
+   10, xem "Tổng kết" bên dưới).
 4. Cổng `intent` PASS; `sop_select` hijack=0 và acc≥16/17 — **đạt**. `intent`
    acc=0.9444444444444444 → PASS, y hệt TRƯỚC. `sop_select`
    acc=0.9411764705882353=16/17 đúng ngưỡng, hijack=0 — FAIL biết trước như
@@ -139,20 +172,30 @@ lat_p50/p95 SAU 1149/1444ms so TRƯỚC 1061/1484ms — dao động nhỏ cùng 
 lớn; không dùng để kết luận đạt/không đạt bất kỳ điều nào ở trên.
 
 **Tổng kết: 6/7 điều kiện đạt, điều 3 KHÔNG đạt.** `both_source_coverage` hồi
-quy thật (0.75 → 0.625), tái lập được ở hai lần chạy độc lập — không phải
-nhiễu lấy mẫu. Ba ca fail đều có dạng model từ chối khẳng định kết hợp hai
-nguồn ("không đủ căn cứ", "chưa thể khẳng định") thay vì bịa số liệu —
+quy đo được thật (0.75 → 0.625), phân loại tái lập được ở hai lần chạy độc
+lập — không phải nhiễu lấy mẫu quyết định toàn bộ kết quả.
 `fabricated_number`=0 và `citation_validity`=1.0 xác nhận đây KHÔNG phải một
 lỗ hổng an toàn (không bịa đặt), nhưng vẫn là hồi quy thật trên đúng chỉ số mà
-spec §8 điều 3 yêu cầu không được tệ đi so với TRƯỚC. Nguyên nhân nhiều khả
-năng nhất: `FUSE_PROMPT` mới (khung "bạn nhận sẵn hai nguồn đã thu thập",
-thay cho `FUSION_PROMPT` cũ khung "bạn tự gọi tool để tìm hai nguồn") khiến
-model có xu hướng nghiêng về từ chối/nêu thiếu căn cứ ở các ca biên nhiều hơn
-trước — đây là suy luận có căn cứ từ nội dung 3 câu trả lời fail, không phải
-điều tra nguyên nhân gốc đầy đủ (nằm ngoài phạm vi đo của Task 10).
+spec §8 điều 3 yêu cầu không được tệ đi so với TRƯỚC.
+
+**Sửa sau review round 1 — nguyên nhân, đối chiếu lại với chính log TRƯỚC đã
+trích ở trên (`eval-gate-20260801T104522.json`):** giả thuyết ban đầu của bản
+báo cáo này ("`FUSE_PROMPT` mới khiến model nghiêng về từ chối ở các ca biên
+nói chung") KHÔNG được dữ liệu ủng hộ — 2/3 ca fail của SAU (`sla_giao_hang`,
+`chinh_sach_hoan_hang`) đã fail SẴN ở TRƯỚC dưới `FUSION_PROMPT` cũ, nên
+không thể quy cho thay đổi prompt của SP-2b. Toàn bộ delta đo được rút gọn về
+đúng MỘT ca mới (`chinh_sach_thanh_toan`/S00050), và câu trả lời thật của ca
+đó là một câu khẳng định ĐÚNG, dùng cả hai nguồn, chỉ trượt phép khớp chuỗi
+literal "S00050" của cách chấm eval vì model gọi khách hàng bằng tên thay vì
+mã đơn (chi tiết ở điều 3 trên). Hướng điều tra đầu tiên hợp lý cho người sửa
+tiếp theo: xem lại cách chấm ca này (đòi literal mã đơn) có phải false
+negative hay không — TRƯỚC khi nghĩ tới việc chỉnh `FUSE_PROMPT`. Đây vẫn là
+một câu hỏi mở, chưa điều tra tới cùng — Task 10 chỉ đo và báo cáo, không sửa
+mã hay chạy thêm thực nghiệm để xác nhận.
 
 SP-2b **CHƯA đủ điều kiện đóng** theo đúng định nghĩa của chính spec §8 —
 6/7 điều đạt, nhưng điều 3 (một trong hai cổng eval bắt buộc PASS) không đạt
-và là hồi quy thật, không phải false alarm. Cần một vòng xem xét/sửa (nhiều
-khả năng ở `FUSE_PROMPT` hoặc ở chính 3 ca `MULTI_SOURCE_CASES` bị fail)
-trước khi có thể coi SP-2b là xong.
+và là hồi quy đo được thật, không phải false alarm ở tầng gate. Cần một vòng
+xem xét/sửa trước khi có thể coi SP-2b là xong — bắt đầu từ việc xác minh ca
+`chinh_sach_thanh_toan` có phải false negative của cách chấm hay không (xem
+điều 3), không phải giả định ngay là lỗi hành vi của `FUSE_PROMPT`.
