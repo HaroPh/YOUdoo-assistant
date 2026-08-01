@@ -507,26 +507,27 @@ SOP_SELECT_CASES = [
 # hiện nguyên văn trong tool_fixtures của chính case (test chốt ở
 # test_eval_gather.py) — tự-mâu-thuẫn là lỗi, không phải điều kiện khó.
 GATHER_CASES = [
-    # sla_giao_hang — hồi quy thật quan sát được ở Task 10 (SP-2b): model
-    # đọc đúng chính sách 3-ngày-SLA nhưng nói "không cung cấp thông tin về
-    # ngày xác nhận đơn hàng, ngày giao hàng thực tế" rồi từ chối kết luận
-    # (logs/jobs/eval-gate-20260801T130223.json). Case này đo: nếu tool CÓ
-    # đủ hai ngày đó, gather_erp có lấy và truyền đạt được không.
+    # sla_giao_hang — SỬA sau điều tra 2026-08-01: dữ liệu ngày chuyển từ
+    # get_sale_order_detail (KHÔNG có field ngày thật — sales.py:49-68) sang
+    # list_sale_orders (CÓ date_order/delivery_status thật — sales.py:24-39,
+    # xác nhận bằng gọi Odoo thật). get_sale_order_detail giữ fixture riêng
+    # không có ngày, để nếu model lỡ gọi tool cũ thì case vẫn FAIL đúng.
     ("sla_giao_hang", "Đơn S00042 có đáp ứng SLA giao hàng không?",
-     ("get_sale_order_detail",),
+     ("list_sale_orders",),
      ("18/07/2026", "20/07/2026"),
      {"get_sale_order_detail":
-      "Đơn S00042 | Azure Interior | trạng thái: sale (đã xác nhận) | "
-      "ngày xác nhận: 18/07/2026 | ngày giao dự kiến: 20/07/2026 | "
-      "loại đơn: thường"}),
-    # chinh_sach_hoan_hang — cùng hình dạng: chính sách cần "ngày giao thực
-    # tế" để tính hạn 30 ngày hoàn hàng.
+      "Đơn S00042 | Azure Interior | trạng thái: sale (đã xác nhận)",
+      "list_sale_orders":
+      "S00042 | Azure Interior | sale | ngày xác nhận: 18/07/2026 | "
+      "ngày giao dự kiến: 20/07/2026"}),
+    # chinh_sach_hoan_hang — cùng lý do sửa như sla_giao_hang ở trên.
     ("chinh_sach_hoan_hang", "Đơn S00042 còn được hoàn hàng theo chính sách không?",
-     ("get_sale_order_detail",),
+     ("list_sale_orders",),
      ("15/07/2026",),
      {"get_sale_order_detail":
-      "Đơn S00042 | Azure Interior | trạng thái: done (đã giao) | "
-      "ngày giao thực tế: 15/07/2026"}),
+      "Đơn S00042 | Azure Interior | trạng thái: done (đã giao)",
+      "list_sale_orders":
+      "S00042 | Azure Interior | done | ngày giao thực tế: 15/07/2026"}),
     # chinh_sach_thanh_toan — câu hỏi giống hệt MULTI_SOURCE_CASES (S00050).
     # required_fact là mã hoá đơn INV/2026/00030 (KHÔNG phải "32 ngày" —
     # sửa sau review toàn nhánh: "32 ngày" đã có sẵn NGUYÊN VĂN trong câu
