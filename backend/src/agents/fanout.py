@@ -81,3 +81,42 @@ def make_gather_docs_node():
         return {"doc_context": [chunk_to_dict(c) for c in chunks]}
 
     return gather_docs
+
+
+def make_gather_erp_node(llm, tools):
+    """Chân ERP: ReAct agent chế độ THU THẬP — nêu dữ kiện, không kết luận.
+
+    Khác `erp_read` ở MỤC ĐÍCH chứ không phải trùng lặp. Hỏi "Đơn S00042 còn
+    được hoàn hàng theo chính sách không?" thì `erp_read` với SYSTEM_PROMPT rất
+    dễ trả lời "tôi không biết chính sách" thay vì đi lấy ngày giao của S00042 —
+    đúng nửa dữ kiện mà `fuse_answer` cần.
+
+    KHÔNG bê deny-list WRITE_TOOL_NAMES của fusion.py sang. Nó liệt kê 9 tên
+    trong khi WRITE_PLANNER_PROMPT khai 29 tool ghi, nên thực tế là no-op — mà
+    lại TRÔNG NHƯ một lớp phòng thủ. Lớp thật là allow-list
+    build_erp_query_tools() do graph.py truyền vào, có test chốt containment
+    (tests/agents/test_fanout_graph.py). Allow-list + test nói đúng sự thật;
+    deny-list thiếu 20 tên thì không.
+
+    verify_erp_grounding tại ĐÂY là cố ý: `fusion` cũ verify câu trả lời CUỐI
+    so với tool output THÔ. Fan-out tách đôi, nên nếu chỉ verify ở fuse_answer
+    (so với erp_facts) thì dữ kiện do chính chân này bịa ra sẽ không bao giờ bị
+    bắt — SP-2b sẽ lặng lẽ làm YẾU một bảo đảm đang có. Hai chặng verify bắc
+    cầu kín: dữ kiện ⊂ tool output thô, câu trả lời ⊂ dữ kiện.
+    """
+    async def gather_erp(state: ERPAgentState) -> dict:
+        try:
+            agent = _create_agent(llm, tools, system_prompt=GATHER_ERP_PROMPT)
+            result = await agent.ainvoke({"messages": state["messages"]})
+            msgs = result["messages"]
+            facts = (msgs[-1].content or "").strip() if msgs else ""
+            tool_outputs = [m.content for m in msgs if m.type == "tool"]
+            if facts and tool_outputs:
+                facts = await verify_erp_grounding(facts, tool_outputs, llm)
+        except Exception:
+            # Xem gather_docs: exception thoát ra giết CẢ superstep.
+            logger.exception("gather_erp failed")
+            facts = ""
+        return {"erp_facts": facts}
+
+    return gather_erp

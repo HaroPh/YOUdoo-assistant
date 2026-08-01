@@ -154,3 +154,119 @@ async def test_gather_docs_no_human_message_writes_empty(monkeypatch):
         {"messages": [AIMessage(content="xin chào")]})
     assert out == {"doc_context": []}
     assert called == []
+
+
+def _fake_agent(messages_out):
+    agent = MagicMock()
+    agent.ainvoke = AsyncMock(return_value={"messages": messages_out})
+    return agent
+
+
+async def test_gather_erp_writes_last_ai_content(monkeypatch):
+    import src.agents.fanout as fanout
+    monkeypatch.setattr(fanout, "_create_agent",
+                        lambda llm, tools, system_prompt=None:
+                        _fake_agent([AIMessage(content="- Đơn S00042 giao 15/07/2026")]))
+    out = await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
+    assert out == {"erp_facts": "- Đơn S00042 giao 15/07/2026"}
+
+
+async def test_gather_erp_uses_gather_prompt(monkeypatch):
+    import src.agents.fanout as fanout
+    from src.agents.prompts import GATHER_ERP_PROMPT
+    captured = {}
+
+    def spy(llm, tools, system_prompt=None):
+        captured["prompt"] = system_prompt
+        return _fake_agent([AIMessage(content="ok")])
+
+    monkeypatch.setattr(fanout, "_create_agent", spy)
+    await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
+    assert captured["prompt"] == GATHER_ERP_PROMPT
+
+
+async def test_gather_erp_passes_tools_through_unfiltered(monkeypatch):
+    """KHÔNG bê deny-list WRITE_TOOL_NAMES của fusion.py sang: nó phủ 9/29 tool
+    ghi nên thực tế là no-op, mà lại TRÔNG NHƯ một lớp phòng thủ. Lớp thật là
+    allow-list build_erp_query_tools() do graph.py truyền vào — có test chốt
+    riêng ở test_fanout_graph.py."""
+    import src.agents.fanout as fanout
+    captured = {}
+
+    def spy(llm, tools, system_prompt=None):
+        captured["names"] = [t.name for t in tools]
+        return _fake_agent([AIMessage(content="ok")])
+
+    monkeypatch.setattr(fanout, "_create_agent", spy)
+    t = MagicMock(); t.name = "list_sale_orders"
+    await fanout.make_gather_erp_node(MagicMock(), tools=[t])(_state("x?"))
+    assert captured["names"] == ["list_sale_orders"]
+
+
+async def test_gather_erp_swallows_exception(monkeypatch):
+    import src.agents.fanout as fanout
+
+    def boom(llm, tools, system_prompt=None):
+        agent = MagicMock()
+
+        async def explode(payload):
+            raise RuntimeError("llm down")
+
+        agent.ainvoke = explode
+        return agent
+
+    monkeypatch.setattr(fanout, "_create_agent", boom)
+    out = await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
+    assert out == {"erp_facts": ""}
+
+
+async def test_gather_erp_never_writes_messages(monkeypatch):
+    import src.agents.fanout as fanout
+    monkeypatch.setattr(fanout, "_create_agent",
+                        lambda llm, tools, system_prompt=None:
+                        _fake_agent([AIMessage(content="ok")]))
+    out = await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
+    assert "messages" not in out
+
+
+async def test_gather_erp_verifies_grounding_against_raw_tool_output(monkeypatch):
+    """fusion cũ verify câu trả lời CUỐI so với tool output THÔ. Fan-out tách
+    đôi nên phải verify hai chặng, nếu không dữ kiện bịa ở chân này không bao
+    giờ bị bắt."""
+    import src.agents.fanout as fanout
+    from langchain_core.messages import ToolMessage
+
+    monkeypatch.setattr(
+        fanout, "_create_agent",
+        lambda llm, tools, system_prompt=None: _fake_agent([
+            ToolMessage(content='{"count": 5}', name="list_sale_orders",
+                        tool_call_id="1"),
+            AIMessage(content="- Có 9 đơn trễ"),
+        ]))
+    calls = []
+
+    async def fake_verify(answer, tool_outputs, llm):
+        calls.append((answer, tool_outputs))
+        return "- Có 5 đơn trễ"
+
+    monkeypatch.setattr(fanout, "verify_erp_grounding", fake_verify)
+    out = await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
+    assert calls == [("- Có 9 đơn trễ", ['{"count": 5}'])]
+    assert out == {"erp_facts": "- Có 5 đơn trễ"}
+
+
+async def test_gather_erp_skips_grounding_when_no_tool_output(monkeypatch):
+    import src.agents.fanout as fanout
+    monkeypatch.setattr(fanout, "_create_agent",
+                        lambda llm, tools, system_prompt=None:
+                        _fake_agent([AIMessage(content="Không tìm được dữ kiện ERP liên quan.")]))
+    calls = []
+
+    async def fake_verify(answer, tool_outputs, llm):
+        calls.append(answer)
+        return answer
+
+    monkeypatch.setattr(fanout, "verify_erp_grounding", fake_verify)
+    out = await fanout.make_gather_erp_node(MagicMock(), tools=[])(_state("x?"))
+    assert calls == []
+    assert out == {"erp_facts": "Không tìm được dữ kiện ERP liên quan."}
