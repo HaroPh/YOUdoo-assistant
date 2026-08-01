@@ -20,6 +20,26 @@ dùng thật trong production).
   (`sla_giao_hang`, `chinh_sach_hoan_hang`, `chinh_sach_thanh_toan`,
   `bang_gia_chiet_khau`) đều đạt cả hai trục.
 
+**Lưu ý về case `chinh_sach_thanh_toan` (bổ sung sau review toàn nhánh, đợt
+sửa cuối):** case này ban đầu có `required_fact` là "32 ngày" — chuỗi ĐÃ có
+sẵn nguyên văn trong chính câu hỏi (`GATHER_CASES`,
+`backend/evals/cases.py`), nghĩa là `fact_coverage=1.0` báo cáo ở trên thực
+chất dựa trên 3 case sạch hoàn toàn cộng 1 case mà về lý thuyết có thể đạt
+chỉ bằng cách lặp lại câu hỏi, không cần thu thập thật từ tool. Case đã
+được sửa (`required_fact` đổi thành `INV/2026/00030`, mã hoá đơn CHỈ xuất
+hiện trong dữ liệu tool) — nhưng LƯỢT ĐO GỐC được báo cáo ở đây (log
+`logs/jobs/eval-gate-20260801T163040.json`) dùng phiên bản case CŨ, rò rỉ;
+các con số phía trên KHÔNG được chạy lại và giữ nguyên làm biên bản lịch
+sử. Đồng thời, fixture của tool `get_overdue_invoices` trong case này ban
+đầu tự mâu thuẫn — dòng tiêu đề ghi "3 hóa đơn quá hạn" trong khi chỉ liệt
+kê 2 dòng dữ liệu — cũng đã được sửa. Sự tự-mâu-thuẫn này là một lời giải
+thích thay thế khả dĩ (chưa loại trừ) cho ca FAIL duy nhất của nhánh
+`policy` mô tả bên dưới: `verify_erp_grounding` có thể đã phản ứng với sự
+bất nhất nội bộ của dữ liệu fixture, chứ không nhất thiết chỉ vì prompt dài
+hơn như phần `## Kết luận` hiện đang quy kết. Ghi nhận đây là một khả năng
+chưa loại trừ — không khẳng định đã xác định được nguyên nhân đúng, vì việc
+đó cần chạy lại phép đo, ngoài phạm vi của đợt sửa này.
+
 ## Nhánh `policy` (có ghép chính sách vào prompt — chỉ ghi nhận, không gate)
 
 Chạy trực tiếp `eval_gather(..., branch="policy")` qua script chẩn đoán

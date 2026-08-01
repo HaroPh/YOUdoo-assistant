@@ -176,12 +176,20 @@ def _stub_erp_tools(tool_fixtures: dict, called: list) -> list:
     BẪY late-binding closure: t/fixture PHẢI chốt bằng default-argument
     (_name=t.name, _fixture=fixture), không phải đọc trực tiếp t/fixture
     trong thân hàm lồng trong vòng lặp — nếu không MỌI stub sẽ trả fixture
-    của tool CUỐI CÙNG trong vòng lặp, im lặng sai."""
+    của tool CUỐI CÙNG trong vòng lặp, im lặng sai.
+
+    BẪY invoke vị trí: LangChain tool có thể được gọi bằng một chuỗi trần
+    (tool.invoke("some string")) thay vì dict kwargs — nếu không có
+    `*_args` chặn đầu, chuỗi đó sẽ khớp vị trí vào _name (tham số khai báo
+    đầu tiên), âm thầm làm hỏng sổ `called`. Đường gọi thật (ReAct/ToolNode
+    sản xuất) luôn truyền dict nên đây không phải lỗi đang hoạt động ở bất
+    kỳ phép đo hiện tại nào — chỉ là một lớp phòng thủ một dòng, đóng luôn
+    khe hở này."""
     tools = build_erp_query_tools()
     for t in tools:
         fixture = tool_fixtures.get(t.name, "Không có dữ liệu liên quan.")
 
-        def _stub(_name=t.name, _fixture=fixture, **kwargs):
+        def _stub(*_args, _name=t.name, _fixture=fixture, **kwargs):
             called.append(_name)
             return _fixture
 

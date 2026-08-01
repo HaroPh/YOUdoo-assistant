@@ -527,16 +527,19 @@ GATHER_CASES = [
      {"get_sale_order_detail":
       "Đơn S00042 | Azure Interior | trạng thái: done (đã giao) | "
       "ngày giao thực tế: 15/07/2026"}),
-    # chinh_sach_thanh_toan — câu hỏi giống hệt MULTI_SOURCE_CASES (S00050),
-    # nhưng ở đây đo bước THU THẬP: "quá hạn 32 ngày" có nổi lên từ tool
-    # get_overdue_invoices không, giữa nhiều dòng dữ liệu khác.
+    # chinh_sach_thanh_toan — câu hỏi giống hệt MULTI_SOURCE_CASES (S00050).
+    # required_fact là mã hoá đơn INV/2026/00030 (KHÔNG phải "32 ngày" —
+    # sửa sau review toàn nhánh: "32 ngày" đã có sẵn NGUYÊN VĂN trong câu
+    # hỏi, model chép lại câu hỏi là đủ đậu, không đo được gì thật). Mã hoá
+    # đơn CHỈ xuất hiện trong dữ liệu tool, đòi model phải đọc và đối chiếu
+    # đúng dòng giữa nhiều dòng dữ liệu khác.
     ("chinh_sach_thanh_toan",
      "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có "
      "bị tạm dừng xử lý không?",
      ("get_overdue_invoices",),
-     ("32 ngày",),
+     ("INV/2026/00030",),
      {"get_overdue_invoices":
-      "3 hóa đơn quá hạn:\n"
+      "2 hóa đơn quá hạn:\n"
       "  INV/2026/00030 | Gemini Furniture | đến hạn 30/06/2026 | "
       "quá hạn 32 ngày | còn 4.200.000\n"
       "  INV/2026/00031 | Wood Corner | đến hạn 05/07/2026 | "

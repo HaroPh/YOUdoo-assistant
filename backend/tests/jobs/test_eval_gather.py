@@ -38,6 +38,18 @@ def test_gather_cases_required_facts_exist_in_fixtures():
                 f"{topic}/{question!r}")
 
 
+def test_gather_cases_facts_not_leaked_by_the_question():
+    """required_fact không được xuất hiện sẵn trong CHÍNH câu hỏi — nếu có,
+    model chép lại câu hỏi là đủ đậu, không đo được bước thu thập gì thật
+    (bug thật tìm thấy ở review toàn nhánh: case chinh_sach_thanh_toan có
+    required_fact "32 ngày" đã nằm sẵn trong câu hỏi)."""
+    for topic, question, required_tools, required_facts, tool_fixtures in cases.GATHER_CASES:
+        for f in required_facts:
+            assert f.casefold() not in question.casefold(), (
+                f"required_fact {f!r} đã có sẵn trong chính câu hỏi case "
+                f"{topic} — model chép lại là đủ đậu, không đo được thu thập")
+
+
 def test_gather_cases_required_tools_are_real_erp_tool_names():
     from src.erp_query.tools import build_erp_query_tools
     real_names = {t.name for t in build_erp_query_tools()}
@@ -162,7 +174,6 @@ def test_run_gather_with_prompt_returns_erp_facts_key():
         agent = MagicMock()
         agent.ainvoke = AsyncMock(
             return_value={"messages": [AIMessage(content="18/07/2026")]})
-        import src.agents.fanout as fanout_mod
         import unittest.mock
         with unittest.mock.patch.object(
                 run_eval, "_create_agent",
