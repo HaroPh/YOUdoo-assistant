@@ -519,3 +519,94 @@ ngoài phạm vi brief Task 3 ("không sửa code thêm"), nên KHÔNG được 
 `eval_multi_source()`, hoặc chấp nhận giới hạn đo hiện tại và xác minh
 production bằng cách khác, ví dụ chẩn đoán trực tiếp qua Odoo thật như đã
 làm ở §0 spec).
+
+## Điều tra thêm của controller — chẩn đoán trực tiếp qua Odoo thật (sau Task 3)
+
+Task 3 đã chỉ ra rằng `gather`/`multi_source` không thể trả lời câu hỏi
+"bản sửa có cải thiện hành vi PRODUCTION thật hay không". Cách duy nhất
+đo được điều đó — đúng như report đề xuất — là chẩn đoán trực tiếp qua
+Odoo thật, giống hệt phương pháp đã dùng TRƯỚC khi viết plan này (script
+tạm gọi thẳng `make_gather_erp_node` với tool thật, không stub, không
+mock). Controller chạy lại đúng phương pháp đó, KHÔNG sửa code, KHÔNG
+commit script, cho đúng 2 câu hỏi mà `multi_source` thật đang FAIL (nêu ở
+mục "Vì sao KHÔNG đổi" phía trên):
+
+**Câu hỏi 1 — `sla_giao_hang` / "Đơn S00042 có đáp ứng SLA giao hàng
+không?"** (đây LÀ câu hỏi plan này nhắm sửa):
+
+- `called` (tool thật, Odoo thật): `list_sale_orders` — ĐÚNG tool mới,
+  quy tắc prompt CÓ ảnh hưởng thật tới hành vi production, không chỉ tới
+  eval có stub.
+- Nhưng kết quả cuối: `erp_facts` = thông báo fallback của
+  `verify_erp_grounding` ("Xin lỗi, tôi không chắc chắn về độ chính xác
+  của câu trả lời này..."). Vết đầy đủ (đọc trực tiếp từ
+  `AIMessage`/`ToolMessage` thật, không suy đoán):
+  1. `list_sale_orders(state="", customer="", date_from="", date_to="")`
+     → trả về trang mặc định (đơn GẦN NHẤT: S00165, S00164, S00163...) —
+     **KHÔNG có S00042** (đơn này cũ hơn nhiều so với trang mặc định).
+  2. Model thử `list_sale_orders(customer="S00042")` — SAI cách dùng (đưa
+     mã ĐƠN vào tham số dành cho tên KHÁCH HÀNG) → lỗi tool.
+  3. Model gọi lại `list_sale_orders()` với bộ lọc rỗng lần nữa — cùng
+     kết quả trang mặc định, vẫn không có S00042.
+  4. Model bỏ cuộc: "Không tìm được dữ kiện ERP liên quan đến đơn hàng
+     S00042" — câu này đúng theo quy tắc "nếu không lấy được dữ kiện,
+     trả lời đúng một câu..." của `GATHER_ERP_PROMPT`, nhưng sau đó lại
+     bị `verify_erp_grounding` thay bằng thông báo fallback khác.
+
+  **Nguyên nhân gốc (bằng chứng, không suy đoán):** `list_sale_orders`
+  (`backend/src/erp_query/sales.py:24-46`) CHỈ lọc theo `state`,
+  `customer` (tên khách hàng), `date_from`, `date_to` — **KHÔNG có tham
+  số tìm theo MÃ ĐƠN**. Chỉ `get_sale_order_detail(ref=...)`
+  (`sales.py:49-68`) tìm được theo mã đơn, nhưng tool đó không có field
+  ngày. Cách ĐÚNG để trả lời câu hỏi này là gọi `get_sale_order_detail`
+  TRƯỚC để biết tên khách hàng (Azure Interior), RỒI gọi `list_sale_orders
+  (customer="Azure Interior")` để tìm đúng dòng theo mã đơn trong kết quả
+  — đây chính xác là cách `GATHER_CASES`' comment mô tả ("lọc theo tên
+  khách hàng... tìm đúng dòng có mã đơn khớp"). Nhưng câu chữ hiện tại
+  của quy tắc mới ("KHÔNG dùng `get_sale_order_detail` cho việc này")
+  nhiều khả năng bị model (flash-lite, dễ đọc quy tắc theo nghĩa đen)
+  hiểu thành "không dùng tool đó cho câu hỏi này" (cấm hoàn toàn), thay
+  vì nghĩa dự định "không dùng tool đó LÀM NGUỒN LẤY NGÀY" — nên model bỏ
+  qua bước tra cứu tên khách hàng cần thiết, mò mẫm với
+  `list_sale_orders` không có bộ lọc và thất bại.
+
+  **Vì sao `gather` (stub) đo được 4/4 PASS nhưng production thật vẫn
+  thất bại ở câu hỏi này:** `_stub_erp_tools` (`evals/run_eval.py`) trả
+  cố định đúng fixture text bất kể tham số gọi tool là gì — kể cả gọi
+  `list_sale_orders()` KHÔNG lọc gì, stub vẫn trả đúng dòng S00042. Bộ đo
+  `gather` vì vậy đo được "model có gọi đúng TÊN tool hay không"
+  (`tool_recall`), nhưng KHÔNG đo được "model có tự xây được đúng THAM SỐ
+  tìm kiếm để tìm ra đúng bản ghi hay không" — với dữ liệu Odoo thật (có
+  hàng trăm đơn, phân trang, không tìm theo mã đơn được), đây lại chính
+  là bước quyết định thành-bại.
+
+**Câu hỏi 2 — `chinh_sach_hoan_hang` / "Hóa đơn INV/2026/00017 có được
+hoàn tiền không?"** (đây KHÔNG phải câu hỏi plan này nhắm sửa — đã nêu ở
+Finding B phía trên):
+
+- `called`: `list_invoices` — đúng tool, KHÔNG liên quan gì đến quy tắc
+  mới của Task 2 (câu hỏi về hoá đơn, không phải đơn bán).
+- `erp_facts` trả về ĐẦY ĐỦ, đúng định dạng: mã hoá đơn, khách hàng, ngày
+  hoá đơn (2026-07-18), tổng tiền, trạng thái thanh toán (paid). Bước
+  `gather_erp` cho câu hỏi này **hoạt động đúng, không có vấn đề** —
+  khớp với Finding B (case này chưa từng là mục tiêu sửa của plan, và quả
+  thật không có gì để sửa ở tầng `gather_erp`). Nếu `multi_source` vẫn
+  FAIL case này, nguyên nhân nằm ở bước KHÁC (tổng hợp `fuse_answer`, hoặc
+  chính sách hoàn tiền trong tài liệu không đủ rõ) — ngoài phạm vi đo
+  được của cả plan này.
+
+**Kết luận của điều tra:** quy tắc prompt Task 2 **CÓ** thay đổi hành vi
+chọn tool thật trong production (không chỉ trong eval có stub) — đây là
+bằng chứng độc lập, mạnh hơn con số `gather` 4/4, rằng bản sửa chạm đúng
+vào cơ chế thật. Nhưng bản sửa **CHƯA ĐỦ** để tự nó giải quyết câu hỏi
+`sla_giao_hang`/S00042 trong production thật — model chọn đúng tool
+nhưng không biết cách TRA CỨU đúng cách (thiếu bước trung gian lấy tên
+khách hàng) khi Odoo có nhiều dữ liệu thật và tool không tìm được theo mã
+đơn. Đây là một lỗi THẬT, cụ thể hơn phát hiện A/B của Task 3 (không phải
+"bộ đo tách rời node" nữa, mà là "quy tắc prompt chưa hướng dẫn đủ bước
+tra cứu trung gian"), phát hiện được NHỜ đo qua Odoo thật thay vì chỉ qua
+stub. Theo đúng kỷ luật của cả plan này (Task 2 Step 4: phát hiện vấn đề
+tầng `verify_erp_grounding`/liên quan thì CHỈ ghi nhận, KHÔNG tự sửa
+thêm — đây đã là vòng sửa thứ 3 của Task 2, thêm một vòng nữa vượt phạm
+vi Task 3 "không sửa code thêm"), controller KHÔNG tự sửa tiếp ở đây —
+ghi nhận trung thực, để người dùng quyết định bước tiếp theo.
