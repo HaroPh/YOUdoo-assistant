@@ -38,12 +38,14 @@ ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitcha
                 # role thật vẫn tên "fusion" trong catalog.py (CHAINS) —
                 # "multi_source" chỉ là tên SET đo (trung tính, sống sót qua
                 # đổi kiến trúc).
-                "multi_source": "fusion", "sop_select": "router"}
+                "multi_source": "fusion", "sop_select": "router",
+                "gather": "fusion"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
            "read": run_eval.eval_read, "synthesis": run_eval.eval_synthesis,
            "multi_source": run_eval.eval_multi_source,
-           "sop_select": run_eval.eval_sop_select}
+           "sop_select": run_eval.eval_sop_select,
+           "gather": run_eval.eval_gather}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -78,6 +80,13 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         return (result["citation_validity"] == 1.0
                 and result["fabricated_number"] == 0
                 and result["both_source_coverage"] >= base["both_source_coverage"])
+    if set_name == "gather":
+        # Không có baseline model cũ (node gather_erp không tồn tại trước
+        # SP-2b) — lần đo đầu chỉ ghi nhận, chưa có ngưỡng tuyệt đối. GÁC
+        # NHẸ: mọi lần chạy đều PASS ở round này; số liệu vào báo cáo SP-2c
+        # để người đọc tự đánh giá, không phải job tự đánh giá thay (spec
+        # 2026-08-01-sp2c §2). Siết lại thành ngưỡng thật khi có đủ số đo.
+        return True
     if set_name == "intent":
         return result["acc"] >= base["acc"]
     return (result["false_confirm"] == 0
@@ -95,7 +104,12 @@ def run(args) -> JobResult:
         # job hàng đêm đỏ VĨNH VIỄN, che tín hiệu 7 gate khác đang khỏe. Vẫn
         # đăng ký đầy đủ trong EVAL_FN/add_args choices — theo dõi riêng qua
         # `--set sop_select`.
-        sets = [s for s in EVAL_FN if s != "sop_select"]
+        # gather CŨNG cố ý không nằm trong "all" (spec 2026-08-01-sp2c §2):
+        # chưa có baseline/ngưỡng tuyệt đối nào được xác nhận — để trong
+        # "all" sẽ luôn PASS giả (gate trả True vô điều kiện) và làm loãng
+        # tín hiệu của job hàng đêm mà không cảnh báo được gì thật. Theo dõi
+        # riêng qua `--set gather` cho tới khi có đủ số đo để siết ngưỡng.
+        sets = [s for s in EVAL_FN if s not in ("sop_select", "gather")]
     else:
         sets = [args.set]
     detail, any_fail = {}, False
@@ -192,7 +206,8 @@ def add_args(p):
                    help="candidate model (mặc định: đầu chuỗi chain_for(role) trong catalog)")
     p.add_argument("--set",
                    choices=["both", "all", "intent", "confirm", "chitchat",
-                            "planner", "read", "synthesis", "multi_source", "sop_select"],
+                            "planner", "read", "synthesis", "multi_source",
+                            "sop_select", "gather"],
                    default="both")
     p.add_argument("--pace", type=float, default=None,
                    help="giây/call (mặc định auto: (60/rpm)*1.2 suy từ catalog)")

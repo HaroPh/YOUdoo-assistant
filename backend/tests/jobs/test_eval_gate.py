@@ -165,6 +165,22 @@ def _fake_sop_select_eval(acc=1.0, hijack=0, n=20):
     return fn
 
 
+def _fake_gather_eval(tool_recall=1.0, fact_coverage=1.0, n=10):
+    async def fn(llm, pace=0.0, checkpoint_path=None):
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
+        fails = []
+        # Đơn giản hóa: nếu tool_recall hoặc fact_coverage < 1.0, có fails
+        if tool_recall < 1.0:
+            fails.append({"text": "x", "tool_recall": tool_recall})
+        if fact_coverage < 1.0:
+            fails.append({"text": "x", "fact_coverage": fact_coverage})
+        return {"set": "gather", "n": n, "tool_recall": tool_recall,
+                "fact_coverage": fact_coverage, "lat_p50": 1000, "lat_p95": 2000,
+                "fails": fails, "errors": []}
+    fn.calls = []
+    return fn
+
+
 def test_chitchat_zero_violations_passes(monkeypatch):
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -335,14 +351,21 @@ def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_pa
     fsop = _fake_sop_select_eval(acc=0.0, hijack=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fsop)
 
+    # gather FAKE trả FAIL nếu lỡ chạy — nếu test này vẫn PASS thì chứng
+    # minh nó KHÔNG được gọi (không phải "gọi và tình cờ pass").
+    fgather = _fake_gather_eval(tool_recall=0.0, fact_coverage=0.0)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "gather", fgather)
+
     result = eval_gate.run(_args(set_="all"))
 
-    assert set(result.detail) == set(eval_gate.EVAL_FN) - {"sop_select"}
+    assert set(result.detail) == set(eval_gate.EVAL_FN) - {"sop_select", "gather"}
     assert "sop_select" not in result.detail
+    assert "gather" not in result.detail
     assert result.exit_code == PASS
     for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
     assert fsop.calls == [], "sop_select KHÔNG được chạy dưới --set all"
+    assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
 
 
 def test_set_sop_select_still_runs_standalone(monkeypatch):

@@ -193,3 +193,49 @@ def test_run_gather_with_prompt_degrades_to_empty_on_exception():
 
     out = asyncio.run(_run())
     assert out == {"erp_facts": ""}
+
+
+def test_gather_registered_in_eval_gate():
+    from jobs import eval_gate
+    assert "gather" in eval_gate.EVAL_FN
+    assert eval_gate.EVAL_FN["gather"] is run_eval.eval_gather
+    assert eval_gate.ROLE_FOR_SET["gather"] == "fusion"
+
+
+def test_gather_excluded_from_baselines():
+    """Không có baseline model cũ — node gather_erp không tồn tại trước
+    SP-2b."""
+    from jobs import eval_gate
+    assert "gather" not in eval_gate.BASELINES
+
+
+def test_gather_gate_returns_true_unconditionally():
+    """Lượt đo đầu tiên: chưa có ngưỡng tuyệt đối, chỉ ghi nhận (spec §2)."""
+    from jobs import eval_gate
+    assert eval_gate._gate("gather", {"tool_recall": 0.0, "fact_coverage": 0.0}, None) is True
+    assert eval_gate._gate("gather", {"tool_recall": 1.0, "fact_coverage": 1.0}, None) is True
+
+
+def test_gather_excluded_from_set_all():
+    from jobs import eval_gate
+    import argparse
+    p = argparse.ArgumentParser()
+    eval_gate.add_args(p)
+    args = p.parse_args(["--set", "all"])
+    assert args.set == "all"
+    assert "gather" in eval_gate.EVAL_FN  # đăng ký...
+    # ...nhưng run() phải tự loại nó khi set == "all" — kiểm qua cùng công
+    # thức run() dùng, không gọi run() thật (tốn API call thật).
+    sets = [s for s in eval_gate.EVAL_FN if s not in ("sop_select", "gather")]
+    assert "gather" not in sets
+    assert "sop_select" not in sets
+    assert "intent" in sets  # sanity: loại trừ không quá tay
+
+
+def test_set_choices_includes_gather():
+    from jobs import eval_gate
+    import argparse
+    p = argparse.ArgumentParser()
+    eval_gate.add_args(p)
+    args = p.parse_args(["--set", "gather"])
+    assert args.set == "gather"
