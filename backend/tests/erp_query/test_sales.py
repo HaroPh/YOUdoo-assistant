@@ -89,3 +89,28 @@ def test_get_sale_order_detail_includes_dates():
     order_call = next(c for c in gw._t.calls if c[0] == "sale.order")
     assert "date_order" in order_call[3]["fields"]
     assert "delivery_status" in order_call[3]["fields"]
+
+
+def test_get_sale_order_detail_includes_effective_dates():
+    order_rows = [{"id": 7, "name": "S00007", "partner_id": [41, "Azur"],
+                   "amount_total": 320000.0, "state": "done",
+                   "date_order": "2026-07-18 16:55:50",
+                   "delivery_status": "full",
+                   "commitment_date": False,
+                   "effective_date": "2026-07-20 09:12:00"}]
+    line_rows = []
+
+    class TwoCallTransport:
+        def __init__(self): self.calls = []
+        def call(self, model, method, args, kwargs):
+            self.calls.append((model, method, args, kwargs))
+            return order_rows if model == "sale.order" else line_rows
+
+    gw = Gateway(TwoCallTransport())
+    out = sales.get_sale_order_detail("S00007", gw=gw)
+    assert out["status"] == "success"
+    assert out["data"]["order"]["effective_date"] == "2026-07-20 09:12:00"
+    assert out["data"]["order"]["commitment_date"] is False
+    order_call = next(c for c in gw._t.calls if c[0] == "sale.order")
+    assert "commitment_date" in order_call[3]["fields"]
+    assert "effective_date" in order_call[3]["fields"]

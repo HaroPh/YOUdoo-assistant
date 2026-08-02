@@ -86,7 +86,7 @@ def build_erp_query_tools() -> list:
 
     @tool
     def get_sale_order_detail(ref: str) -> str:
-        """Chi tiết đơn bán theo mã (vd S00042): dòng sản phẩm, ngày xác nhận (date_order), trạng thái giao (delivery_status)."""
+        """Chi tiết đơn bán theo mã (vd S00042): dòng sản phẩm, ngày xác nhận (date_order), trạng thái giao (delivery_status), ngày giao dự kiến (commitment_date), ngày giao thực tế (effective_date)."""
         return _json(sales.get_sale_order_detail(ref))
 
     @tool

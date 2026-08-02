@@ -172,3 +172,10 @@ def test_get_sale_order_detail_description_mentions_dates():
                 if t.name == "get_sale_order_detail")
     assert "ngày xác nhận" in tool.description
     assert "trạng thái giao" in tool.description
+
+
+def test_get_sale_order_detail_description_mentions_effective_dates():
+    tool = next(t for t in build_erp_query_tools()
+                if t.name == "get_sale_order_detail")
+    assert "ngày giao dự kiến" in tool.description
+    assert "ngày giao thực tế" in tool.description

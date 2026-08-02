@@ -51,7 +51,8 @@ def get_sale_order_detail(ref, *, gw=None):
     try:
         orders = gw.search_read("sale.order", [["name", "=", ref]],
                                 ["id", "name", "partner_id", "amount_total", "state",
-                                 "date_order", "delivery_status"], limit=2)
+                                 "date_order", "delivery_status",
+                                 "commitment_date", "effective_date"], limit=2)
         if not orders:
             return err(f"Không tìm thấy đơn '{ref}'.")
         if len(orders) > 1:
