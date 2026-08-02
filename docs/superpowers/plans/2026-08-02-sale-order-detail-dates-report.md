@@ -65,22 +65,79 @@ lần). Phân tách rõ 2 phần của kỳ vọng:
    báo cáo này cho thấy đơn S00042 hiện đang ở trạng thái `draft` (Nháp,
    CHƯA xác nhận), `date_order` = `2026-07-04 16:55:50`,
    `delivery_status` = `false` (chưa giao) — không có ngày xác nhận hay
-   ngày giao dự kiến khớp `18/07/2026`/`20/07/2026`. Đây là lệch dữ liệu
-   THẬT của đơn S00042 trên Odoo hiện tại so với giả định dùng khi viết
-   case eval (case eval dùng dữ liệu STUB tổng hợp, không phải dữ liệu
-   Odoo thật — đúng theo thiết kế của `--set gather`, xem comment đầu
-   `GATHER_CASES` trong `evals/cases.py`). KHÔNG phải lỗi code: hàm
-   `get_sale_order_detail` (`backend/src/erp_query/sales.py:49-69`) đã
-   đọc đúng và trả về đầy đủ `date_order`/`delivery_status` thật có trong
-   Odoo (LLM đọc được từ trường `data.order` trong JSON tool-envelope và
-   tự diễn giải thành tiếng Việt) — chỉ là giá trị THẬT của đơn này khác
-   với giá trị giả định trong kỳ vọng viết sẵn ở brief.
-   Không phải thông báo fallback của `verify_erp_grounding` — LLM trả về
-   dữ kiện thật, có căn cứ, đúng cấu trúc.
+   ngày giao dự kiến khớp `18/07/2026`/`20/07/2026`.
+
+   **Đây là chỗ báo cáo trước (bản trước wave sửa này) đã QUY HẾT lỗi cho
+   "dữ liệu demo trôi" — SAI, hoặc ít nhất KHÔNG ĐẦY ĐỦ. Thật ra có 2
+   nguyên nhân riêng biệt, và chỉ một trong hai tự hết khi đồng bộ lại
+   dữ liệu:**
+
+   **(a) Dữ liệu demo trôi thật.** Trạng thái/`date_order` của CHÍNH đơn
+   S00042 đã đổi so với lần điều tra trước (`sale`/`18-07` → nay
+   `draft`/`2026-07-04`). Phần này đúng là lệch dữ liệu demo Odoo theo
+   thời gian — sẽ tự hết nếu đồng bộ lại dữ liệu demo cho đơn này ở đúng
+   trạng thái/ngày kỳ vọng.
+
+   **(b) Lỗ hổng CẤU TRÚC — KHÔNG tự hết khi đồng bộ dữ liệu.**
+   `get_sale_order_detail` (kể cả sau khi sửa ở Task 1) chỉ đọc
+   `date_order` (ngày ĐẶT/XÁC NHẬN đơn) và `delivery_status` (một ENUM
+   trạng thái giao — ví dụ `false`/`full`/`partial` — KHÔNG PHẢI một
+   ngày). Hàm KHÔNG có field nào mang ý nghĩa "ngày giao dự kiến" hay
+   "ngày giao thực tế". Nhưng 2 fixture `GATHER_CASES` sửa ở Task 2
+   (`backend/evals/cases.py:510-528`) vẫn đòi hỏi đúng 2 loại ngày đó:
+   `sla_giao_hang` cần "ngày giao dự kiến" (`20/07/2026`),
+   `chinh_sach_hoan_hang` cần "ngày giao thực tế" (`15/07/2026`). Đã
+   grep toàn bộ `backend/src/erp_query/`: không có `commitment_date`
+   hay `effective_date` (2 field ngày giao dự kiến/thực tế thật của
+   Odoo `sale.order`) được đọc ở đâu cả. Ngày giao THẬT chỉ tồn tại trên
+   model khác (`stock.picking.scheduled_date`/`date_done`,
+   `backend/src/erp_query/inventory.py:104-140`), qua tool
+   `list_late_deliveries` — nhưng tool đó chỉ trả phiếu giao TRỄ HẠN,
+   không tra được theo mã đơn cụ thể. Có một hàm tra đúng theo mã đơn
+   và có `date_done` thật — `find_done_deliveries_for_order`
+   (`inventory.py:143-171`) — nhưng hàm này đánh dấu "NỘI BỘ (coordinator
+   return_order)" và KHÔNG được đăng ký thành tool trong
+   `backend/src/erp_query/tools.py` (không xuất hiện trong danh sách
+   tool ở dòng 212-219) — `gather_erp` không gọi được.
+
+   Nói cách khác: dù có đồng bộ lại dữ liệu demo Odoo cho đơn S00042
+   đúng như kỳ vọng (trạng thái `sale`, `date_order` đúng), 2 fixture
+   này VẪN không thể PASS bằng dữ kiện THẬT từ `get_sale_order_detail` —
+   vì tool đó không có field "ngày giao" để trả. Đây chính là "hạng lỗi
+   thứ ba" mà bản thân plan này được viết ra để sửa (fixture khẳng định
+   một khả năng tool không có thật) — chỉ khác là lần này nó tái diễn ở
+   field ngày giao, trong CHÍNH plan sửa lỗi đó cho field ngày xác nhận.
+   Xem thêm comment đã thêm tại `backend/evals/cases.py:510-528`.
+
+   KHÔNG phải lỗi code cho phần (a): hàm `get_sale_order_detail`
+   (`backend/src/erp_query/sales.py:49-69`) đã đọc đúng và trả về đầy đủ
+   `date_order`/`delivery_status` thật có trong Odoo (LLM đọc được từ
+   trường `data.order` trong JSON tool-envelope và tự diễn giải thành
+   tiếng Việt) — chỉ là giá trị THẬT của đơn này khác với giá trị giả
+   định trong kỳ vọng viết sẵn ở brief. Không phải thông báo fallback
+   của `verify_erp_grounding` — LLM trả về dữ kiện thật, có căn cứ, đúng
+   cấu trúc. Nhưng phần (b) là lỗ hổng cấu trúc thật, độc lập với dữ
+   liệu demo.
+
+   **Rủi ro liên quan — field vắng mặt trên Odoo cũ hơn.** Nếu một bản
+   Odoo không có field `delivery_status` trên `sale.order` (phiên bản
+   cũ hơn), `get_sale_order_detail` sẽ LỖI HOÀN TOÀN (nhánh `err(...)`
+   trong `sales.py:63-64`, do `search_read` với field không tồn tại ném
+   exception) thay vì chỉ thiếu ngày như hành vi trước khi sửa — tăng
+   mức độ nghiêm trọng của lỗi tool nếu field vắng mặt. Rủi ro này thấp
+   (đã xác nhận Odoo thật hiện dùng trong dự án CÓ field này) nên không
+   cần code phòng thủ thêm, chỉ ghi nhận.
 
 **Không tự sửa thêm** theo đúng chỉ dẫn của brief — để controller/người
-dùng quyết định có cần đồng bộ dữ liệu demo Odoo (đơn S00042) hay cập
-nhật giả định trong tài liệu điều tra trước hay không.
+dùng quyết định có cần đồng bộ dữ liệu demo Odoo (đơn S00042 — xử lý
+nguyên nhân (a) ở trên) hay cập nhật giả định trong tài liệu điều tra
+trước hay không. Việc thêm tool lộ `find_done_deliveries_for_order` hoặc
+đọc `commitment_date`/`effective_date` (xử lý nguyên nhân (b) — lỗ hổng
+cấu trúc) là quyết định thiết kế riêng, ghi nhận là rủi ro/khoảng trống
+đã biết TƯƠNG TỰ cách plan này đã ghi nhận rủi ro `purchase.py` (không
+sửa ngay, chỉ ghi lại cho phase sau) — KHÔNG tự ý làm ở đây, cần
+brainstorm riêng trước, bao gồm xác minh `commitment_date`/
+`effective_date` có thật sự populate trong dữ liệu Odoo demo hay không.
 
 ## Task 3 — multi_source thật (thước đo cuối cùng), full suite, đính chính
 
@@ -127,12 +184,22 @@ backend/tests/rag/fixtures/policy.docx`, `git status` sạch sau đó.
    2 Bước 10). Ghi nhận thẳng thắn, không giấu: trong CHÍNH chẩn đoán Bước
    10, giá trị ngày cụ thể trả về (`draft`/`2026-07-04`) KHÔNG khớp kỳ
    vọng viết sẵn trong brief (`sale`/`18-07`/`20-07`, dựa trên trạng thái
-   đơn S00042 tại thời điểm điều tra plan trước). Đây KHÔNG phải thất bại
-   của bản sửa — dữ liệu demo Odoo cho đơn S00042 đã trôi theo thời gian
-   giữa 2 lần điều tra (đơn nay ở trạng thái `draft`, chưa xác nhận, khác
-   với `sale` đã xác nhận trước đó); hàm `get_sale_order_detail` đọc và
-   trả về đúng dữ liệu THẬT hiện có, không rơi vào fallback lỗi. Xem chi
-   tiết Task 2 Bước 10.
+   đơn S00042 tại thời điểm điều tra plan trước). Điều này có 2 nguyên
+   nhân RIÊNG BIỆT, không phải một (xem phân tách đầy đủ ở Task 2 Bước
+   10): (a) dữ liệu demo Odoo cho đơn S00042 đã trôi theo thời gian giữa
+   2 lần điều tra (đơn nay ở trạng thái `draft`, chưa xác nhận, khác với
+   `sale` đã xác nhận trước đó) — hàm `get_sale_order_detail` đọc và trả
+   về đúng dữ liệu THẬT hiện có, không rơi vào fallback lỗi, phần này
+   KHÔNG phải thất bại của bản sửa; VÀ (b) một lỗ hổng CẤU TRÚC thật, độc
+   lập với (a) và KHÔNG tự hết khi đồng bộ lại dữ liệu demo:
+   `get_sale_order_detail` không có field nào mang nghĩa "ngày giao dự
+   kiến"/"ngày giao thực tế" (`date_order` chỉ là ngày xác nhận đơn,
+   `delivery_status` là enum trạng thái chứ không phải ngày) — trong khi
+   2 fixture `sla_giao_hang`/`chinh_sach_hoan_hang` vẫn đòi hỏi đúng 2
+   loại ngày giao đó. Đây là "hạng lỗi thứ ba" (fixture khẳng định khả
+   năng tool không có thật) mà plan này được viết ra để sửa, tái diễn ở
+   field ngày giao — xem Task 2 Bước 10 để biết hướng sửa khả dĩ (chưa
+   làm, cần brainstorm riêng).
 5. `multi_source` đo lại, xác nhận không đổi: **ĐẠT**, số đo = `0.75`
    (khớp chính xác TRƯỚC), `citation_validity=1.0`, `fabricated_number=0`.
 6. Toàn bộ test 2 chế độ xanh: **ĐẠT** — unit-only `1097 passed, 4
@@ -152,8 +219,19 @@ của plan (bỏ quy tắc dẫn dắt tool, để `get_sale_order_detail` tự 
 kiện ngày) đã đạt và được xác nhận bằng số đo thật, không phải suy diễn.
 `multi_source` đo lại khớp `0.75` như dự đoán kiến trúc, không có tác dụng
 phụ ngoài ý muốn. Toàn bộ 1124 test (1097 unit + 27 integration) xanh. Mối
-lo ngại duy nhất còn tồn đọng — không thuộc phạm vi sửa của plan này — là
-dữ liệu demo Odoo cho đơn S00042 đã trôi khỏi giả định gốc dùng khi viết
-tài liệu điều tra trước (`sale`/`18-07`/`20-07` → nay `draft`/`2026-07-04`);
-đây là vấn đề đồng bộ dữ liệu demo, đã ghi nhận đầy đủ ở Task 2 Bước 10,
-không phải lỗi của bản sửa và không chặn kết luận PASS của plan này.
+lo ngại còn tồn đọng — không thuộc phạm vi sửa của plan này — có 2 phần
+riêng biệt, đã ghi nhận đầy đủ ở Task 2 Bước 10: (a) dữ liệu demo Odoo cho
+đơn S00042 đã trôi khỏi giả định gốc dùng khi viết tài liệu điều tra trước
+(`sale`/`18-07`/`20-07` → nay `draft`/`2026-07-04`) — vấn đề đồng bộ dữ
+liệu demo, tự hết nếu đồng bộ lại; và (b) một lỗ hổng CẤU TRÚC thật, KHÔNG
+tự hết khi đồng bộ dữ liệu — `get_sale_order_detail` không có field nào
+mang nghĩa "ngày giao dự kiến"/"ngày giao thực tế" (chỉ có `date_order` —
+ngày xác nhận — và `delivery_status` — enum, không phải ngày), trong khi
+fixture `sla_giao_hang`/`chinh_sach_hoan_hang` (`backend/evals/cases.py:510-528`)
+vẫn đòi hỏi đúng 2 loại ngày giao đó, mà không tool nào `gather_erp` gọi
+được hiện cung cấp thật (hàm tra đúng có `date_done`,
+`find_done_deliveries_for_order` ở `inventory.py:143-171`, chưa được đăng
+ký thành tool). Cả (a) và (b) đều KHÔNG phải lỗi của bản sửa Task 1/2 (bản
+sửa đúng và có thật cho field `date_order`/`delivery_status`) và không
+chặn kết luận PASS của plan này (mục tiêu chọn tool đã đạt), nhưng (b) là
+khoảng trống cần theo dõi riêng — không tự hết bằng cách đồng bộ dữ liệu.

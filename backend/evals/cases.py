@@ -513,6 +513,18 @@ GATHER_CASES = [
     # cho câu hỏi chỉ nêu mã đơn nữa. Quy tắc GATHER_ERP_PROMPT dẫn dắt sang
     # list_sale_orders đã bị bỏ hẳn (chính nó là nguồn gây lỗ hổng tra cứu
     # trung gian — xem docs/superpowers/specs/2026-08-02-sale-order-detail-dates-design.md).
+    #
+    # CẢNH BÁO (fix wave sau final review, 2026-08-02): "18/07/2026" (ngày
+    # xác nhận) và "20/07/2026" (ngày giao dự kiến) trong tool_fixtures bên
+    # dưới là VIẾT TAY. get_sale_order_detail (sales.py:49-69) chỉ đọc
+    # date_order (ngày xác nhận đơn) và delivery_status (MỘT ENUM trạng
+    # thái, không phải ngày) — KHÔNG có field "ngày giao dự kiến" nào.
+    # "20/07/2026" hiện KHÔNG có tool nào gather_erp gọi được thật sự trả
+    # về (không phải commitment_date/effective_date — 2 field đó không
+    # được đọc ở đâu trong backend/src/erp_query/). Đừng hiểu nhầm chuỗi
+    # này là khả năng thật đã kiểm chứng — xem
+    # docs/superpowers/plans/2026-08-02-sale-order-detail-dates-report.md
+    # (Task 2 Bước 10) để biết chi tiết và hướng sửa khả dĩ (chưa làm).
     ("sla_giao_hang", "Đơn S00042 có đáp ứng SLA giao hàng không?",
      ("get_sale_order_detail",),
      ("18/07/2026", "20/07/2026"),
@@ -520,6 +532,14 @@ GATHER_CASES = [
       "Đơn S00042 | Azure Interior | trạng thái: sale (đã xác nhận) | "
       "ngày xác nhận: 18/07/2026 | ngày giao dự kiến: 20/07/2026"}),
     # chinh_sach_hoan_hang — cùng lý do sửa như sla_giao_hang ở trên.
+    #
+    # CẢNH BÁO (fix wave sau final review, 2026-08-02): "15/07/2026" (ngày
+    # giao thực tế) trong tool_fixtures bên dưới là VIẾT TAY. Cùng lý do
+    # như case sla_giao_hang ở trên: get_sale_order_detail không có field
+    # nào mang nghĩa "ngày giao thực tế" — chỉ date_order/delivery_status.
+    # KHÔNG tool nào gather_erp gọi được thật sự trả về được ngày này. Xem
+    # docs/superpowers/plans/2026-08-02-sale-order-detail-dates-report.md
+    # (Task 2 Bước 10).
     ("chinh_sach_hoan_hang", "Đơn S00042 còn được hoàn hàng theo chính sách không?",
      ("get_sale_order_detail",),
      ("15/07/2026",),
