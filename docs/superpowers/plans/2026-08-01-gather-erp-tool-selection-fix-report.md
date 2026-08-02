@@ -470,6 +470,15 @@ việc `erp_block` của case này chưa từng bị đổi.
 
 ## Kết luận
 
+> **Đính chính (2026-08-02):** lỗ hổng mô tả trong cảnh báo dưới đây ĐÃ
+> được vá — xem
+> `docs/superpowers/plans/2026-08-02-sale-order-detail-dates-report.md`.
+> `get_sale_order_detail` giờ đọc thêm `date_order`/`delivery_status`, và
+> quy tắc `GATHER_ERP_PROMPT` mô tả bên dưới (khiến model tránh dùng
+> `get_sale_order_detail` cho câu hỏi cần ngày) đã bị BỎ HẲN — không còn
+> đúng ở prompt hiện tại. Đoạn dưới đây giữ nguyên làm hồ sơ lịch sử của
+> phát hiện gốc.
+
 **CẢNH BÁO QUAN TRỌNG — đọc trước khi xem 6 điều dưới đây:** bằng chứng đã
 đo được trong chính report này (mục "Điều tra thêm của controller — chẩn
 đoán trực tiếp qua Odoo thật (sau Task 3)" ở dưới) cho thấy bản sửa này CÓ

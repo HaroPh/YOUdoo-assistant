@@ -81,3 +81,79 @@ lần). Phân tách rõ 2 phần của kỳ vọng:
 **Không tự sửa thêm** theo đúng chỉ dẫn của brief — để controller/người
 dùng quyết định có cần đồng bộ dữ liệu demo Odoo (đơn S00042) hay cập
 nhật giả định trong tài liệu điều tra trước hay không.
+
+## Task 3 — multi_source thật (thước đo cuối cùng), full suite, đính chính
+
+- verdict: `PASS`
+- `both_source_coverage`: `0.75` (TRƯỚC, plan trước: `0.75`) — không đổi
+- `citation_validity`: `1.0`
+- `fabricated_number`: `0`
+- log gốc: `logs/jobs/eval-gate-20260802T132857.json`
+
+Kiến trúc đã xác nhận đúng như dự đoán: `eval_multi_source` không gọi
+`gather_erp`, dùng `erp_block` viết tay cố định cho `render_fuse_input()` —
+không có đường dẫn cơ học nào để bản sửa Task 1/2 ảnh hưởng tới
+`both_source_coverage`. Số đo thật khớp chính xác `0.75` như trước, không
+lệch.
+
+## Xác minh test
+
+- Unit-only: `1097 passed, 4 skipped` (`-m "not integration and not live"`)
+- Integration: `27 passed` (`-m integration`)
+
+Sau cả 2 lượt chạy, `backend/tests/rag/fixtures/bang_gia.xlsx` và
+`policy.docx` bị đổi (binary diff do lượt test rag ghi lại) — đã khôi phục
+bằng `git checkout -- backend/tests/rag/fixtures/bang_gia.xlsx
+backend/tests/rag/fixtures/policy.docx`, `git status` sạch sau đó.
+
+## Kết luận
+
+Đối chiếu §"Xong nghĩa là" của spec
+(`docs/superpowers/specs/2026-08-02-sale-order-detail-dates-design.md`):
+
+1. `get_sale_order_detail` trả về `date_order`/`delivery_status`: **ĐẠT**,
+   xem Task 1 (unit test `141 passed`, commit `8a9f3fb`).
+2. `GATHER_ERP_PROMPT` không còn quy tắc chọn tool đặc thù: **ĐẠT** — quy
+   tắc bị bỏ hẳn ở Task 2 (commit `adf5558`).
+3. Cả 2 case `GATHER_CASES` mục tiêu PASS thật, đo 2 lần độc lập, không cần
+   quy tắc dẫn dắt: **ĐẠT**, xem Task 2 Bước 9 (`tool_recall=1.0`,
+   `fact_coverage=1.0`, `fails: []` cả 2 lần, log
+   `eval-gate-20260802T131647.json` và `eval-gate-20260802T131745.json`).
+4. Chẩn đoán trực tiếp qua Odoo thật xác nhận 1 lệnh gọi tool đủ: **ĐẠT**
+   trên đúng mục tiêu của điều này — cơ chế chọn tool. `CALLED:
+   ['get_sale_order_detail']`, đúng một lệnh gọi, KHÔNG gọi
+   `list_sale_orders`, xác nhận qua 3 lớp bằng chứng độc lập (unit test
+   Task 1, số đo `--set gather` Task 2 Bước 9, và chẩn đoán trực tiếp Task
+   2 Bước 10). Ghi nhận thẳng thắn, không giấu: trong CHÍNH chẩn đoán Bước
+   10, giá trị ngày cụ thể trả về (`draft`/`2026-07-04`) KHÔNG khớp kỳ
+   vọng viết sẵn trong brief (`sale`/`18-07`/`20-07`, dựa trên trạng thái
+   đơn S00042 tại thời điểm điều tra plan trước). Đây KHÔNG phải thất bại
+   của bản sửa — dữ liệu demo Odoo cho đơn S00042 đã trôi theo thời gian
+   giữa 2 lần điều tra (đơn nay ở trạng thái `draft`, chưa xác nhận, khác
+   với `sale` đã xác nhận trước đó); hàm `get_sale_order_detail` đọc và
+   trả về đúng dữ liệu THẬT hiện có, không rơi vào fallback lỗi. Xem chi
+   tiết Task 2 Bước 10.
+5. `multi_source` đo lại, xác nhận không đổi: **ĐẠT**, số đo = `0.75`
+   (khớp chính xác TRƯỚC), `citation_validity=1.0`, `fabricated_number=0`.
+6. Toàn bộ test 2 chế độ xanh: **ĐẠT** — unit-only `1097 passed, 4
+   skipped`, integration `27 passed`, không case FAIL nào.
+7. `graph.py`/`fanout.py`/`state.py` — 0 dòng thay đổi: **ĐẠT**, xác nhận
+   bằng `git diff --stat $(git merge-base main HEAD)..HEAD -- \
+   backend/src/agents/graph.py backend/src/agents/fanout.py \
+   backend/src/agents/state.py` — output rỗng.
+8. Đính chính đúng 1 chỗ trong report của plan trước: **ĐẠT**, xem Step 3
+   (`docs/superpowers/plans/2026-08-01-gather-erp-tool-selection-fix-report.md`,
+   đoạn đính chính chèn ngay trước "CẢNH BÁO QUAN TRỌNG").
+
+**Tổng kết:** Cả 3 task của plan đã hoàn thành đúng phạm vi, không đụng
+`graph.py`/`fanout.py`/`state.py`/`purchase.py`. Bước đo quyết định chính
+thức (Bước 9, `--set gather`) PASS sạch 2/2 lần độc lập — mục tiêu cốt lõi
+của plan (bỏ quy tắc dẫn dắt tool, để `get_sale_order_detail` tự đủ dữ
+kiện ngày) đã đạt và được xác nhận bằng số đo thật, không phải suy diễn.
+`multi_source` đo lại khớp `0.75` như dự đoán kiến trúc, không có tác dụng
+phụ ngoài ý muốn. Toàn bộ 1124 test (1097 unit + 27 integration) xanh. Mối
+lo ngại duy nhất còn tồn đọng — không thuộc phạm vi sửa của plan này — là
+dữ liệu demo Odoo cho đơn S00042 đã trôi khỏi giả định gốc dùng khi viết
+tài liệu điều tra trước (`sale`/`18-07`/`20-07` → nay `draft`/`2026-07-04`);
+đây là vấn đề đồng bộ dữ liệu demo, đã ghi nhận đầy đủ ở Task 2 Bước 10,
+không phải lỗi của bản sửa và không chặn kết luận PASS của plan này.
