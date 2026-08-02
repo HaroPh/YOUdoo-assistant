@@ -348,6 +348,12 @@ def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):
     gốc (trước sửa ở Step 3 dưới) chỉ bắt được kịch bản "nhãn không còn
     khớp câu chữ", không bắt được kịch bản này — continue thoát trước khi
     kiểm tra field thật."""
+    # PHẢI chụp lại tham chiếu GỐC trước khi monkeypatch — nếu không, fallback
+    # `_real_fields_for_tool(tool_name)` bên trong `_fake_real_fields` khi
+    # gặp tool khác get_sale_order_detail (eg get_overdue_invoices,
+    # find_customer) sẽ tự gọi lại CHÍNH `_fake_real_fields` (đã bị patch đè
+    # tên) → RecursionError vô hạn (đặc tính monkeypatch: globals()[name] bị
+    # ghi đè, nên gọi hàm cùng tên sẽ lookup và tìm version mới).
     _original_real_fields_for_tool = _real_fields_for_tool
 
     def _fake_real_fields(tool_name):
