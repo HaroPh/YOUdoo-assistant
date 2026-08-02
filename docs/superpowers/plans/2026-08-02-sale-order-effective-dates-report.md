@@ -24,3 +24,39 @@
 ---
 
 **Full detail**: See `.superpowers/sdd/2026-08-02-sale-order-effective-dates/task-1-report.md`
+
+## Task 2: `get_sale_order_detail` reads `commitment_date` and `effective_date`
+
+### Overview
+Added two new fields (`commitment_date`, `effective_date`) to the `get_sale_order_detail` function in `backend/src/erp_query/sales.py`, along with corresponding docstring updates and test coverage.
+
+### Step 3 Result (New Test FAIL as expected)
+**Status: FAIL** — Test `test_get_sale_order_detail_includes_effective_dates` failed with `AssertionError: assert 'commitment_date' in [...]` as expected—fields not yet in the search_read call.
+
+### Step 5 Result (All Sales Tests PASS)
+**Status: PASS** — All 7 sales tests pass, including the new test:
+- `test_find_customer_delegates_to_resolve`: PASS
+- `test_list_sale_orders_builds_domain_and_envelope`: PASS
+- `test_get_product_price_reads_list_price`: PASS
+- `test_sales_summary_uses_read_group`: PASS
+- `test_get_sale_order_detail_includes_state`: PASS
+- `test_get_sale_order_detail_includes_dates`: PASS
+- `test_get_sale_order_detail_includes_effective_dates`: PASS ✅ (NEW)
+
+### Step 8 Result (Docstring Test PASS)
+**Status: PASS** — Test `test_get_sale_order_detail_description_mentions_effective_dates` passes, confirming docstring contains both new field labels.
+
+### Step 9 Result (Full erp_query Test Suite PASS)
+**Status: PASS** — All 143 tests in `tests/erp_query/` pass, no regressions detected.
+
+### Commit
+```
+4c38fb4 feat(erp_query): get_sale_order_detail đọc thêm commitment_date/effective_date
+```
+
+### Summary
+✅ Task 2 completed successfully. The `get_sale_order_detail` function now retrieves and returns `commitment_date` and `effective_date` fields, with full test coverage and updated docstring reflecting the new capabilities.
+
+---
+
+**Full detail**: See `.superpowers/sdd/2026-08-02-sale-order-effective-dates/task-2-report.md`
