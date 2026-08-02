@@ -49,17 +49,6 @@ def test_gather_erp_prompt_forbids_citing_documents():
     assert "KHÔNG viện dẫn" in GATHER_ERP_PROMPT
 
 
-def test_gather_erp_prompt_has_sla_return_tool_selection_rule():
-    # Quy tắc chọn tool cuối cùng (Bước 2c, 2026-08-01
-    # gather-erp-tool-selection-fix) — chốt bằng test này để không bị xoá
-    # nhầm ở lần sửa prompt sau.
-    from src.agents.prompts import GATHER_ERP_PROMPT
-    assert "list_sale_orders" in GATHER_ERP_PROMPT
-    assert "SLA giao hàng" in GATHER_ERP_PROMPT
-    assert "chính sách hoàn hàng" in GATHER_ERP_PROMPT
-    assert "KHÔNG áp dụng cho câu hỏi về thanh toán" in GATHER_ERP_PROMPT
-
-
 def test_fuse_prompt_keeps_citation_trailer_contract():
     from src.agents.prompts import FUSE_PROMPT
     from src.agents.synthesis import USED_MARKER
