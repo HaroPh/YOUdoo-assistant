@@ -66,3 +66,26 @@ def test_get_sale_order_detail_includes_state():
     assert "state" in order_call[3]["fields"]
     line_call = next(c for c in gw._t.calls if c[0] == "sale.order.line")
     assert "id" in line_call[3]["fields"]
+
+
+def test_get_sale_order_detail_includes_dates():
+    order_rows = [{"id": 7, "name": "S00007", "partner_id": [41, "Azur"],
+                   "amount_total": 320000.0, "state": "draft",
+                   "date_order": "2026-07-18 16:55:50",
+                   "delivery_status": "pending"}]
+    line_rows = []
+
+    class TwoCallTransport:
+        def __init__(self): self.calls = []
+        def call(self, model, method, args, kwargs):
+            self.calls.append((model, method, args, kwargs))
+            return order_rows if model == "sale.order" else line_rows
+
+    gw = Gateway(TwoCallTransport())
+    out = sales.get_sale_order_detail("S00007", gw=gw)
+    assert out["status"] == "success"
+    assert out["data"]["order"]["date_order"] == "2026-07-18 16:55:50"
+    assert out["data"]["order"]["delivery_status"] == "pending"
+    order_call = next(c for c in gw._t.calls if c[0] == "sale.order")
+    assert "date_order" in order_call[3]["fields"]
+    assert "delivery_status" in order_call[3]["fields"]

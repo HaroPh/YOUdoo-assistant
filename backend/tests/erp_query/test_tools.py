@@ -165,3 +165,10 @@ def test_zero_param_tool_unaffected(monkeypatch):
     tool = next(t for t in build_erp_query_tools() if t.name == "list_po_mismatches")
     out = json.loads(tool.invoke({}))
     assert out["status"] == "success"
+
+
+def test_get_sale_order_detail_description_mentions_dates():
+    tool = next(t for t in build_erp_query_tools()
+                if t.name == "get_sale_order_detail")
+    assert "ngày xác nhận" in tool.description
+    assert "trạng thái giao" in tool.description
