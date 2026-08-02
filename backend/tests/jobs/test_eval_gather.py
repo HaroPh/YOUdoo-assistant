@@ -341,17 +341,39 @@ _KNOWN_GAPS = {
 }
 
 
+def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):
+    """Xác nhận sửa lỗ hổng: nếu real_fields giờ khớp một mục trong
+    _KNOWN_GAPS, test chính phải FAIL đòi xoá mục — không được im lặng
+    pass. Bug thật tìm thấy khi viết plan sale-order-effective-dates: bản
+    gốc (trước sửa ở Step 3 dưới) chỉ bắt được kịch bản "nhãn không còn
+    khớp câu chữ", không bắt được kịch bản này — continue thoát trước khi
+    kiểm tra field thật."""
+    _original_real_fields_for_tool = _real_fields_for_tool
+
+    def _fake_real_fields(tool_name):
+        if tool_name == "get_sale_order_detail":
+            # Giả lập: field thật GIỜ ĐÃ CÓ commitment_date/effective_date
+            # — đúng 2 field _KNOWN_GAPS hiện đang ngoại lệ.
+            return {"id", "name", "partner_id", "amount_total", "state",
+                    "date_order", "delivery_status",
+                    "commitment_date", "effective_date"}
+        return _original_real_fields_for_tool(tool_name)
+
+    monkeypatch.setitem(globals(), "_real_fields_for_tool", _fake_real_fields)
+    import pytest as _pytest
+    with _pytest.raises(AssertionError, match="KHÔNG CÒN CẦN THIẾT"):
+        test_gather_cases_fixture_labels_match_real_tool_fields()
+
+
 def test_gather_cases_fixture_labels_match_real_tool_fields():
     """Đối chiếu fixture với field THẬT tool trả về — chặn lớp lỗi "fixture
     khẳng định khả năng tool không có" (gặp 2 lần: gather-erp-tool-fix,
-    sale-order-detail-dates). 2 vi phạm đã biết nằm trong _KNOWN_GAPS,
-    không bị chặn ở đây — xem comment tại đó. `used` đảm bảo mỗi mục trong
-    _KNOWN_GAPS thật sự còn cần thiết — nếu gap đã được sửa (field thật đã
-    có) hoặc fixture đã đổi chữ (nhãn không còn khớp), mục thừa sẽ bị bắt
-    ngay, không nằm lại như cấu hình chết mãi mãi (final review 2026-08-02,
-    finding Important #1 — chính _KNOWN_GAPS là một khẳng định viết tay về
-    thực tế, không có gì kiểm tra nó còn đúng, tái diễn đúng lớp lỗi nhánh
-    này chặn)."""
+    sale-order-detail-dates). 2 vi phạm đã biết nằm trong _KNOWN_GAPS —
+    nhưng khác bản gốc, mục trong _KNOWN_GAPS VẪN được kiểm field thật:
+    nếu field thật ĐÃ CÓ (gap đã sửa), đó là lỗi đòi xoá mục, không phải
+    được bỏ qua âm thầm (sửa 2026-08-02: bản gốc chỉ bắt được kịch bản
+    "nhãn không còn khớp câu chữ", không bắt được kịch bản "gap đã sửa" —
+    continue thoát trước khi kiểm tra field thật)."""
     used = set()
     for topic, question, required_tools, required_facts, tool_fixtures in cases.GATHER_CASES:
         for tool_name, fixture_text in tool_fixtures.items():
@@ -360,10 +382,18 @@ def test_gather_cases_fixture_labels_match_real_tool_fields():
             for label, field_names in _DATE_STATUS_LABELS.items():
                 if label not in low:
                     continue
-                if (topic, tool_name, label) in _KNOWN_GAPS:
-                    used.add((topic, tool_name, label))
+                key = (topic, tool_name, label)
+                ok = bool(set(field_names) & real_fields)
+                if key in _KNOWN_GAPS:
+                    used.add(key)
+                    assert not ok, (
+                        f"_KNOWN_GAPS có mục KHÔNG CÒN CẦN THIẾT: case "
+                        f"{topic}, tool {tool_name!r}, nhãn {label!r} — "
+                        f"field thật đã có "
+                        f"({sorted(set(field_names) & real_fields)}), xoá "
+                        f"mục này khỏi _KNOWN_GAPS.")
                     continue
-                assert set(field_names) & real_fields, (
+                assert ok, (
                     f"case {topic}: fixture của tool {tool_name!r} dùng nhãn "
                     f"{label!r} nhưng tool không có field thật nào trong "
                     f"{field_names} (field thật: {sorted(real_fields)})")
