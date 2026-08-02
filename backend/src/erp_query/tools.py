@@ -84,6 +84,9 @@ def build_erp_query_tools() -> list:
         return _json(sales.list_sale_orders(state or None, customer or None,
                                             date_from or None, date_to or None))
 
+    # Lưu ý: commitment_date là field thật, đọc đúng, nhưng KHÔNG đơn nào
+    # trong demo Odoo hiện tại populate field này (xác nhận bằng chẩn đoán
+    # Odoo thật khi viết spec sale-order-effective-dates, 2026-08-02).
     @tool
     def get_sale_order_detail(ref: str) -> str:
         """Chi tiết đơn bán theo mã (vd S00042): dòng sản phẩm, ngày xác nhận (date_order), trạng thái giao (delivery_status), ngày giao dự kiến (commitment_date), ngày giao thực tế (effective_date)."""

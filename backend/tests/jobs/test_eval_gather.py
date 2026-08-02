@@ -322,7 +322,7 @@ def _real_fields_for_tool(tool_name: str) -> set[str]:
 
 _DATE_STATUS_LABELS = {
     "ngày xác nhận": ("date_order",),
-    "ngày giao dự kiến": ("commitment_date", "effective_date"),
+    "ngày giao dự kiến": ("commitment_date",),
     "ngày giao thực tế": ("effective_date", "date_done"),
     "trạng thái giao": ("delivery_status",),
 }
@@ -337,6 +337,13 @@ _KNOWN_GAPS: set[tuple[str, str, str]] = set()
 # commitment_date/effective_date thật. Nếu contract test lại báo lỗi đòi
 # THÊM mục mới trong tương lai, đó là tín hiệu thật — đừng thêm lại 2 mục
 # cũ trừ khi field thật lại biến mất.
+#
+# Lưu ý dữ liệu demo: `commitment_date` là field thật trên `sale.order`,
+# tool đọc đúng — nhưng chẩn đoán Odoo thật khi viết spec (xem
+# docs/superpowers/specs/2026-08-02-sale-order-effective-dates-design.md)
+# xác nhận KHÔNG đơn nào trong demo Odoo hiện tại populate field này (10/10
+# đơn gần nhất đều False). Không phải lỗi code — chỉ là dữ liệu demo chưa
+# từng dùng field đó.
 
 
 def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):

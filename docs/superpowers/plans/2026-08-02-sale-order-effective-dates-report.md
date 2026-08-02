@@ -16,7 +16,7 @@
 ```
 
 ### Summary
-✅ Task 1 completed successfully. The contract test now properly validates that `_KNOWN_GAPS` entries must have both their labels still matching fixture text AND their fields still missing from real tools. This prevents dead configuration from accumulating.
+Task 1 completed successfully. The contract test now properly validates that `_KNOWN_GAPS` entries must have both their labels still matching fixture text AND their fields still missing from real tools. This prevents dead configuration from accumulating.
 
 ### Round 1 fix (after review): Code brief recursion bug
 **Note**: Code in brief Step 2, if copied verbatim, would cause `RecursionError` when `monkeypatch.setitem(globals(), "_real_fields_for_tool", _fake_real_fields)` redirects the name to the new function, and then `_fake_real_fields` calls `_real_fields_for_tool(tool_name)` for fallback on non-`get_sale_order_detail` tools — this lookup now finds the patched `_fake_real_fields` again, causing infinite recursion. **Fixed**: Captured the original reference BEFORE patching (`_original_real_fields_for_tool = _real_fields_for_tool`), so fallback calls use the real function. This is the correct solution; Step 3 result (FAIL with `DID NOT RAISE`) is as expected only because the fix was already applied before running tests.
@@ -41,7 +41,7 @@ Added two new fields (`commitment_date`, `effective_date`) to the `get_sale_orde
 - `test_sales_summary_uses_read_group`: PASS
 - `test_get_sale_order_detail_includes_state`: PASS
 - `test_get_sale_order_detail_includes_dates`: PASS
-- `test_get_sale_order_detail_includes_effective_dates`: PASS ✅ (NEW)
+- `test_get_sale_order_detail_includes_effective_dates`: PASS (NEW)
 
 ### Step 8 Result (Docstring Test PASS)
 **Status: PASS** — Test `test_get_sale_order_detail_description_mentions_effective_dates` passes, confirming docstring contains both new field labels.
@@ -55,7 +55,7 @@ Added two new fields (`commitment_date`, `effective_date`) to the `get_sale_orde
 ```
 
 ### Summary
-✅ Task 2 completed successfully. The `get_sale_order_detail` function now retrieves and returns `commitment_date` and `effective_date` fields, with full test coverage and updated docstring reflecting the new capabilities.
+Task 2 completed successfully. The `get_sale_order_detail` function now retrieves and returns `commitment_date` and `effective_date` fields, with full test coverage and updated docstring reflecting the new capabilities.
 
 ---
 
@@ -182,6 +182,11 @@ với nội dung sống `_KNOWN_GAPS`).
    hai, không chỉ case đầu.
 4. **Đạt.** Chẩn đoán Odoo thật (đơn `S00165`, tra động, không phải
    S00042) xác nhận `effective_date` trả về đúng giá trị thật — KHỚP.
+   Lưu ý: `commitment_date` là field thật, tool đọc đúng, nhưng chẩn đoán
+   Odoo thật lúc viết spec xác nhận KHÔNG đơn nào trong demo hiện tại
+   populate field này (10/10 đơn gần nhất đều `False`) — không phải lỗi
+   code, chỉ là dữ liệu demo chưa dùng field đó; xem
+   `docs/superpowers/specs/2026-08-02-sale-order-effective-dates-design.md`.
 5. **Đạt.** `--set gather` đo lại: `tool_recall=1.0, fact_coverage=1.0,
    fails=[]` — vẫn 4/4 PASS, không hồi quy.
 6. **Đạt.** Toàn bộ test 2 chế độ xanh: unit-only 1101 passed (+3 so với
@@ -190,8 +195,8 @@ với nội dung sống `_KNOWN_GAPS`).
    đổi docstring (`backend/src/erp_query/tools.py`) để liệt kê thêm 2
    field mới. Không sửa `GATHER_ERP_PROMPT` (`backend/src/agents` không
    đổi dòng nào trong toàn plan). Không sửa `GATHER_CASES`
-   (`backend/src/jobs/eval_cases.py` hoặc tương đương không đổi — chỉ
-   test file tham chiếu `cases.GATHER_CASES` để đọc, không ghi).
+   (`backend/evals/cases.py` không đổi — chỉ test file tham chiếu
+   `cases.GATHER_CASES` để đọc, không ghi).
 
 **Phát sinh ngoài dự đoán của brief (đã xử lý, có phê duyệt)**: guard
 test `test_known_gaps_catches_entry_when_real_field_now_exists` (Task 1)
