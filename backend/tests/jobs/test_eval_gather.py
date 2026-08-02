@@ -286,13 +286,18 @@ class _RecordingTransport:
     def call(self, model, method, args, kwargs):
         self.calls.append((model, kwargs.get("fields")))
         row = _REPRESENTATIVE_ROWS.get(model, {"id": 1})
-        return [row]
+        return [dict(row)]
 
 
 def _real_fields_for_tool(tool_name: str) -> set[str]:
     """Gọi ĐÚNG hàm business-layer thật (không qua @tool wrapper) với
     transport ghi nhận, hợp tất cả field đã ghi được qua mọi lệnh gọi
-    search_read trong quá trình thực thi."""
+    search_read trong quá trình thực thi.
+
+    Phụ thuộc ngầm: kết quả này chỉ phản ánh field model THẬT SỰ THẤY được
+    nếu tools.py::_json() còn serialize toàn bộ envelope (bao gồm "data"),
+    không chỉ dòng "display" — nếu sau này _json() bị tối ưu để chỉ trả
+    "display", test này vẫn PASS nhưng không còn đo được gì thật."""
     from src.erp_query.gateway import Gateway
     from src.erp_query import sales, accounting
 
@@ -326,7 +331,9 @@ _KNOWN_GAPS = {
     # (topic, tool, nhãn) — xem docs/superpowers/plans/
     # 2026-08-02-sale-order-detail-dates-report.md (Task 2 Bước 10):
     # get_sale_order_detail không có field "ngày giao dự kiến"/"ngày giao
-    # thực tế" thật — chưa tool nào gather_erp gọi được cung cấp field đó.
+    # thực tế" thật — chưa tool nào gather_erp gọi được cung cấp field đó
+    # CHO MỘT ĐƠN CỤ THỂ (list_late_deliveries có khái niệm ngày giao nhưng
+    # chỉ trả phiếu trễ hạn, không lọc theo mã đơn).
     # Quyết định lộ tool/đọc field mới vẫn TREO, chưa làm. Xoá dòng khỏi
     # danh sách khi field đó có thật, KHÔNG xoá để né test.
     ("sla_giao_hang", "get_sale_order_detail", "ngày giao dự kiến"),
@@ -338,7 +345,14 @@ def test_gather_cases_fixture_labels_match_real_tool_fields():
     """Đối chiếu fixture với field THẬT tool trả về — chặn lớp lỗi "fixture
     khẳng định khả năng tool không có" (gặp 2 lần: gather-erp-tool-fix,
     sale-order-detail-dates). 2 vi phạm đã biết nằm trong _KNOWN_GAPS,
-    không bị chặn ở đây — xem comment tại đó."""
+    không bị chặn ở đây — xem comment tại đó. `used` đảm bảo mỗi mục trong
+    _KNOWN_GAPS thật sự còn cần thiết — nếu gap đã được sửa (field thật đã
+    có) hoặc fixture đã đổi chữ (nhãn không còn khớp), mục thừa sẽ bị bắt
+    ngay, không nằm lại như cấu hình chết mãi mãi (final review 2026-08-02,
+    finding Important #1 — chính _KNOWN_GAPS là một khẳng định viết tay về
+    thực tế, không có gì kiểm tra nó còn đúng, tái diễn đúng lớp lỗi nhánh
+    này chặn)."""
+    used = set()
     for topic, question, required_tools, required_facts, tool_fixtures in cases.GATHER_CASES:
         for tool_name, fixture_text in tool_fixtures.items():
             real_fields = _real_fields_for_tool(tool_name)
@@ -347,8 +361,13 @@ def test_gather_cases_fixture_labels_match_real_tool_fields():
                 if label not in low:
                     continue
                 if (topic, tool_name, label) in _KNOWN_GAPS:
+                    used.add((topic, tool_name, label))
                     continue
                 assert set(field_names) & real_fields, (
                     f"case {topic}: fixture của tool {tool_name!r} dùng nhãn "
                     f"{label!r} nhưng tool không có field thật nào trong "
                     f"{field_names} (field thật: {sorted(real_fields)})")
+    assert used == _KNOWN_GAPS, (
+        f"_KNOWN_GAPS có mục không còn ứng với vi phạm thật (gap đã lấp "
+        f"hoặc fixture đã đổi chữ): {sorted(_KNOWN_GAPS - used)} — xoá mục "
+        f"đó khỏi _KNOWN_GAPS, đừng để nó nằm lại như cấu hình chết.")
