@@ -327,27 +327,30 @@ _DATE_STATUS_LABELS = {
     "trạng thái giao": ("delivery_status",),
 }
 
-_KNOWN_GAPS = {
-    # (topic, tool, nhãn) — xem docs/superpowers/plans/
-    # 2026-08-02-sale-order-detail-dates-report.md (Task 2 Bước 10):
-    # get_sale_order_detail không có field "ngày giao dự kiến"/"ngày giao
-    # thực tế" thật — chưa tool nào gather_erp gọi được cung cấp field đó
-    # CHO MỘT ĐƠN CỤ THỂ (list_late_deliveries có khái niệm ngày giao nhưng
-    # chỉ trả phiếu trễ hạn, không lọc theo mã đơn).
-    # Quyết định lộ tool/đọc field mới vẫn TREO, chưa làm. Xoá dòng khỏi
-    # danh sách khi field đó có thật, KHÔNG xoá để né test.
-    ("sla_giao_hang", "get_sale_order_detail", "ngày giao dự kiến"),
-    ("chinh_sach_hoan_hang", "get_sale_order_detail", "ngày giao thực tế"),
-}
+_KNOWN_GAPS: set[tuple[str, str, str]] = set()
+# Lịch sử: 2 mục ("sla_giao_hang"/"ngày giao dự kiến",
+# "chinh_sach_hoan_hang"/"ngày giao thực tế" của get_sale_order_detail)
+# từng nằm ở đây (xem docs/superpowers/plans/
+# 2026-08-01-gather-erp-tool-selection-fix-report.md và
+# 2026-08-02-sale-order-detail-dates-report.md) — đã đóng ở plan
+# sale-order-effective-dates (2026-08-02): get_sale_order_detail giờ đọc
+# commitment_date/effective_date thật. Nếu contract test lại báo lỗi đòi
+# THÊM mục mới trong tương lai, đó là tín hiệu thật — đừng thêm lại 2 mục
+# cũ trừ khi field thật lại biến mất.
 
 
 def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):
-    """Xác nhận sửa lỗ hổng: nếu real_fields giờ khớp một mục trong
-    _KNOWN_GAPS, test chính phải FAIL đòi xoá mục — không được im lặng
-    pass. Bug thật tìm thấy khi viết plan sale-order-effective-dates: bản
-    gốc (trước sửa ở Step 3 dưới) chỉ bắt được kịch bản "nhãn không còn
-    khớp câu chữ", không bắt được kịch bản này — continue thoát trước khi
-    kiểm tra field thật."""
+    """Xác nhận sửa lỗ hổng: nếu real_fields khớp một mục trong _KNOWN_GAPS,
+    test chính phải FAIL đòi xoá mục — không được im lặng pass. Monkeypatch
+    CẢ _KNOWN_GAPS (không chỉ _real_fields_for_tool) để test này ĐỘC LẬP
+    với nội dung sống của _KNOWN_GAPS — nếu không, test sẽ mất tác dụng
+    ngay khi _KNOWN_GAPS thật trở thành rỗng (đúng lỗ hổng phát hiện ở
+    Task 3 của plan sale-order-effective-dates, 2026-08-02: bản gốc chỉ
+    patch _real_fields_for_tool, dựa vào _KNOWN_GAPS thật có sẵn 2 mục —
+    hỏng ngay khi 2 mục đó bị xoá)."""
+    fake_known_gaps = {("sla_giao_hang", "get_sale_order_detail", "ngày giao dự kiến")}
+    monkeypatch.setitem(globals(), "_KNOWN_GAPS", fake_known_gaps)
+
     # PHẢI chụp lại tham chiếu GỐC trước khi monkeypatch — nếu không, fallback
     # `_real_fields_for_tool(tool_name)` bên trong `_fake_real_fields` khi
     # gặp tool khác get_sale_order_detail (eg get_overdue_invoices,
@@ -359,7 +362,7 @@ def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):
     def _fake_real_fields(tool_name):
         if tool_name == "get_sale_order_detail":
             # Giả lập: field thật GIỜ ĐÃ CÓ commitment_date/effective_date
-            # — đúng 2 field _KNOWN_GAPS hiện đang ngoại lệ.
+            # — đúng mục fake_known_gaps ở trên đang giả lập là ngoại lệ.
             return {"id", "name", "partner_id", "amount_total", "state",
                     "date_order", "delivery_status",
                     "commitment_date", "effective_date"}
