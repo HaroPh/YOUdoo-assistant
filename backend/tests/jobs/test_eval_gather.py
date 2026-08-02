@@ -250,3 +250,105 @@ def test_set_choices_includes_gather():
     eval_gate.add_args(p)
     args = p.parse_args(["--set", "gather"])
     assert args.set == "gather"
+
+
+# ── Contract test: fixture GATHER_CASES đối chiếu field THẬT của tool ──────
+# Lớp lỗi "fixture khẳng định khả năng tool không có thật" đã tái diễn 2
+# lần liên tiếp (gather-erp-tool-fix 2026-08-01, sale-order-detail-dates
+# 2026-08-02) — 5 test tự-nhất-quán phía trên chỉ kiểm fixture KHÔNG tự
+# mâu thuẫn, không kiểm fixture có khớp thực tế tool hay không. Xem
+# docs/superpowers/specs/2026-08-02-gather-cases-contract-test-design.md.
+
+_REPRESENTATIVE_ROWS = {
+    "sale.order": {"id": 1, "name": "S00001", "partner_id": [1, "Khách mẫu"],
+                   "amount_total": 100.0, "state": "sale",
+                   "date_order": "2026-01-01 00:00:00",
+                   "delivery_status": "pending"},
+    "sale.order.line": {"id": 1, "product_id": [1, "Sản phẩm mẫu"],
+                        "product_uom_qty": 1.0, "price_unit": 100.0,
+                        "price_subtotal": 100.0},
+    "account.move": {"id": 1, "name": "INV/0001", "partner_id": [1, "Khách mẫu"],
+                     "invoice_date": "2026-01-01", "invoice_date_due": "2026-01-31",
+                     "amount_total": 100.0, "amount_residual": 100.0,
+                     "payment_state": "not_paid"},
+    "product.product": {"id": 1, "name": "Sản phẩm mẫu", "list_price": 100.0},
+}
+
+
+class _RecordingTransport:
+    """Transport giả DÙNG CHUNG cho mọi tool — chỉ ghi lại (model, fields)
+    của mỗi lệnh gọi rồi trả về dòng mẫu tương ứng, đủ để hàm business-layer
+    không bị chặn giữa chừng bởi guard 'not found'."""
+
+    def __init__(self):
+        self.calls = []  # list[tuple[str, list[str] | None]]
+
+    def call(self, model, method, args, kwargs):
+        self.calls.append((model, kwargs.get("fields")))
+        row = _REPRESENTATIVE_ROWS.get(model, {"id": 1})
+        return [row]
+
+
+def _real_fields_for_tool(tool_name: str) -> set[str]:
+    """Gọi ĐÚNG hàm business-layer thật (không qua @tool wrapper) với
+    transport ghi nhận, hợp tất cả field đã ghi được qua mọi lệnh gọi
+    search_read trong quá trình thực thi."""
+    from src.erp_query.gateway import Gateway
+    from src.erp_query import sales, accounting
+
+    gw = Gateway(_RecordingTransport())
+    if tool_name == "get_sale_order_detail":
+        sales.get_sale_order_detail("S00001", gw=gw)
+    elif tool_name == "get_overdue_invoices":
+        accounting.get_overdue_invoices(gw=gw)
+    elif tool_name == "get_product_price":
+        sales.get_product_price(1, gw=gw)
+    elif tool_name in ("find_customer", "find_product"):
+        # resolve_entity() dùng gw.name_search(), KHÔNG có tham số "fields"
+        # — tool loại này KHÔNG THỂ trả field ngày/trạng thái nào, tập rỗng
+        # là đúng ngữ nghĩa, không phải giới hạn tạm thời.
+        return set()
+    else:
+        raise KeyError(
+            f"_real_fields_for_tool: chưa biết cách gọi tool {tool_name!r} "
+            f"— thêm nhánh xử lý trước khi dùng tool này trong GATHER_CASES")
+    return {f for _model, fields in gw._t.calls if fields for f in fields}
+
+
+_DATE_STATUS_LABELS = {
+    "ngày xác nhận": ("date_order",),
+    "ngày giao dự kiến": ("commitment_date", "effective_date"),
+    "ngày giao thực tế": ("effective_date", "date_done"),
+    "trạng thái giao": ("delivery_status",),
+}
+
+_KNOWN_GAPS = {
+    # (topic, tool, nhãn) — xem docs/superpowers/plans/
+    # 2026-08-02-sale-order-detail-dates-report.md (Task 2 Bước 10):
+    # get_sale_order_detail không có field "ngày giao dự kiến"/"ngày giao
+    # thực tế" thật — chưa tool nào gather_erp gọi được cung cấp field đó.
+    # Quyết định lộ tool/đọc field mới vẫn TREO, chưa làm. Xoá dòng khỏi
+    # danh sách khi field đó có thật, KHÔNG xoá để né test.
+    ("sla_giao_hang", "get_sale_order_detail", "ngày giao dự kiến"),
+    ("chinh_sach_hoan_hang", "get_sale_order_detail", "ngày giao thực tế"),
+}
+
+
+def test_gather_cases_fixture_labels_match_real_tool_fields():
+    """Đối chiếu fixture với field THẬT tool trả về — chặn lớp lỗi "fixture
+    khẳng định khả năng tool không có" (gặp 2 lần: gather-erp-tool-fix,
+    sale-order-detail-dates). 2 vi phạm đã biết nằm trong _KNOWN_GAPS,
+    không bị chặn ở đây — xem comment tại đó."""
+    for topic, question, required_tools, required_facts, tool_fixtures in cases.GATHER_CASES:
+        for tool_name, fixture_text in tool_fixtures.items():
+            real_fields = _real_fields_for_tool(tool_name)
+            low = fixture_text.casefold()
+            for label, field_names in _DATE_STATUS_LABELS.items():
+                if label not in low:
+                    continue
+                if (topic, tool_name, label) in _KNOWN_GAPS:
+                    continue
+                assert set(field_names) & real_fields, (
+                    f"case {topic}: fixture của tool {tool_name!r} dùng nhãn "
+                    f"{label!r} nhưng tool không có field thật nào trong "
+                    f"{field_names} (field thật: {sorted(real_fields)})")
