@@ -66,19 +66,69 @@ Không lặp lại rủi ro đã học được.
    docstring mới (theo mẫu `test_get_sale_order_detail_description_mentions_dates`
    đã có).
 
-## Hệ quả lên contract test (`_KNOWN_GAPS`)
+## Sửa trước: lỗ hổng thật trong chính contract test vừa merge
 
-Contract test vừa merge (`test_gather_cases_fixture_labels_match_real_tool_fields`)
-kiểm tra field ở tầng CODE (tool có đọc field đó không), không kiểm tra
-GIÁ TRỊ (đơn cụ thể có dữ liệu hay không). Sau khi thêm 2 field, `get_sale_order_detail`
-sẽ có field khớp CẢ 2 nhãn còn lại trong `_DATE_STATUS_LABELS`
-("ngày giao dự kiến" → `commitment_date`/`effective_date`, "ngày giao
-thực tế" → `effective_date`/`date_done`) — nghĩa là cơ chế
-`assert used == _KNOWN_GAPS` (thêm ở final review của chính plan đó) sẽ
-TỰ BÁO LỖI, đòi xoá cả 2 dòng ngoại lệ khỏi `_KNOWN_GAPS`. Đây là bằng
-chứng sống, không cần đo thêm gì, rằng việc thêm field ở Task 1 đã đóng
-đúng khoảng trống mà contract test đo — nếu xoá cả 2 dòng mà test KHÔNG tự
-báo lỗi trước đó, nghĩa là có gì sai, phải điều tra trước khi xoá.
+**Đính chính (2026-08-02, phát hiện khi viết plan này):** đọc lại kỹ code
+đã merge (`backend/tests/jobs/test_eval_gather.py`,
+`test_gather_cases_fixture_labels_match_real_tool_fields`) cho thấy phần
+"Hệ quả tự nhiên" ở bản spec gốc là SAI. Logic thật:
+
+```python
+if (topic, tool_name, label) in _KNOWN_GAPS:
+    used.add((topic, tool_name, label))
+    continue          # ← thoát NGAY, KHÔNG bao giờ chạy assert bên dưới
+assert set(field_names) & real_fields, (...)
+```
+
+`continue` chặn TRƯỚC khi kiểm tra field thật — nghĩa là một khi mục nằm
+trong `_KNOWN_GAPS`, test KHÔNG BAO GIỜ biết field thật đã có hay chưa.
+Cơ chế `assert used == _KNOWN_GAPS` (finding Important #1, final review
+của chính plan đó) chỉ bắt được MỘT trong HAI kịch bản "cấu hình chết" mà
+nó tự nhận đã bắt cả hai:
+
+- Kịch bản "fixture đổi chữ, nhãn không còn khớp" → BẮT ĐÚNG (`used` thiếu
+  mục đó).
+- Kịch bản "gap đã được sửa, field thật đã có" → **KHÔNG bắt được** —
+  `continue` chặn trước khi biết field đã có hay chưa.
+
+Đây CHÍNH LÀ kịch bản plan này sẽ tạo ra: sau khi thêm
+`commitment_date`/`effective_date`, cả 2 dòng `_KNOWN_GAPS` sẽ ÂM THẦM
+TIẾP TỤC PASS, không tự báo lỗi như bản spec gốc khẳng định.
+
+**Sửa đúng** (Task đầu tiên của plan, TRƯỚC khi thêm field) — đảo logic:
+nếu mục nằm trong `_KNOWN_GAPS` mà field thật GIỜ ĐÃ CÓ, đó chính là lỗi
+đòi xoá mục, không phải im lặng bỏ qua:
+
+```python
+key = (topic, tool_name, label)
+ok = bool(set(field_names) & real_fields)
+if key in _KNOWN_GAPS:
+    used.add(key)
+    assert not ok, (
+        f"_KNOWN_GAPS có mục KHÔNG CÒN CẦN THIẾT: case {topic}, "
+        f"tool {tool_name!r}, nhãn {label!r} — field thật đã có "
+        f"({sorted(set(field_names) & real_fields)}), xoá mục "
+        f"này khỏi _KNOWN_GAPS.")
+    continue
+assert ok, (
+    f"case {topic}: fixture của tool {tool_name!r} dùng nhãn "
+    f"{label!r} nhưng tool không có field thật nào trong "
+    f"{field_names} (field thật: {sorted(real_fields)})")
+```
+
+Đã trace tay qua trạng thái HIỆN TẠI (trước khi thêm field): `ok=False`
+cho cả 2 mục → `assert not False` → qua, không hồi quy gì. Sau khi thêm
+field ở task sau: `ok=True` cho cả 2 → `assert not True` → FAIL đúng như
+kỳ vọng, chỉ đúng thông báo cần xoá mục nào.
+
+## Hệ quả lên contract test (sau khi sửa đúng ở trên)
+
+Sau khi sửa logic VÀ thêm 2 field, `get_sale_order_detail` sẽ có field
+khớp cả 2 nhãn còn lại trong `_DATE_STATUS_LABELS` — nghĩa là cơ chế vừa
+sửa sẽ TỰ BÁO LỖI đòi xoá cả 2 dòng ngoại lệ khỏi `_KNOWN_GAPS`. Đây là
+bằng chứng sống rằng việc thêm field đã đóng đúng khoảng trống mà contract
+test đo — nếu xoá cả 2 dòng mà test KHÔNG tự báo lỗi trước đó, nghĩa là có
+gì sai, phải điều tra trước khi xoá.
 
 Không đổi gì trong `backend/evals/cases.py` (`GATHER_CASES`) — fixture
 viết tay ĐÃ khẳng định các nhãn này từ trước (không phải mới), và
@@ -117,13 +167,18 @@ DỪNG LẠI, báo cáo BLOCKED — không đoán, không tự viết giá trị
 
 ## Xong nghĩa là
 
-1. `get_sale_order_detail` đọc thêm `commitment_date`/`effective_date`,
+1. Logic `_KNOWN_GAPS` trong contract test được sửa đúng — bắt được CẢ
+   hai kịch bản "cấu hình chết" (fixture đổi chữ VÀ gap đã được sửa),
+   xác nhận bằng cách trace tay/test cả trạng thái TRƯỚC (không hồi quy,
+   2 mục vẫn hợp lệ) lẫn SAU khi thêm field (assert mới phải fail đúng).
+2. `get_sale_order_detail` đọc thêm `commitment_date`/`effective_date`,
    xác nhận bằng unit test.
-2. Contract test tự báo lỗi đòi xoá cả 2 dòng `_KNOWN_GAPS` — xoá đúng
-   theo thông báo, `_KNOWN_GAPS` rỗng sau khi sửa.
-3. Chẩn đoán Odoo thật (đơn tra động, không phải S00042) xác nhận
+3. Contract test (đã sửa đúng ở điều 1) tự báo lỗi đòi xoá cả 2 dòng
+   `_KNOWN_GAPS` — xoá đúng theo thông báo, `_KNOWN_GAPS` rỗng sau khi
+   sửa.
+4. Chẩn đoán Odoo thật (đơn tra động, không phải S00042) xác nhận
    `effective_date` trả về đúng giá trị thật.
-4. `--set gather` đo lại, xác nhận vẫn 4/4 PASS (không hồi quy).
-5. Toàn bộ test 2 chế độ xanh.
-6. Không lộ tool mới, không sửa `GATHER_ERP_PROMPT`, không sửa
+5. `--set gather` đo lại, xác nhận vẫn 4/4 PASS (không hồi quy).
+6. Toàn bộ test 2 chế độ xanh.
+7. Không lộ tool mới, không sửa `GATHER_ERP_PROMPT`, không sửa
    `GATHER_CASES`.
