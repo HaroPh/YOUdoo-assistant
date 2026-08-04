@@ -516,16 +516,15 @@ MULTI_SOURCE_GATHER_CASES = [
      "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn thanh toán?",
      "30 ngày", "INV/2026/00020"),
     # Fixture ĐIỀU CHỈNH từ GATHER_CASES (cùng câu hỏi, cùng tool), KHÔNG
-    # chép nguyên văn: bản ở GATHER_CASES khẳng định "quá hạn N ngày", nhưng
-    # get_overdue_invoices (accounting.py:35-51) chỉ đọc/trả về _FIELDS —
-    # name, partner_id, invoice_date, invoice_date_due, amount_total,
-    # amount_residual, payment_state — KHÔNG có field số-ngày-quá-hạn nào;
-    # display thật là "{name} | {partner} | đến hạn {invoice_date_due} |
-    # còn {amount_residual}". Đây đúng "hạng lỗi thứ ba" đã nêu ở đầu file
-    # (fixture khẳng định năng lực tool không có). Lỗi tương tự VẪN CÒN
-    # nguyên trong GATHER_CASES — CỐ Ý chưa sửa ở đó, cùng lý do với ca
-    # get_product_price/"12%" đã ghi chú ở cuối GATHER_CASES: sửa sẽ đổi số
-    # đo của set `gather` và cần một lượt đo riêng để quy trách nhiệm.
+    # chép nguyên văn: get_overdue_invoices (accounting.py:35-51) chỉ
+    # đọc/trả về _FIELDS — name, partner_id, invoice_date, invoice_date_due,
+    # amount_total, amount_residual, payment_state — KHÔNG có field
+    # số-ngày-quá-hạn nào; display thật là "{name} | {partner} | đến hạn
+    # {invoice_date_due} | còn {amount_residual}". Đây đúng "hạng lỗi thứ
+    # ba" đã nêu ở đầu file (fixture khẳng định năng lực tool không có).
+    # Lỗi tương tự trong GATHER_CASES (từng CỐ Ý chưa sửa) đã được sửa ở
+    # plan 2026-08-04-gather-cases-overdue-invoices-fix — cả hai fixture
+    # nay khớp nhau và khớp format thật.
     # erp_fact là tuple 2 phương án, thừa kế nguyên do từ MULTI_SOURCE_CASES
     # (model trả lời đúng nhưng gọi khách hàng bằng TÊN thay vì lặp mã đơn).
     # Lưu ý: "S00050" KHÔNG có trong fixture — get_overdue_invoices trả hóa
@@ -669,19 +668,14 @@ GATHER_CASES = [
     # đơn CHỈ xuất hiện trong dữ liệu tool, đòi model phải đọc và đối chiếu
     # đúng dòng giữa nhiều dòng dữ liệu khác.
     #
-    # CẢNH BÁO CHƯA SỬA (phát hiện 2026-08-04, spec
-    # 2026-08-04-multi-source-gather-eval-design.md §7): fixture dưới đây
-    # khẳng định "quá hạn 32 ngày" / "quá hạn 20 ngày" (số ngày quá hạn),
-    # nhưng accounting.get_overdue_invoices (accounting.py:35-51) chỉ
-    # đọc/trả về _FIELDS (accounting.py:7-8) — name, partner_id,
-    # invoice_date, invoice_date_due, amount_total, amount_residual,
-    # payment_state — KHÔNG có field số-ngày-quá-hạn nào. Đúng "hạng lỗi thứ
-    # ba" (fixture khẳng định năng lực tool không có); defect y hệt đã được
-    # SỬA ở fixture tương ứng của MULTI_SOURCE_GATHER_CASES (xem comment ở
-    # cases.py:518-528). CỐ Ý chưa sửa ở đây: required_facts của ca này là
-    # ("INV/2026/00030",) — không chạm field "quá hạn N ngày" — sửa sẽ đổi
-    # số đo của set `gather` và cần một lượt đo riêng để quy trách nhiệm,
-    # cùng lý do với ca get_product_price/"12%" bên dưới.
+    # Fixture dưới đây đã được sửa khớp format thật của
+    # accounting.get_overdue_invoices (accounting.py:35-51, chỉ trả _FIELDS
+    # — accounting.py:7-8 — không có field số-ngày-quá-hạn nào). Trước đó
+    # fixture khẳng định "quá hạn N ngày" (hạng lỗi thứ ba, phát hiện ở
+    # spec 2026-08-04-multi-source-gather-eval-design.md §7) — đã sửa ở
+    # plan 2026-08-04-gather-cases-overdue-invoices-fix, đo thật xác nhận
+    # tool_recall/fact_coverage không đổi (required_facts của ca này chưa
+    # từng chạm field đó).
     ("chinh_sach_thanh_toan",
      "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có "
      "bị tạm dừng xử lý không?",
@@ -690,9 +684,9 @@ GATHER_CASES = [
      {"get_overdue_invoices":
       "2 hóa đơn quá hạn:\n"
       "  INV/2026/00030 | Gemini Furniture | đến hạn 30/06/2026 | "
-      "quá hạn 32 ngày | còn 4.200.000\n"
+      "còn 4.200.000\n"
       "  INV/2026/00031 | Wood Corner | đến hạn 05/07/2026 | "
-      "quá hạn 20 ngày | còn 1.000.000"}),
+      "còn 1.000.000"}),
     # bang_gia_chiet_khau — ca 3 tool nối chuỗi (find_customer → find_product
     # → get_product_price), đo tool_recall trên một chuỗi nhiều bước thay vì
     # một lượt gọi đơn.
