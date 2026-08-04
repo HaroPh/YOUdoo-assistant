@@ -438,6 +438,121 @@ MULTI_SOURCE_CASES = [
      "chiết khấu", "Desk Pad"),
 ]
 
+# ── multi_source_gather set (2026-08-04) ─────────────────────────────────────
+# (topic fixture, tool_fixtures, câu hỏi, dữ kiện TÀI LIỆU kỳ vọng, dữ kiện
+#  ERP kỳ vọng).
+#
+# PHẢN CHIẾU 1-1 MULTI_SOURCE_CASES: cùng topic, cùng question, cùng
+# doc_fact, cùng erp_fact, CÙNG THỨ TỰ (test chốt cứng ở
+# tests/jobs/test_eval_multi_source_gather.py). Khác biệt DUY NHẤT: phía ERP
+# đổi từ erp_block viết tay — thứ fuse_answer được NẠP SẴN — thành
+# tool_fixtures mà gather_erp THẬT phải tự đi lấy. Nhờ chỉ đổi đúng một
+# biến, chênh lệch số đo giữa hai set quy được về đúng một nguyên nhân.
+#
+# Vì sao set này tồn tại: eval_multi_source chưa từng gọi gather_erp, nên 4
+# plan liên tiếp sửa đúng vào năng lực thu thập ERP (2026-08-01 → 2026-08-02)
+# đều không làm both_source_coverage nhúc nhích. Xem
+# docs/superpowers/specs/2026-08-04-multi-source-gather-eval-design.md.
+#
+# tool_fixtures: dict {tool_name: text}, cùng cơ chế GATHER_CASES
+# (run_eval._stub_erp_tools — tool không có trong dict trả "Không có dữ liệu
+# liên quan."). KỶ LUẬT VIẾT: fixture phải mô phỏng đầu ra THẬT của tool đó,
+# chỉ dùng field hàm business-layer thật sự đọc. Contract test ở
+# tests/jobs/test_eval_gather.py quét CẢ danh sách này.
+MULTI_SOURCE_GATHER_CASES = [
+    # sla_giao_hang ← sla.docx
+    # get_sale_order_detail đọc: id, name, partner_id, amount_total, state,
+    # date_order, delivery_status, commitment_date, effective_date
+    # (sales.py:52-55) — mọi nhãn dưới đây ứng đúng một field trong đó.
+    ("sla_giao_hang",
+     {"get_sale_order_detail":
+      "Đơn S00042 | Azure Interior | Tổng 1.500.000\n"
+      "  trạng thái: sale | ngày xác nhận: 18/07/2026 | "
+      "ngày giao dự kiến: 20/07/2026 | ngày giao thực tế: 21/07/2026 | "
+      "trạng thái giao: full"},
+     "Đơn S00042 có đáp ứng SLA giao hàng không?", "3 ngày", "S00042"),
+    # list_late_deliveries đọc stock.picking: name, partner_id,
+    # scheduled_date, state (inventory.py:115-117). KHÔNG có ngày giao thực
+    # tế — dùng nhãn "hẹn" đúng như dòng display thật, không phải "ngày giao
+    # dự kiến" (nhãn đó thuộc về commitment_date của sale.order).
+    ("sla_giao_hang",
+     {"list_late_deliveries":
+      "1 phiếu trễ hạn:\n"
+      "  WH/OUT/00001 | Azure Interior | hẹn 18/07/2026 | assigned"},
+     "Phiếu WH/OUT/00001 có vi phạm SLA không?", "0,5%", "WH/OUT/00001"),
+    # chinh_sach_hoan_hang ← policy.docx
+    ("chinh_sach_hoan_hang",
+     {"get_sale_order_detail":
+      "Đơn S00042 | Azure Interior | Tổng 1.500.000\n"
+      "  trạng thái: done | ngày xác nhận: 10/07/2026 | "
+      "ngày giao thực tế: 15/07/2026 | trạng thái giao: full"},
+     "Đơn S00042 còn được hoàn hàng theo chính sách không?", "30 ngày",
+     "S00042"),
+    # list_invoices/get_overdue_invoices dùng chung accounting._FIELDS:
+    # name, partner_id, invoice_date, invoice_date_due, amount_total,
+    # amount_residual, payment_state (accounting.py:7-8).
+    ("chinh_sach_hoan_hang",
+     {"list_invoices":
+      "1 hóa đơn:\n"
+      "  INV/2026/00017 | Azure Interior | ngày hóa đơn 12/07/2026 | "
+      "đến hạn 11/08/2026 | 1.500.000 | còn 0 | paid"},
+     "Hóa đơn INV/2026/00017 có được hoàn tiền không?", "5 đến 10 ngày",
+     "INV/2026/00017"),
+    # chinh_sach_thanh_toan ← payment_policy.docx
+    #
+    # KHÁC BIỆT CÓ CHỦ ĐÍCH so với erp_block của MULTI_SOURCE_CASES (spec
+    # §4.2): erp_block cũ chỉ nêu "xuất ngày 01/07/2026", buộc model tự cộng
+    # 30 ngày. list_invoices THẬT luôn trả kèm invoice_date_due, nên fixture
+    # này có sẵn ngày đến hạn và ca này DỄ HƠN ca tương ứng bên
+    # MULTI_SOURCE_CASES. Không phải làm nhẹ đề — đó là tính chất thật của
+    # pipeline thật. Đừng đọc chênh lệch số đo giữa hai set ở ca này như
+    # chênh lệch chất lượng model.
+    ("chinh_sach_thanh_toan",
+     {"list_invoices":
+      "1 hóa đơn:\n"
+      "  INV/2026/00020 | Wood Corner | ngày hóa đơn 01/07/2026 | "
+      "đến hạn 31/07/2026 | 2.000.000 | còn 2.000.000 | not_paid"},
+     "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn thanh toán?",
+     "30 ngày", "INV/2026/00020"),
+    # Fixture lấy NGUYÊN VĂN từ GATHER_CASES (cùng câu hỏi, cùng tool) — hai
+    # bộ đo kể cùng một câu chuyện về cùng dữ liệu.
+    # erp_fact là tuple 2 phương án, thừa kế nguyên do từ MULTI_SOURCE_CASES
+    # (model trả lời đúng nhưng gọi khách hàng bằng TÊN thay vì lặp mã đơn).
+    # Lưu ý: "S00050" KHÔNG có trong fixture — get_overdue_invoices trả hóa
+    # đơn, không trả mã đơn bán. Mã đó đến từ chính câu hỏi; đây là ca duy
+    # nhất khiến eval_multi_source_gather phải truyền
+    # allowed_extra_text=question (spec §5).
+    ("chinh_sach_thanh_toan",
+     {"get_overdue_invoices":
+      "2 hóa đơn quá hạn:\n"
+      "  INV/2026/00030 | Gemini Furniture | đến hạn 30/06/2026 | "
+      "quá hạn 32 ngày | còn 4.200.000\n"
+      "  INV/2026/00031 | Wood Corner | đến hạn 05/07/2026 | "
+      "quá hạn 20 ngày | còn 1.000.000"},
+     "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có "
+     "bị tạm dừng xử lý không?",
+     "tạm dừng xử lý", ("S00050", "Gemini Furniture")),
+    # bang_gia_chiet_khau ← discount_policy.docx
+    #
+    # get_product_price THẬT chỉ đọc name + list_price (sales.py:81-82) và
+    # docstring nói rõ nó KHÔNG áp pricelist/chiết khấu (cần ORM method mà
+    # gateway read-only không cho phép). Fixture dưới đây viết đúng như vậy:
+    # ERP cấp giá niêm yết + khách hàng, phần trăm chiết khấu đến từ TÀI
+    # LIỆU. Đây là phân công nguồn đúng cho một câu hỏi 2 nguồn.
+    ("bang_gia_chiet_khau",
+     {"find_customer": "Tìm thấy 1 khách hàng: Azure Interior (ID 42)",
+      "find_product": "Tìm thấy 1 sản phẩm: Large Cabinet (ID 108)",
+      "get_product_price": "Giá Large Cabinet: 2.400.000 (SL 50)."},
+     "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",
+     "chiết khấu", "Azure Interior"),
+    ("bang_gia_chiet_khau",
+     {"find_customer": "Tìm thấy 1 khách hàng: Azure Interior (ID 42)",
+      "find_product": "Tìm thấy 1 sản phẩm: Desk Pad (ID 55)",
+      "get_product_price": "Giá Desk Pad: 90.000 (SL 2)."},
+     "Đơn 2 Desk Pad của Azure Interior có được chiết khấu không?",
+     "chiết khấu", "Desk Pad"),
+]
+
 # ── SOP_SELECT_CASES ────────────────────────────────────────────────────────
 # (câu tiếng Việt, ĐÍCH ĐỊNH TUYẾN CUỐI kỳ vọng).
 #
@@ -514,17 +629,12 @@ GATHER_CASES = [
     # list_sale_orders đã bị bỏ hẳn (chính nó là nguồn gây lỗ hổng tra cứu
     # trung gian — xem docs/superpowers/specs/2026-08-02-sale-order-detail-dates-design.md).
     #
-    # CẢNH BÁO (fix wave sau final review, 2026-08-02): "18/07/2026" (ngày
-    # xác nhận) và "20/07/2026" (ngày giao dự kiến) trong tool_fixtures bên
-    # dưới là VIẾT TAY. get_sale_order_detail (sales.py:49-69) chỉ đọc
-    # date_order (ngày xác nhận đơn) và delivery_status (MỘT ENUM trạng
-    # thái, không phải ngày) — KHÔNG có field "ngày giao dự kiến" nào.
-    # "20/07/2026" hiện KHÔNG có tool nào gather_erp gọi được thật sự trả
-    # về (không phải commitment_date/effective_date — 2 field đó không
-    # được đọc ở đâu trong backend/src/erp_query/). Đừng hiểu nhầm chuỗi
-    # này là khả năng thật đã kiểm chứng — xem
-    # docs/superpowers/plans/2026-08-02-sale-order-detail-dates-report.md
-    # (Task 2 Bước 10) để biết chi tiết và hướng sửa khả dĩ (chưa làm).
+    # Nhãn ngày trong tool_fixtures dưới đây đã được đối chiếu với field
+    # THẬT: get_sale_order_detail đọc date_order ("ngày xác nhận") và
+    # commitment_date ("ngày giao dự kiến") — bổ sung ở plan
+    # sale-order-effective-dates (2026-08-02). Cảnh báo cũ tại đây (nói
+    # không tool nào trả về được ngày giao dự kiến) đã HẾT HIỆU LỰC từ lúc
+    # đó; contract test test_eval_gather.py canh việc này tự động.
     ("sla_giao_hang", "Đơn S00042 có đáp ứng SLA giao hàng không?",
      ("get_sale_order_detail",),
      ("18/07/2026", "20/07/2026"),
@@ -533,13 +643,9 @@ GATHER_CASES = [
       "ngày xác nhận: 18/07/2026 | ngày giao dự kiến: 20/07/2026"}),
     # chinh_sach_hoan_hang — cùng lý do sửa như sla_giao_hang ở trên.
     #
-    # CẢNH BÁO (fix wave sau final review, 2026-08-02): "15/07/2026" (ngày
-    # giao thực tế) trong tool_fixtures bên dưới là VIẾT TAY. Cùng lý do
-    # như case sla_giao_hang ở trên: get_sale_order_detail không có field
-    # nào mang nghĩa "ngày giao thực tế" — chỉ date_order/delivery_status.
-    # KHÔNG tool nào gather_erp gọi được thật sự trả về được ngày này. Xem
-    # docs/superpowers/plans/2026-08-02-sale-order-detail-dates-report.md
-    # (Task 2 Bước 10).
+    # "ngày giao thực tế" ứng field THẬT effective_date của
+    # get_sale_order_detail (thêm ở plan sale-order-effective-dates,
+    # 2026-08-02). Cảnh báo cũ tại đây đã hết hiệu lực.
     ("chinh_sach_hoan_hang", "Đơn S00042 còn được hoàn hàng theo chính sách không?",
      ("get_sale_order_detail",),
      ("15/07/2026",),
@@ -566,6 +672,17 @@ GATHER_CASES = [
     # bang_gia_chiet_khau — ca 3 tool nối chuỗi (find_customer → find_product
     # → get_product_price), đo tool_recall trên một chuỗi nhiều bước thay vì
     # một lượt gọi đơn.
+    #
+    # CẢNH BÁO CHƯA SỬA (phát hiện 2026-08-04, spec
+    # 2026-08-04-multi-source-gather-eval-design.md §7): fixture
+    # get_product_price dưới đây khẳng định "đã áp chiết khấu số lượng 12%",
+    # nhưng sales.get_product_price (sales.py:73-90) chỉ đọc list_price và
+    # docstring nói rõ nó KHÔNG áp pricelist/chiết khấu — pricelist cần ORM
+    # method mà gateway read-only không cho phép. Đây là đúng "hạng lỗi thứ
+    # ba" (fixture khẳng định năng lực tool không có), ở một tool contract
+    # test chưa phủ (nhãn hiện chỉ về ngày/trạng thái, không về giá).
+    # CỐ Ý chưa sửa: required_facts của ca này là ("12%",), sửa sẽ đổi số đo
+    # của set `gather` và cần một lượt đo riêng để quy trách nhiệm.
     ("bang_gia_chiet_khau", "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",
      ("find_customer", "find_product", "get_product_price"),
      ("12%",),
