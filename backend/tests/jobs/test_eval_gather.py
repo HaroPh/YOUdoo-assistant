@@ -252,10 +252,11 @@ def test_set_choices_includes_gather():
     assert args.set == "gather"
 
 
-# ── Contract test: fixture GATHER_CASES đối chiếu field THẬT của tool ──────
-# Lớp lỗi "fixture khẳng định khả năng tool không có thật" đã tái diễn 2
-# lần liên tiếp (gather-erp-tool-fix 2026-08-01, sale-order-detail-dates
-# 2026-08-02) — 5 test tự-nhất-quán phía trên chỉ kiểm fixture KHÔNG tự
+# ── Contract test: fixture GATHER_CASES & MULTI_SOURCE_GATHER_CASES đối
+# chiếu field THẬT của tool ─────────────────────────────────────────────
+# Lớp lỗi "fixture khẳng định khả năng tool không có thật" đã gặp 4 lần
+# (gather-erp-tool-fix, sale-order-detail-dates, và 2 lần trong chính hạ
+# tầng test này) — 5 test tự-nhất-quán phía trên chỉ kiểm fixture KHÔNG tự
 # mâu thuẫn, không kiểm fixture có khớp thực tế tool hay không. Xem
 # docs/superpowers/specs/2026-08-02-gather-cases-contract-test-design.md.
 

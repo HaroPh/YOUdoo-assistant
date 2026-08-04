@@ -99,6 +99,17 @@ cờ khớp cấu trúc.
   của ca đó là `("12%",)` — sửa fixture sẽ đổi số đo của set `gather` (khác
   set đang đo trong plan này) và cần một lượt đo riêng để quy trách nhiệm
   đúng nguyên nhân, tránh trộn 2 thay đổi vào một lần đo.
+- **Fixture `get_overdue_invoices` trong `GATHER_CASES`**
+  (`backend/evals/cases.py`, ca `chinh_sach_thanh_toan`, dòng ~671-681):
+  khẳng định `"quá hạn 32 ngày"` / `"quá hạn 20 ngày"` (số ngày quá hạn),
+  nhưng `accounting.get_overdue_invoices` (accounting.py:35-51) chỉ
+  đọc/trả về `_FIELDS` (accounting.py:7-8) — không có field số-ngày-quá-hạn
+  nào. Cùng "hạng lỗi thứ ba"; defect y hệt đã được sửa ở fixture tương ứng
+  của `MULTI_SOURCE_GATHER_CASES` (cases.py:518-528) nhưng CỐ Ý chưa sửa ở
+  `GATHER_CASES`: `required_facts` của ca đó là `("INV/2026/00030",)` —
+  không chạm field bị sai — sửa sẽ đổi số đo của set `gather` và cần một
+  lượt đo riêng để quy trách nhiệm, cùng lý do với ca `get_product_price`
+  ở trên.
 - **Ca ngày-tháng cần suy luận số học** (`MULTI_SOURCE_DERIVED_DIGITS`,
   cases.py) — giới hạn scanner đã biết từ trước plan này, không mở rộng
   thêm trong Task 4 dù §3 ở trên cho thấy giới hạn tương tự lại xuất hiện ở

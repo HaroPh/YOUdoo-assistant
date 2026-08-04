@@ -457,9 +457,9 @@ MULTI_SOURCE_CASES = [
 # tool_fixtures: dict {tool_name: text}, cùng cơ chế GATHER_CASES
 # (run_eval._stub_erp_tools — tool không có trong dict trả "Không có dữ liệu
 # liên quan."). KỶ LUẬT VIẾT: fixture phải mô phỏng đầu ra THẬT của tool đó,
-# chỉ dùng field hàm business-layer thật sự đọc. Task 4 của plan này sẽ MỞ
-# RỘNG contract test ở tests/jobs/test_eval_gather.py để quét CẢ danh sách
-# này (CHƯA làm ở commit này — hiện test đó mới chỉ quét GATHER_CASES).
+# chỉ dùng field hàm business-layer thật sự đọc. Contract test ở
+# tests/jobs/test_eval_gather.py (test_fixture_labels_match_real_tool_fields,
+# qua _all_fixture_cases()) quét CẢ danh sách này lẫn GATHER_CASES.
 MULTI_SOURCE_GATHER_CASES = [
     # sla_giao_hang ← sla.docx
     # get_sale_order_detail đọc: id, name, partner_id, amount_total, state,
@@ -668,6 +668,20 @@ GATHER_CASES = [
     # hỏi, model chép lại câu hỏi là đủ đậu, không đo được gì thật). Mã hoá
     # đơn CHỈ xuất hiện trong dữ liệu tool, đòi model phải đọc và đối chiếu
     # đúng dòng giữa nhiều dòng dữ liệu khác.
+    #
+    # CẢNH BÁO CHƯA SỬA (phát hiện 2026-08-04, spec
+    # 2026-08-04-multi-source-gather-eval-design.md §7): fixture dưới đây
+    # khẳng định "quá hạn 32 ngày" / "quá hạn 20 ngày" (số ngày quá hạn),
+    # nhưng accounting.get_overdue_invoices (accounting.py:35-51) chỉ
+    # đọc/trả về _FIELDS (accounting.py:7-8) — name, partner_id,
+    # invoice_date, invoice_date_due, amount_total, amount_residual,
+    # payment_state — KHÔNG có field số-ngày-quá-hạn nào. Đúng "hạng lỗi thứ
+    # ba" (fixture khẳng định năng lực tool không có); defect y hệt đã được
+    # SỬA ở fixture tương ứng của MULTI_SOURCE_GATHER_CASES (xem comment ở
+    # cases.py:518-528). CỐ Ý chưa sửa ở đây: required_facts của ca này là
+    # ("INV/2026/00030",) — không chạm field "quá hạn N ngày" — sửa sẽ đổi
+    # số đo của set `gather` và cần một lượt đo riêng để quy trách nhiệm,
+    # cùng lý do với ca get_product_price/"12%" bên dưới.
     ("chinh_sach_thanh_toan",
      "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có "
      "bị tạm dừng xử lý không?",
