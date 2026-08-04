@@ -293,13 +293,18 @@ Không thêm nhánh lỗi nào. Không đổi hành vi kill-switch `skills_enabl
 
 ## §5. Kiểm chứng
 
-### 5.1 Bằng chứng CHÍNH — test đơn vị hiện có, assert không đổi
+### 5.1 Bằng chứng CHÍNH — test đơn vị hiện có, giá trị kỳ vọng không đổi
 
-**28 test** của tầng này (§1.2) chạy lại với **nội dung assert không đổi một
-ký tự**, chỉ đổi dòng import. Đây là điều kiện quyết định:
+**28 test** của tầng này (§1.2) chạy lại với **giá trị kỳ vọng không đổi một
+ký tự**. Chỉ được đổi *tên symbol* — trong dòng `import` và trong lời gọi hàm,
+kể cả khi lời gọi nằm bên trong một dòng `assert`
+(`_parse_router_output(` → `parse_proposal(`, `_route_by_intent(` →
+`decide_route(`, `_looks_like_question(` → `looks_like_question(`). Vế phải
+của phép so sánh, chuỗi input, và mọi giá trị kỳ vọng phải giữ nguyên. Đây là
+điều kiện quyết định:
 
-> **Nếu một assert phải sửa nội dung → đã đổi hành vi → DỪNG, báo cáo, không
-> tự sửa assert cho khớp.**
+> **Nếu một giá trị kỳ vọng phải sửa mới xanh → đã đổi hành vi → DỪNG, báo
+> cáo, không tự sửa cho khớp.**
 
 Cộng toàn bộ suite unit-only: `pytest -m "not integration and not live"`.
 Plan phải **chụp baseline TRƯỚC khi sửa dòng đầu tiên** (số passed/skipped
@@ -358,8 +363,8 @@ lệch — nếu lệch, đối chiếu lại §5.1 trước.
 3. Tên node graph vẫn là `"intent_router"`.
 4. 5 import site đã sửa; 8 chỗ comment ở §3.2 đã sửa; không file nào trong
    `docs/superpowers/specs/` bị đụng.
-5. 28 test cũ xanh với **assert không đổi nội dung**; suite unit-only không
-   tăng số fail so với baseline chụp ở đầu plan.
+5. 28 test cũ xanh với **giá trị kỳ vọng không đổi** (chỉ đổi tên symbol);
+   suite unit-only không tăng số fail so với baseline chụp ở đầu plan.
 6. Test mới ở §5.3 xanh.
 7. Một lượt `--set sop_select` đã chạy, số ghi vào report kèm ghi chú giới
    hạn ở §5.4.

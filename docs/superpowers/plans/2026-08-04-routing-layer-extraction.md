@@ -23,9 +23,13 @@ nguyên `prompts.py`; `intent_targets` + `add_conditional_edges` ở nguyên
   Postgres của các hội thoại đang park ở `interrupt()` chứa tên node — đổi
   tên làm hỏng resume. Cũng bị `test_skill_nodes_reachable_only_from_intent_router`
   (`tests/agents/test_graph_build.py:327`) assert trực tiếp.
-- **KHÔNG sửa nội dung assert của test cũ.** Chỉ được đổi dòng `import`.
-  Nếu một assert phải sửa nội dung → đã đổi hành vi → **DỪNG, báo cáo,
-  không tự sửa assert cho khớp**.
+- **KHÔNG sửa GIÁ TRỊ KỲ VỌNG của test cũ.** Được phép — và bắt buộc — đổi
+  *tên symbol* trong dòng `import` và trong lời gọi hàm (`_parse_router_output(`
+  → `parse_proposal(`, `_route_by_intent(` → `decide_route(`,
+  `_looks_like_question(` → `looks_like_question(`), kể cả khi lời gọi nằm bên
+  trong một dòng `assert`. KHÔNG được đổi vế phải của phép so sánh, chuỗi
+  input, hay bất kỳ giá trị kỳ vọng nào. Nếu một giá trị kỳ vọng phải sửa mới
+  xanh → đã đổi hành vi → **DỪNG, báo cáo, không tự sửa cho khớp**.
 - **KHÔNG để lại shim re-export** ở `nodes.py` hay `graph.py`. Import cũ phải
   chết hẳn để không chỗ nào lặng lẽ dùng đường cũ.
 - **KHÔNG sửa file trong `docs/superpowers/specs/`** — đó là hồ sơ lịch sử
@@ -277,9 +281,9 @@ make_intent_router_node` ở dòng 24, 32, 40, 48, 57, 66, 75) — đổi cả 7
 Và **10 chỗ gọi** `_parse_router_output(` (dòng 82, 87, 88, 94, 99, 105, 106,
 110, 111, 115) — đổi tên hàm thành `parse_proposal(`.
 
-**KHÔNG đổi nội dung bất kỳ assert nào.** `parse_proposal` trả `RouteProposal`
-là NamedTuple nên `== ("erp_write", "giao-hang")` vẫn đúng — đó chính là điều
-Step 7 kiểm.
+**Chỉ đổi TÊN HÀM được gọi; KHÔNG đổi giá trị kỳ vọng.** `parse_proposal` trả
+`RouteProposal` là NamedTuple nên vế phải `== ("erp_write", "giao-hang")` vẫn
+đúng nguyên văn — đó chính là điều Step 7 kiểm.
 
 - [ ] **Step 7: Viết test MỚI cho ràng buộc NamedTuple**
 
@@ -305,7 +309,7 @@ def test_route_proposal_unpacks_as_tuple():
 Run: `cd D:/Youdoo/backend && PYTHONIOENCODING=utf-8 PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/agents/test_intent_router.py -q`
 Expected: **20 passed** (19 cũ + 1 mới ở Step 7).
 
-Nếu một test cũ đỏ: **KHÔNG sửa assert.** Xem lại Step 2/3 đã chép đúng
+Nếu một test cũ đỏ: **KHÔNG sửa giá trị kỳ vọng cho khớp.** Xem lại Step 2/3 đã chép đúng
 từng dòng chưa, rồi báo cáo nếu vẫn đỏ.
 
 - [ ] **Step 9: Chạy suite unit-only, đối chiếu baseline Step 1**
@@ -530,7 +534,7 @@ Và đổi tên ở chỗ **gọi**: `_looks_like_question(` → `looks_like_que
 (dòng 231, 245); `_route_by_intent(` → `decide_route(` (dòng 264, 266, 273,
 280, 282, 288, 289, 290, 296, 304).
 
-**KHÔNG đổi nội dung assert.**
+**Chỉ đổi tên symbol; KHÔNG đổi giá trị kỳ vọng của assert.**
 
 - [ ] **Step 6: Sửa `test_fanout_graph.py` — import + tên test + docstring**
 
@@ -764,7 +768,7 @@ git commit -m "docs(routing): sửa 8 file comment trỏ tên cũ + report đo t
 | §3.2 8 file comment lỗi thời | T3 Step 2-4; chứng minh ở T3 Step 5 |
 | §3.3 không sửa spec cũ | T3 Step 5 (git status rỗng) |
 | §4 error handling không đổi | T1 Step 2 chép nguyên `parse_proposal` |
-| §5.1 bằng chứng chính: assert không đổi | Global Constraints; T1 Step 8-9, T2 Step 7-8, T3 Step 6 |
+| §5.1 bằng chứng chính: giá trị kỳ vọng không đổi (chỉ đổi tên symbol) | Global Constraints; T1 Step 8-9, T2 Step 7-8, T3 Step 6 |
 | §5.2 bất biến cấu trúc vẫn xanh | T2 Step 7 |
 | §5.3 test mới cho `RouteProposal` | T1 Step 7 |
 | §5.4 `sop_select` là xác nhận, kèm ghi giới hạn | T3 Step 7-8 |
