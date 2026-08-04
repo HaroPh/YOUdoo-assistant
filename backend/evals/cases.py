@@ -515,8 +515,8 @@ MULTI_SOURCE_GATHER_CASES = [
       "đến hạn 31/07/2026 | 2.000.000 | còn 2.000.000 | not_paid"},
      "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn thanh toán?",
      "30 ngày", "INV/2026/00020"),
-    # Fixture ĐIỀU CHỈNH từ GATHER_CASES (cùng câu hỏi, cùng tool), KHÔNG
-    # chép nguyên văn: get_overdue_invoices (accounting.py:35-51) chỉ
+    # Fixture GIỐNG HỆT bản ở GATHER_CASES (trước 2026-08-04 là bản ĐIỀU
+    # CHỈNH vì bản kia còn sai). get_overdue_invoices (accounting.py:35-51) chỉ
     # đọc/trả về _FIELDS — name, partner_id, invoice_date, invoice_date_due,
     # amount_total, amount_residual, payment_state — KHÔNG có field
     # số-ngày-quá-hạn nào; display thật là "{name} | {partner} | đến hạn

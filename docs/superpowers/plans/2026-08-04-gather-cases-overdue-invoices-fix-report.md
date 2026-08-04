@@ -1,7 +1,7 @@
 # Báo cáo — Task 1: sửa fixture `get_overdue_invoices` trong `GATHER_CASES` + dọn comment + đo thật
 
 Plan: `docs/superpowers/plans/2026-08-04-gather-cases-overdue-invoices-fix.md`
-Spec: `docs/superpowers/specs/2026-08-04-gather-cases-overdue-invoices-fix.md`
+Spec: `docs/superpowers/specs/2026-08-04-gather-cases-overdue-invoices-fix-design.md`
 
 ## 1. Tóm tắt thay đổi
 
@@ -92,8 +92,14 @@ Diff đầy đủ:
      # một lượt gọi đơn.
 ```
 
-Fixture text sau khi sửa khớp byte-for-byte với format thật tạo ra bởi
-`accounting.get_overdue_invoices` (accounting.py:47-49):
+Fixture text sau khi sửa khớp cấu trúc field/nhãn với format thật tạo ra bởi
+`accounting.get_overdue_invoices` (accounting.py:47-49) — KHÔNG phải khớp
+byte-for-byte: formatter thật dùng `{:,.0f}` (dấu phẩy ngăn nghìn, ví dụ
+"4,200,000") và `invoice_date_due` thô từ Odoo là ISO (ví dụ "2026-06-30"),
+trong khi fixture (đúng quy ước hiển thị đã dùng xuyên suốt file này) viết
+dấu chấm ngăn nghìn ("4.200.000") và ngày dd/mm/yyyy ("30/06/2026"). Khác
+biệt rendering này là chủ ý của file, không phải sai lệch so với tool thật —
+cái khớp là CẤU TRÚC field/nhãn, đúng thứ mà "hạng lỗi thứ ba" quan tâm:
 
 ```python
 body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} "
@@ -189,13 +195,56 @@ Log JSON đầy đủ
 }
 ```
 
-**So sánh với baseline SP-2c** (`docs/superpowers/specs/2026-08-01-sp2c-gather-eval-design.md`,
-4 ca, `tool_recall=1.000 fact_coverage=1.000`): **khớp tuyệt đối, không
-hồi quy**. `fails: []` — không có ca nào fail, bao gồm cả ca
-`chinh_sach_thanh_toan` vừa sửa fixture. Đúng như lập luận trước ở spec
-§2/§5: `required_facts` của ca đó là `("INV/2026/00030",)` — chưa từng
-chạm chuỗi `"quá hạn N ngày"` bị xoá, nên xoá chuỗi đó khỏi fixture text
-không ảnh hưởng tới điểm số.
+**So sánh với baseline gần nhất và sạch nhất** — `docs/superpowers/plans/2026-08-02-sale-order-effective-dates-report.md`
+(§"Task 3 Bước 5", `tool_recall=1.0 fact_coverage=1.0 fails=[]`, log
+`eval-gate-20260802T171038.json`): **khớp tuyệt đối, không hồi quy**. Đây là
+baseline chính dùng để so sánh — đo cùng điều kiện (cùng 4 ca `--set
+gather`, cùng job `eval-gate`), gần đây hơn (2026-08-02) và không bị bất kỳ
+đính chính/disclaim nào.
+
+Baseline SP-2c gốc (`docs/superpowers/specs/2026-08-01-sp2c-gather-eval-design.md`,
+4 ca, `tool_recall=1.000 fact_coverage=1.000`, log
+`eval-gate-20260801T163040.json`) cho cùng con số nhưng chỉ giữ để tham
+khảo lịch sử — báo cáo của chính lượt đo đó
+(`docs/superpowers/specs/2026-08-01-sp2c-gather-eval-report.md`, dòng
+23-41 và 81-96) đã tự đính chính 2 vấn đề: (1) `required_fact` gốc của ca
+`chinh_sach_thanh_toan` khi đó là "32 ngày" — rò rỉ nguyên văn từ câu hỏi,
+sau mới đổi thành `INV/2026/00030`; (2) 2/4 fixture (`sla_giao_hang`,
+`chinh_sach_hoan_hang`) chạy trên field ngày gán sai cho
+`get_sale_order_detail`, sửa ở plan sau. Lượt đo đó chưa từng chạy lại sau
+2 đính chính này, nên dùng nó làm baseline chính cho phép so sánh
+"không hồi quy" ở đây là chưa đủ chắc — baseline 2026-08-02 ở trên sạch hơn
+và gần điều kiện đo hiện tại hơn.
+
+Cả hai baseline đều cho `tool_recall=1.0`/`fact_coverage=1.0` giống lượt đo
+sau khi sửa ở đây, nên kết luận "không hồi quy" không đổi dù dùng baseline
+nào — chỉ khác độ tin cậy của điểm so sánh. `fails: []` — không có ca nào
+fail, bao gồm cả ca `chinh_sach_thanh_toan` vừa sửa fixture. Đúng như lập
+luận trước ở spec §2/§5: `required_facts` của ca đó là `("INV/2026/00030",)`
+— chưa từng chạm chuỗi `"quá hạn N ngày"` bị xoá, nên xoá chuỗi đó khỏi
+fixture text không ảnh hưởng tới điểm số.
+
+**Rủi ro stochastic chưa loại trừ (ghi nhận, không phải bug ở lượt đo
+này):** trước khi sửa, câu hỏi của ca `chinh_sach_thanh_toan`/
+`get_overdue_invoices` đã có sẵn nguyên văn "quá hạn thanh toán 32 ngày",
+và TRƯỚC bản sửa của plan này, cùng chuỗi "32 ngày" đó cũng có mặt trong
+fixture tool — nếu model lặp lại cụm này, bước chống-bịa
+`verify_erp_grounding` (gọi từ `make_gather_erp_node`,
+`backend/src/agents/fanout.py:139`) sẽ thấy nó "có căn cứ" trong tool
+output. Sau khi sửa ở đây, chuỗi "32 ngày" CHỈ còn trong câu hỏi, không còn
+trong tool output. Nếu một câu trả lời của model gán cụm "32 ngày" cho dữ
+liệu tool (thay vì chỉ lặp lại câu hỏi), LLM judge trong
+`verify_erp_grounding` có thể phán câu trả lời đó KHÔNG có căn cứ và thay
+TOÀN BỘ chuỗi `erp_facts` bằng thông điệp fallback — xoá luôn required
+fact `INV/2026/00030`, khiến `fact_coverage` fail cho ca này. Đây không
+phải suy đoán: `docs/superpowers/specs/2026-08-01-sp2c-gather-eval-report.md`
+(dòng 55-72) ghi lại đúng cơ chế này gây fail thật ở nhánh `policy`. Lượt
+đo `--set gather` ở trên (§3) ra `fails: []` sạch — bằng chứng thật, nhưng
+là **n=1** trên một pipeline có LLM judge trong vòng lặp, không phải bảo
+đảm chống fail gián đoạn trong tương lai. Nếu ca
+`chinh_sach_thanh_toan`/`get_overdue_invoices` bắt đầu fail không ổn định ở
+các lượt `--set gather` sau này, nên kiểm tra tương tác verify-chống-bịa
+này trước khi kết luận đó là hồi quy chất lượng model.
 
 ## 4. Xác nhận không còn comment `CẢNH BÁO CHƯA SỬA` nào trỏ tới defect này
 
@@ -217,7 +266,7 @@ nhận đã sửa (§1 ở trên) — không còn tồn tại.
 
 | Tiêu chí | Kết quả |
 |---|---|
-| Fixture text khớp byte-for-byte format thật `get_overdue_invoices` | ĐẠT — xem §1 |
+| Fixture text khớp cấu trúc field/nhãn của format thật `get_overdue_invoices` | ĐẠT — xem §1 |
 | `required_facts`/`required_tools`/`question` không đổi | ĐẠT — diff §1 chỉ chạm fixture text + comment |
 | Test `test_eval_gather.py` + `test_eval_multi_source_gather.py` PASS, cùng số lượng trước/sau | ĐẠT — 40 passed cả hai lượt |
 | Suite unit-only đầy đủ PASS, khớp baseline | ĐẠT — 1120 passed, 4 skipped, 43 deselected |
