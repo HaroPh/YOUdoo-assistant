@@ -10,59 +10,14 @@ from .nodes import (
     make_rag_node,
     make_respond_unknown_node,
 )
-from .routing import make_intent_router_node
+from .routing import make_intent_router_node, decide_route
 from .fanout import (make_fuse_answer_node, make_gather_docs_node,
                      make_gather_erp_node, make_mixed_node)
 from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS
 from .continuation import make_write_continuation_node, _route_after_continuation
 from .models import llms_from_single
-from . import skill_gate
-from .skill_gate import _fold
 from .skill_loader import build_skill_node, load_skill_specs, render_worker_block
 from .agentic_context_sync import make_agentic_context_sync_node
-
-
-_QUESTION_MARKERS = (
-    "?", "la gi", "nghia la", "nhu the nao", "the nao", "tai sao",
-    "giai thich", "huong dan", "kiem tra", "tinh trang", "trang thai",
-    "duoc khong",
-)
-
-
-def _looks_like_question(folded: str) -> bool:
-    return any(m in folded for m in _QUESTION_MARKERS)
-
-
-def _route_by_intent(state: ERPAgentState) -> str:
-    """Quyết định cuối là TẤT ĐỊNH. Đề cử SOP (state["sop"]) chỉ là một trong
-    hai điều kiện; điều kiện kia — câu KHÔNG mang dấu hiệu câu hỏi — là lớp
-    phủ quyết không phụ thuộc phân loại LLM.
-
-    Vì sao lớp phủ quyết này CỐ Ý tất định và KHÔNG được tháo ra: bản đầu (chỉ
-    AND với intent=="erp_write") đóng đúng ca hijack gốc ("quy trình nhập kho
-    là gì?" → skill thay vì RAG) nhưng live-verify 2026-07-16 lộ ra chiều lỗi
-    ngược — router phân loại "mixed"/"erp_read" cho chính 2 câu lệnh dùng
-    nguyên văn ngôn ngữ quy trình ("quy trình nhập kho cho đơn mua P00021",
-    "nhập kho theo quy trình cho đơn mua P00021"), khiến lệnh thật bị lỡ route
-    3/3 LẦN THỬ — vì router chưa từng được tune để phân biệt "hỏi VỀ SOP" khỏi
-    "thực thi SOP cho 1 đơn cụ thể" (đọc rất giống định nghĩa "mixed" trong
-    prompts.py dù ý người dùng là hành động). Chuyển gate sang tất định (đánh
-    dấu câu hỏi) giữ nguyên bất biến an toàn (câu hỏi không hijack) mà không
-    phụ thuộc phân loại LLM cho quyết định này. Model to hơn CÓ THỂ đủ — nhưng
-    "có thể" không phải cơ sở để tháo một lớp phòng thủ đã chứng minh giá trị,
-    khi giữ nó tốn 10 dòng.
-
-    Lưới đỡ cuối không phải lớp này: router sai chiều nào thì confirm-gate tại
-    tool boundary vẫn chặn mọi write chưa được duyệt."""
-    intent = state.get("intent") or "unknown"
-    sop = state.get("sop")
-    if sop and skill_gate.skills_enabled():
-        last_human = next((m.content for m in reversed(state["messages"])
-                           if m.type == "human"), "")
-        folded = _fold(last_human)
-        if intent == "erp_write" or not _looks_like_question(folded):
-            return sop            # SOP nhận trọn lượt
-    return intent                 # phủ quyết: rớt sop, dùng intent
 
 
 def _route_after_write_planner(state: ERPAgentState) -> str:
@@ -128,7 +83,7 @@ def build_graph(llm, tools, checkpointer) -> object:
         "unknown": "respond_unknown",
     }
     intent_targets.update({s.name: s.name for s in skill_specs})
-    g.add_conditional_edges("intent_router", _route_by_intent, intent_targets)
+    g.add_conditional_edges("intent_router", decide_route, intent_targets)
 
     g.add_edge("erp_read", END)
     write_targets = {END: END, "erp_write_executor": "erp_write_executor"}

@@ -1,9 +1,54 @@
 # backend/src/agents/routing.py
-"""Tầng định tuyến — LỚP 1: đề xuất (xác suất).
+"""Tầng định tuyến của trợ lý — hợp đồng HAI LỚP, lai xác suất + tất định.
 
-Lớp 2 (phủ quyết tất định) chuyển vào file này ở task kế tiếp; docstring đầy
-đủ về hợp đồng 2 lớp được viết khi cả hai lớp đã có mặt, để không có commit
-nào mô tả thứ chưa tồn tại.
+Đây là chỗ DUY NHẤT trong repo mô tả trọn cơ chế này. Trước 2026-08-04 nó nằm
+rải ở 4 file (prompts.py, nodes.py, graph.py, skill_gate.py) và không file nào
+tự nhận mình là tầng định tuyến.
+
+    message ──► [node "intent_router"] ──state──► [decide_route] ──► node đích
+                 LỚP 1: LLM đề xuất               LỚP 2: tất định
+                 RouteProposal(intent, sop)       veto thắng → trả 1 chuỗi
+
+LỚP 1 — XÁC SUẤT (make_intent_router_node → parse_proposal):
+    Một lượt gọi LLM duy nhất đề xuất CẢ `intent` lẫn `sop` (không tốn call
+    thêm — đáng kể khi OpenRouter chỉ ~50 req/ngày). Đầu ra là ĐỀ CỬ, tên kiểu
+    RouteProposal nói đúng điều đó. Parse fail-an-toàn mọi hướng; tên worker
+    model bịa ra không bao giờ lọt ra ngoài.
+
+LỚP 2 — TẤT ĐỊNH, VÀ NÓ THẮNG (decide_route):
+    Điều kiện phủ quyết (`looks_like_question`) KHÔNG phụ thuộc phân loại của
+    LLM. Đề cử SOP chỉ được nhận trọn lượt khi câu người dùng không mang dấu
+    hiệu câu hỏi, HOẶC router tự tin nói erp_write.
+
+VÌ SAO LỚP 2 PHẢI TẤT ĐỊNH — ba bằng chứng độc lập:
+    1. Live-verify 2026-07-16: router LLM lỡ route lệnh thật 3/3 LẦN THỬ trên
+       chính ngôn ngữ quy trình ("quy trình nhập kho cho đơn mua P00021").
+    2. Thí nghiệm model 2026-07-31 (chạy thật trên cổng sop_select):
+       gemini-3.1-flash-lite HOÀ đúng ca đang fail với gemma-4-26b; còn
+       groq-gpt-oss-120b TỆ HƠN — đẻ thêm một ca hijack mới. Model to hơn
+       không cứu được.
+    3. Nguồn ngoài dự án (research 2026-08-04): đây là inverse/U-shaped
+       scaling đã công bố — McKenzie et al., "Inverse Scaling: When Bigger
+       Isn't Better", TMLR 2023. Mô hình lớn hơn bám prior lúc pretrain nhiều
+       hơn, bám prompt ít hơn. Pattern chuẩn ngành cho đúng tình huống này là
+       hybrid "lớp đề xuất + veto tất định" — chính là thiết kế ở đây.
+
+ĐIỀU KIỆN ĐỂ ĐƯỢC THÁO VETO: hiện tại KHÔNG CÓ. Muốn tháo phải có số đo mới
+bác bỏ được cả ba bằng chứng trên. Một supervisor LLM (nếu đời sau làm) chỉ
+được đứng TRƯỚC lớp 2, không được thay nó — xem
+docs/superpowers/specs/2026-08-04-routing-layer-extraction-design.md §0 để
+biết vì sao giai đoạn "supervisor nuốt intent_router" đã bị huỷ.
+
+LƯỚI ĐỠ CUỐI KHÔNG PHẢI TẦNG NÀY: router sai chiều nào thì confirm-gate tại
+tool boundary vẫn chặn mọi write chưa được duyệt.
+
+VÌ SAO HAI LỚP KHÔNG GỘP THÀNH MỘT HÀM: LangGraph persist state giữa node và
+conditional-edge, nên lớp 1 buộc là node còn lớp 2 buộc là hàm trên cạnh. Đơn
+vị làm rõ ở đây là FILE, không phải hàm — đó là thiết kế, không phải thiếu sót.
+
+Ở NGUYÊN CHỖ KHÁC, CÓ CHỦ ĐÍCH: text prompt sống ở prompts.py (quy ước: mọi
+prompt ở đó); `intent_targets` + `add_conditional_edges` sống ở graph.py (đó
+là sơ đồ, không phải logic định tuyến).
 """
 from typing import NamedTuple
 
@@ -11,6 +56,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from .state import ERPAgentState
 from .prompts import render_intent_router_prompt
+from . import skill_gate
+from .skill_gate import _fold
 
 VALID_INTENTS = {"erp_read", "erp_write", "rag", "mixed", "unknown"}
 
@@ -91,3 +138,48 @@ def make_intent_router_node(llm, worker_block: str = "", valid_sops=frozenset())
         return {"intent": intent, "sop": sop}
 
     return intent_router
+
+
+# ── LỚP 2: phủ quyết tất định ────────────────────────────────────────────────
+
+_QUESTION_MARKERS = (
+    "?", "la gi", "nghia la", "nhu the nao", "the nao", "tai sao",
+    "giai thich", "huong dan", "kiem tra", "tinh trang", "trang thai",
+    "duoc khong",
+)
+
+
+def looks_like_question(folded: str) -> bool:
+    return any(m in folded for m in _QUESTION_MARKERS)
+
+
+def decide_route(state: ERPAgentState) -> str:
+    """Quyết định cuối là TẤT ĐỊNH. Đề cử SOP (state["sop"]) chỉ là một trong
+    hai điều kiện; điều kiện kia — câu KHÔNG mang dấu hiệu câu hỏi — là lớp
+    phủ quyết không phụ thuộc phân loại LLM.
+
+    Vì sao lớp phủ quyết này CỐ Ý tất định và KHÔNG được tháo ra: bản đầu (chỉ
+    AND với intent=="erp_write") đóng đúng ca hijack gốc ("quy trình nhập kho
+    là gì?" → skill thay vì RAG) nhưng live-verify 2026-07-16 lộ ra chiều lỗi
+    ngược — router phân loại "mixed"/"erp_read" cho chính 2 câu lệnh dùng
+    nguyên văn ngôn ngữ quy trình ("quy trình nhập kho cho đơn mua P00021",
+    "nhập kho theo quy trình cho đơn mua P00021"), khiến lệnh thật bị lỡ route
+    3/3 LẦN THỬ — vì router chưa từng được tune để phân biệt "hỏi VỀ SOP" khỏi
+    "thực thi SOP cho 1 đơn cụ thể" (đọc rất giống định nghĩa "mixed" trong
+    prompts.py dù ý người dùng là hành động). Chuyển gate sang tất định (đánh
+    dấu câu hỏi) giữ nguyên bất biến an toàn (câu hỏi không hijack) mà không
+    phụ thuộc phân loại LLM cho quyết định này. Model to hơn CÓ THỂ đủ — nhưng
+    "có thể" không phải cơ sở để tháo một lớp phòng thủ đã chứng minh giá trị,
+    khi giữ nó tốn 10 dòng.
+
+    Lưới đỡ cuối không phải lớp này: router sai chiều nào thì confirm-gate tại
+    tool boundary vẫn chặn mọi write chưa được duyệt."""
+    intent = state.get("intent") or "unknown"
+    sop = state.get("sop")
+    if sop and skill_gate.skills_enabled():
+        last_human = next((m.content for m in reversed(state["messages"])
+                           if m.type == "human"), "")
+        folded = _fold(last_human)
+        if intent == "erp_write" or not looks_like_question(folded):
+            return sop            # SOP nhận trọn lượt
+    return intent                 # phủ quyết: rớt sop, dùng intent

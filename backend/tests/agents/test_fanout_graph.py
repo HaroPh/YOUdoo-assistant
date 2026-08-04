@@ -50,12 +50,13 @@ def test_gather_erp_tools_subset_of_read_tools(monkeypatch):
     assert {"list_sale_orders", "get_stock", "get_overdue_invoices"} <= captured["names"]
 
 
-def test_route_by_intent_still_returns_plain_mixed_string():
-    """Hợp đồng đầu ra mà SOP_SELECT_CASES đo — không được đổi ở SP-2b."""
-    from src.agents.graph import _route_by_intent
+def test_decide_route_still_returns_plain_mixed_string():
+    """Hợp đồng đầu ra mà SOP_SELECT_CASES đo — không được đổi ở SP-2b, và
+    không đổi khi hàm chuyển nhà sang routing.py (2026-08-04)."""
+    from src.agents.routing import decide_route
     state = {"intent": "mixed", "sop": None,
              "messages": [HumanMessage(content="theo chính sách, đơn X hoàn được không?")]}
-    assert _route_by_intent(state) == "mixed"
+    assert decide_route(state) == "mixed"
 
 
 async def test_real_graph_mixed_turn_produces_one_answer(monkeypatch):

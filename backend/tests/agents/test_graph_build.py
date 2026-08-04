@@ -214,7 +214,7 @@ def test_build_graph_accepts_role_mapping(monkeypatch):
 # sit here were deleted (see task-10-report.md for the full list).
 
 def test_looks_like_question_detects_all_markers():
-    from src.agents.graph import _looks_like_question
+    from src.agents.routing import looks_like_question
     from src.agents.skill_gate import _fold
     questions = [
         "quy trình nhập kho là gì?",
@@ -228,11 +228,11 @@ def test_looks_like_question_detects_all_markers():
         "đơn này có xác nhận được không",
     ]
     for q in questions:
-        assert _looks_like_question(_fold(q)), q
+        assert looks_like_question(_fold(q)), q
 
 
 def test_looks_like_question_false_for_plain_commands():
-    from src.agents.graph import _looks_like_question
+    from src.agents.routing import looks_like_question
     from src.agents.skill_gate import _fold
     commands = [
         "làm quy trình nhập kho cho đơn mua P00021",
@@ -242,7 +242,7 @@ def test_looks_like_question_false_for_plain_commands():
         "báo giá chiết khấu cho Cửa hàng ABC, 5 Tủ gỗ",
     ]
     for c in commands:
-        assert not _looks_like_question(_fold(c)), c
+        assert not looks_like_question(_fold(c)), c
 
 
 # ── SP-2a: định tuyến hybrid ─────────────────────────────────────────────────
@@ -258,50 +258,50 @@ def _state(text, intent, sop):
 
 
 def test_route_sop_wins_for_plain_execute_command():
-    from src.agents.graph import _route_by_intent
+    from src.agents.routing import decide_route
     # Router phân loại SAI (mixed) nhưng câu không mang dấu hiệu câu hỏi →
     # SOP vẫn nhận trọn lượt. Đây CHÍNH LÀ ca thua 3/3 lần ngày 2026-07-16.
-    assert _route_by_intent(
+    assert decide_route(
         _state("quy trình nhập kho cho đơn mua P00021", "mixed", "nhap-kho")) == "nhap-kho"
-    assert _route_by_intent(
+    assert decide_route(
         _state("nhập kho theo quy trình cho đơn mua P00021", "erp_read", "nhap-kho")) == "nhap-kho"
 
 
 def test_route_sop_wins_when_intent_is_erp_write_even_if_question_shaped():
-    from src.agents.graph import _route_by_intent
+    from src.agents.routing import decide_route
     # Nhánh OR: router tự tin nói erp_write thì lối tắt vẫn mở.
-    assert _route_by_intent(
+    assert decide_route(
         _state("giao hàng cho đơn S1 được không", "erp_write", "giao-hang")) == "giao-hang"
 
 
 def test_route_question_vetoes_sop_proposal():
-    from src.agents.graph import _route_by_intent
+    from src.agents.routing import decide_route
     # Ca hijack GỐC: "quy trình nhập kho là gì?" phải đi RAG, không đi SOP.
-    assert _route_by_intent(
+    assert decide_route(
         _state("quy trình nhập kho là gì?", "rag", "nhap-kho")) == "rag"
-    assert _route_by_intent(
+    assert decide_route(
         _state("quy trình giao hàng như thế nào", "rag", "giao-hang")) == "rag"
 
 
 def test_route_without_sop_proposal_returns_intent():
-    from src.agents.graph import _route_by_intent
-    assert _route_by_intent(_state("giao hàng cho đơn S00040", "erp_write", None)) == "erp_write"
-    assert _route_by_intent(_state("chào bạn", "unknown", None)) == "unknown"
-    assert _route_by_intent(_state("x", None, None)) == "unknown"
+    from src.agents.routing import decide_route
+    assert decide_route(_state("giao hàng cho đơn S00040", "erp_write", None)) == "erp_write"
+    assert decide_route(_state("chào bạn", "unknown", None)) == "unknown"
+    assert decide_route(_state("x", None, None)) == "unknown"
 
 
 def test_route_kill_switch_drops_every_sop_proposal(monkeypatch):
-    from src.agents.graph import _route_by_intent
+    from src.agents.routing import decide_route
     monkeypatch.setenv("ERP_SKILLS_ENABLED", "0")
-    assert _route_by_intent(
+    assert decide_route(
         _state("quy trình nhập kho cho đơn mua P00021", "mixed", "nhap-kho")) == "mixed"
 
 
 def test_route_kill_switch_only_off_value_is_zero(monkeypatch):
-    from src.agents.graph import _route_by_intent
+    from src.agents.routing import decide_route
     for value in ("1", "true", "yes", ""):
         monkeypatch.setenv("ERP_SKILLS_ENABLED", value)
-        assert _route_by_intent(
+        assert decide_route(
             _state("quy trình nhập kho cho đơn mua P00021", "mixed", "nhap-kho")) == "nhap-kho"
 
 

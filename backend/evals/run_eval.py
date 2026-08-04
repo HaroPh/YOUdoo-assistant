@@ -36,8 +36,7 @@ from src.agents.erp_grounding import verify_erp_grounding
 from src.agents.prompts import render_intent_router_prompt
 from src.agents.synthesis import SENTINEL, _format_context, _MARKER_RE
 from src.agents.nodes import _parse_plan_tiered
-from src.agents.routing import parse_proposal
-from src.agents.graph import _route_by_intent
+from src.agents.routing import parse_proposal, decide_route
 from src.agents.skill_loader import load_skill_specs, render_worker_block
 from src.erp_query.tools import build_erp_query_tools
 from jobs.resilience import run_resilient
@@ -446,8 +445,8 @@ async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None):
             [SystemMessage(content=prompt), HumanMessage(content=text)]))
         lat.append(ms)
         intent, sop = parse_proposal(resp.content, valid_sops)
-        got = _route_by_intent({"messages": [HumanMessage(content=text)],
-                                "intent": intent, "sop": sop})
+        got = decide_route({"messages": [HumanMessage(content=text)],
+                            "intent": intent, "sop": sop})
         if got != expected:
             return {"text": text, "expected": expected, "got": got,
                     "raw_intent": intent, "raw_sop": sop,
