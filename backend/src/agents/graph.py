@@ -4,13 +4,13 @@ from langgraph.graph import StateGraph, END
 from .state import ERPAgentState
 from ..erp_query.tools import build_erp_query_tools
 from .nodes import (
-    make_intent_router_node,
     make_erp_read_node,
     make_erp_write_planner_node,
     make_erp_write_executor_node,
     make_rag_node,
     make_respond_unknown_node,
 )
+from .routing import make_intent_router_node
 from .fanout import (make_fuse_answer_node, make_gather_docs_node,
                      make_gather_erp_node, make_mixed_node)
 from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS

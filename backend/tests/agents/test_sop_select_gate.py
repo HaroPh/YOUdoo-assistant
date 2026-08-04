@@ -26,7 +26,7 @@ def test_every_skill_has_at_least_four_cases():
 
 
 def test_expectations_are_valid_route_targets():
-    from src.agents.nodes import VALID_INTENTS
+    from src.agents.routing import VALID_INTENTS
     from src.agents.skill_loader import load_skill_specs
     valid = VALID_INTENTS | {s.name for s in load_skill_specs()}
     for text, expected in SOP_SELECT_CASES:

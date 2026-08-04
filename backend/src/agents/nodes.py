@@ -11,9 +11,8 @@ from langchain.agents import create_agent as _create_agent
 from langgraph.types import interrupt as _interrupt
 
 from .state import ERPAgentState
-from .prompts import (INTENT_ROUTER_PROMPT, SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
-                      WRITE_CONFIRM_PREFIX, CHITCHAT_PROMPT, render_working_context,
-                      render_intent_router_prompt)
+from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
+                      WRITE_CONFIRM_PREFIX, CHITCHAT_PROMPT, render_working_context)
 from .write_registry import COORDINATED_TOOLS, expand_chain
 from ..rag.retrieve import retrieve
 from .synthesis import synthesize, SAFE_MSG
@@ -24,64 +23,6 @@ from . import write_gate
 from .friction import log_friction
 
 logger = logging.getLogger(__name__)
-
-VALID_INTENTS = {"erp_read", "erp_write", "rag", "mixed", "unknown"}
-
-
-def _parse_router_output(text: str, valid_sops) -> tuple[str, str | None]:
-    """Parse hợp đồng 2 dòng của router. FAIL AN TOÀN ở mọi hướng:
-
-    - intent không nhận ra → "unknown" (hành vi cũ);
-    - sop không nằm trong valid_sops → None. Tên worker model bịa ra KHÔNG BAO
-      GIỜ được trả ra: nó sẽ thành node đích không tồn tại và làm LangGraph ném
-      lỗi định tuyến giữa một lượt chat thật;
-    - không thấy dòng "intent:" nào → thử đọc cả chuỗi như MỘT TỪ intent (hợp
-      đồng CŨ). Model nhỏ hay bỏ qua format; rơi về đúng hành vi hôm nay tốt
-      hơn là rơi về "unknown"."""
-    intent: str | None = None
-    sop: str | None = None
-    for line in (text or "").splitlines():
-        stripped = line.strip()
-        low = stripped.lower()
-        if low.startswith("intent:"):
-            value = low[len("intent:"):].strip()
-            if value in VALID_INTENTS:
-                intent = value
-        elif low.startswith("sop:"):
-            value = stripped[len("sop:"):].strip()
-            if value in valid_sops:
-                sop = value
-    if intent is None:
-        bare = (text or "").strip().lower()
-        intent = bare if bare in VALID_INTENTS else "unknown"
-    return intent, sop
-
-
-def make_intent_router_node(llm, worker_block: str = "", valid_sops=frozenset()):
-    """worker_block + valid_sops được TIÊM VÀO (graph.py lấy từ skill_loader) —
-    nodes.py cố ý không import skill_loader: node này phải test được với bất kỳ
-    danh sách worker nào, kể cả rỗng."""
-    prompt = render_intent_router_prompt(worker_block)
-    valid_sops = frozenset(valid_sops)
-
-    async def intent_router(state: ERPAgentState) -> dict:
-        last_human = next(
-            (m for m in reversed(state["messages"]) if m.type == "human"),
-            None,
-        )
-        if not last_human:
-            return {"intent": "unknown", "sop": None}
-
-        response = await llm.ainvoke([
-            SystemMessage(content=prompt),
-            HumanMessage(content=last_human.content),
-        ])
-        intent, sop = _parse_router_output(response.content, valid_sops)
-        # LUÔN ghi khoá "sop" (kể cả None): nó TRANSIENT, đề cử của lượt trước
-        # không được sống sót sang lượt sau.
-        return {"intent": intent, "sop": sop}
-
-    return intent_router
 
 
 # ── erp_read ─────────────────────────────────────────────────────────────────
