@@ -603,11 +603,25 @@ git commit -m "refactor(routing): chuyển lớp veto sang routing.py, docstring
 
 Run:
 ```bash
-cd D:/Youdoo/backend && grep -rn "graph\._route_by_intent\|nodes\._parse_router_output\|_route_by_intent\|_looks_like_question\|_parse_router_output" --include="*.py" src/ evals/ tests/
+grep -rnE "(^|[^A-Za-z0-9])(_route_by_intent|_looks_like_question|_parse_router_output)" --include="*.py" backend/src backend/evals backend/tests
 ```
 
-Ghi lại danh sách thật. Bảng dưới là danh sách đã grep tại HEAD `4c2fd49`;
-nếu nhánh song song thêm chỗ mới thì sửa cả chỗ đó.
+**Vì sao pattern có `(^|[^A-Za-z0-9])`:** tên hàm test
+`test_looks_like_question_detects_all_markers` chứa chuỗi
+`_looks_like_question` nhưng ĐÃ ĐÚNG với tên mới (`test_` + `looks_like_question`
++ `_detects…`). Pattern trần sẽ báo nó là tên cũ còn sót — sai. Chỉ tính khi
+symbol đứng như một tham chiếu độc lập.
+
+**BẢNG Ở CÁC STEP DƯỚI KHÔNG ĐẦY ĐỦ.** Kết quả grep này là nguồn sự thật —
+đo tại HEAD sau Task 2 cho **18 dòng ở 10 file**, trong khi bảng chỉ liệt kê
+8 file. Sáu chỗ bảng bỏ sót, phải sửa luôn:
+`backend/src/agents/graph.py:54` · `backend/evals/run_eval.py:379,428,429` ·
+`backend/tests/agents/test_build_graph_skill_integration.py:125` ·
+`backend/tests/agents/test_skill_gate.py:7`.
+Sửa theo đúng quy tắc đổi tên như các chỗ khác
+(`_route_by_intent`→`decide_route`, `_looks_like_question`→`looks_like_question`,
+`_parse_router_output`→`parse_proposal`, và `graph.`/`nodes.` →`routing.`).
+Nếu grep ra thêm chỗ nào ngoài 18 dòng đó, sửa cả chỗ đó.
 
 - [ ] **Step 2: Sửa 4 comment trong `src/agents/`**
 
@@ -689,11 +703,20 @@ Thành:
 
 - [ ] **Step 5: Chứng minh không còn tên cũ ở đâu trong mã**
 
-Run:
+Run (cùng pattern chính xác như Step 1 — xem lý do có `(^|[^A-Za-z0-9])` ở đó):
 ```bash
-cd D:/Youdoo/backend && grep -rn "_route_by_intent\|_looks_like_question\|_parse_router_output" --include="*.py" src/ evals/ tests/
+grep -rnE "(^|[^A-Za-z0-9])(_route_by_intent|_looks_like_question|_parse_router_output)" --include="*.py" backend/src backend/evals backend/tests
 ```
 Expected: **không có kết quả nào.**
+
+Kiểm thêm rằng việc đổi tên KHÔNG làm hỏng tên hàm test (chúng phải còn
+nguyên, và phải vẫn chạy được):
+```bash
+grep -rn "def test_looks_like_question\|def test_decide_route" --include="*.py" backend/tests
+```
+Expected: 3 dòng — `test_looks_like_question_detects_all_markers`,
+`test_looks_like_question_false_for_plain_commands` (test_graph_build.py) và
+`test_decide_route_still_returns_plain_mixed_string` (test_fanout_graph.py).
 
 Run (chứng minh spec cũ KHÔNG bị đụng — chúng phải vẫn giữ tên cũ):
 ```bash
