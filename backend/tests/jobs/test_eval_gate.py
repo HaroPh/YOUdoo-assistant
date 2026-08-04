@@ -411,6 +411,32 @@ def test_set_gather_still_runs_standalone(monkeypatch):
     assert len(fgather.calls) == 1
 
 
+def test_set_multi_source_gather_still_runs_standalone(monkeypatch):
+    """multi_source_gather vẫn đăng ký đầy đủ và chạy được RIÊNG qua
+    --set multi_source_gather — loại khỏi tập "all" nhưng không xoá đăng ký
+    (cùng khuôn test_set_gather_still_runs_standalone ở trên). Regression
+    test: nhánh báo cáo `base is None` mới thêm
+    (`elif set_name == "multi_source_gather":`) không crash vì thiếu khoá —
+    đúng lớp lỗi đã xảy ra THẬT ở set gather (KeyError: 'violations', bug fix
+    task-4 round 1). Dùng cố ý coverage thấp + fabricated_number > 0 để
+    chứng minh gate vẫn PASS vô điều kiện ("gác nhẹ") thay vì tình cờ pass vì
+    số đẹp."""
+    fmsg = _fake_multi_source_gather_eval(coverage=0.2, fabricated_number=3)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "multi_source_gather", fmsg)
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    result = eval_gate.run(_args(set_="multi_source_gather"))
+    assert result.exit_code == PASS
+    assert list(result.detail) == ["multi_source_gather"]
+    entry = result.detail["multi_source_gather"]
+    assert entry["gate"] == "PASS"
+    assert entry["both_source_coverage"] == 0.2
+    assert entry["citation_validity"] == 1.0
+    assert entry["fabricated_number"] == 3
+    assert entry["lat_p50"] == 3000
+    assert entry["lat_p95"] == 4500
+    assert len(fmsg.calls) == 1
+
+
 def test_sop_select_still_a_valid_set_choice():
     # add_args vẫn đăng ký "sop_select" trong choices --set dù đã loại khỏi
     # "all" — dựng parser thật, parse để xác nhận.
