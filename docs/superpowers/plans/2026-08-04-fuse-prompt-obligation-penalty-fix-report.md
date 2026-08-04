@@ -107,11 +107,20 @@ với lỗi tổng hợp mà plan này sửa, cố ý ngoài phạm vi.
 `docs/superpowers/plans/2026-08-04-multi-source-gather-eval-report.md`
 §3): trước-fix, `fabricated=["01"]` (số "01" trong "chậm 01 ngày", giới
 hạn thiết kế đã biết của scanner khi model tự tính hiệu số ngày). Sau-fix,
-`fabricated=[]` — response không còn nêu số ngày trễ tự tính (đổi cách lập
-luận vì có quy tắc mới), nhưng `both` vẫn `false` vì lý do khác hẳn (thiếu
-trường "khẩn cấp" trong ERP, không phải bịa số). Không phải cùng một lỗi
-lặp lại — thành phần lỗi bên trong ca fail cũng đã đổi, dù `both_source_coverage`
-tổng thể của ca này (fail cả hai lần) không đổi.
+`fabricated=[]` — đây là kết quả đo THẬT (điểm số đọc trực tiếp từ log).
+**Cơ chế cụ thể vì sao vẫn là giả thuyết CHƯA xác minh được**: field
+`response` trong `logs/jobs/eval-gate-20260804T185149.json` cho ca này bị
+log cắt ở đúng 300 ký tự, dừng ngay tại `"...tức là đã chậm "` — đúng chỗ
+một số đếm ngày (nếu có) sẽ xuất hiện, và không còn artifact nào khác lưu
+response đầy đủ (checkpoint tạm đã bị dọn sau khi chạy xong thành công).
+Có thể model không còn nêu số ngày trễ tự tính (đổi cách lập luận vì có
+quy tắc mới), nhưng cũng có thể model đã diễn đạt bằng chữ (ví dụ "một
+ngày" thay vì "01 ngày") — cả hai khả năng đều cho `fabricated=[]` mà
+không cùng cơ chế. Chỉ biết chắc: `both` vẫn `false` vì lý do khác hẳn
+(thiếu trường "khẩn cấp" trong ERP, không phải bịa số) — không phải cùng
+một lỗi lặp lại với trước-fix, vì `both_source_coverage` tổng thể của ca
+này (fail cả hai lần) không đổi nhưng lý do fail đã đổi (từ "tổng hợp kém
++ bịa số suy ra" sang "thiếu dữ liệu khẩn cấp trong ERP, không bịa số").
 
 ## 5. Kết luận theo tiêu chí hoàn thành (spec §8)
 
