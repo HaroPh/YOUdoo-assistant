@@ -39,13 +39,17 @@ ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitcha
                 # "multi_source" chỉ là tên SET đo (trung tính, sống sót qua
                 # đổi kiến trúc).
                 "multi_source": "fusion", "sop_select": "router",
+                # gather_erp và fuse_answer đều dùng role "fusion" — set này
+                # chạy CẢ HAI nên vẫn đúng một role.
+                "multi_source_gather": "fusion",
                 "gather": "fusion"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
            "read": run_eval.eval_read, "synthesis": run_eval.eval_synthesis,
            "multi_source": run_eval.eval_multi_source,
            "sop_select": run_eval.eval_sop_select,
-           "gather": run_eval.eval_gather}
+           "gather": run_eval.eval_gather,
+           "multi_source_gather": run_eval.eval_multi_source_gather}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -80,6 +84,12 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         return (result["citation_validity"] == 1.0
                 and result["fabricated_number"] == 0
                 and result["both_source_coverage"] >= base["both_source_coverage"])
+    if set_name == "multi_source_gather":
+        # Chưa có baseline: set này ra đời 2026-08-04, không model cũ nào
+        # từng đo qua đường gather_erp thật. GÁC NHẸ y hệt `gather` — mọi
+        # lần chạy PASS, số vào báo cáo để người đọc tự đánh giá, không phải
+        # job tự đánh giá thay. Siết thành ngưỡng thật khi đủ số đo.
+        return True
     if set_name == "gather":
         # Không có baseline model cũ (node gather_erp không tồn tại trước
         # SP-2b) — lần đo đầu chỉ ghi nhận, chưa có ngưỡng tuyệt đối. GÁC
@@ -109,7 +119,10 @@ def run(args) -> JobResult:
         # "all" sẽ luôn PASS giả (gate trả True vô điều kiện) và làm loãng
         # tín hiệu của job hàng đêm mà không cảnh báo được gì thật. Theo dõi
         # riêng qua `--set gather` cho tới khi có đủ số đo để siết ngưỡng.
-        sets = [s for s in EVAL_FN if s not in ("sop_select", "gather")]
+        # multi_source_gather CŨNG bị loại, cùng lý do với gather: gate trả
+        # True vô điều kiện nên để trong "all" chỉ tạo PASS giả.
+        sets = [s for s in EVAL_FN
+                if s not in ("sop_select", "gather", "multi_source_gather")]
     else:
         sets = [args.set]
     detail, any_fail = {}, False
@@ -181,8 +194,9 @@ def run(args) -> JobResult:
                   f"baseline={base[acc_key]:.3f} → {'PASS' if ok else 'FAIL'}")
         else:
             # base is None: chitchat (violations), sop_select (acc + hijack),
-            # hoặc gather (tool_recall + fact_coverage — không có ngưỡng
-            # tuyệt đối, xem _gate())
+            # gather (tool_recall + fact_coverage), hoặc multi_source_gather
+            # (both_source_coverage + citation_validity) — không set nào có
+            # ngưỡng tuyệt đối, xem _gate()
             if set_name == "sop_select":
                 entry["acc"] = result.get("acc")
                 entry["hijack"] = result.get("hijack")
@@ -200,6 +214,19 @@ def run(args) -> JobResult:
                 print(f"[{set_name}] model={model} pace={pace}s "
                       f"tool_recall={result.get('tool_recall')} "
                       f"fact_coverage={result.get('fact_coverage')} "
+                      f"→ {'PASS' if ok else 'FAIL'}")
+            elif set_name == "multi_source_gather":
+                entry.update(
+                    both_source_coverage=result.get("both_source_coverage"),
+                    citation_validity=result.get("citation_validity"),
+                    fabricated_number=result.get("fabricated_number"),
+                    lat_p50=result.get("lat_p50"),
+                    lat_p95=result.get("lat_p95"))
+                print(f"[{set_name}] model={model} pace={pace}s "
+                      f"both_source_coverage="
+                      f"{result.get('both_source_coverage'):.3f} "
+                      f"citation_validity={result.get('citation_validity'):.3f} "
+                      f"fabricated_number={result.get('fabricated_number')} "
                       f"→ {'PASS' if ok else 'FAIL'}")
             else:
                 # chitchat
@@ -219,7 +246,7 @@ def add_args(p):
     p.add_argument("--set",
                    choices=["both", "all", "intent", "confirm", "chitchat",
                             "planner", "read", "synthesis", "multi_source",
-                            "sop_select", "gather"],
+                            "multi_source_gather", "sop_select", "gather"],
                    default="both")
     p.add_argument("--pace", type=float, default=None,
                    help="giây/call (mặc định auto: (60/rpm)*1.2 suy từ catalog)")

@@ -62,3 +62,96 @@ def test_erp_fact_reachable_from_fixtures_or_question():
         assert any(o.casefold() in corpus for o in options), (
             f"case {topic}: erp_fact {erp_fact!r} không có trong "
             f"tool_fixtures lẫn câu hỏi")
+
+
+# ── eval_multi_source_gather + đăng ký eval_gate ─────────────────────────────
+
+from evals import run_eval
+
+
+def test_eval_calls_real_gather_node_and_real_fuse_prompt():
+    """Chống trôi (cùng khuôn test_eval_gather.py đã dùng): hàm PHẢI đi qua
+    node/prompt production thật, không dựng lại logic thu thập hay tổng
+    hợp — đó là điều kiện để phép đo không trôi khỏi thứ nó đang đo."""
+    import inspect
+    src = inspect.getsource(run_eval.eval_multi_source_gather)
+    for token in ("make_gather_erp_node", "_stub_erp_tools", "FUSE_PROMPT",
+                  "render_fuse_input", "_score_fusion",
+                  "allowed_extra_text=question"):
+        assert token in src, f"thiếu {token}"
+
+
+def test_eval_scores_against_tool_fixtures_not_model_output():
+    """basis của `allowed` phải là tool_fixtures (sự thật gốc), KHÔNG phải
+    erp_facts model sinh ra — nếu lấy erp_facts, số do chính tầng gather bịa
+    sẽ tự được hợp thức hoá (spec §5)."""
+    import inspect
+    src = inspect.getsource(run_eval.eval_multi_source_gather)
+    assert "tool_fixtures.values()" in src
+
+
+def test_eval_wires_gather_output_into_fuse_input():
+    """Kiểm THẬT SỰ chạy (không chỉ đọc mã): erp_facts do gather_erp trả về
+    phải đi vào render_fuse_input, và `called` phải được ghi lại."""
+    import asyncio
+    import unittest.mock
+    from langchain_core.messages import AIMessage
+
+    seen_fuse_inputs = []
+
+    class _FakeLLM:
+        async def ainvoke(self, messages):
+            seen_fuse_inputs.append(messages[-1].content)
+            return AIMessage(content="câu trả lời bất kỳ\nĐã dùng: 1")
+
+    async def _fake_node(state):
+        return {"erp_facts": "DẤU-VÂN-TAY-GATHER"}
+
+    with unittest.mock.patch.object(run_eval, "make_gather_erp_node",
+                                    lambda llm, tools: _fake_node):
+        out = asyncio.run(run_eval.eval_multi_source_gather(_FakeLLM()))
+
+    assert out["set"] == "multi_source_gather"
+    assert out["n"] == len(cases.MULTI_SOURCE_GATHER_CASES)
+    assert not out["errors"], out["errors"]
+    assert any("DẤU-VÂN-TAY-GATHER" in s for s in seen_fuse_inputs), (
+        "erp_facts của gather_erp phải đi vào render_fuse_input")
+    for f in out["fails"]:
+        assert "called" in f, (
+            "mỗi bản ghi fail phải kèm `called` — không có nó thì không phân "
+            "biệt được 'chọn sai tool' với 'tổng hợp kém'")
+
+
+def test_registered_in_eval_gate():
+    from jobs import eval_gate
+    assert eval_gate.EVAL_FN["multi_source_gather"] is run_eval.eval_multi_source_gather
+    assert eval_gate.ROLE_FOR_SET["multi_source_gather"] == "fusion"
+
+
+def test_no_baseline_and_gate_always_passes():
+    """Chưa có baseline (set ra đời 2026-08-04, không model cũ nào từng đo)
+    — GÁC NHẸ y như `gather`: chỉ ghi nhận."""
+    from jobs import eval_gate
+    assert "multi_source_gather" not in eval_gate.BASELINES
+    assert eval_gate._gate("multi_source_gather",
+                           {"both_source_coverage": 0.0,
+                            "citation_validity": 0.0,
+                            "fabricated_number": 9}, None) is True
+    assert eval_gate._gate("multi_source_gather",
+                           {"both_source_coverage": 1.0,
+                            "citation_validity": 1.0,
+                            "fabricated_number": 0}, None) is True
+
+
+def test_excluded_from_set_all_but_selectable():
+    """Trong `all` sẽ luôn PASS giả và làm loãng tín hiệu job hàng đêm —
+    cùng lý do `gather`/`sop_select` bị loại."""
+    import argparse
+    from jobs import eval_gate
+    p = argparse.ArgumentParser()
+    eval_gate.add_args(p)
+    assert p.parse_args(["--set", "multi_source_gather"]).set == "multi_source_gather"
+    sets = [s for s in eval_gate.EVAL_FN
+            if s not in ("sop_select", "gather", "multi_source_gather")]
+    assert "multi_source_gather" not in sets
+    assert "multi_source" in sets  # sanity: loại trừ không quá tay

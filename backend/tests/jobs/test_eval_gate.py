@@ -313,13 +313,17 @@ def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_pa
     trong "all" sẽ làm job hàng đêm đỏ vĩnh viễn, che tín hiệu 7 gate khác.
     Vẫn đăng ký đầy đủ trong EVAL_FN — chỉ loại khỏi tập "all" chạy mặc định.
 
-    Bẫy thật (2 lần: 1 lần Task 2's fix round, rồi TÁI PHÁT khi Task 3/4/5
-    thêm read/synthesis/multi_source mà quên patch vào test này) — nếu 1 set
-    không được patch, hàm eval THẬT sẽ chạy, lỗi (thiếu LLM/baseline thật),
-    bị run()'s except nuốt mất, và assertion cũ (chỉ check 4 key cố định)
-    vẫn qua dù set đó CHƯA BAO GIỜ thực sự chạy thành công. Assert bằng
-    set(eval_gate.EVAL_FN) - {"sop_select"} (không phải danh sách cứng) +
-    exit_code + mỗi fake gọi đúng 1 lần, để không tái phát."""
+    Bẫy thật (nhiều lần: Task 2's fix round, rồi TÁI PHÁT khi Task 3/4/5 thêm
+    read/synthesis/multi_source, rồi TÁI PHÁT LẦN NỮA ở plan
+    2026-08-04-multi-source-gather-eval Task 3 khi multi_source_gather ra
+    đời — cùng bị loại khỏi "all" như gather/sop_select nên assertion hard-code
+    3 tên phải theo kịp) mà quên patch vào test này — nếu 1 set không được
+    patch, hàm eval THẬT sẽ chạy, lỗi (thiếu LLM/baseline thật), bị run()'s
+    except nuốt mất, và assertion cũ (chỉ check 4 key cố định) vẫn qua dù set
+    đó CHƯA BAO GIỜ thực sự chạy thành công. Assert bằng
+    set(eval_gate.EVAL_FN) - {"sop_select", "gather", "multi_source_gather"}
+    (không phải danh sách cứng ngoài các tên bị loại) + exit_code + mỗi fake
+    gọi đúng 1 lần, để không tái phát."""
     fi, fc = _patch(monkeypatch)
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -357,16 +361,24 @@ def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_pa
     fgather = _fake_gather_eval(tool_recall=0.0, fact_coverage=0.0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "gather", fgather)
 
+    # multi_source_gather cũng bị loại khỏi "all" (chưa có baseline, gate
+    # trả True vô điều kiện) — cùng lý do gather/sop_select ở trên.
+    fmsg = _fake_multi_source_gather_eval(coverage=0.0, fabricated_number=9)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "multi_source_gather", fmsg)
+
     result = eval_gate.run(_args(set_="all"))
 
-    assert set(result.detail) == set(eval_gate.EVAL_FN) - {"sop_select", "gather"}
+    assert set(result.detail) == \
+        set(eval_gate.EVAL_FN) - {"sop_select", "gather", "multi_source_gather"}
     assert "sop_select" not in result.detail
     assert "gather" not in result.detail
+    assert "multi_source_gather" not in result.detail
     assert result.exit_code == PASS
     for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
     assert fsop.calls == [], "sop_select KHÔNG được chạy dưới --set all"
     assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
+    assert fmsg.calls == [], "multi_source_gather KHÔNG được chạy dưới --set all"
 
 
 def test_set_sop_select_still_runs_standalone(monkeypatch):
@@ -487,6 +499,19 @@ def _ms_base(tmp_path, coverage=0.75):
     p.write_text('{"set":"multi_source","n":8,"both_source_coverage":%s}' % coverage,
                  encoding="utf-8")
     return p
+
+
+def _fake_multi_source_gather_eval(coverage=1.0, citation_validity=1.0,
+                                   fabricated_number=0, n=8):
+    async def fn(llm, pace=0.0, checkpoint_path=None):
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
+        return {"set": "multi_source_gather", "n": n,
+                "both_source_coverage": coverage,
+                "citation_validity": citation_validity,
+                "fabricated_number": fabricated_number,
+                "lat_p50": 3000, "lat_p95": 4500, "fails": [], "errors": []}
+    fn.calls = []
+    return fn
 
 
 def test_multi_source_gate_passes_at_baseline(monkeypatch, tmp_path):

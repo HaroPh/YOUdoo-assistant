@@ -19,6 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
                          MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
+                         MULTI_SOURCE_GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
 from evals import fixtures
@@ -666,6 +667,76 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
     # khác. Khi có errors thì eval_gate trả INFRA_ERROR trước khi gate chạy
     # (bất biến Global Constraints), nên 2 cách chia tương đương trong thực tế.
     return {"set": "multi_source", "n": n,
+            "both_source_coverage": (measured - no_both) / n if n else 0.0,
+            "citation_validity": (measured - bad_cite) / n if n else 0.0,
+            "fabricated_number": fabricated_number,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
+async def eval_multi_source_gather(llm, pace: float = 0.0, checkpoint_path=None):
+    """Đo TOÀN CHUỖI nhánh mixed: gather_erp THẬT (make_gather_erp_node trên
+    tool giả lập từ tool_fixtures) → fuse_answer, trên CÙNG bộ câu
+    hỏi/doc_fact/erp_fact của multi_source.
+
+    Khác eval_multi_source ở ĐÚNG một biến: erp_facts do node thật tự đi
+    lấy, thay vì erp_block viết tay nạp sẵn. Nhờ vậy set này đo được thứ
+    multi_source mù về mặt kiến trúc — năng lực THU THẬP ERP — mà vẫn dùng
+    chung thước đo (_score_fusion) nên hai bộ số so sánh được.
+
+    KHÔNG GATE (spec 2026-08-04 §3): chưa có baseline, _gate() trả True vô
+    điều kiện, và set bị loại khỏi `--set all`. Số liệu vào báo cáo để người
+    đọc tự đánh giá.
+
+    Tool giả lập chứ không phải Odoo thật — cùng kỷ luật eval_gather: đo
+    phải lặp lại được. Chẩn đoán khi viết spec cho thấy đúng rủi ro của lựa
+    chọn ngược lại: đơn S00042 (mốc tham chiếu của 3 plan trước) nay ở trạng
+    thái draft với mọi field ngày rỗng, nên đo trên Odoo thật sẽ trôi theo
+    dữ liệu demo chứ không theo chất lượng model.
+    """
+    lat: list[float] = []
+
+    async def call(case):
+        topic, tool_fixtures, question, doc_fact, erp_fact = case
+        called: list = []
+        tools = _stub_erp_tools(tool_fixtures, called)
+        node = make_gather_erp_node(llm, tools)
+        chunks = fixtures.load_chunks(topic)
+
+        async def _chain():
+            out = await node({"messages": [HumanMessage(content=question)]})
+            erp_facts = out.get("erp_facts") or ""
+            resp = await llm.ainvoke([
+                SystemMessage(content=FUSE_PROMPT),
+                HumanMessage(content=render_fuse_input(chunks, erp_facts,
+                                                       question)),
+            ])
+            return erp_facts, resp
+
+        # Đo THỜI GIAN CẢ CHUỖI (gather + fuse) — latency của set này không
+        # so trực tiếp được với multi_source (chỉ đo fuse), có chủ đích.
+        (erp_facts, resp), ms = await _timed(_chain())
+        lat.append(ms)
+        body = (resp.content or "").strip()
+        score = _score_fusion(body, chunks, "\n".join(tool_fixtures.values()),
+                              doc_fact, erp_fact, topic, question,
+                              allowed_extra_text=question)
+        if score["both"] and score["citation_ok"] and not score["fabricated"]:
+            return None
+        return {"topic": topic, "question": question, "called": called,
+                "erp_facts": erp_facts[:300], "response": body[:300], **score}
+
+    fails, errors = await run_resilient(MULTI_SOURCE_GATHER_CASES, call,
+                                        pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(MULTI_SOURCE_GATHER_CASES)
+    measured = n - len(errors)
+    # CHỈ đếm từ fails — lỗi API không bao giờ là trích dẫn sai / số bịa
+    bad_cite = sum(1 for f in fails if not f["citation_ok"])
+    no_both = sum(1 for f in fails if not f["both"])
+    fabricated_number = sum(1 for f in fails if f["fabricated"])
+    p50, p95 = _percentiles(lat)
+    return {"set": "multi_source_gather", "n": n,
             "both_source_coverage": (measured - no_both) / n if n else 0.0,
             "citation_validity": (measured - bad_cite) / n if n else 0.0,
             "fabricated_number": fabricated_number,
