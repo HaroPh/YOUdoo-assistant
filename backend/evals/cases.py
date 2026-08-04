@@ -457,8 +457,9 @@ MULTI_SOURCE_CASES = [
 # tool_fixtures: dict {tool_name: text}, cùng cơ chế GATHER_CASES
 # (run_eval._stub_erp_tools — tool không có trong dict trả "Không có dữ liệu
 # liên quan."). KỶ LUẬT VIẾT: fixture phải mô phỏng đầu ra THẬT của tool đó,
-# chỉ dùng field hàm business-layer thật sự đọc. Contract test ở
-# tests/jobs/test_eval_gather.py quét CẢ danh sách này.
+# chỉ dùng field hàm business-layer thật sự đọc. Task 4 của plan này sẽ MỞ
+# RỘNG contract test ở tests/jobs/test_eval_gather.py để quét CẢ danh sách
+# này (CHƯA làm ở commit này — hiện test đó mới chỉ quét GATHER_CASES).
 MULTI_SOURCE_GATHER_CASES = [
     # sla_giao_hang ← sla.docx
     # get_sale_order_detail đọc: id, name, partner_id, amount_total, state,
@@ -514,8 +515,17 @@ MULTI_SOURCE_GATHER_CASES = [
       "đến hạn 31/07/2026 | 2.000.000 | còn 2.000.000 | not_paid"},
      "Hóa đơn INV/2026/00020 xuất ngày 01/07/2026, khi nào thì quá hạn thanh toán?",
      "30 ngày", "INV/2026/00020"),
-    # Fixture lấy NGUYÊN VĂN từ GATHER_CASES (cùng câu hỏi, cùng tool) — hai
-    # bộ đo kể cùng một câu chuyện về cùng dữ liệu.
+    # Fixture ĐIỀU CHỈNH từ GATHER_CASES (cùng câu hỏi, cùng tool), KHÔNG
+    # chép nguyên văn: bản ở GATHER_CASES khẳng định "quá hạn N ngày", nhưng
+    # get_overdue_invoices (accounting.py:35-51) chỉ đọc/trả về _FIELDS —
+    # name, partner_id, invoice_date, invoice_date_due, amount_total,
+    # amount_residual, payment_state — KHÔNG có field số-ngày-quá-hạn nào;
+    # display thật là "{name} | {partner} | đến hạn {invoice_date_due} |
+    # còn {amount_residual}". Đây đúng "hạng lỗi thứ ba" đã nêu ở đầu file
+    # (fixture khẳng định năng lực tool không có). Lỗi tương tự VẪN CÒN
+    # nguyên trong GATHER_CASES — CỐ Ý chưa sửa ở đó, cùng lý do với ca
+    # get_product_price/"12%" đã ghi chú ở cuối GATHER_CASES: sửa sẽ đổi số
+    # đo của set `gather` và cần một lượt đo riêng để quy trách nhiệm.
     # erp_fact là tuple 2 phương án, thừa kế nguyên do từ MULTI_SOURCE_CASES
     # (model trả lời đúng nhưng gọi khách hàng bằng TÊN thay vì lặp mã đơn).
     # Lưu ý: "S00050" KHÔNG có trong fixture — get_overdue_invoices trả hóa
@@ -526,9 +536,9 @@ MULTI_SOURCE_GATHER_CASES = [
      {"get_overdue_invoices":
       "2 hóa đơn quá hạn:\n"
       "  INV/2026/00030 | Gemini Furniture | đến hạn 30/06/2026 | "
-      "quá hạn 32 ngày | còn 4.200.000\n"
+      "còn 4.200.000\n"
       "  INV/2026/00031 | Wood Corner | đến hạn 05/07/2026 | "
-      "quá hạn 20 ngày | còn 1.000.000"},
+      "còn 1.000.000"},
      "Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có "
      "bị tạm dừng xử lý không?",
      "tạm dừng xử lý", ("S00050", "Gemini Furniture")),
