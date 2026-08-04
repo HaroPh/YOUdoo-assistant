@@ -129,3 +129,14 @@ def test_register_payment_signature_shows_either_identifier_optional():
     # only one of them.
     assert "register_payment(invoice_ref: str = null, partner_name: str = null" in WRITE_PLANNER_PROMPT
     assert "MỘT TRONG HAI" in WRITE_PLANNER_PROMPT
+
+
+def test_fuse_prompt_has_obligation_penalty_rule():
+    """Quy tắc mới (plan 2026-08-04-fuse-prompt-obligation-penalty-fix):
+    đối chiếu đủ cặp nghĩa vụ/thời hạn + hậu quả/mức phạt cho câu hỏi
+    tuân thủ/vi phạm — đo thật trên 8 ca multi_source_gather trước khi
+    thêm, xem spec §2. Chốt cứng để không bị xoá nhầm khi ai đó dọn
+    FUSE_PROMPT sau này."""
+    from src.agents.prompts import FUSE_PROMPT
+    assert ("một đoạn nêu NGHĨA VỤ/THỜI HẠN và một đoạn KHÁC nêu HẬU QUẢ/"
+            "MỨC PHẠT khi vi phạm") in FUSE_PROMPT
