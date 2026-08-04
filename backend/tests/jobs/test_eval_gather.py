@@ -272,6 +272,11 @@ _REPRESENTATIVE_ROWS = {
                      "amount_total": 100.0, "amount_residual": 100.0,
                      "payment_state": "not_paid"},
     "product.product": {"id": 1, "name": "Sản phẩm mẫu", "list_price": 100.0},
+    "stock.picking": {"id": 1, "name": "WH/OUT/0001",
+                      "partner_id": [1, "Khách mẫu"],
+                      # PHẢI là chuỗi: formatter thật cắt scheduled_date[:10]
+                      "scheduled_date": "2026-01-01 00:00:00",
+                      "state": "assigned"},
 }
 
 
@@ -299,7 +304,7 @@ def _real_fields_for_tool(tool_name: str) -> set[str]:
     không chỉ dòng "display" — nếu sau này _json() bị tối ưu để chỉ trả
     "display", test này vẫn PASS nhưng không còn đo được gì thật."""
     from src.erp_query.gateway import Gateway
-    from src.erp_query import sales, accounting
+    from src.erp_query import sales, accounting, inventory
 
     gw = Gateway(_RecordingTransport())
     if tool_name == "get_sale_order_detail":
@@ -308,6 +313,10 @@ def _real_fields_for_tool(tool_name: str) -> set[str]:
         accounting.get_overdue_invoices(gw=gw)
     elif tool_name == "get_product_price":
         sales.get_product_price(1, gw=gw)
+    elif tool_name == "list_invoices":
+        accounting.list_invoices("out_invoice", gw=gw)
+    elif tool_name == "list_late_deliveries":
+        inventory.list_late_deliveries(gw=gw)
     elif tool_name in ("find_customer", "find_product"):
         # resolve_entity() dùng gw.name_search(), KHÔNG có tham số "fields"
         # — tool loại này KHÔNG THỂ trả field ngày/trạng thái nào, tập rỗng
@@ -325,9 +334,29 @@ _DATE_STATUS_LABELS = {
     "ngày giao dự kiến": ("commitment_date",),
     "ngày giao thực tế": ("effective_date", "date_done"),
     "trạng thái giao": ("delivery_status",),
+    # 2 nhãn hóa đơn (2026-08-04): accounting._FIELDS dùng chung cho
+    # list_invoices và get_overdue_invoices. "đến hạn" phủ luôn fixture
+    # get_overdue_invoices sẵn có trong GATHER_CASES — trước đó không nhãn
+    # nào chạm tới nó.
+    "ngày hóa đơn": ("invoice_date",),
+    "đến hạn": ("invoice_date_due",),
 }
 
-_KNOWN_GAPS: set[tuple[str, str, str]] = set()
+
+def _all_fixture_cases():
+    """(set_name, topic, tool_fixtures) của MỌI danh sách case có
+    tool_fixtures. Hai danh sách khác hình dạng tuple — chuẩn hoá ở đúng
+    MỘT chỗ để contract test không phải biết hình dạng nào cả."""
+    for topic, _question, _rt, _rf, tool_fixtures in cases.GATHER_CASES:
+        yield ("GATHER_CASES", topic, tool_fixtures)
+    for topic, tool_fixtures, _question, _doc, _erp in cases.MULTI_SOURCE_GATHER_CASES:
+        yield ("MULTI_SOURCE_GATHER_CASES", topic, tool_fixtures)
+
+
+_KNOWN_GAPS: set[tuple[str, str, str, str]] = set()
+# Khoá: (set_name, topic, tool_name, label). Thêm set_name ở 2026-08-04 vì
+# topic TRÙNG NHAU giữa hai danh sách (sla_giao_hang có ở cả hai) — khoá
+# 3-tuple cũ sẽ nhập nhằng. Không cần migration: set đang RỖNG.
 # Lịch sử: 2 mục ("sla_giao_hang"/"ngày giao dự kiến",
 # "chinh_sach_hoan_hang"/"ngày giao thực tế" của get_sale_order_detail)
 # từng nằm ở đây (xem docs/superpowers/plans/
@@ -355,7 +384,8 @@ def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):
     Task 3 của plan sale-order-effective-dates, 2026-08-02: bản gốc chỉ
     patch _real_fields_for_tool, dựa vào _KNOWN_GAPS thật có sẵn 2 mục —
     hỏng ngay khi 2 mục đó bị xoá)."""
-    fake_known_gaps = {("sla_giao_hang", "get_sale_order_detail", "ngày giao dự kiến")}
+    fake_known_gaps = {("GATHER_CASES", "sla_giao_hang",
+                        "get_sale_order_detail", "ngày giao dự kiến")}
     monkeypatch.setitem(globals(), "_KNOWN_GAPS", fake_known_gaps)
 
     # PHẢI chụp lại tham chiếu GỐC trước khi monkeypatch — nếu không, fallback
@@ -378,42 +408,79 @@ def test_known_gaps_catches_entry_when_real_field_now_exists(monkeypatch):
     monkeypatch.setitem(globals(), "_real_fields_for_tool", _fake_real_fields)
     import pytest as _pytest
     with _pytest.raises(AssertionError, match="KHÔNG CÒN CẦN THIẾT"):
-        test_gather_cases_fixture_labels_match_real_tool_fields()
+        test_fixture_labels_match_real_tool_fields()
 
 
-def test_gather_cases_fixture_labels_match_real_tool_fields():
+def test_fixture_labels_match_real_tool_fields():
     """Đối chiếu fixture với field THẬT tool trả về — chặn lớp lỗi "fixture
-    khẳng định khả năng tool không có" (gặp 2 lần: gather-erp-tool-fix,
-    sale-order-detail-dates). 2 vi phạm đã biết nằm trong _KNOWN_GAPS —
-    nhưng khác bản gốc, mục trong _KNOWN_GAPS VẪN được kiểm field thật:
-    nếu field thật ĐÃ CÓ (gap đã sửa), đó là lỗi đòi xoá mục, không phải
-    được bỏ qua âm thầm (sửa 2026-08-02: bản gốc chỉ bắt được kịch bản
-    "nhãn không còn khớp câu chữ", không bắt được kịch bản "gap đã sửa" —
-    continue thoát trước khi kiểm tra field thật)."""
+    khẳng định khả năng tool không có" (đã gặp 4 lần: gather-erp-tool-fix,
+    sale-order-detail-dates, và 2 lần trong chính hạ tầng test này). Quét CẢ
+    GATHER_CASES lẫn MULTI_SOURCE_GATHER_CASES (mở rộng 2026-08-04) — danh
+    sách sau cũng viết tay, cùng rủi ro y hệt.
+
+    Mục trong _KNOWN_GAPS VẪN được kiểm field thật: nếu field thật ĐÃ CÓ
+    (gap đã sửa), đó là lỗi đòi xoá mục, không phải được bỏ qua âm thầm."""
     used = set()
-    for topic, question, required_tools, required_facts, tool_fixtures in cases.GATHER_CASES:
+    for set_name, topic, tool_fixtures in _all_fixture_cases():
         for tool_name, fixture_text in tool_fixtures.items():
             real_fields = _real_fields_for_tool(tool_name)
             low = fixture_text.casefold()
             for label, field_names in _DATE_STATUS_LABELS.items():
                 if label not in low:
                     continue
-                key = (topic, tool_name, label)
+                key = (set_name, topic, tool_name, label)
                 ok = bool(set(field_names) & real_fields)
                 if key in _KNOWN_GAPS:
                     used.add(key)
                     assert not ok, (
-                        f"_KNOWN_GAPS có mục KHÔNG CÒN CẦN THIẾT: case "
-                        f"{topic}, tool {tool_name!r}, nhãn {label!r} — "
+                        f"_KNOWN_GAPS có mục KHÔNG CÒN CẦN THIẾT: {set_name} "
+                        f"case {topic}, tool {tool_name!r}, nhãn {label!r} — "
                         f"field thật đã có "
                         f"({sorted(set(field_names) & real_fields)}), xoá "
                         f"mục này khỏi _KNOWN_GAPS.")
                     continue
                 assert ok, (
-                    f"case {topic}: fixture của tool {tool_name!r} dùng nhãn "
-                    f"{label!r} nhưng tool không có field thật nào trong "
-                    f"{field_names} (field thật: {sorted(real_fields)})")
+                    f"{set_name} case {topic}: fixture của tool {tool_name!r} "
+                    f"dùng nhãn {label!r} nhưng tool không có field thật nào "
+                    f"trong {field_names} (field thật: {sorted(real_fields)})")
     assert used == _KNOWN_GAPS, (
         f"_KNOWN_GAPS có mục không còn ứng với vi phạm thật (gap đã lấp "
         f"hoặc fixture đã đổi chữ): {sorted(_KNOWN_GAPS - used)} — xoá mục "
         f"đó khỏi _KNOWN_GAPS, đừng để nó nằm lại như cấu hình chết.")
+
+
+def test_contract_test_covers_multi_source_gather_cases():
+    """Contract test phải quét CẢ MULTI_SOURCE_GATHER_CASES, không chỉ
+    GATHER_CASES — nếu không, danh sách case mới (viết tay, cùng rủi ro y
+    hệt) không được canh gì cả."""
+    seen = {set_name for set_name, _topic, _fx in _all_fixture_cases()}
+    assert seen == {"GATHER_CASES", "MULTI_SOURCE_GATHER_CASES"}
+
+
+def test_new_tools_have_real_field_probes():
+    """Mọi tool xuất hiện trong fixture của CẢ HAI danh sách phải có nhánh
+    trong _real_fields_for_tool — hàm raise KeyError cho tool lạ (cố ý), nên
+    test này biến lỗi-lúc-chạy thành lỗi-lúc-test."""
+    for _set_name, _topic, tool_fixtures in _all_fixture_cases():
+        for tool_name in tool_fixtures:
+            _real_fields_for_tool(tool_name)  # không raise là đạt
+
+
+def test_invoice_date_labels_map_to_real_fields():
+    """2 nhãn mới (spec §6): nhãn hóa đơn phải ứng field thật của
+    list_invoices/get_overdue_invoices (dùng chung accounting._FIELDS)."""
+    assert _DATE_STATUS_LABELS["ngày hóa đơn"] == ("invoice_date",)
+    assert _DATE_STATUS_LABELS["đến hạn"] == ("invoice_date_due",)
+    for tool in ("list_invoices", "get_overdue_invoices"):
+        real = _real_fields_for_tool(tool)
+        assert "invoice_date" in real and "invoice_date_due" in real
+
+
+def test_delivery_status_label_is_no_longer_dead_config():
+    """Nhãn "trạng thái giao" nằm trong _DATE_STATUS_LABELS từ plan trước
+    nhưng chưa fixture nào chạm tới (đã ghi nhận là cấu hình chết, hoãn
+    lại). MULTI_SOURCE_GATHER_CASES dùng nó thật — chốt lại để nó không âm
+    thầm chết trở lại."""
+    corpus = " ".join(
+        text for _s, _t, fx in _all_fixture_cases() for text in fx.values())
+    assert "trạng thái giao" in corpus.casefold()
