@@ -11,7 +11,7 @@ class ERPAgentState(TypedDict):
                                   # (hoặc None). TRANSIENT như pending_action —
                                   # intent_router ghi key này trên MỌI return
                                   # nên không sống sót sang lượt sau; quyết
-                                  # định cuối vẫn do graph._route_by_intent
+                                  # định cuối vẫn do routing.decide_route
                                   # (phủ quyết tất định), không do trường này.
     pending_action: dict | None   # {"tool": str, "args": dict, "summary": str}
     confirmed: bool | None        # None=not asked, True=yes, False=no

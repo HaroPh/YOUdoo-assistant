@@ -51,7 +51,7 @@ def build_graph(llm, tools, checkpointer) -> object:
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
     g.add_node("rag", make_rag_node(llms["synthesis"]))
     # Fan-out đường đọc (SP-2b): `mixed` giữ TÊN và giữ chỗ trong intent_targets
-    # để _route_by_intent không phải đổi — hàm đó là thứ SOP_SELECT_CASES đo
+    # để decide_route không phải đổi — hàm đó là thứ SOP_SELECT_CASES đo
     # trực tiếp. Hai chân chạy cùng superstep (hai cạnh thẳng ra), fuse_answer
     # có hai cạnh vào nên chỉ chạy sau khi CẢ HAI xong.
     g.add_node("mixed", make_mixed_node())

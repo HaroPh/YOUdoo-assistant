@@ -122,7 +122,7 @@ async def test_build_graph_real_routes_sop_and_syncs_working_context(monkeypatch
     mcp_tools, calls = _mcp_tools()
 
     responses = [
-        # 1) intent_router: hợp đồng 2 dòng thật (nodes.py._parse_router_output)
+        # 1) intent_router: hợp đồng 2 dòng thật (routing.py.parse_proposal)
         AIMessage(content="intent: erp_write\nsop: giao-hang"),
         # 2) node giao-hang, lượt ReAct #1: tra chi tiết đơn
         AIMessage(content="", tool_calls=[
@@ -142,8 +142,8 @@ async def test_build_graph_real_routes_sop_and_syncs_working_context(monkeypatch
         {"messages": [HumanMessage(
             content="làm quy trình giao hàng cho đơn bán S00012")]}, cfg)
 
-    # Router thật đã đề cử ĐÚNG SOP và lớp phủ quyết tất định (graph.
-    # _route_by_intent) đã cho SOP nhận trọn lượt (không bị veto).
+    # Router thật đã đề cử ĐÚNG SOP và lớp phủ quyết tất định
+    # (routing.decide_route) đã cho SOP nhận trọn lượt (không bị veto).
     assert first.get("intent") == "erp_write"
     assert first.get("sop") == "giao-hang"
     assert "__interrupt__" in first, "phải park ở cổng xác nhận TRƯỚC khi ghi"

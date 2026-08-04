@@ -565,7 +565,7 @@ MULTI_SOURCE_GATHER_CASES = [
 # ── SOP_SELECT_CASES ────────────────────────────────────────────────────────
 # (câu tiếng Việt, ĐÍCH ĐỊNH TUYẾN CUỐI kỳ vọng).
 #
-# Đích là giá trị _route_by_intent() TRẢ VỀ: tên skill SOP ("giao-hang",
+# Đích là giá trị decide_route() TRẢ VỀ: tên skill SOP ("giao-hang",
 # "nhap-kho", "bao-gia-chiet-khau") hoặc một trong 5 từ intent tier-1. Nghĩa
 # là bộ này đo TOÀN BỘ chuỗi quyết định (LLM đề cử + phủ quyết tất định), không
 # chỉ đầu ra thô của model — vì lớp tất định LÀ một phần của cơ chế.

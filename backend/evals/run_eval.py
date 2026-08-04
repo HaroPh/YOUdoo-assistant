@@ -376,7 +376,7 @@ async def eval_read(llm, pace: float = 0.0, checkpoint_path=None):
 async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
     """Đo trên ĐÚNG hợp đồng router thật (SP-2a Task 8): INTENT_ROUTER_PROMPT
     giờ đòi 2 dòng "intent:"/"sop:", không còn 1 từ trần — parse bằng
-    _parse_router_output CHUNG với node thật (nodes.py) và eval_sop_select,
+    parse_proposal CHUNG với node thật (routing.py) và eval_sop_select,
     không tự viết lại logic parse ở đây.
 
     Lỗi thật bắt được lúc xác nhận sống (Task 11, 2026-07-31): bản cũ của
@@ -425,8 +425,8 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
 
 async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None):
     """Đo việc CHỌN SOP end-to-end: gọi router thật với prompt thật (đã nối
-    khối mô tả worker), parse bằng chính _parse_router_output của node, rồi áp
-    chính _route_by_intent của graph. Đo cả chuỗi vì lớp phủ quyết tất định LÀ
+    khối mô tả worker), parse bằng chính parse_proposal của node, rồi áp
+    chính decide_route của routing. Đo cả chuỗi vì lớp phủ quyết tất định LÀ
     một phần của cơ chế — đo riêng đầu ra thô của model sẽ không nói lên điều
     gì về hành vi thật.
 

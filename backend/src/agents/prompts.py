@@ -20,7 +20,7 @@ Nếu tool trả rỗng, nói rõ "không có dữ liệu". Trả lời tự nhi
 # Hợp đồng đầu ra ĐỔI ở SP-2a: từ "một từ intent" sang HAI DÒNG
 # (intent + sop) — router đề cử SOP trong CÙNG MỘT lượt gọi, không tốn thêm
 # call (quan trọng khi OpenRouter chỉ ~50 req/ngày). Đề cử là XÁC SUẤT; quyết
-# định cuối vẫn tất định ở graph._route_by_intent. Đổi hợp đồng này là đổi
+# định cuối vẫn tất định ở routing.decide_route. Đổi hợp đồng này là đổi
 # HÀNH VI nên nằm trong phạm vi đo của bộ eval `intent` cũ — bộ đó không được
 # thụt (điều kiện lên sóng §5.3).
 INTENT_ROUTER_PROMPT = """Classify the user's latest message.

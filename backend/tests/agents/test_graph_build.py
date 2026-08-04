@@ -203,13 +203,13 @@ def test_build_graph_accepts_role_mapping(monkeypatch):
 # own "mixed" definition, which the router was never tuned to disambiguate
 # from an execute-SOP-for-order-X command). Fixed by switching to an OR:
 # erp_write OR "does not look like a question" (deterministic marker check,
-# _looks_like_question). These tests reproduce the exact 3 failing repro
+# looks_like_question). These tests reproduce the exact 3 failing repro
 # phrasings with the WRONG intent attached, and assert routing now succeeds
 # regardless of router classification. ──────────────────────────────────
 #
 # NOTE (SP-1B Task 10): agentic routing (AGENTIC_SKILLS/agentic_registry) is
-# NOT ported in this plan (deferred to SP-2 — spec §3). _route_by_intent now
-# just returns state["intent"], so only the two _looks_like_question unit
+# NOT ported in this plan (deferred to SP-2 — spec §3). decide_route now
+# just returns state["intent"], so only the two looks_like_question unit
 # tests below still apply; the trigger-routing regression tests that used to
 # sit here were deleted (see task-10-report.md for the full list).
 
@@ -246,7 +246,7 @@ def test_looks_like_question_false_for_plain_commands():
 
 
 # ── SP-2a: định tuyến hybrid ─────────────────────────────────────────────────
-# Tầng 1 (description → đề cử `sop`) là XÁC SUẤT. Tầng 2 (_looks_like_question
+# Tầng 1 (description → đề cử `sop`) là XÁC SUẤT. Tầng 2 (looks_like_question
 # phủ quyết) là TẤT ĐỊNH và cố ý — live-verify 2026-07-16 cho thấy router LLM
 # thua đúng bài này 3/3 lần. Bảng dưới đo tầng 2.
 

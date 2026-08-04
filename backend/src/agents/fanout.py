@@ -58,11 +58,11 @@ def make_mixed_node():
     """Điểm FAN-OUT. Không LLM, không I/O.
 
     Giữ nguyên TÊN `mixed` và nguyên chỗ trong intent_targets là quyết định có
-    chủ đích: nhờ vậy `_route_by_intent` KHÔNG ĐỔI MỘT KÝ TỰ, mà hàm đó chính
+    chủ đích: nhờ vậy `decide_route` KHÔNG ĐỔI MỘT KÝ TỰ, mà hàm đó chính
     là thứ bộ eval SOP_SELECT_CASES đo trực tiếp ("Đích là giá trị
-    _route_by_intent() TRẢ VỀ" — cases.py). Cho hàm đó trả về list
+    decide_route() TRẢ VỀ" — cases.py). Cho hàm đó trả về list
     ["gather_docs","gather_erp"] trông gọn hơn một dòng nhưng phá hợp đồng đầu
-    ra mà bộ eval đang đo, và kéo theo cả lớp phủ quyết _looks_like_question
+    ra mà bộ eval đang đo, và kéo theo cả lớp phủ quyết looks_like_question
     của SP-2a phải chứng minh lại. Đổi 1 dòng lấy 1 bộ eval là lỗ.
 
     Node KHÔNG rỗng: xoá hai key join lúc VÀO là lớp CHỊU LỰC chống dữ liệu ôi

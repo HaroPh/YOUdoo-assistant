@@ -11,7 +11,7 @@ Triết lý validate giống assert_embedding_marker(): thà app không lên cò
 lên sai. Mọi luật dưới đây dính tới THẨM QUYỀN hoặc tính đúng đắn cấu trúc →
 raise. Ngoại lệ DUY NHẤT là vế "KHÔNG dùng khi" trong description: nó là chất
 lượng prompt, không phải thẩm quyền — một description tồi làm SOP bị chọn nhầm,
-và lớp phủ quyết tất định (graph._route_by_intent) cùng confirm-gate vẫn chặn
+và lớp phủ quyết tất định (routing.decide_route) cùng confirm-gate vẫn chặn
 hậu quả. Chặn cứng ở đó sẽ biến một lỗi soạn thảo thành sự cố ngừng dịch vụ,
 sai tỉ lệ → chỉ cảnh báo (xem skill_loader.load_skill_specs)."""
 import re

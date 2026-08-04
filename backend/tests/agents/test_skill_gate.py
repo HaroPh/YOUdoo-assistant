@@ -4,7 +4,7 @@ from src.agents import skill_gate
 def test_unset_defaults_on(monkeypatch):
     # Default ON since 2026-07-16 (graduated from pilot flag after live
     # verification of both agentic skills + the intent-gate in
-    # _route_by_intent that stops trigger phrases hijacking read/RAG
+    # decide_route that stops trigger phrases hijacking read/RAG
     # questions).
     monkeypatch.delenv("ERP_SKILLS_ENABLED", raising=False)
     assert skill_gate.skills_enabled() is True
