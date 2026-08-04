@@ -136,7 +136,15 @@ def test_fuse_prompt_has_obligation_penalty_rule():
     đối chiếu đủ cặp nghĩa vụ/thời hạn + hậu quả/mức phạt cho câu hỏi
     tuân thủ/vi phạm — đo thật trên 8 ca multi_source_gather trước khi
     thêm, xem spec §2. Chốt cứng để không bị xoá nhầm khi ai đó dọn
-    FUSE_PROMPT sau này."""
+    FUSE_PROMPT sau này. Assert TOÀN BỘ dòng (không chỉ đoạn giữa
+    "NGHĨA VỤ/THỜI HẠN ... HẬU QUẢ/MỨC PHẠT") — một assert chỉ ghim đoạn
+    giữa vẫn xanh nếu ai đó sửa mệnh đề điều kiện đầu dòng ("Với câu hỏi
+    về việc có TUÂN THỦ/VI PHẠM...") hay mệnh đề hành động cuối dòng
+    ("hãy dùng CẢ HAI — xác định trước...") mà chừa nguyên đoạn giữa."""
     from src.agents.prompts import FUSE_PROMPT
-    assert ("một đoạn nêu NGHĨA VỤ/THỜI HẠN và một đoạn KHÁC nêu HẬU QUẢ/"
-            "MỨC PHẠT khi vi phạm") in FUSE_PROMPT
+    assert ("Với câu hỏi về việc có TUÂN THỦ/VI PHẠM một điều khoản hay "
+            "không (SLA, thời hạn, chính sách): nếu TÀI LIỆU có một đoạn "
+            "nêu NGHĨA VỤ/THỜI HẠN và một đoạn KHÁC nêu HẬU QUẢ/"
+            "MỨC PHẠT khi vi phạm, hãy dùng CẢ HAI — xác định trước có "
+            "vi phạm nghĩa vụ hay không, rồi nêu hậu quả/mức phạt tương "
+            "ứng nếu có vi phạm.") in FUSE_PROMPT
