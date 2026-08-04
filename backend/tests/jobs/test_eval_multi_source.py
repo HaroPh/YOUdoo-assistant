@@ -272,3 +272,77 @@ async def test_so_trong_nhan_muc_khong_bi_quy_la_bia(monkeypatch):
     assert r["fabricated_number"] == 0, (
         f"chỉ số [1] trong _format_context() bị quy nhầm là số bịa: "
         f"{r['fails']}")
+
+
+# ── Chốt refactor _score_fusion (plan 2026-08-04) ────────────────────────────
+
+
+def test_score_fusion_matches_legacy_formula():
+    """multi_source đang GÁC thật — tách helper mà đổi kết quả một ca nào là
+    đổi cổng. So _score_fusion với công thức CŨ chép nguyên văn (từ
+    eval_multi_source trước khi tách), trên chunk thật + case thật, không
+    cần LLM."""
+    from src.agents.synthesis import _format_context, _MARKER_RE
+    from evals import cases, fixtures
+    from evals.run_eval import (_cited_indices, _digits, _grounded_match,
+                                _score_fusion)
+
+    def legacy(body, chunks, erp_block, doc_fact, erp_fact, topic, question):
+        both = _grounded_match(doc_fact, body) and _grounded_match(erp_fact, body)
+        cited = _cited_indices(body)
+        citation_ok = all(1 <= i <= len(chunks) for i in cited)
+        allowed = _digits(erp_block) | _digits(_format_context(chunks))
+        allowed |= cases.MULTI_SOURCE_DERIVED_DIGITS.get((topic, question),
+                                                         frozenset())
+        m = _MARKER_RE.search(body)
+        prose = body[:m.start()] if m else body
+        fabricated = sorted(_digits(prose) - allowed)
+        return {"both": both, "citation_ok": citation_ok,
+                "fabricated": fabricated}
+
+    bodies = [
+        "Đơn S00042 được giao trong 3 ngày, đúng SLA.\nĐã dùng: 1, 2",
+        "Không đủ căn cứ để trả lời.",
+        "Một số lạ 987654321 xuất hiện ở đây.\nĐã dùng: 99",
+        "Hóa đơn INV/2026/00020 quá hạn từ 01/08/2026.\nĐã dùng: 1",
+        "",
+    ]
+    for topic, erp_block, question, doc_fact, erp_fact in cases.MULTI_SOURCE_CASES:
+        chunks = fixtures.load_chunks(topic)
+        for body in bodies:
+            assert _score_fusion(body, chunks, erp_block, doc_fact, erp_fact,
+                                 topic, question) == legacy(
+                body, chunks, erp_block, doc_fact, erp_fact, topic, question), (
+                f"lệch ở case {topic} / body {body[:40]!r}")
+
+
+def test_score_fusion_allowed_extra_text_whitelists_question_digits():
+    """Bất đối xứng CÓ CHỦ ĐÍCH (spec §5): số nằm nguyên văn trong câu hỏi
+    thì model chép lại không thể gọi là "bịa". CHỈ set multi_source_gather
+    bật cờ này — erp_block viết tay của multi_source xưa nay vẫn nhắc lại
+    số của câu hỏi nên không cần, còn đầu ra tool thật thì không (ca S00050:
+    get_overdue_invoices trả hóa đơn, không trả mã đơn bán)."""
+    from evals import fixtures
+    from evals.run_eval import _score_fusion
+
+    chunks = fixtures.load_chunks("chinh_sach_thanh_toan")
+    question = "Đơn S09999123 có bị tạm dừng xử lý không?"
+    body = "Đơn S09999123 bị tạm dừng xử lý."
+    common = dict(chunks=chunks, erp_text="dữ kiện ERP không nhắc mã đơn",
+                  doc_fact="tạm dừng", erp_fact="S09999123",
+                  topic="chinh_sach_thanh_toan", question=question)
+    without = _score_fusion(body, **common)
+    with_q = _score_fusion(body, allowed_extra_text=question, **common)
+    assert "09999123" in without["fabricated"]
+    assert "09999123" not in with_q["fabricated"]
+
+
+def test_eval_multi_source_uses_helper_without_extra_text():
+    """Chống trôi: eval_multi_source PHẢI đi qua helper (không giữ bản sao
+    công thức) và PHẢI KHÔNG truyền allowed_extra_text — set đang gác giữ
+    nguyên công thức cũ."""
+    import inspect
+    from evals import run_eval
+    src = inspect.getsource(run_eval.eval_multi_source)
+    assert "_score_fusion" in src
+    assert "allowed_extra_text" not in src

@@ -587,6 +587,40 @@ def _digits(s: str) -> set[str]:
     return {re.sub(r"[.,]", "", tok) for tok in _NUM_RE.findall(s)}
 
 
+def _score_fusion(body: str, chunks, erp_text: str, doc_fact, erp_fact,
+                  topic: str, question: str,
+                  allowed_extra_text: str = "") -> dict:
+    """Chấm một câu trả lời tổng hợp 2 nguồn — DÙNG CHUNG cho
+    eval_multi_source (ERP = erp_block viết tay) và eval_multi_source_gather
+    (ERP = tool_fixtures mà gather_erp thật đi lấy).
+
+    Tách ra vì đoạn này có lịch sử lỗi riêng đáng kể: `allowed` từng dựng
+    sai basis (model nhìn thấy _format_context(chunks) nhưng allowed chỉ
+    dựng từ c.text trần → số trong nhãn mục bị quy oan là "bịa"), và
+    MULTI_SOURCE_DERIVED_DIGITS ra đời từ 2 lượt gate fail thật. Chép lại
+    công thức này sang hàm thứ hai là mời đúng lớp lỗi đó quay lại.
+
+    `erp_text` là NGUỒN SỰ THẬT của phía ERP, không phải văn bản model sinh
+    ra: ở set gather nó là tool_fixtures ghép lại, KHÔNG phải erp_facts —
+    lấy erp_facts làm basis sẽ tự hợp thức hóa số do chính tầng gather bịa.
+
+    `allowed_extra_text` (mặc định "" = không đổi gì) cho phép whitelist
+    thêm một nguồn số hợp lệ. eval_multi_source KHÔNG dùng — giữ nguyên
+    công thức của một set đang GÁC thật. Xem spec §5.
+    """
+    both = _grounded_match(doc_fact, body) and _grounded_match(erp_fact, body)
+    cited = _cited_indices(body)
+    citation_ok = all(1 <= i <= len(chunks) for i in cited)
+    allowed = (_digits(erp_text) | _digits(_format_context(chunks))
+               | _digits(allowed_extra_text))
+    allowed |= MULTI_SOURCE_DERIVED_DIGITS.get((topic, question), frozenset())
+    # bỏ marker trước khi soi số, tránh coi chính index trích dẫn là số bịa
+    m = _MARKER_RE.search(body)
+    prose = body[:m.start()] if m else body
+    fabricated = sorted(_digits(prose) - allowed)
+    return {"both": both, "citation_ok": citation_ok, "fabricated": fabricated}
+
+
 async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
     """Đo tổng hợp 2 nguồn trên fixture đóng băng — mirror node fuse_answer.
 
@@ -598,6 +632,9 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
 
     erp_block của fixture đóng vai erp_facts — cả hai đều là văn bản dữ kiện
     ERP thô do chân gather_erp nộp lên, không phải câu trả lời.
+
+    Chấm điểm nằm ở _score_fusion (dùng chung với eval_multi_source_gather);
+    set này không dùng whitelist số hợp lệ ngoài để giữ nguyên công thức đang gác.
     """
     lat: list[float] = []
 
@@ -610,33 +647,12 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
         ]))
         lat.append(ms)
         body = (resp.content or "").strip()
-        both = _grounded_match(doc_fact, body) and _grounded_match(erp_fact, body)
-        cited = _cited_indices(body)
-        citation_ok = all(1 <= i <= len(chunks) for i in cited)
-        # BUG (đã sửa, spec §3): model nhìn thấy _format_context(chunks)
-        # (bao gồm chỉ số [i] và nhãn mục), nhưng allowed cũ chỉ dựng từ
-        # c.text trần — số nằm trong nhãn mục bị quy oan là "bịa". allowed
-        # PHẢI khớp đúng thứ model thấy.
-        # Mất mát đã biết: [1]..[len(chunks)] từ nay luôn hợp lệ ở mọi vị trí
-        # (xem rescore_multi_source.py — bước chấm lại là trọng tài, không
-        # phải chủ quan: nếu baseline hiệu chỉnh không tự đạt fabricated=0
-        # thì bản sửa này SAI, phải xem lại).
-        allowed = _digits(erp_block) | _digits(_format_context(chunks))
-        # Số suy ra được HỢP LỆ cho ĐÚNG case này (spec cases.py
-        # MULTI_SOURCE_DERIVED_DIGITS) — vd model tính đúng ngày dương lịch
-        # từ số ngày nêu trong nguồn. Ghi nhận THỦ CÔNG từng case cụ thể, có
-        # phép suy kèm theo tại cases.py — KHÔNG xây bộ xác minh số học ngày
-        # tháng tổng quát (xem lịch sử quyết định tại cases.py).
-        allowed |= MULTI_SOURCE_DERIVED_DIGITS.get((topic, question), frozenset())
-        # bỏ marker trước khi soi số, tránh coi chính index trích dẫn là số bịa
-        m = _MARKER_RE.search(body)
-        prose = body[:m.start()] if m else body
-        fabricated = sorted(_digits(prose) - allowed)
-        if both and citation_ok and not fabricated:
+        score = _score_fusion(body, chunks, erp_block, doc_fact, erp_fact,
+                              topic, question)
+        if score["both"] and score["citation_ok"] and not score["fabricated"]:
             return None
         return {"topic": topic, "question": question, "response": body[:300],
-                "both": both, "citation_ok": citation_ok,
-                "fabricated": fabricated}
+                **score}
     fails, errors = await run_resilient(MULTI_SOURCE_CASES, call, pace=pace,
                                         checkpoint_path=checkpoint_path)
     n = len(MULTI_SOURCE_CASES)
