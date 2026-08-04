@@ -1,6 +1,6 @@
 # Report: Tách tầng định tuyến ra `routing.py` (2026-08-04)
 
-Kế hoạch: `docs/superpowers/plans/2026-08-04-routing-layer-extraction-plan.md`
+Kế hoạch: `docs/superpowers/plans/2026-08-04-routing-layer-extraction.md`
 Spec: `docs/superpowers/specs/2026-08-04-routing-layer-extraction-design.md`
 
 ## 1. SHA
@@ -28,10 +28,15 @@ PYTHONIOENCODING=utf-8 PYTHONUTF8=1 "D:/Youdoo/backend/.venv/Scripts/python.exe"
 ```
 Kết quả thô: `1122 passed, 4 skipped, 43 deselected in 29.45s`.
 
-**Không assert nào bị sửa nội dung.** Task 3 chỉ đụng comment/docstring (18
-dòng, 10 file — xem mục 5); không một dòng code thực thi hay một `assert` nào
-bị đổi. Số `passed` không tăng thêm so với sau Task 1/2 vì Task 3 không thêm
-test mới — chỉ vệ sinh prose.
+**Không assert nào bị sửa nội dung, xuyên suốt cả 3 commit (Task 1, Task 2,
+Task 3).** Task 3 tự nó chỉ đụng comment/docstring (18 dòng, 10 file — xem
+mục 5); không một dòng code thực thi hay một `assert` nào bị đổi ở Task 3.
+Phạm vi rộng hơn — toàn nhánh, không chỉ Task 3 — được final whole-branch
+review xác nhận cơ học: áp bảng đổi tên symbol lên các blob trước Task 1
+(baseline), rồi diff kết quả với trạng thái sau Task 3; diff không còn lệch
+nào ngoài các chỗ đổi tên đã biết, tức không `assert` nào ở bất kỳ commit
+nào trong 3 commit bị đổi giá trị kỳ vọng. Số `passed` không tăng thêm so
+với sau Task 1/2 vì Task 3 không thêm test mới — chỉ vệ sinh prose.
 
 Chú ý vận hành: bộ `tests/rag/` re-serialize 2 fixture nhị phân
 (`backend/tests/rag/fixtures/bang_gia.xlsx`, `policy.docx`) mỗi lần chạy. Sau
@@ -125,11 +130,14 @@ Kết quả: **rỗng** — không file spec nào bị sửa.
    re-export — xác nhận bằng grep trực tiếp 2 file, 0 kết quả.
 3. ✅ Tên node graph vẫn là chuỗi `"intent_router"` — không đổi (xác nhận:
    `graph.py` dòng `g.add_conditional_edges("intent_router", decide_route, intent_targets)`).
-4. ✅ 5 import site đã sửa ở Task 1/2; **18 dòng ở 10 file** (không phải 8 —
-   xem mục 5) đã sửa ở Task 3; không file nào trong `docs/superpowers/specs/`
-   bị đụng.
+4. ✅ **6 import site** đã sửa ở Task 1/2 (không phải 5 — 5 chỗ plan liệt kê
+   cộng thêm `backend/tests/agents/test_sop_select_gate.py`, vốn import
+   `VALID_INTENTS` từ `nodes`; đây là chỗ hụt trong danh sách file của plan,
+   chỉ lộ ra khi một subagent chạy full suite); **18 dòng ở 10 file** (không
+   phải 8 — xem mục 5) đã sửa ở Task 3; không file nào trong
+   `docs/superpowers/specs/` bị đụng.
 5. ✅ Suite unit-only 1122 passed / 0 failed, không tăng fail so với baseline
-   Task 1 (1122); không assert nào bị sửa nội dung (mục 2).
+   (1121, trước Task 1 — mục 2); không assert nào bị sửa nội dung (mục 2).
 6. ✅ Test mới cho `RouteProposal` (thêm ở Task 1, §5.3 spec) nằm trong 1122
    test xanh.
 7. ✅ Một lượt `--set sop_select` đã chạy: `acc = 16/17`, `hijack = 0`, kèm

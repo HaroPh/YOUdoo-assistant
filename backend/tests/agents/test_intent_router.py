@@ -113,7 +113,7 @@ def test_parse_garbage_is_unknown_not_exception():
 
 def test_parse_is_case_insensitive_and_tolerates_extra_lines():
     assert parse_proposal("Intent: ERP_WRITE\nSOP: giao-hang\nghi chú: x",
-                                SOPS) == ("erp_write", "giao-hang")
+                          SOPS) == ("erp_write", "giao-hang")
 
 
 @pytest.mark.asyncio

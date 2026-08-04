@@ -208,10 +208,14 @@ def test_build_graph_accepts_role_mapping(monkeypatch):
 # regardless of router classification. ──────────────────────────────────
 #
 # NOTE (SP-1B Task 10): agentic routing (AGENTIC_SKILLS/agentic_registry) is
-# NOT ported in this plan (deferred to SP-2 — spec §3). decide_route now
-# just returns state["intent"], so only the two looks_like_question unit
-# tests below still apply; the trigger-routing regression tests that used to
-# sit here were deleted (see task-10-report.md for the full list).
+# NOT ported in this plan (deferred to SP-2 — spec §3). decide_route still
+# applies the full deterministic veto described above (SOP proposal wins
+# unless the text looks_like_question, subject to the ERP_SKILLS_ENABLED
+# kill switch); the eight tests below exercise it — the two
+# looks_like_question marker tests directly below, plus the six
+# decide_route routing tests further down in the "SP-2a: định tuyến hybrid"
+# block. The trigger-routing regression tests that used to sit here were
+# deleted (see task-10-report.md for the full list).
 
 def test_looks_like_question_detects_all_markers():
     from src.agents.routing import looks_like_question
