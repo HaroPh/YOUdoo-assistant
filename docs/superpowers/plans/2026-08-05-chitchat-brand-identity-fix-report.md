@@ -231,11 +231,37 @@ tiếp, không suy luận từ prompt text. File JSON tạm đã xoá sau khi xo
 | 1 | `CHITCHAT_PROMPT` chứa đúng câu mới ở §4 | ĐẠT — diff §1 khớp nguyên văn, mọi dòng khác byte-identical |
 | 2 | `pytest` unit-only xanh toàn bộ | ĐẠT — 1123 passed, 4 skipped, 43 deselected (baseline 1122 passed, +1 đúng bằng test mới, không hồi quy) |
 | 3 | `--set chitchat`: `violations == 0` | ĐẠT — `violations=0`, `fails=[]`, gate PASS |
-| 4 | Gọi backend thật xác nhận response nhắc "Youdoo" | CHƯA XÁC MINH (bằng chứng ở §5.3 đến từ tiến trình vi phạm quyền hạn, đã bị thu hồi — xem ghi chú cuối §5.1/§7; controller sẽ đo lại sau khi merge bằng backend hợp pháp) |
+| 4 | Gọi backend thật xác nhận response nhắc "Youdoo" | ĐẠT (đo lại hợp lệ sau merge — xem §8) |
 
-3 trong 4 tiêu chí hoàn thành được xác nhận bằng bằng chứng hợp lệ (không
-suy đoán, không tái sử dụng số liệu cũ); tiêu chí 4 còn lại chờ đo lại hợp
-lệ sau khi merge.
+Cả 4 tiêu chí hoàn thành đều ĐẠT bằng bằng chứng hợp lệ (không suy đoán,
+không tái sử dụng số liệu cũ) — tiêu chí 4 đã được đo lại đúng cách sau
+khi merge, xem §8.
+
+## 8. Đo lại hợp pháp tiêu chí 4 (sau merge, 2026-08-05)
+
+Bằng chứng ở §5.3 bị thu hồi (đến từ tiến trình vi phạm quyền hạn — xem
+§7). Sau khi nhánh này merge vào `main` (commit `866f428`), controller tự
+đo lại: dừng tiến trình backend cũ (đang chạy code TRƯỚC merge) bằng
+`Stop-Process` hợp pháp (không bị chặn — process do chính controller sở
+hữu), khởi động lại `D:/Youdoo/backend/run.py` KHÔNG chỉnh sửa gì, không
+path injection — code chạy đúng là code đã merge trên `main`.
+
+Request thật (cùng câu hỏi, ghi JSON ra file tránh lỗi encode shell):
+
+```
+POST http://localhost:8000/v1/chat/completions
+{"model":"erp-assistant","messages":[{"role":"user","content":"Bạn là ai?"}]}
+```
+
+Response JSON nguyên văn:
+
+```json
+{"id":"chatcmpl-578e2b5a50a54a3e974d6fb7","object":"chat.completion","created":1785913063,"model":"erp-assistant","choices":[{"index":0,"message":{"role":"assistant","content":"Chào bạn! Tôi là Youdoo, trợ lý ERP nội bộ của bạn. \n\nTôi có thể hỗ trợ bạn các công việc như:\n- Tra cứu thông tin đơn hàng, tồn kho, khách hàng và nhà cung cấp.\n- Tìm kiếm tài liệu hoặc các chính sách nội bộ của công ty.\n- Tạo mới hoặc chỉnh sửa báo giá, đơn mua hàng và điều chỉnh tồn kho.\n\nBạn cần tôi hỗ trợ điều gì hôm nay không?"},"finish_reason":"stop"}],"usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+```
+
+`choices[0].message.content` chứa **"Tôi là Youdoo"** — xác nhận từ tiến
+trình hợp pháp, chạy đúng code đã merge, không path injection. Tiêu chí 4
+nay ĐẠT bằng bằng chứng thật, không phải giả định.
 
 ## 7. Concern cần controller lưu ý
 
