@@ -68,6 +68,16 @@ def test_fuse_prompt_mentions_no_write():
     assert "KHÔNG thực hiện thao tác ghi" in FUSE_PROMPT
 
 
+def test_fuse_prompt_co_chi_dan_de_xuat_ghi():
+    from src.agents.prompts import FUSE_PROMPT
+    assert "ĐỀ_XUẤT_GHI" in FUSE_PROMPT
+
+
+def test_system_prompt_co_chi_dan_de_xuat_ghi():
+    from src.agents.prompts import SYSTEM_PROMPT
+    assert "ĐỀ_XUẤT_GHI" in SYSTEM_PROMPT
+
+
 def test_chunk_dict_roundtrip_is_lossless():
     from src.agents.fanout import chunk_to_dict, chunks_from_dicts
     c = _chunk(rerank_score=0.9)
