@@ -162,12 +162,20 @@ def test_chitchat_prompt_has_brand_name():
 
 def test_gather_erp_prompt_yeu_cau_tra_cuu_truoc_khi_hoi_lai():
     """Bug thật 2026-08-05: agent hỏi 'nhà cung cấp nào?' mà không tra cứu,
-    dù chính nó tra được ngay khi được hỏi thẳng ở lượt sau."""
+    dù chính nó tra được ngay khi được hỏi thẳng ở lượt sau. Assert CẢ CÂU
+    (không chỉ từ khoá rời) — một sửa lệch mệnh đề hành động (vd đảo ngược
+    thành "đừng tra cứu") vẫn giữ nguyên các từ khoá rời nhưng đổi nghĩa,
+    xem test_fuse_prompt_has_obligation_penalty_rule cùng file để biết vì
+    sao chỉ ghim từ khoá là không đủ."""
     from src.agents.prompts import GATHER_ERP_PROMPT
-    assert "tra cứu" in GATHER_ERP_PROMPT.lower()
-    assert "hỏi lại" in GATHER_ERP_PROMPT.lower()
+    assert ("hãy GỌI TOOL tra cứu trước, đừng hỏi lại người dùng khi tự tra được"
+            in GATHER_ERP_PROMPT)
 
 
 def test_fuse_prompt_neu_dung_mot_lua_chon_thi_neu_thang():
+    """Assert CẢ mệnh đề hành động (không chỉ cụm kích hoạt "một lựa chọn")
+    — cùng lý do với test phía trên."""
     from src.agents.prompts import FUSE_PROMPT
-    assert "một lựa chọn" in FUSE_PROMPT.lower()
+    assert ("hãy nêu thẳng lựa chọn đó kèm số liệu thật và đề nghị tiến hành, "
+            "thay vì hỏi lại người dùng chọn gì" in FUSE_PROMPT)
+    assert "Nếu có NHIỀU lựa chọn, liệt kê ra để người dùng chọn." in FUSE_PROMPT
