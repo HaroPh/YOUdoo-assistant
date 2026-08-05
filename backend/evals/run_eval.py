@@ -34,7 +34,8 @@ from src.agents.prompts import GATHER_ERP_PROMPT
 from src.agents.fanout import make_gather_erp_node, _create_agent
 from src.agents.erp_grounding import verify_erp_grounding
 from src.agents.prompts import render_intent_router_prompt
-from src.agents.synthesis import SENTINEL, _format_context, _MARKER_RE
+from src.agents.synthesis import (SENTINEL, _format_context, _MARKER_RE,
+                                  extract_write_suggestion)
 from src.agents.nodes import _parse_plan_tiered
 from src.agents.routing import parse_proposal, decide_route
 from src.agents.skill_loader import load_skill_specs, render_worker_block
@@ -588,6 +589,20 @@ def _digits(s: str) -> set[str]:
     return {re.sub(r"[.,]", "", tok) for tok in _NUM_RE.findall(s)}
 
 
+def _strip_write_marker(content) -> str:
+    """Thân câu trả lời fuse ĐÚNG NHƯ production nhìn thấy nó.
+
+    fuse_answer (fanout.py) LUÔN gọi extract_write_suggestion() cắt dòng
+    ĐỀ_XUẤT_GHI trước khi làm bất cứ việc gì khác với câu trả lời, nên chấm
+    điểm trên resp.content thô là chấm một chuỗi mà production không bao giờ
+    dùng — đúng loại trôi lệch prod/eval mà docstring eval_multi_source ghi là
+    đã một lần làm acc rơi 0.870 → 0.148 (SP-2a). Boolean trả về bị bỏ: eval
+    chỉ cần văn bản sạch, không cần tín hiệu định tuyến.
+    """
+    body, _ = extract_write_suggestion((content or "").strip())
+    return body
+
+
 def _score_fusion(body: str, chunks, erp_text: str, doc_fact, erp_fact,
                   topic: str, question: str,
                   allowed_extra_text: str = "") -> dict:
@@ -647,7 +662,7 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
             HumanMessage(content=render_fuse_input(chunks, erp_block, question)),
         ]))
         lat.append(ms)
-        body = (resp.content or "").strip()
+        body = _strip_write_marker(resp.content)
         score = _score_fusion(body, chunks, erp_block, doc_fact, erp_fact,
                               topic, question)
         if score["both"] and score["citation_ok"] and not score["fabricated"]:
@@ -717,7 +732,7 @@ async def eval_multi_source_gather(llm, pace: float = 0.0, checkpoint_path=None)
         # so trực tiếp được với multi_source (chỉ đo fuse), có chủ đích.
         (erp_facts, resp), ms = await _timed(_chain())
         lat.append(ms)
-        body = (resp.content or "").strip()
+        body = _strip_write_marker(resp.content)
         score = _score_fusion(body, chunks, "\n".join(tool_fixtures.values()),
                               doc_fact, erp_fact, topic, question,
                               allowed_extra_text=question)

@@ -157,32 +157,50 @@ def looks_like_question(folded: str) -> bool:
 def replying_to_write_suggestion(state: ERPAgentState) -> bool:
     """Lượt này có phải người dùng ĐỒNG Ý với một ĐỀ XUẤT GHI ở lượt trước?
 
-    Tín hiệu KHÔNG đọc từ văn bản mà từ `additional_kwargs["suggested_write"]`
-    của AIMessage — cờ do fuse_answer/erp_read gắn khi câu trả lời của chúng
-    thật sự đề xuất một hành động ghi (xem synthesis.extract_write_suggestion).
+    Đúng khi CẢ HAI vế cùng đúng: (a) câu trả lời đường ĐỌC ở lượt ngay trước
+    (fuse_answer / erp_read) thật sự có đề xuất một hành động ghi — cờ
+    `state["suggested_write"]`, do synthesis.extract_write_suggestion tách ra
+    từ marker ĐỀ_XUẤT_GHI; và (b) lượt người dùng mới này là một câu ĐỒNG Ý
+    gọn ("ok", "có", "làm đi") theo classify_keyword.
 
     VÌ SAO KHÔNG DÒ VĂN BẢN: câu gây bug thật ("...từ nhà cung cấp Acme
     Corporation không?") không có khuôn "(có / không)" nào để bắt; mà nới ra
     bắt mọi câu kết thúc "...không?" thì MỌI câu hỏi chitchat/RAG thường ngày
     ("Bạn có muốn tôi giải thích thêm không?") theo sau bởi "ok" đều bị ép sai
-    sang đường ghi. Cờ trên message tránh hẳn thế lưỡng nan đó.
+    sang đường ghi. Một cờ tường minh tránh hẳn thế lưỡng nan đó.
 
-    VÌ SAO GẮN VÀO MESSAGE, KHÔNG PHẢI STATE KEY RIÊNG: `intent_router` chạy
-    TRƯỚC hàm này. State key riêng thì hoặc bị intent_router xoá (theo mẫu
-    `sop`) nên không bao giờ đọc được, hoặc không ai xoá nên sống dai sang các
-    lượt sau gây kích hoạt sai. Cờ nằm trên chính message thì TỰ GIỚI HẠN
-    PHẠM VI: hàm này luôn đọc AI message MỚI NHẤT, nên một câu trả lời mới
-    không mang cờ tự vô hiệu hoá cờ cũ — không cần kỷ luật dọn dẹp trải khắp
-    các node.
+    VÌ SAO ĐỌC STATE KEY RIÊNG, KHÔNG PHẢI AIMessage.additional_kwargs: bản
+    đầu gắn cờ lên chính AIMessage và ĐÃ ĐƯỢC ĐO LÀ HỎNG TRONG PRODUCTION.
+    `erp_agent._invoke_fresh` chạy trên MỌI lượt không parked (kể cả đúng lượt
+    "okay" mà cơ chế này nhắm tới) và dựng LẠI TOÀN BỘ kênh "messages" từ
+    payload client gửi lên — mà main.py._filter_messages đã lược mỗi message
+    còn {"role", "content"}, nên additional_kwargs không sống sót một lượt
+    nào. Cờ nằm trên message vì thế KHÔNG BAO GIỜ tới được hàm này ngoài đời
+    thật. State key riêng là một CHANNEL KHÁC của LangGraph: update
+    {"messages": reset} của _invoke_fresh không đụng tới nó, nên nó sống sót.
+
+    VÌ SAO CẦN NEO ĐỘ DÀI (suggested_write_at): channel LangGraph là "last
+    write wins" — channel không được ghi thì GIỮ NGUYÊN giá trị checkpoint cũ
+    mãi mãi. Không có neo, một cờ đặt từ nhiều lượt trước vẫn còn True và sẽ
+    bắn phủ quyết nhầm vào một câu "ok" ngắn hoàn toàn không liên quan ở lượt
+    xa sau đó. Neo làm cờ TỰ HẾT HẠN: chỉ tin khi len(messages) đúng bằng
+    suggested_write_at + 1 — tức đúng MỘT message mới (chính câu trả lời của
+    người dùng) được thêm kể từ lúc đặt cờ, không có gì xen giữa. Nhờ vậy
+    KHÔNG node nào phải chủ động dọn cờ (không phải sửa respond_unknown,
+    rag_node, erp_write_planner, write_continuation và 9 module ghi phối hợp).
+
+    suggested_write_at đếm theo cái NGƯỜI DÙNG THẤY (xem state.py), nên đúng
+    cho cả fuse_answer (luôn 1 message) lẫn erp_read (ReAct, phụ thêm cả
+    tool-call/tool-result nhưng client chỉ nhận lại 1 câu trả lời).
 
     Đây CHỈ là quyết định định tuyến. Không hành động ghi nào chạy nếu chưa
     qua _interrupt() thật của erp_write_planner.
     """
-    messages = state.get("messages") or []
-    last_ai = next((m for m in reversed(messages) if m.type == "ai"), None)
-    if last_ai is None:
+    if not state.get("suggested_write"):
         return False
-    if not (getattr(last_ai, "additional_kwargs", None) or {}).get("suggested_write"):
+    messages = state.get("messages") or []
+    at = state.get("suggested_write_at")
+    if at is None or len(messages) != at + 1:
         return False
     last_human = next((m for m in reversed(messages) if m.type == "human"), None)
     if last_human is None:

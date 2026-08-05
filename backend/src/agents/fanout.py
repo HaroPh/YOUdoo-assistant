@@ -176,6 +176,10 @@ def make_fuse_answer_node(llm):
     """
     async def fuse_answer(state: ERPAgentState) -> dict:
         clear = {"doc_context": None, "erp_facts": None}
+        # Neo tự hết hạn cho cờ suggested_write: số message người dùng THẤY sau
+        # lượt này = history vào + đúng 1 câu trả lời node này phát ra. Ghi trên
+        # MỌI đường return (kể cả SAFE_MSG) để không đường nào để lại cờ cũ.
+        anchor = len(state["messages"]) + 1
         erp_facts = state.get("erp_facts") or ""
         # Khởi tạo TRƯỚC try: nhánh trả về sớm bên dưới (cả hai chân rỗng)
         # thoát hàm trước khi extract_write_suggestion chạy — thiếu dòng này
@@ -186,7 +190,8 @@ def make_fuse_answer_node(llm):
             if not chunks and not erp_facts:
                 # Hai chân cùng rỗng → không có gì để suy luận. Kiểm tra TẤT
                 # ĐỊNH, không giao cho model tự nhận ra.
-                return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
+                return {"messages": [AIMessage(content=SAFE_MSG)], **clear,
+                        "suggested_write": False, "suggested_write_at": anchor}
             resp = await llm.ainvoke([
                 SystemMessage(content=FUSE_PROMPT),
                 HumanMessage(content=render_fuse_input(
@@ -194,7 +199,8 @@ def make_fuse_answer_node(llm):
             ])
             answer = (resp.content or "").strip()
             if not answer:
-                return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
+                return {"messages": [AIMessage(content=SAFE_MSG)], **clear,
+                        "suggested_write": False, "suggested_write_at": anchor}
             # Tách cờ TRƯỚC cite_and_verify: extract_used_citations() cắt cụt
             # mọi thứ từ NGUỒN_DÙNG trở đi, nên nếu model đặt ĐỀ_XUẤT_GHI sau
             # NGUỒN_DÙNG thì để muộn hơn là mất cờ.
@@ -218,8 +224,12 @@ def make_fuse_answer_node(llm):
             logger.exception("fuse_answer failed")
             answer = SAFE_MSG
             suggested_write = False
-        kwargs = {"suggested_write": True} if suggested_write else {}
-        return {"messages": [AIMessage(content=answer,
-                                       additional_kwargs=kwargs)], **clear}
+        # Cờ đi qua STATE KEY RIÊNG, KHÔNG gắn lên AIMessage: `_invoke_fresh`
+        # (erp_agent.py) dựng lại toàn bộ kênh "messages" từ history text thuần
+        # của client trên MỌI lượt không parked, nên cờ nằm trên message không
+        # bao giờ tới được decide_route trong production (xem routing.py).
+        return {"messages": [AIMessage(content=answer)], **clear,
+                "suggested_write": suggested_write,
+                "suggested_write_at": anchor}
 
     return fuse_answer

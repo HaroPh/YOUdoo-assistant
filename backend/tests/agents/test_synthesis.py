@@ -303,3 +303,25 @@ def test_extract_write_suggestion_khong_pha_extract_used_citations():
     assert suggested is True
     assert final == "Câu trả lời."
     assert used == ["chunk1"]
+
+
+def test_extract_write_suggestion_cat_moi_lan_lap_marker():
+    """Model nhỏ/local có lúc phát marker HAI LẦN. Bản cũ dùng sub(count=1)
+    nên lần thứ hai lọt thẳng ra văn bản người dùng đọc."""
+    from src.agents.synthesis import extract_write_suggestion
+    body = "Bạn có muốn tôi tạo đơn mua không?\nĐỀ_XUẤT_GHI: có\nĐỀ_XUẤT_GHI: có"
+    clean, suggested = extract_write_suggestion(body)
+    assert suggested is True
+    assert "ĐỀ_XUẤT_GHI" not in clean
+    assert clean == "Bạn có muốn tôi tạo đơn mua không?"
+
+
+def test_extract_write_suggestion_bo_qua_marker_giua_dong():
+    """Marker theo hợp đồng là một DÒNG RIÊNG. Không có neo `^` (+MULTILINE),
+    regex khớp cả mảnh nằm giữa câu và sub() nuốt mất phần đuôi của chính dòng
+    đó — hỏng lặng lẽ ngay trong văn bản hiển thị."""
+    from src.agents.synthesis import extract_write_suggestion
+    body = "Tôi đã ghi ĐỀ_XUẤT_GHI: có vào sổ tay rồi nhé."
+    clean, suggested = extract_write_suggestion(body)
+    assert suggested is False
+    assert clean == body        # KHÔNG cắt gì, kể cả đuôi "vào sổ tay rồi nhé."

@@ -10,7 +10,7 @@
 
 ## Tóm tắt kế hoạch
 
-Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  giúp người dùng xác minh trước khi thực hiện thao tác viết dữ liệu ERP. Spec đầy đủ: `docs/superpowers/plans/2026-08-05-write-confirmation-ux.md`
+Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  giúp người dùng xác minh trước khi thực hiện thao tác viết dữ liệu ERP. Spec đầy đủ: `docs/superpowers/specs/2026-08-05-write-confirmation-ux-fix-design.md` (kế hoạch thi công: `docs/superpowers/plans/2026-08-05-write-confirmation-ux-fix.md`)
 
 ---
 
@@ -32,9 +32,13 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 
 **File đã sửa:**
 - `backend/src/agents/routing.py` — Thêm import từ `.confirmation`, hàm `replying_to_write_suggestion(state) -> bool` (dòng 157-190), nhánh veto trong `decide_route()` (dòng 217-218)
-- `backend/tests/agents/test_routing_write_suggestion.py` (tạo mới) — 7 test case verbatim từ brief: `test_tien_hanh_neu_co_de_xuat_ghi_va_ok()`, `test_tien_hanh_neu_co_de_xuat_ghi_va_co()`, `test_khong_tien_hanh_neu_co_de_xuat_ghi_va_khong()`, `test_khong_tien_hanh_neu_khong_co_de_xuat_ghi()`, `test_khong_tien_hanh_neu_khong_co_human_message()`, `test_khong_tien_hanh_neu_khong_co_ai_message_nao_thi_an_toan()`, `test_co_moi_hon_khong_mang_co_thi_vo_hieu_hoa_co_cu()`
+- `backend/tests/agents/test_routing_write_suggestion.py` (tạo mới) — 7 test case (hướng dương: đồng ý ngắn gọn → `erp_write`, thắng cả đề cử router LLM; hướng âm: không có cờ / trả lời từ chối / trả lời dài không phải xác nhận / cờ cũ bị vô hiệu hoá / state chỉ có một human message)
 
-**Nhận xét review:** Không có finding nào. Kiểm chứng tính an toàn invariant 1 — không đụng `erp_write_executor`, `state.get("confirmed")`, `write_gate`, hay `_interrupt()`. +7 test như kỳ vọng.
+**Nhận xét review:** Không có finding nào ở vòng review theo-task. Kiểm chứng tính an toàn invariant 1 — không đụng `erp_write_executor`, `state.get("confirmed")`, `write_gate`, hay `_interrupt()`. +7 test như kỳ vọng.
+
+> **File này đã được VIẾT LẠI TOÀN BỘ ở fix wave final review** (cơ chế đổi từ
+> `additional_kwargs` sang state field + neo độ dài). Danh sách test hiện hành
+> xem mục "Fix wave (final review)" ở cuối báo cáo.
 
 ---
 
@@ -96,7 +100,7 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 
 **File đã sửa (lần 1):**
 
-- `backend/src/agents/prompts.py` — Thêm `WRITE_CONFIRM_SUFFIX` (dòng 141-142) với docstring tiếng Việt, đổi câu chữ `WRITE_CONFIRM_PREFIX` từ "Mình sẽ thực hiện các thao tác sau" sang "Mình sẽ thực hiện thao tác sau giúp bạn:" (dòng 126)
+- `backend/src/agents/prompts.py` — Thêm `WRITE_CONFIRM_SUFFIX` (dòng 141-142) với docstring tiếng Việt, đổi câu chữ `WRITE_CONFIRM_PREFIX` từ `"Bạn có muốn thực hiện thao tác sau không?\n\n"` sang `"Mình sẽ thực hiện thao tác sau giúp bạn:\n\n"` (dòng 126)
 
 - **src/agents/ (9 file):** Thêm import `WRITE_CONFIRM_SUFFIX`, thay 19 literal cũ:
   - `create_order.py` (2 vị trí) — dòng 49, 53
@@ -160,11 +164,11 @@ cd backend && PYTHONIOENCODING=utf-8 PYTHONUTF8=1 .venv/Scripts/python.exe -m py
 ```
 
 **Baseline trước Task 1:** 1123 passed, 4 skipped
-**Baseline sau Task 1:** 1128 passed, 4 skipped (Task 1 không thêm test riêng, +5 = 7 test của Task 2)
+**Baseline sau Task 1:** 1128 passed, 4 skipped (+5 test của Task 1)
 **Baseline sau Task 2:** 1135 passed, 4 skipped (+7 test)
 **Baseline sau Task 3:** 1140 passed, 4 skipped (+5 test, gồm 3 unit + 2 guard)
 **Baseline sau Task 4:** 1142 passed, 4 skipped (+2 test)
-**Finał (sau Task 5):** 1144 passed, 4 skipped (+2 test)
+**Cuối cùng (sau Task 5):** 1144 passed, 4 skipped (+2 test)
 
 **Tổng cộng:** +21 test mới (1144 - 1123 = 21)
 
@@ -215,11 +219,85 @@ Nếu tiêu chí 2 hoặc 3 trượt: sẽ revert phần tương ứng, ghi số
 
 ---
 
+## Fix wave (final review)
+
+Review toàn nhánh sau khi 6 task đóng lại tìm ra **1 Critical + 3 finding
+nhỏ hơn**. Báo cáo chi tiết + toàn bộ số đo thật:
+`.superpowers/sdd/2026-08-05-write-confirmation-ux-fix/final-review-fix-wave-report.md`.
+
+### C1 (Critical) — cơ chế cờ KHÔNG chạy trong production
+
+Cơ chế cũ gắn cờ vào `AIMessage.additional_kwargs`. `erp_agent._invoke_fresh`
+chạy trên **MỌI lượt không parked** (kể cả đúng lượt "okay" mà cả plan này
+nhắm tới) và dựng lại **toàn bộ** kênh `messages` từ payload client, mà
+`main.py._filter_messages` đã lược mỗi message còn `{"role", "content"}`. Cờ
+trên message vì thế không sống nổi một lượt và **không bao giờ tới được**
+`decide_route`.
+
+**Thiết kế thay thế:** hai state field riêng, tự hết hạn theo neo độ dài —
+`suggested_write: bool | None` + `suggested_write_at: int | None`.
+`decide_route` chỉ tin cờ khi `len(messages) == suggested_write_at + 1` (đúng
+lượt kế tiếp, không có gì xen giữa). State key là một **channel LangGraph
+khác**, không bị `{"messages": reset}` của `_invoke_fresh` đụng tới, nên sống
+sót; còn neo khiến cờ tự hết hạn nên **không node nào phải chủ động dọn** (không
+phải sửa `respond_unknown`, `rag_node`, `erp_write_planner`,
+`write_continuation` và 9 module ghi phối hợp).
+
+Neo đếm theo **số message người dùng THẤY** (`len(state["messages"]) + 1`),
+không theo độ dài kênh nội bộ — đo thật cho thấy công thức
+`len(state)+len(new_msgs)` làm đường `erp_read` (ReAct, phụ thêm
+tool-call/tool-result) **không bao giờ** bắn được phủ quyết.
+
+**Kiểm chứng thật (graph + AsyncPostgresSaver + đúng khuôn `_invoke_fresh`):**
+
+```
+=== CƠ CHẾ CŨ (cờ trên AIMessage.additional_kwargs) ===
+  len(messages) sau lượt 2 : 3
+  additional_kwargs của AI cuối: [{}]
+  cờ cũ đọc được?          : False
+  replying_to_write_suggestion (hàm MỚI trên state cũ): False
+
+=== CƠ CHẾ MỚI (state key + neo độ dài) ===
+  len(messages) sau lượt 2 : 3
+  state['suggested_write'] : True
+  state['suggested_write_at']: 2
+  human cuối               : 'okay'
+  >>> replying_to_write_suggestion(state) = True
+```
+
+### Finding 2 (Important) — eval chấm văn bản CHƯA cắt marker
+
+`evals/run_eval.py` chấm `resp.content` thô trong khi production luôn cắt dòng
+`ĐỀ_XUẤT_GHI` trước. Thêm `_strip_write_marker()` (gọi
+`extract_write_suggestion`, bỏ boolean) dùng ở **cả** `eval_multi_source` lẫn
+`eval_multi_source_gather`, kèm test canh chống trôi lại.
+
+### Finding 3 (Minor, đôn lên) — `synthesis.py` robustness
+
+`sub(count=1)` → `count=0` (marker lặp hai lần thì lần thứ hai lọt ra văn bản
+người dùng đọc); thêm neo `^` + `re.MULTILINE` (không có neo, regex khớp mảnh
+marker giữa câu và nuốt mất đuôi dòng đó). +2 test.
+
+### Finding 4 (Important) — báo cáo sai sự thật
+
+Sửa citation spec sai đường dẫn, danh sách test Task 2 không khớp file thật,
+trích sai giá trị cũ của `WRITE_CONFIRM_PREFIX`, dòng baseline Task 1 tự mâu
+thuẫn, và lỗi chính tả "Finał".
+
+### Kết quả test sau fix wave
+
+- Unit-only: **1151 passed, 4 skipped, 46 deselected** (1144 → 1151, +7 test)
+- Integration (Postgres thật): **3 passed** —
+  `tests/agents/test_write_suggestion_checkpoint.py -m integration`, chạy
+  thật, KHÔNG skip
+
+---
+
 ## Nhận xét cuối
 
 - ✅ Tất cả 5 task hoàn thành, code merged vào nhánh worktree này
-- ✅ Test suite 1144 passed, 4 skipped (không regression)
-- ✅ Tất cả 6 finding từ review loop đều được xác nhận + sửa (0 open)
+- ✅ Test suite 1151 passed, 4 skipped (không regression) sau fix wave final review
+- ✅ Tất cả 6 finding từ review loop theo-task + 4 finding final review đều được xác nhận + sửa (0 open)
 - ✅ Bất biến an toàn 1-4 kiểm chứng: không đụng `erp_write_executor`, `_interrupt()`, hay `state.get("confirmed")`
 - ✅ Circular import check pass
 - ⏳ Cổng đánh giá §7 (live-verify) chờ merge + controller verification

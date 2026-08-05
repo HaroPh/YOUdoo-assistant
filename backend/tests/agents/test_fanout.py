@@ -484,13 +484,32 @@ def test_eval_multi_source_uses_shared_render_and_fuse_prompt():
     assert "TÀI LIỆU:" not in src
 
 
+def test_eval_fuse_cat_marker_de_xuat_ghi_giong_fuse_answer():
+    """Chống trôi prod/eval (Finding 2, final review 2026-08-05): fuse_answer
+    LUÔN gọi extract_write_suggestion cắt dòng ĐỀ_XUẤT_GHI trước khi làm gì
+    khác với câu trả lời. Eval chấm `resp.content` thô là chấm một chuỗi
+    production không bao giờ dùng — đúng lớp trôi lệch từng làm acc rơi
+    0.870 → 0.148 (SP-2a)."""
+    import inspect
+    from evals import run_eval
+    for fn in (run_eval.eval_multi_source, run_eval.eval_multi_source_gather):
+        assert "_strip_write_marker" in inspect.getsource(fn)
+    assert "extract_write_suggestion" in inspect.getsource(
+        run_eval._strip_write_marker)
+
+
 def test_fusion_prompt_is_gone():
     from src.agents import prompts
     assert not hasattr(prompts, "FUSION_PROMPT")
 
 
 async def test_fuse_answer_gan_co_va_cat_marker(monkeypatch):
-    """Marker bị cắt khỏi văn bản hiển thị và chuyển thành cờ trên message."""
+    """Marker bị cắt khỏi văn bản hiển thị và chuyển thành STATE KEY riêng.
+
+    Cờ KHÔNG được gắn lên AIMessage: erp_agent._invoke_fresh dựng lại kênh
+    messages từ history text thuần của client mỗi lượt, nên cờ trên message
+    không bao giờ tới được decide_route (final review 2026-08-05, đo thật).
+    """
     import src.agents.fanout as fanout
     llm = MagicMock()
     llm.ainvoke = AsyncMock(return_value=AIMessage(
@@ -499,12 +518,15 @@ async def test_fuse_answer_gan_co_va_cat_marker(monkeypatch):
     monkeypatch.setattr(fanout, "verify_erp_grounding",
                         AsyncMock(side_effect=lambda a, t, l: a))
     monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
-    out = await fanout.make_fuse_answer_node(llm)(
-        _fuse_state([], "- NCC: Acme Corporation", text="nhập 20 cái"))
+    state = _fuse_state([], "- NCC: Acme Corporation", text="nhập 20 cái")
+    out = await fanout.make_fuse_answer_node(llm)(state)
     msg = out["messages"][0]
     assert "ĐỀ_XUẤT_GHI" not in msg.content
     assert msg.content.endswith("Bạn có muốn tôi tạo đơn mua không?")
-    assert msg.additional_kwargs.get("suggested_write") is True
+    assert not msg.additional_kwargs          # cờ KHÔNG nằm trên message
+    assert out["suggested_write"] is True
+    # neo = số message người dùng THẤY sau lượt này (history vào + 1 câu trả lời)
+    assert out["suggested_write_at"] == len(state["messages"]) + 1
 
 
 async def test_fuse_answer_khong_co_marker_thi_khong_gan_co(monkeypatch):
@@ -514,18 +536,22 @@ async def test_fuse_answer_khong_co_marker_thi_khong_gan_co(monkeypatch):
     monkeypatch.setattr(fanout, "verify_erp_grounding",
                         AsyncMock(side_effect=lambda a, t, l: a))
     monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
-    out = await fanout.make_fuse_answer_node(llm)(
-        _fuse_state([], "- tồn: 16", text="còn bao nhiêu?"))
-    assert not out["messages"][0].additional_kwargs.get("suggested_write")
+    state = _fuse_state([], "- tồn: 16", text="còn bao nhiêu?")
+    out = await fanout.make_fuse_answer_node(llm)(state)
+    assert out["suggested_write"] is False
+    assert out["suggested_write_at"] == len(state["messages"]) + 1
 
 
 async def test_fuse_answer_safe_msg_khong_mang_co():
-    """Nhánh trả về sớm (cả hai chân rỗng) phải khởi tạo cờ = False, nếu
-    không sẽ ném UnboundLocalError."""
+    """Nhánh trả về sớm (cả hai chân rỗng) cũng phải ghi CẢ HAI key: cờ =
+    False (không để lại cờ cũ) và neo (nếu thiếu, chỉ khởi tạo biến trong
+    thân try thì return sớm này ném UnboundLocalError)."""
     import src.agents.fanout as fanout
     from src.agents.synthesis import SAFE_MSG
     llm = MagicMock()
     llm.ainvoke = AsyncMock(side_effect=AssertionError("không được gọi LLM"))
-    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([], ""))
+    state = _fuse_state([], "")
+    out = await fanout.make_fuse_answer_node(llm)(state)
     assert out["messages"][0].content == SAFE_MSG
-    assert not out["messages"][0].additional_kwargs.get("suggested_write")
+    assert out["suggested_write"] is False
+    assert out["suggested_write_at"] == len(state["messages"]) + 1

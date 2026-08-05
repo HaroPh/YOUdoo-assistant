@@ -27,10 +27,16 @@ WRITE_SUGGEST_MARKER = "ĐỀ_XUẤT_GHI"
 # body[:m.start()] (bỏ mọi thứ từ marker trở đi) vì NGUỒN_DÙNG theo hợp đồng
 # là dòng CUỐI. Marker này KHÔNG được phép làm vậy — nếu model đặt ĐỀ_XUẤT_GHI
 # TRƯỚC NGUỒN_DÙNG thì cắt cụt sẽ nuốt luôn dòng trích dẫn và footer
-# "📄 Nguồn:" biến mất lặng lẽ. Nên ở đây xoá ĐÚNG MỘT DÒNG bằng sub(), giữ
+# "📄 Nguồn:" biến mất lặng lẽ. Nên ở đây xoá ĐÚNG DÒNG MARKER bằng sub(), giữ
 # nguyên phần sau — hai marker nhờ vậy sống chung được ở bất kỳ thứ tự nào.
-_WRITE_SUGGEST_RE = re.compile(rf'\n?{WRITE_SUGGEST_MARKER}:([^\n]*)',
-                               re.IGNORECASE)
+#
+# `^` + re.MULTILINE là BẮT BUỘC, không phải trang trí: không có neo đầu dòng,
+# regex khớp cả một mảnh marker nằm GIỮA câu ("... tôi ghi ĐỀ_XUẤT_GHI: có vào
+# sổ") và sub() sẽ nuốt mất phần đuôi của chính dòng đó — hỏng lặng lẽ ngay
+# trong văn bản người dùng đọc. Marker theo hợp đồng luôn là một DÒNG RIÊNG,
+# nên chỉ khớp ở đầu dòng là đúng ngữ nghĩa.
+_WRITE_SUGGEST_RE = re.compile(rf'\n?^{WRITE_SUGGEST_MARKER}:([^\n]*)',
+                               re.IGNORECASE | re.MULTILINE)
 # Giá trị được coi là "có". Mọi giá trị khác (kể cả "không") → False, nhưng
 # marker vẫn bị cắt khỏi văn bản hiển thị.
 _WRITE_SUGGEST_YES = {"có", "co", "yes", "true", "1"}
@@ -43,15 +49,21 @@ def extract_write_suggestion(body: str) -> tuple[str, bool]:
     thấy marker — đây là kênh tín hiệu máy-đọc, tách hẳn khỏi câu chữ hiển
     thị, nên prompt không phải ép model viết theo khuôn cứng nào cả.
 
-    Cờ này được routing.decide_route đọc ở lượt SAU (qua
-    AIMessage.additional_kwargs) để hiểu "okay" là xác nhận. Nó CHỈ ảnh hưởng
-    định tuyến — không hành động ghi nào chạy nếu chưa qua _interrupt() thật
-    của erp_write_planner.
+    Cờ này được routing.decide_route đọc ở lượt SAU (qua state key riêng
+    `suggested_write` + neo `suggested_write_at` — KHÔNG qua
+    AIMessage.additional_kwargs, thứ bị erp_agent._invoke_fresh xoá sạch mọi
+    lượt; xem routing.replying_to_write_suggestion) để hiểu "okay" là xác
+    nhận. Nó CHỈ ảnh hưởng định tuyến — không hành động ghi nào chạy nếu chưa
+    qua _interrupt() thật của erp_write_planner.
+
+    Cắt TẤT CẢ dòng marker (count=0), không chỉ dòng đầu: model nhỏ/local có
+    lúc phát marker hai lần, và bản cũ (count=1) để lần thứ hai lọt thẳng ra
+    văn bản người dùng đọc. Giá trị boolean vẫn lấy từ lần khớp ĐẦU TIÊN.
     """
     m = _WRITE_SUGGEST_RE.search(body or "")
     if not m:
         return body, False
-    clean = _WRITE_SUGGEST_RE.sub("", body, count=1).rstrip()
+    clean = _WRITE_SUGGEST_RE.sub("", body, count=0).rstrip()
     value = (m.group(1) or "").strip().lower()
     return clean, value in _WRITE_SUGGEST_YES
 
