@@ -183,12 +183,12 @@ nhiều ca, không chỉ unit test — đã đưa vào §7.
 ví dụ người dùng phàn nàn ("Đơn mua từ Acme Corporation: … Xác nhận? (có /
 không)") KHÔNG đến từ `nodes.py` mà từ `create_order.py:48` — một
 COORDINATED write. Chuỗi `"Xác nhận? (có / không)"` đang bị **lặp nguyên văn
-ở 13 chỗ**: `create_order.py` (×2), `bom_write.py` (×2), `crm_write.py` (×3),
-`inventory_write.py` (×3), `mrp_write.py`, `purchase_write.py` (×3),
-`returns_write.py` (×2), `edit_order.py`, `nodes.py`, và
-`skills/bao-gia-chiet-khau/logic.py`. Chỉ sửa `nodes.py` sẽ KHÔNG sửa được ví
-dụ người dùng nêu, và còn làm câu xác nhận **không nhất quán** giữa đường
-single-step và đường coordinated.
+ở 19 chỗ / 10 file** (đếm bằng grep, không ước lượng): `crm_write.py` ×3,
+`inventory_write.py` ×3, `purchase_write.py` ×3, `create_order.py` ×2,
+`bom_write.py` ×2, `returns_write.py` ×2, `mrp_write.py` ×1,
+`edit_order.py` ×1, `nodes.py` ×1, `skills/bao-gia-chiet-khau/logic.py` ×1.
+Chỉ sửa `nodes.py` sẽ KHÔNG sửa được ví dụ người dùng nêu, và còn làm câu xác
+nhận **không nhất quán** giữa đường single-step và đường coordinated.
 
 Cách làm:
 - **Gom chuỗi lặp về MỘT hằng số** trong `prompts.py`
@@ -216,7 +216,7 @@ Cách làm:
 | `backend/src/agents/prompts.py` | `FUSE_PROMPT` + `SYSTEM_PROMPT`: chỉ dẫn phát marker `ĐỀ_XUẤT_GHI` (§2.1 bước 1); `GATHER_ERP_PROMPT` + `FUSE_PROMPT`: chỉ dẫn auto-tra cứu (§2.2); `WRITE_CONFIRM_PREFIX`/template câu xác nhận: đổi khung câu chữ (§2.3) |
 | `backend/src/agents/fanout.py` | `fuse_answer`: parse + cắt marker, gắn `additional_kwargs` (§2.1 bước 2) |
 | `backend/src/agents/nodes.py` | `erp_read`: dùng chung helper parse/gắn cờ (§2.1 tổng quát hoá); `erp_write_planner`: đổi cách build `question`, số liệu tất định giữ nguyên (§2.3) |
-| `backend/src/agents/{create_order,bom_write,crm_write,inventory_write,mrp_write,purchase_write,returns_write,edit_order}.py` + `backend/skills/bao-gia-chiet-khau/logic.py` | Thay literal `"Xác nhận? (có / không)"` (13 chỗ) bằng hằng `WRITE_CONFIRM_SUFFIX` từ `prompts.py` (§2.3) |
+| `backend/src/agents/{create_order,bom_write,crm_write,inventory_write,mrp_write,purchase_write,returns_write,edit_order}.py` + `backend/skills/bao-gia-chiet-khau/logic.py` | Thay literal `"Xác nhận? (có / không)"` (19 chỗ / 10 file, kể cả `nodes.py`) bằng hằng `WRITE_CONFIRM_SUFFIX` từ `prompts.py` (§2.3). `prompts.py` chỉ import `.working_context` nên không có import vòng; skill file dùng import tuyệt đối `from src.agents.prompts import ...` |
 | `backend/tests/agents/test_auto_chain.py` | 4 assert đang bám literal `"Xác nhận? (có / không)"` — đổi sang tham chiếu hằng số (§2.3) |
 | `backend/src/agents/synthesis.py` | Helper parse + cắt marker `ĐỀ_XUẤT_GHI`, dùng chung bởi `fuse_answer` và `erp_read` — MỘT bản, không copy. Đặt ở đây (không phải module mới) vì: `extract_used_citations`/`USED_MARKER` — helper marker anh em — đã sống ở đây, và CẢ `fanout.py` LẪN `nodes.py` đều đã import từ module này sẵn, không tạo import vòng |
 | `backend/tests/agents/test_routing.py` | Test điều kiện route mới: ca DƯƠNG (có cờ + "ok" → `erp_write`) và ca ÂM (không cờ + "ok" → KHÔNG ép route) |
