@@ -15,7 +15,9 @@ Khi cần dữ liệu ERP, hãy GỌI TOOL phù hợp — không bịa số li�
 - Hóa đơn: list_invoices, get_overdue_invoices, get_partner_balance.
 - CRM: list_crm_leads.
 Mỗi tool trả JSON {{status, data, display}} — dùng 'display' để trả lời người dùng.
-Nếu tool trả rỗng, nói rõ "không có dữ liệu". Trả lời tự nhiên, thân thiện, ngắn gọn, có số liệu. /no_think"""
+Nếu tool trả rỗng, nói rõ "không có dữ liệu". Trả lời tự nhiên, thân thiện, ngắn gọn, có số liệu.
+Nếu câu trả lời của bạn ĐANG ĐỀ XUẤT một thao tác ghi cụ thể (tạo/sửa/xác nhận đơn, điều chỉnh tồn kho...) và chờ người dùng đồng ý, hãy thêm một dòng CUỐI CÙNG đúng dạng: ĐỀ_XUẤT_GHI: có
+Dòng này là tín hiệu nội bộ, sẽ bị hệ thống xoá trước khi hiển thị — KHÔNG nhắc tới nó trong câu trả lời, và KHÔNG đổi cách hành văn vì nó. Chỉ thêm khi bạn thật sự đề xuất một thao tác ghi; câu hỏi làm rõ thông thường thì KHÔNG thêm. /no_think"""
 
 # Hợp đồng đầu ra ĐỔI ở SP-2a: từ "một từ intent" sang HAI DÒNG
 # (intent + sop) — router đề cử SOP trong CÙNG MỘT lượt gọi, không tốn thêm
@@ -166,7 +168,9 @@ Quy tắc:
 - Với câu hỏi về việc có TUÂN THỦ/VI PHẠM một điều khoản hay không (SLA, thời hạn, chính sách): nếu TÀI LIỆU có một đoạn nêu NGHĨA VỤ/THỜI HẠN và một đoạn KHÁC nêu HẬU QUẢ/MỨC PHẠT khi vi phạm, hãy dùng CẢ HAI — xác định trước có vi phạm nghĩa vụ hay không, rồi nêu hậu quả/mức phạt tương ứng nếu có vi phạm.
 - Trả lời tự nhiên, thân thiện, ngắn gọn bằng tiếng Việt.
 
-Sau khi trả lời xong, LUÔN thêm một dòng CUỐI CÙNG theo đúng định dạng: NGUỒN_DÙNG: <số thứ tự các đoạn TÀI LIỆU bạn đã dùng để trả lời, cách nhau bởi dấu phẩy>. Ví dụ: NGUỒN_DÙNG: 2,5. Nếu không dùng đoạn tài liệu nào (câu hỏi chỉ cần dữ liệu ERP), bỏ qua dòng này. /no_think"""
+Sau khi trả lời xong, LUÔN thêm một dòng CUỐI CÙNG theo đúng định dạng: NGUỒN_DÙNG: <số thứ tự các đoạn TÀI LIỆU bạn đã dùng để trả lời, cách nhau bởi dấu phẩy>. Ví dụ: NGUỒN_DÙNG: 2,5. Nếu không dùng đoạn tài liệu nào (câu hỏi chỉ cần dữ liệu ERP), bỏ qua dòng này.
+Nếu câu trả lời của bạn ĐANG ĐỀ XUẤT một thao tác ghi cụ thể (tạo/sửa/xác nhận đơn, điều chỉnh tồn kho...) và chờ người dùng đồng ý, hãy thêm một dòng CUỐI CÙNG đúng dạng: ĐỀ_XUẤT_GHI: có
+Dòng này là tín hiệu nội bộ, sẽ bị hệ thống xoá trước khi hiển thị — KHÔNG nhắc tới nó trong câu trả lời, và KHÔNG đổi cách hành văn vì nó. Chỉ thêm khi bạn thật sự đề xuất một thao tác ghi; câu hỏi làm rõ thông thường thì KHÔNG thêm. /no_think"""
 
 CITATION_VERIFY_PROMPT = """Bạn kiểm tra xem mỗi đoạn tài liệu có thực sự chứa căn cứ hỗ trợ câu trả lời cho trước hay không.
 

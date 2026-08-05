@@ -477,3 +477,45 @@ def test_eval_multi_source_uses_shared_render_and_fuse_prompt():
 def test_fusion_prompt_is_gone():
     from src.agents import prompts
     assert not hasattr(prompts, "FUSION_PROMPT")
+
+
+async def test_fuse_answer_gan_co_va_cat_marker(monkeypatch):
+    """Marker bị cắt khỏi văn bản hiển thị và chuyển thành cờ trên message."""
+    import src.agents.fanout as fanout
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(
+        content="Chỉ có Acme Corporation. Bạn có muốn tôi tạo đơn mua không?"
+                "\nĐỀ_XUẤT_GHI: có"))
+    monkeypatch.setattr(fanout, "verify_erp_grounding",
+                        AsyncMock(side_effect=lambda a, t, l: a))
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    out = await fanout.make_fuse_answer_node(llm)(
+        _fuse_state([], "- NCC: Acme Corporation", text="nhập 20 cái"))
+    msg = out["messages"][0]
+    assert "ĐỀ_XUẤT_GHI" not in msg.content
+    assert msg.content.endswith("Bạn có muốn tôi tạo đơn mua không?")
+    assert msg.additional_kwargs.get("suggested_write") is True
+
+
+async def test_fuse_answer_khong_co_marker_thi_khong_gan_co(monkeypatch):
+    import src.agents.fanout as fanout
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="Kho còn 16 cái."))
+    monkeypatch.setattr(fanout, "verify_erp_grounding",
+                        AsyncMock(side_effect=lambda a, t, l: a))
+    monkeypatch.setattr(fanout, "cite_and_verify", _passthrough_cite())
+    out = await fanout.make_fuse_answer_node(llm)(
+        _fuse_state([], "- tồn: 16", text="còn bao nhiêu?"))
+    assert not out["messages"][0].additional_kwargs.get("suggested_write")
+
+
+async def test_fuse_answer_safe_msg_khong_mang_co():
+    """Nhánh trả về sớm (cả hai chân rỗng) phải khởi tạo cờ = False, nếu
+    không sẽ ném UnboundLocalError."""
+    import src.agents.fanout as fanout
+    from src.agents.synthesis import SAFE_MSG
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(side_effect=AssertionError("không được gọi LLM"))
+    out = await fanout.make_fuse_answer_node(llm)(_fuse_state([], ""))
+    assert out["messages"][0].content == SAFE_MSG
+    assert not out["messages"][0].additional_kwargs.get("suggested_write")

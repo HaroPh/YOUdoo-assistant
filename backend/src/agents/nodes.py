@@ -15,7 +15,7 @@ from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, CHITCHAT_PROMPT, render_working_context)
 from .write_registry import COORDINATED_TOOLS, expand_chain
 from ..rag.retrieve import retrieve
-from .synthesis import synthesize, SAFE_MSG
+from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
 from .erp_grounding import verify_erp_grounding
 from .tool_result import _tool_result_text, parse_write_result
 from .working_context import derive_working_context, enforce_explicit_ref
@@ -45,6 +45,14 @@ def make_erp_read_node(llm, tools):
             verified = await verify_erp_grounding(new_msgs[-1].content, tool_outputs, llm)
             if verified != new_msgs[-1].content:
                 new_msgs = [*new_msgs[:-1], AIMessage(content=verified)]
+        # Tách cờ ĐỀ_XUẤT_GHI khỏi câu trả lời cuối (nếu có) và gắn lên chính
+        # message đó — routing.replying_to_write_suggestion đọc ở lượt sau.
+        if new_msgs and new_msgs[-1].type == "ai":
+            clean, suggested = extract_write_suggestion(new_msgs[-1].content or "")
+            if suggested or clean != new_msgs[-1].content:
+                new_msgs = [*new_msgs[:-1], AIMessage(
+                    content=clean,
+                    additional_kwargs=({"suggested_write": True} if suggested else {}))]
         return {"messages": new_msgs}
 
     return erp_read

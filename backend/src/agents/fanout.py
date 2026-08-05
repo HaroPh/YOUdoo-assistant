@@ -24,7 +24,8 @@ from langchain.agents import create_agent as _create_agent
 
 from .state import ERPAgentState
 from .prompts import FUSE_PROMPT, GATHER_ERP_PROMPT
-from .synthesis import SAFE_MSG, _format_context, cite_and_verify, passes_floor
+from .synthesis import (SAFE_MSG, _format_context, cite_and_verify,
+                        extract_write_suggestion, passes_floor)
 from .erp_grounding import verify_erp_grounding
 from ..rag.retrieve import retrieve
 from ..rag.types import Chunk
@@ -176,6 +177,10 @@ def make_fuse_answer_node(llm):
     async def fuse_answer(state: ERPAgentState) -> dict:
         clear = {"doc_context": None, "erp_facts": None}
         erp_facts = state.get("erp_facts") or ""
+        # Khởi tạo TRƯỚC try: nhánh trả về sớm bên dưới (cả hai chân rỗng)
+        # thoát hàm trước khi extract_write_suggestion chạy — thiếu dòng này
+        # sẽ ném UnboundLocalError ở return cuối cùng.
+        suggested_write = False
         try:
             chunks = chunks_from_dicts(state.get("doc_context"))
             if not chunks and not erp_facts:
@@ -190,6 +195,10 @@ def make_fuse_answer_node(llm):
             answer = (resp.content or "").strip()
             if not answer:
                 return {"messages": [AIMessage(content=SAFE_MSG)], **clear}
+            # Tách cờ TRƯỚC cite_and_verify: extract_used_citations() cắt cụt
+            # mọi thứ từ NGUỒN_DÙNG trở đi, nên nếu model đặt ĐỀ_XUẤT_GHI sau
+            # NGUỒN_DÙNG thì để muộn hơn là mất cờ.
+            answer, suggested_write = extract_write_suggestion(answer)
             # `chunks` ở đây LUÔN là TOÀN BỘ kết quả gather_docs của lượt này
             # — khác `fusion` cũ, nơi `collected` chỉ gồm chunk agent THẬT SỰ
             # gọi search_documents lấy về (gather_docs không phải agent, nó
@@ -208,6 +217,9 @@ def make_fuse_answer_node(llm):
         except Exception:
             logger.exception("fuse_answer failed")
             answer = SAFE_MSG
-        return {"messages": [AIMessage(content=answer)], **clear}
+            suggested_write = False
+        kwargs = {"suggested_write": True} if suggested_write else {}
+        return {"messages": [AIMessage(content=answer,
+                                       additional_kwargs=kwargs)], **clear}
 
     return fuse_answer
