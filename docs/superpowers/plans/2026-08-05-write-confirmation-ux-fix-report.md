@@ -19,7 +19,7 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 **Commit:** `bb1642d` — "feat(agents): helper tách marker ĐỀ_XUẤT_GHI khỏi câu trả lời"
 
 **File đã sửa:**
-- `backend/src/agents/synthesis.py` — Thêm `WRITE_SUGGEST_MARKER`, `_WRITE_SUGGEST_RE`, `_WRITE_SUGGEST_YES`, hàm `extract_write_suggestion(body: str) -> tuple[str, bool]` (dòng 5-56)
+- `backend/src/agents/synthesis.py` — Thêm `WRITE_SUGGEST_MARKER` (dòng 25), `_WRITE_SUGGEST_RE`, `_WRITE_SUGGEST_YES`, hàm `extract_write_suggestion(body: str) -> tuple[str, bool]` (dòng 39-56)
 - `backend/tests/agents/test_synthesis.py` — Thêm 5 test case mới: `test_extract_write_suggestion_khong_co_marker()`, `test_extract_write_suggestion_co_marker_thi_cat_bo()`, `test_extract_write_suggestion_gia_tri_phu_dinh()`, `test_extract_write_suggestion_giu_nguyen_dong_nguon_dung_phia_sau()`, `test_extract_write_suggestion_khong_pha_extract_used_citations()`
 
 **Nhận xét review:** Không có finding nào. Tất cả test pass, không regression.
@@ -31,7 +31,7 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 **Commit:** `17d9447` — "feat(routing): 'okay' sau đề xuất ghi được ép route sang erp_write"
 
 **File đã sửa:**
-- `backend/src/agents/routing.py` — Thêm import từ `.confirmation`, hàm `replying_to_write_suggestion(state) -> bool` (dòng 136-173), nhánh veto trong `decide_route()` (dòng 180-182)
+- `backend/src/agents/routing.py` — Thêm import từ `.confirmation`, hàm `replying_to_write_suggestion(state) -> bool` (dòng 157-190), nhánh veto trong `decide_route()` (dòng 217-218)
 - `backend/tests/agents/test_routing_write_suggestion.py` (tạo mới) — 7 test case verbatim từ brief: `test_tien_hanh_neu_co_de_xuat_ghi_va_ok()`, `test_tien_hanh_neu_co_de_xuat_ghi_va_co()`, `test_khong_tien_hanh_neu_co_de_xuat_ghi_va_khong()`, `test_khong_tien_hanh_neu_khong_co_de_xuat_ghi()`, `test_khong_tien_hanh_neu_khong_co_human_message()`, `test_khong_tien_hanh_neu_khong_co_ai_message_nao_thi_an_toan()`, `test_co_moi_hon_khong_mang_co_thi_vo_hieu_hoa_co_cu()`
 
 **Nhận xét review:** Không có finding nào. Kiểm chứng tính an toàn invariant 1 — không đụng `erp_write_executor`, `state.get("confirmed")`, `write_gate`, hay `_interrupt()`. +7 test như kỳ vọng.
@@ -44,8 +44,8 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 
 **File đã sửa (lần 1):**
 - `backend/src/agents/prompts.py` — Thêm `ĐỀ_XUẤT_GHI: có` marker instruction block vào `SYSTEM_PROMPT` và `FUSE_PROMPT` (đặt TRƯỚC trailing `/no_think`, chứ không phải sau như brief nêu)
-- `backend/src/agents/fanout.py` — Hàm `fuse_answer()` (dòng 33-95): import `extract_write_suggestion`, khởi tạo `suggested_write = False`, gọi `extract_write_suggestion(answer)` TRƯỚC `cite_and_verify`, attach `additional_kwargs={"suggested_write": True}` vào `AIMessage`
-- `backend/src/agents/nodes.py` — Hàm `erp_read()` (dòng 167-202): extract marker từ last AI message sau grounding-verification, re-attach flag
+- `backend/src/agents/fanout.py` — `make_fuse_answer_node` (dòng 169) với `async def fuse_answer()` (dòng 177-223): import `extract_write_suggestion`, khởi tạo `suggested_write = False`, gọi `extract_write_suggestion(answer)` TRƯỚC `cite_and_verify`, attach `additional_kwargs={"suggested_write": True}` vào `AIMessage`
+- `backend/src/agents/nodes.py` — `make_erp_read_node` (dòng 31) với `async def erp_read()` (dòng 32-59): extract marker từ last AI message sau grounding-verification, re-attach flag
 - `backend/tests/agents/test_fanout.py` — Thêm 3 unit test: `test_fuse_answer_gan_co_va_cat_marker()`, `test_fuse_answer_khong_co_marker_thi_khong_gan_co()`, `test_fuse_answer_safe_msg_khong_mang_co()`
 - `backend/tests/agents/test_write_suggestion_checkpoint.py` (tạo mới) — Integration test 1 case (Postgres thật, AsyncPostgresSaver round-trip)
 
@@ -58,7 +58,7 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 **Commit fix wave 1:** `c1fcf44` — "fix(agents): fix wave 1 — FUSE_PROMPT hai chỉ dẫn 'cuối cùng' xung đột, thêm test canh marker"
 
 **File sửa (Fix round 1):**
-- `backend/src/agents/prompts.py` — Rewording FUSE_PROMPT trailer block: thay hai "final line" claims độc lập thành một lead-in chung "có thể cần thêm MỘT HOẶC CẢ HAI dòng cuối dưới đây" (dòng 135-143 sau sửa)
+- `backend/src/agents/prompts.py` — Rewording FUSE_PROMPT trailer block: thay hai "final line" claims độc lập thành một lead-in chung "có thể cần thêm MỘT HOẶC CẢ HAI dòng cuối dưới đây" (dòng 189-191)
 - `backend/tests/agents/test_fanout.py` — Thêm 2 guard test: `test_fuse_prompt_co_chi_dan_de_xuat_ghi()`, `test_system_prompt_co_chi_dan_de_xuat_ghi()`
 
 **Kết quả test:**
@@ -96,20 +96,20 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 
 **File đã sửa (lần 1):**
 
-- `backend/src/agents/prompts.py` — Thêm `WRITE_CONFIRM_SUFFIX = 'Bạn xác nhận giúp mình nhé? (trả lời "có" để thực hiện, "không" để hủy)'` (dòng 96-99) với docstring tiếng Việt, đổi câu chữ `WRITE_CONFIRM_PREFIX` từ "Mình sẽ thực hiện các thao tác sau" sang "Mình sẽ thực hiện thao tác sau giúp bạn:" (dòng 93)
+- `backend/src/agents/prompts.py` — Thêm `WRITE_CONFIRM_SUFFIX` (dòng 141-142) với docstring tiếng Việt, đổi câu chữ `WRITE_CONFIRM_PREFIX` từ "Mình sẽ thực hiện các thao tác sau" sang "Mình sẽ thực hiện thao tác sau giúp bạn:" (dòng 126)
 
 - **src/agents/ (9 file):** Thêm import `WRITE_CONFIRM_SUFFIX`, thay 19 literal cũ:
-  - `create_order.py` (2 vị trí) — dòng 213, 323
-  - `bom_write.py` (2 vị trí) — dòng 96, 172
-  - `crm_write.py` (3 vị trí) — dòng 95, 179, 258
-  - `inventory_write.py` (3 vị trí) — dòng 89, 163, 243
-  - `mrp_write.py` (1 vị trí) — dòng 67
-  - `purchase_write.py` (3 vị trí) — dòng 107, 182, 262
-  - `returns_write.py` (2 vị trí) — dòng 62, 137
-  - `edit_order.py` (1 vị trí) — dòng 73
-  - `nodes.py` (1 vị trí) — dòng 251-254, hàm `erp_write_planner`
+  - `create_order.py` (2 vị trí) — dòng 49, 53
+  - `bom_write.py` (2 vị trí) — dòng 158, 277
+  - `crm_write.py` (3 vị trí) — dòng 115, 156, 211
+  - `inventory_write.py` (3 vị trí) — dòng 64, 117, 171
+  - `mrp_write.py` (1 vị trí) — dòng 121
+  - `purchase_write.py` (3 vị trí) — dòng 94, 160, 224
+  - `returns_write.py` (2 vị trí) — dòng 97, 136
+  - `edit_order.py` (1 vị trí) — dòng 92
+  - `nodes.py` (1 vị trí) — dòng 252-255, hàm `erp_write_planner`
 
-- `backend/skills/bao-gia-chiet-khau/logic.py` — Thêm import tuyệt đối, thay 1 literal (vị trí #20 trong danh sách audit)
+- `backend/skills/bao-gia-chiet-khau/logic.py` — Thêm import tuyệt đối, thay 1 literal (vị trí #19 trong danh sách audit)
 
 - **Test files:** Thêm import, cập nhật assertions:
   - `backend/tests/agents/test_prompts.py` — 2 guard test mới: `test_write_confirm_suffix_giu_dau_hieu_cong_xac_nhan()`, `test_khong_con_literal_xac_nhan_lap_lai_trong_src()`
@@ -123,7 +123,7 @@ Kế hoạch 6 bước xây dựng tính năng "xác nhận ghi" cho agent —  
 **Commit fix wave 1:** `c25d4b3` — "docs(agents): fix wave 1 — làm rõ WRITE_CONFIRM_SUFFIX không bao phủ cổng xác nhận riêng của edit_order.py"
 
 **File sửa (Fix round 1):**
-- `backend/src/agents/prompts.py` — Làm rõ comment: thay "MỌI cổng xác nhận ghi" → "các cổng xác nhận ghi ĐÃ GOM", thêm đoạn LƯU Ý rõ `edit_order.py` có cổng riêng ngoài phạm vi 19 chỗ audit gốc (dòng 99-108)
+- `backend/src/agents/prompts.py` — Làm rõ comment: thay "MỌI cổng xác nhận ghi" → "các cổng xác nhận ghi ĐÃ GOM", thêm đoạn LƯU Ý rõ `edit_order.py` có cổng riêng ngoài phạm vi 19 chỗ audit gốc (LƯU Ý tại dòng 132-136, toàn bộ comment block 127-140)
 
 **Kết quả test:**
 - Trước fix: 1142 passed, 4 skipped
