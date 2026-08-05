@@ -12,9 +12,6 @@ import requests
 from src.erp_query.transport import XmlRpcTransport
 from src.agents.tool_leak_guard import TOOL_NAME_LEAK_MARKERS, has_tool_leak  # noqa: F401
 
-BASE_URL = f"http://localhost:{os.environ.get('BACKEND_PORT', '8002')}"
-CHAT_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
-
 
 def load_env(env_path: str | None = None) -> None:
     """Đọc .env, setdefault vào os.environ (idempotent — an toàn gọi nhiều lần,
@@ -28,6 +25,11 @@ def load_env(env_path: str | None = None) -> None:
                 continue
             k, v = line.split("=", 1)
             os.environ.setdefault(k, v)
+
+
+load_env()
+BASE_URL = f"http://localhost:{os.environ.get('BACKEND_PORT', '8002')}"
+CHAT_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
 
 
 def odoo_transport() -> XmlRpcTransport:

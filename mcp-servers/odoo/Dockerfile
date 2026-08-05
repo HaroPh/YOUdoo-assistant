@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py odoo_call.py config.py security.py rate_limit.py event_log.py audit_chain.py helpers.py ./
 COPY tools/ ./tools/
 
-EXPOSE 8001
+EXPOSE 8003
 
-# FastMCP SSE server mặc định bind 0.0.0.0:8000 → override bằng env hoặc args
+# FastMCP SSE server mặc định bind 0.0.0.0:8003 (đọc MCP_ODOO_PORT) → override bằng env hoặc args
 CMD ["python", "server.py"]

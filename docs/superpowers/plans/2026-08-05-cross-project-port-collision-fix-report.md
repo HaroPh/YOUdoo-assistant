@@ -86,3 +86,49 @@ grep -n "8000\|8001" .env.example backend/run.py backend/src/agents/erp_agent.py
 ✓ Docker compose valid  
 ✓ No old port references in active config  
 ✓ Ready to commit and merge
+
+## Fix round 1
+
+A task reviewer found 2 Important findings in commit `6ce54d1`; both fixed here.
+
+### Finding 1 — `mcp-servers/odoo/Dockerfile` scope gap
+
+This file wasn't in the original 9-file list because the spec's grep audit missed it. Fixed:
+- Line 16: `EXPOSE 8001` → `EXPOSE 8003`
+- Line 18: comment updated from `# FastMCP SSE server mặc định bind 0.0.0.0:8000 → override bằng env hoặc args` to `# FastMCP SSE server mặc định bind 0.0.0.0:8003 (đọc MCP_ODOO_PORT) → override bằng env hoặc args`
+
+### Finding 2 — `backend/tests/live_verify_common.py` load-order bug
+
+`BASE_URL`/`CHAT_ENDPOINT` were computed at module-import time reading `os.environ.get('BACKEND_PORT', '8002')` directly, but `load_env()` (which reads `.env` into `os.environ`) was defined *after* those lines and never called at module scope — only later by callers like `odoo_transport()`. A `BACKEND_PORT` set only in `.env` (not exported in the shell) was silently ignored, reintroducing the "silent wrong port" bug class this whole plan exists to close, one layer up.
+
+Fixed by moving the `load_env()` function definition above the `BASE_URL`/`CHAT_ENDPOINT` lines and calling `load_env()` immediately before computing them. `load_env()` uses `os.environ.setdefault` (documented idempotent), so this reordering is safe — no other caller's behavior changes. `odoo_transport()`'s own internal `load_env()` call was left as-is (redundant but harmless).
+
+### Test command and output
+
+```
+cd D:/Youdoo/.claude/worktrees/cross-project-port-collision-fix/backend && \
+PYTHONIOENCODING=utf-8 PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q -m "not integration and not live"
+```
+
+First run: `1 failed, 1122 passed, 4 skipped, 43 deselected` — the single failure was `tests/jobs/test_eval_latency.py::test_timed_returns_result_and_positive_latency` (`assert 9.753000002092449 >= 10.0`), a pre-existing timing-precision flake in an `asyncio.sleep(0.01)` latency assertion, unrelated to either fix (neither touched file is imported by that test). Re-ran immediately after with no code changes:
+
+```
+1123 passed, 4 skipped, 43 deselected in 18.97s
+```
+
+Matches baseline exactly (1123 passed, 4 skipped) — no regression from either fix.
+
+### Grep re-verification
+
+```
+cd D:/Youdoo/.claude/worktrees/cross-project-port-collision-fix && grep -n "8000\|8001" mcp-servers/odoo/Dockerfile backend/tests/live_verify_common.py
+```
+No matches (exit 1) — both touched files are clean of stray 8000/8001.
+
+### Side-effect note
+
+The pytest run modified two binary RAG fixture files (`backend/tests/rag/fixtures/bang_gia.xlsx`, `backend/tests/rag/fixtures/policy.docx`) as an unrelated side effect of running the suite; these were discarded with `git checkout --` before staging and were not committed.
+
+### Commit
+
+`git add mcp-servers/odoo/Dockerfile backend/tests/live_verify_common.py docs/superpowers/plans/2026-08-05-cross-project-port-collision-fix-report.md` and committed as `fix(infra): fix wave 1 — Dockerfile EXPOSE stale port, live_verify_common BASE_URL load-order bug`.
