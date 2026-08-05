@@ -124,10 +124,16 @@ Respond in JSON only:
 }"""
 
 WRITE_CONFIRM_PREFIX = "Mình sẽ thực hiện thao tác sau giúp bạn:\n\n"
-# NGUỒN SỰ THẬT DUY NHẤT cho câu hỏi chốt của MỌI cổng xác nhận ghi — trước
-# 2026-08-05 chuỗi này bị chép nguyên văn 19 chỗ / 10 file, nên câu chữ muốn
-# đổi phải sửa 19 nơi và rất dễ lệch nhau giữa đường single-step với đường
+# NGUỒN SỰ THẬT DUY NHẤT cho câu hỏi chốt của các cổng xác nhận ghi ĐÃ GOM —
+# trước 2026-08-05 chuỗi câu hỏi chốt cũ bị chép nguyên văn 19 chỗ / 10 file
+# (xem git log 2026-08-05 để biết literal gốc), nên câu chữ muốn đổi phải
+# sửa 19 nơi và rất dễ lệch nhau giữa đường single-step với đường
 # coordinated.
+# LƯU Ý: KHÔNG phải mọi cổng xác nhận ghi trong repo dùng hằng này —
+# edit_order.py có thêm 1 cổng riêng (khi sửa đơn đã xác nhận, đề nghị ghi
+# chú nội bộ thay vì sửa trực tiếp) dùng câu chữ hand-rolled khác, ngoài
+# phạm vi 19 chỗ audit gốc — đổi WRITE_CONFIRM_SUFFIX không tự động cập
+# nhật cổng đó.
 # RÀNG BUỘC: phải giữ CẢ cụm "xác nhận" LẪN dấu "?" —
 # tests/live_verify_common.py:58-68 (_looks_like_confirm_gate) dò cổng xác
 # nhận bằng đúng hai dấu hiệu này; mất một trong hai là làm hỏng 3 script
