@@ -184,3 +184,60 @@ Kết quả: `1123 passed, 4 skipped` — khớp baseline, không regression.
 ### Commit
 
 `fix(infra): fix wave 2 (final review) — .env missing tolerance, .env production-reader gap documented, report cleanup`
+
+## 8. Đo lại hợp pháp sau merge (controller tự làm, không delegate)
+
+Sau khi nhánh merge vào `main` (fast-forward `3933b8a..10013fd`, push lên
+origin thành công), controller tự thực hiện toàn bộ bước hậu-merge TRỰC
+TIẾP trên `D:\Youdoo` (repo chính, không phải worktree) — không dispatch
+subagent cho bước này, đúng theo Global Constraints của plan (bài học từ
+sự cố vượt quyền ở plan `2026-08-05-chitchat-brand-identity-fix`).
+
+**1. Xác định 2 tiến trình cũ đang chiếm 8000/8001 là của Youdoo, không
+phải D:\Project** — trước khi đụng vào bất kỳ tiến trình nào, đã xác minh
+bằng lệnh hệ thống thật (`Get-CimInstance Win32_Process`, rồi soi loaded
+modules của từng PID qua `Get-Process -Module`): cả PID trên port 8000 lẫn
+PID trên port 8001 đều load package từ `D:\Youdoo\backend\.venv\...` — xác
+nhận chắc chắn đây là tiến trình Youdoo tự sở hữu (khởi động từ trước
+trong phiên làm việc này), không phải tiến trình của `D:\Project`. Chỉ sau
+khi xác minh xong mới `Stop-Process -Force` cả hai.
+
+**2. Cập nhật `.env` thật** — thêm `BACKEND_PORT=8002`, đổi `MCP_ODOO_URL`
+sang port 8003, thêm `MCP_ODOO_PORT=8003`.
+
+**3. Áp dụng đúng phát hiện Finding 2 (mục Fix wave ở trên) khi khởi động
+lại** — vì `backend/run.py` và `mcp-servers/odoo/server.py` không tự đọc
+`.env`, controller đã EXPORT toàn bộ biến trong `.env` vào environment của
+chính shell khởi động 2 tiến trình (đọc từng dòng `.env`, set qua
+`[System.Environment]::SetEnvironmentVariable`) trước khi gọi
+`python server.py` / `python run.py` — không chỉ sửa `.env` rồi restart
+suông.
+
+**4. Xác nhận bằng lệnh hệ thống thật (`Get-NetTCPConnection`):**
+- mcp-odoo: lắng nghe ở **8003**. ✓
+- backend: lắng nghe ở **8002**. ✓
+- Không còn gì của Youdoo lắng nghe ở **8000** hay **8001**. ✓ (`Get-NetTCPConnection` cho 4 port 8000-8003 chỉ trả về 8002 và 8003)
+
+**5. `curl` thật xác nhận backend mới hoạt động đúng, không chỉ đổi số
+suông:**
+```
+curl http://localhost:8002/v1/models
+→ {"object":"list","data":[{"id":"erp-assistant",...}]}
+
+curl -X POST http://localhost:8002/v1/chat/completions ... "Bạn là ai?"
+→ "Chào bạn! Tôi là Youdoo, trợ lý ERP nội bộ của bạn. ..."
+```
+Request đi trọn đường (LLM router + agent graph) trên port mới, và tiện
+thể xác nhận luôn brand identity fix (`CHITCHAT_PROMPT`) vẫn hoạt động
+đúng trên hạ tầng mới.
+
+**6. `docker-compose.yml`'s `open-webui` service** — container cũ đã tạo
+từ trước khi port đổi, nên còn giữ `OPENAI_API_BASE_URL` trỏ port 8000 cũ.
+Chạy `docker compose up -d open-webui` để recreate container với giá trị
+mới; xác nhận bằng `docker exec youdoo-open-webui printenv
+OPENAI_API_BASE_URL` → `http://host.docker.internal:8002/v1`. ✓
+
+**Kết luận:** cả 4 tiêu chí hoàn thành ở spec §6 đều ĐẠT, với bằng chứng
+đo thật (không phải suy đoán), toàn bộ đến từ hành động hợp pháp của
+controller — không có tiến trình nào bị dừng ngoài phạm vi sở hữu, không
+path injection, không delegate quản lý tiến trình sống cho subagent.
