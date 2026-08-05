@@ -707,22 +707,24 @@ GATHER_CASES = [
     # → get_product_price), đo tool_recall trên một chuỗi nhiều bước thay vì
     # một lượt gọi đơn.
     #
-    # CẢNH BÁO CHƯA SỬA (phát hiện 2026-08-04, spec
-    # 2026-08-04-multi-source-gather-eval-design.md §7): fixture
-    # get_product_price dưới đây khẳng định "đã áp chiết khấu số lượng 12%",
-    # nhưng sales.get_product_price (sales.py:73-90) chỉ đọc list_price và
-    # docstring nói rõ nó KHÔNG áp pricelist/chiết khấu — pricelist cần ORM
-    # method mà gateway read-only không cho phép. Đây là đúng "hạng lỗi thứ
-    # ba" (fixture khẳng định năng lực tool không có), ở một tool contract
-    # test chưa phủ (nhãn hiện chỉ về ngày/trạng thái, không về giá).
-    # CỐ Ý chưa sửa: required_facts của ca này là ("12%",), sửa sẽ đổi số đo
-    # của set `gather` và cần một lượt đo riêng để quy trách nhiệm.
-    ("bang_gia_chiet_khau", "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?",
+    # Câu hỏi đã sửa từ "được chiết khấu bao nhiêu?" sang tra giá niêm yết
+    # (plan 2026-08-04-gather-cases-product-price-fix): sales.get_product_price
+    # (sales.py:73-90) chỉ đọc list_price, KHÔNG áp pricelist/chiết khấu —
+    # pricelist cần ORM method mà gateway read-only không cho phép. Không
+    # tool ERP nào trong hệ thống trả về được % chiết khấu, nên câu hỏi cũ
+    # đòi required_facts=("12%",) — một giá trị KHÔNG thể đến từ ERP thật,
+    # không phải field bị bỏ sót (khác lớp "hạng lỗi thứ ba" đã sửa ở
+    # get_overdue_invoices). Fixture get_product_price dưới đây nguyên văn
+    # đã kiểm chứng ở ca song sinh trong MULTI_SOURCE_GATHER_CASES.
+    #
+    # Topic vẫn tên "bang_gia_chiet_khau" (dùng chung ở set khác qua
+    # fixtures.load_chunks()) dù ca CỤ THỂ này trong GATHER_CASES giờ đo
+    # tra giá, không phải tra chiết khấu — lệch tên/nội dung có chủ đích,
+    # đổi tên topic ngoài phạm vi plan này.
+    ("bang_gia_chiet_khau", "Azure Interior đặt 50 Large Cabinet, giá niêm yết là bao nhiêu?",
      ("find_customer", "find_product", "get_product_price"),
-     ("12%",),
+     ("2.400.000",),
      {"find_customer": "Tìm thấy 1 khách hàng: Azure Interior (ID 42)",
       "find_product": "Tìm thấy 1 sản phẩm: Large Cabinet (ID 108)",
-      "get_product_price":
-      "Giá bán Large Cabinet cho khách Azure Interior (số lượng 50): "
-      "2.400.000đ/sp (đã áp chiết khấu số lượng 12%)"}),
+      "get_product_price": "Giá Large Cabinet: 2.400.000 (SL 50)."}),
 ]
