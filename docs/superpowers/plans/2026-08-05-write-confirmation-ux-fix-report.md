@@ -293,13 +293,87 @@ thuẫn, và lỗi chính tả "Finał".
 
 ---
 
+## §7 Cổng đánh giá — kết quả thật (controller đo sau merge, 2026-08-05)
+
+Nhánh đã merge vào `main` (fast-forward, commit `e7b6d04`), push lên origin.
+Controller tự khởi động lại backend thật (`D:\Youdoo\backend`, không qua
+worktree) với code vừa merge, rồi đo trực tiếp qua API thật + trace Langfuse
+(`http://localhost:3001`) — không suy đoán.
+
+**Lưu ý phương pháp:** lần đầu gửi bằng `session_id` đơn-message thì
+`_invoke_fresh` xoá sạch lịch sử mỗi lần (đúng cơ chế C1 vừa sửa!) — phải đổi
+sang mô phỏng đúng client Open WebUI thật: gửi lại TOÀN BỘ lịch sử hội thoại
+mỗi lượt (không `session_id`), để `_derive_thread_id` bám theo hash tin nhắn
+đầu tiên.
+
+### Tiêu chí 1 — ca gốc chạy đúng: ✅ ĐẠT
+
+Tái hiện đúng chuỗi hội thoại gốc (4 lượt, gửi lại đủ lịch sử mỗi lần):
+1. "có 1 khách hàng sắp đặt 30 cái individual workplace... tôi muốn nhập 20
+   cái individual workplace" → "Bạn cần cho biết nhà cung cấp nào để mình
+   tạo đơn." (route ban đầu có biến thiên — có lần rơi thẳng vào
+   `erp_write_planner`/`create_rfq`, có lần vào `mixed`; không ảnh hưởng tới
+   điều đang đo)
+2. "có các nhà cung cấp nào cho sản phẩm individual workplace hiện tại ?" →
+   route:read thật, gọi tool `get_product_suppliers` thật, trả lời: "...
+   **Bạn có muốn tôi tạo đơn mua 20 cái Individual Workplace từ nhà cung
+   cấp Acme Corporation không?**" — câu đề xuất Y HỆT ca bug gốc.
+3. **"okay"** → trace Langfuse xác nhận `decide_route` → `erp_write_planner`
+   → `create_rfq` → phát cổng xác nhận THẬT:
+   ```
+   Đơn mua từ Acme Corporation:
+     - [FURN_0789] Individual Workplace × 20
+   Bạn xác nhận giúp mình nhé? (trả lời "có" để thực hiện, "không" để hủy)
+   ```
+   KHÔNG còn rơi vào chitchat mất ngữ cảnh như bug gốc. Bằng chứng: trace
+   `decide_route` → `erp_write_planner` → `route:planner` (LLM) →
+   `_route_after_write_planner` → `create_rfq`, đúng luồng `_interrupt()`
+   thật.
+
+### Tiêu chí 2 — không hồi quy hội thoại thường: ✅ ĐẠT (3/3 ca)
+
+| # | Câu hỏi | Trả lời | Follow-up | Trace route sau follow-up |
+|---|---|---|---|---|
+| 1 | "cảm ơn bạn nhiều nhé" | chitchat cảm ơn | "ok" | `decide_route` → `respond_unknown` (chitchat) |
+| 2 | "chính sách hoàn hàng của công ty như thế nào?" | "Không tìm thấy tài liệu liên quan" | "có" | `decide_route` → `respond_unknown` (chitchat) |
+| 3 | "kho hiện còn bao nhiêu cái Individual Workplace?" | "Kho hiện còn 36 cái..." (tra cứu thuần, không đề xuất) | "có" | `decide_route` → `respond_unknown` (chitchat) |
+
+Không ca nào bị ép sai sang `erp_write_planner`. Cơ chế mới (state field +
+neo độ dài, không dò văn bản "...không?") xác nhận không có false positive
+trên hội thoại thường.
+
+### Tiêu chí 3 — tool-selection không hỏng: ✅ ĐẠT (3/3 ca thật)
+
+| # | Câu hỏi | Tool thật | Kết quả |
+|---|---|---|---|
+| 1 | Individual Workplace, thiếu nhà cung cấp | `get_product_suppliers` | 1 lựa chọn (Acme Corporation) → tự nêu thẳng + đề nghị tiến hành (đúng Task 4) |
+| 2 | "nhập thêm hàng cho Large Cabinet nhưng chưa biết nhà cung cấp" | `get_product_suppliers` | 4 lựa chọn thật (Wood Corner 750đ, Ready Mat 785-790đ theo bậc, Azure Interior & Gemini Furniture 800đ) → liệt kê đủ, hỏi lại người dùng chọn (đúng nhánh "NHIỀU lựa chọn" của Task 4) |
+| 3 | "hóa đơn nào quá hạn thanh toán?" | `get_overdue_invoices` | 22 hóa đơn thật, đúng mã + hạn từ 4 khách hàng (Acme Corporation, OpenWood, LightsUp, Azure Interior) |
+
+Không ca nào chọn sai tool hay bịa số liệu — toàn bộ số liệu (giá, mã hoá
+đơn, ngày hạn) khớp dữ liệu Odoo thật.
+
+### Kết luận §7
+
+**Cả 3 tiêu chí ĐẠT — quyết định §2.1 (state field + neo độ dài) được GIỮ
+LẠI**, đúng theo cổng đánh giá đã cam kết trong spec. Không phần nào bị
+revert.
+
+---
+
 ## Nhận xét cuối
 
-- ✅ Tất cả 5 task hoàn thành, code merged vào nhánh worktree này
-- ✅ Test suite 1151 passed, 4 skipped (không regression) sau fix wave final review
-- ✅ Tất cả 6 finding từ review loop theo-task + 4 finding final review đều được xác nhận + sửa (0 open)
-- ✅ Bất biến an toàn 1-4 kiểm chứng: không đụng `erp_write_executor`, `_interrupt()`, hay `state.get("confirmed")`
+- ✅ Tất cả 6 task hoàn thành, code đã merge vào `main` và push lên origin
+  (commit `e7b6d04`)
+- ✅ Test suite 1151 passed, 4 skipped (không regression) sau fix wave final
+  review — xác nhận lại trên `main` đã merge
+- ✅ Tất cả 6 finding từ review loop theo-task + 4 finding final review đều
+  được xác nhận + sửa (0 open)
+- ✅ Bất biến an toàn 1-4 kiểm chứng: không đụng `erp_write_executor`,
+  `_interrupt()`, hay `state.get("confirmed")`
 - ✅ Circular import check pass
-- ⏳ Cổng đánh giá §7 (live-verify) chờ merge + controller verification
-- ⏳ Eval `eval_chitchat` cần LLM thật, skip trong unit-only mode
+- ✅ **Cổng đánh giá §7 (live-verify) ĐẠT cả 3 tiêu chí — đo thật trên
+  backend production, có trace Langfuse làm bằng chứng** (xem mục trên)
+- ⏳ Eval `eval_chitchat`/`eval_multi_source` cần LLM thật, chưa chạy trong
+  phiên này (không thuộc phạm vi §7, để dành đợt eval định kỳ tiếp theo)
 
