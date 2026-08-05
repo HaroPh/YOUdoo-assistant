@@ -58,6 +58,7 @@ from .state import ERPAgentState
 from .prompts import render_intent_router_prompt
 from . import skill_gate
 from .skill_gate import _fold
+from .confirmation import CONFIRM, classify_keyword
 
 VALID_INTENTS = {"erp_read", "erp_write", "rag", "mixed", "unknown"}
 
@@ -153,6 +154,42 @@ def looks_like_question(folded: str) -> bool:
     return any(m in folded for m in _QUESTION_MARKERS)
 
 
+def replying_to_write_suggestion(state: ERPAgentState) -> bool:
+    """Lượt này có phải người dùng ĐỒNG Ý với một ĐỀ XUẤT GHI ở lượt trước?
+
+    Tín hiệu KHÔNG đọc từ văn bản mà từ `additional_kwargs["suggested_write"]`
+    của AIMessage — cờ do fuse_answer/erp_read gắn khi câu trả lời của chúng
+    thật sự đề xuất một hành động ghi (xem synthesis.extract_write_suggestion).
+
+    VÌ SAO KHÔNG DÒ VĂN BẢN: câu gây bug thật ("...từ nhà cung cấp Acme
+    Corporation không?") không có khuôn "(có / không)" nào để bắt; mà nới ra
+    bắt mọi câu kết thúc "...không?" thì MỌI câu hỏi chitchat/RAG thường ngày
+    ("Bạn có muốn tôi giải thích thêm không?") theo sau bởi "ok" đều bị ép sai
+    sang đường ghi. Cờ trên message tránh hẳn thế lưỡng nan đó.
+
+    VÌ SAO GẮN VÀO MESSAGE, KHÔNG PHẢI STATE KEY RIÊNG: `intent_router` chạy
+    TRƯỚC hàm này. State key riêng thì hoặc bị intent_router xoá (theo mẫu
+    `sop`) nên không bao giờ đọc được, hoặc không ai xoá nên sống dai sang các
+    lượt sau gây kích hoạt sai. Cờ nằm trên chính message thì TỰ GIỚI HẠN
+    PHẠM VI: hàm này luôn đọc AI message MỚI NHẤT, nên một câu trả lời mới
+    không mang cờ tự vô hiệu hoá cờ cũ — không cần kỷ luật dọn dẹp trải khắp
+    các node.
+
+    Đây CHỈ là quyết định định tuyến. Không hành động ghi nào chạy nếu chưa
+    qua _interrupt() thật của erp_write_planner.
+    """
+    messages = state.get("messages") or []
+    last_ai = next((m for m in reversed(messages) if m.type == "ai"), None)
+    if last_ai is None:
+        return False
+    if not (getattr(last_ai, "additional_kwargs", None) or {}).get("suggested_write"):
+        return False
+    last_human = next((m for m in reversed(messages) if m.type == "human"), None)
+    if last_human is None:
+        return False
+    return classify_keyword(last_human.content or "") == CONFIRM
+
+
 def decide_route(state: ERPAgentState) -> str:
     """Quyết định cuối là TẤT ĐỊNH. Đề cử SOP (state["sop"]) chỉ là một trong
     hai điều kiện; điều kiện kia — câu KHÔNG mang dấu hiệu câu hỏi — là lớp
@@ -174,6 +211,12 @@ def decide_route(state: ERPAgentState) -> str:
 
     Lưới đỡ cuối không phải lớp này: router sai chiều nào thì confirm-gate tại
     tool boundary vẫn chặn mọi write chưa được duyệt."""
+    # Phủ quyết SỚM NHẤT: người dùng vừa đồng ý với một đề xuất ghi ở lượt
+    # trước. Đặt trước cả nhánh SOP vì đây là ý định tường minh nhất có thể
+    # có — mọi đề cử của lớp 1 đều thua nó.
+    if replying_to_write_suggestion(state):
+        return "erp_write"
+
     intent = state.get("intent") or "unknown"
     sop = state.get("sop")
     if sop and skill_gate.skills_enabled():
