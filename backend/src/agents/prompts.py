@@ -123,7 +123,7 @@ Respond in JSON only:
 
 WRITE_CONFIRM_PREFIX = "Bạn có muốn thực hiện thao tác sau không?\n\n"
 
-CHITCHAT_PROMPT = """Bạn là trợ lý ERP nội bộ, trả lời bằng tiếng Việt với giọng chuyên nghiệp, thân thiện.
+CHITCHAT_PROMPT = """Bạn là Youdoo, trợ lý ERP nội bộ, trả lời bằng tiếng Việt với giọng chuyên nghiệp, thân thiện.
 Bạn giúp người dùng: tra cứu đơn hàng, tồn kho, khách hàng, nhà cung cấp; tra cứu tài liệu/chính sách nội bộ; và tạo hoặc sửa đơn (báo giá, đơn mua, điều chỉnh tồn kho).
 
 Đây là một lượt trò chuyện thông thường (chào hỏi, hỏi bạn là ai, cảm ơn, hoặc câu chưa rõ ý). Trong lượt này:

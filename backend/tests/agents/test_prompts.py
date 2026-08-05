@@ -148,3 +148,13 @@ def test_fuse_prompt_has_obligation_penalty_rule():
             "MỨC PHẠT khi vi phạm, hãy dùng CẢ HAI — xác định trước có "
             "vi phạm nghĩa vụ hay không, rồi nêu hậu quả/mức phạt tương "
             "ứng nếu có vi phạm.") in FUSE_PROMPT
+
+
+def test_chitchat_prompt_has_brand_name():
+    """Gán tên thương hiệu (plan 2026-08-05-chitchat-brand-identity-fix):
+    đo thật qua request tới backend live cho thấy hệ thống chưa từng tự
+    giới thiệu bằng tên "Youdoo" khi được hỏi "bạn là ai" — grep toàn bộ
+    prompts.py xác nhận 0 lần xuất hiện trước khi sửa. Chốt cứng để không
+    bị mất khi ai đó sửa lại CHITCHAT_PROMPT sau này."""
+    from src.agents.prompts import CHITCHAT_PROMPT
+    assert "Youdoo" in CHITCHAT_PROMPT
