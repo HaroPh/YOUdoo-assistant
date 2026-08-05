@@ -179,15 +179,34 @@ nhiều ca, không chỉ unit test — đã đưa vào §7.
 
 ### 2.3. Câu xác nhận tự nhiên hơn, template tĩnh (§1.4)
 
-Sửa phần build `question` trong `erp_write_planner` (`nodes.py:239-246`) —
-tách 2 phần:
+**Đính chính bản spec đầu (phát hiện khi viết plan, bằng grep toàn repo):**
+ví dụ người dùng phàn nàn ("Đơn mua từ Acme Corporation: … Xác nhận? (có /
+không)") KHÔNG đến từ `nodes.py` mà từ `create_order.py:48` — một
+COORDINATED write. Chuỗi `"Xác nhận? (có / không)"` đang bị **lặp nguyên văn
+ở 13 chỗ**: `create_order.py` (×2), `bom_write.py` (×2), `crm_write.py` (×3),
+`inventory_write.py` (×3), `mrp_write.py`, `purchase_write.py` (×3),
+`returns_write.py` (×2), `edit_order.py`, `nodes.py`, và
+`skills/bao-gia-chiet-khau/logic.py`. Chỉ sửa `nodes.py` sẽ KHÔNG sửa được ví
+dụ người dùng nêu, và còn làm câu xác nhận **không nhất quán** giữa đường
+single-step và đường coordinated.
+
+Cách làm:
+- **Gom chuỗi lặp về MỘT hằng số** trong `prompts.py`
+  (`WRITE_CONFIRM_SUFFIX`), thay literal ở cả 13 chỗ. Đây là cải thiện thật:
+  một chuỗi an toàn hiển thị cho người dùng không nên tồn tại 13 bản sao —
+  sau này đổi câu chữ là sửa MỘT dòng.
 - **Số liệu tất định** (`summary`, `plan.get('tool')`, `args_line`,
-  `chain_note`): GIỮ NGUYÊN Y HỆT — không đổi cách tính, không đổi thứ tự,
-  không bỏ bớt. Invariant C tầng 3 phải còn nguyên vẹn, có test canh.
-- **Khung câu chữ bao quanh** (`WRITE_CONFIRM_PREFIX` + format): đổi sang
-  **template tĩnh viết sẵn trong code**, tự nhiên hơn, render bằng f-string
-  thường. **KHÔNG thêm lệnh gọi LLM nào** cho việc này — đó là toàn bộ lý do
-  chọn template tĩnh thay vì "qua 1 lớp LLM cho tự nhiên".
+  `chain_note`, và các dòng hàng hoá của coordinated writes): GIỮ NGUYÊN Y
+  HỆT — không đổi cách tính, không đổi thứ tự, không bỏ bớt. Invariant C tầng
+  3 phải còn nguyên vẹn, có test canh.
+- **Khung câu chữ bao quanh**: đổi sang **template tĩnh viết sẵn trong code**,
+  tự nhiên hơn, render bằng f-string thường. **KHÔNG thêm lệnh gọi LLM nào**
+  cho việc này — đó là toàn bộ lý do chọn template tĩnh thay vì "qua 1 lớp
+  LLM cho tự nhiên".
+- **Ràng buộc bắt buộc:** câu mới VẪN phải chứa cụm "xác nhận" VÀ dấu "?" —
+  `live_verify_common.py:58-68` (`_looks_like_confirm_gate`) dò cổng xác nhận
+  bằng đúng hai dấu hiệu này; mất một trong hai là làm hỏng 3 script
+  live-verify skill agentic.
 
 ## 3. File bị chạm
 
@@ -197,6 +216,8 @@ tách 2 phần:
 | `backend/src/agents/prompts.py` | `FUSE_PROMPT` + `SYSTEM_PROMPT`: chỉ dẫn phát marker `ĐỀ_XUẤT_GHI` (§2.1 bước 1); `GATHER_ERP_PROMPT` + `FUSE_PROMPT`: chỉ dẫn auto-tra cứu (§2.2); `WRITE_CONFIRM_PREFIX`/template câu xác nhận: đổi khung câu chữ (§2.3) |
 | `backend/src/agents/fanout.py` | `fuse_answer`: parse + cắt marker, gắn `additional_kwargs` (§2.1 bước 2) |
 | `backend/src/agents/nodes.py` | `erp_read`: dùng chung helper parse/gắn cờ (§2.1 tổng quát hoá); `erp_write_planner`: đổi cách build `question`, số liệu tất định giữ nguyên (§2.3) |
+| `backend/src/agents/{create_order,bom_write,crm_write,inventory_write,mrp_write,purchase_write,returns_write,edit_order}.py` + `backend/skills/bao-gia-chiet-khau/logic.py` | Thay literal `"Xác nhận? (có / không)"` (13 chỗ) bằng hằng `WRITE_CONFIRM_SUFFIX` từ `prompts.py` (§2.3) |
+| `backend/tests/agents/test_auto_chain.py` | 4 assert đang bám literal `"Xác nhận? (có / không)"` — đổi sang tham chiếu hằng số (§2.3) |
 | `backend/src/agents/synthesis.py` | Helper parse + cắt marker `ĐỀ_XUẤT_GHI`, dùng chung bởi `fuse_answer` và `erp_read` — MỘT bản, không copy. Đặt ở đây (không phải module mới) vì: `extract_used_citations`/`USED_MARKER` — helper marker anh em — đã sống ở đây, và CẢ `fanout.py` LẪN `nodes.py` đều đã import từ module này sẵn, không tạo import vòng |
 | `backend/tests/agents/test_routing.py` | Test điều kiện route mới: ca DƯƠNG (có cờ + "ok" → `erp_write`) và ca ÂM (không cờ + "ok" → KHÔNG ép route) |
 | `backend/tests/agents/test_fanout.py` | Test marker được cắt khỏi văn bản hiển thị và gắn đúng vào `additional_kwargs` |
@@ -230,6 +251,8 @@ Ghi riêng thành mục để reviewer chốt được nhanh:
 2. **Invariant C tầng 3 nguyên vẹn:** tool + args thật luôn hiện tất định
    trong câu xác nhận, không do LLM sinh lại.
 3. **Không thêm lệnh gọi LLM mới** cho việc làm đẹp câu chữ (§2.3).
+4. **Cổng xác nhận vẫn dò được:** câu xác nhận mới giữ cả cụm "xác nhận" lẫn
+   dấu "?" (`live_verify_common.py:58-68` dựa vào đúng hai dấu hiệu này).
 
 ## 6. Kiểm chứng
 
