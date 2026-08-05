@@ -123,7 +123,17 @@ Respond in JSON only:
   "chain_until": "<optional — last tool of the chain the user explicitly asked for>"
 }"""
 
-WRITE_CONFIRM_PREFIX = "Bạn có muốn thực hiện thao tác sau không?\n\n"
+WRITE_CONFIRM_PREFIX = "Mình sẽ thực hiện thao tác sau giúp bạn:\n\n"
+# NGUỒN SỰ THẬT DUY NHẤT cho câu hỏi chốt của MỌI cổng xác nhận ghi — trước
+# 2026-08-05 chuỗi này bị chép nguyên văn 19 chỗ / 10 file, nên câu chữ muốn
+# đổi phải sửa 19 nơi và rất dễ lệch nhau giữa đường single-step với đường
+# coordinated.
+# RÀNG BUỘC: phải giữ CẢ cụm "xác nhận" LẪN dấu "?" —
+# tests/live_verify_common.py:58-68 (_looks_like_confirm_gate) dò cổng xác
+# nhận bằng đúng hai dấu hiệu này; mất một trong hai là làm hỏng 3 script
+# live-verify skill agentic (có test canh trong test_prompts.py).
+WRITE_CONFIRM_SUFFIX = ('Bạn xác nhận giúp mình nhé? '
+                        '(trả lời "có" để thực hiện, "không" để hủy)')
 
 CHITCHAT_PROMPT = """Bạn là Youdoo, trợ lý ERP nội bộ, trả lời bằng tiếng Việt với giọng chuyên nghiệp, thân thiện.
 Bạn giúp người dùng: tra cứu đơn hàng, tồn kho, khách hàng, nhà cung cấp; tra cứu tài liệu/chính sách nội bộ; và tạo hoặc sửa đơn (báo giá, đơn mua, điều chỉnh tồn kho).

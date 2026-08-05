@@ -14,6 +14,7 @@ from langchain_core.tools import tool
 
 from src.agents.agentic_gate import REFUSED_MSG, _confirm_write, ask_human
 from src.agents.create_order import resolve_entity_for_order
+from src.agents.prompts import WRITE_CONFIRM_SUFFIX
 from src.agents.skill_gate import _fold
 from src.erp_query import sales, inventory
 
@@ -51,7 +52,7 @@ def _render_discount_draft(partner, lines, pct) -> str:
             f"Tổng trước chiết khấu: {total_before:,.0f}\n"
             f"Chiết khấu: {pct * 100:g}%\n"
             f"Tổng sau chiết khấu: {total_after:,.0f}\n"
-            f"Xác nhận? (có / không)")
+            + WRITE_CONFIRM_SUFFIX)
 
 
 def build_tools(mcp_tools):

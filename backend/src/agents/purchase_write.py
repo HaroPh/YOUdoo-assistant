@@ -15,6 +15,7 @@ from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG)
 from . import write_gate
+from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory, purchase
 
 
@@ -90,7 +91,7 @@ def make_create_vendor_node(tools):
                  f"  Tên: {name}\n"
                  f"  Email: {email or '—'} | SĐT: {phone or '—'}\n"
                  f"  MST: {vat or '—'} | Địa chỉ: {street or '—'}, {city or '—'}"
-                 f"{dup_note}{note}\nXác nhận? (có / không)")
+                 f"{dup_note}{note}\n" + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -156,7 +157,7 @@ def make_update_vendor_pricing_node(tools):
         if delay is not None:
             extra_txt += f" | giao trong {int(delay)} ngày"
         draft = (f"Khai giá {product['name']} từ {vendor['name']}: "
-                 f"{price:,.0f}đ{extra_txt}.\nXác nhận? (có / không)")
+                 f"{price:,.0f}đ{extra_txt}.\n" + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -220,7 +221,7 @@ def make_create_bulk_rfq_node(tools):
 
         vendor_names = ", ".join(v["name"] for v in vendors)
         draft = (f"Tạo {len(vendors)} RFQ nháp cho: {vendor_names}\n"
-                 + "\n".join(lines_txt) + "\nXác nhận? (có / không)")
+                 + "\n".join(lines_txt) + "\n" + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:

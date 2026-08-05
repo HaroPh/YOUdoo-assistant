@@ -14,6 +14,7 @@ from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG)
 from .skill_gate import _fold
 from . import write_gate
+from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import crm
 
 # Nhận cách gõ tự nhiên (đã _fold) — map tất định, sai thì liệt kê, không đoán
@@ -111,7 +112,7 @@ def make_create_lead_node(tools):
                  f"  Tiêu đề: {title}\n"
                  f"  Liên hệ: {contact or '—'} | Công ty: {company or '—'}\n"
                  f"  Email: {email or '—'} | SĐT: {phone or '—'}"
-                 f"{dup_note}{note}\nXác nhận? (có / không)")
+                 f"{dup_note}{note}\n" + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -152,7 +153,7 @@ def make_convert_lead_node(tools):
         confirmed = _interrupt({
             "kind": "confirm",
             "question": (f"Chuyển lead '{lead['name']}' thành cơ hội{who}.\n"
-                         f"Xác nhận? (có / không)"),
+                         + WRITE_CONFIRM_SUFFIX),
             "expires_at": _ttl_expiry()})
         if not confirmed:
             return _msg("Đã hủy chuyển lead.")
@@ -207,7 +208,7 @@ def make_log_activity_node(tools):
         confirmed = _interrupt({
             "kind": "confirm",
             "question": (f"Lên lịch {canonical} cho '{lead['name']}': "
-                         f"{summary} — hạn {deadline}.\nXác nhận? (có / không)"),
+                         f"{summary} — hạn {deadline}.\n" + WRITE_CONFIRM_SUFFIX),
             "expires_at": _ttl_expiry()})
         if not confirmed:
             return _msg("Đã hủy lên lịch hoạt động.")

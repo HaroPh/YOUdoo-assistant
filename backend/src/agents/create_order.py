@@ -16,6 +16,7 @@ from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .working_context import derive_working_context
 from . import write_gate
+from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import sales, inventory, purchase
 
 WRITE_DISABLED_MSG = ("Tính năng ghi (tạo/sửa đơn hàng, cập nhật tồn kho) "
@@ -45,11 +46,11 @@ def render_draft(partner: dict, lines: list, total, head: str = "Báo giá cho",
     note: dòng chuỗi tự động ("\n\nSau đó tự động: ...") chèn TRƯỚC câu hỏi."""
     if total is None:
         body = "\n".join(f"  - {l['name']} × {l['qty']:g}" for l in lines)
-        return f"{head} {partner['name']}:\n{body}{note}\nXác nhận? (có / không)"
+        return f"{head} {partner['name']}:\n{body}{note}\n" + WRITE_CONFIRM_SUFFIX
     body = "\n".join(
         f"  - {l['name']} × {l['qty']:g} = {l['subtotal']:,.0f}" for l in lines)
     return (f"{head} {partner['name']}:\n{body}\n"
-            f"Tổng: {total:,.0f}{note}\nXác nhận? (có / không)")
+            f"Tổng: {total:,.0f}{note}\n" + WRITE_CONFIRM_SUFFIX)
 
 
 def _ttl_expiry() -> float:

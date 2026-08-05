@@ -1,4 +1,5 @@
 from src.agents.create_order import resolve_entity_for_order, render_draft
+from src.agents.prompts import WRITE_CONFIRM_SUFFIX
 
 
 def _env(matches, needs, status="success"):
@@ -44,4 +45,4 @@ def test_render_draft_has_lines_and_total():
                          "unit_price": 100000.0, "subtotal": 300000.0}], 300000.0)
     assert "Azur" in out and "Tủ" in out
     assert "300,000" in out
-    assert "có / không" in out
+    assert WRITE_CONFIRM_SUFFIX in out

@@ -5,6 +5,7 @@ import pytest
 
 from src.agents.write_registry import expand_chain
 from src.agents import write_gate
+from src.agents.prompts import WRITE_CONFIRM_SUFFIX
 
 
 # ── expand_chain (total function) ────────────────────────────────────────────
@@ -240,13 +241,13 @@ def test_render_draft_note_before_question():
                        [{"name": "Tủ", "qty": 2, "unit_price": 5.0, "subtotal": 10.0}],
                        10.0, note=NOTE)
     assert "Sau đó tự động: Xác nhận báo giá" in out
-    assert out.index("Sau đó tự động") < out.index("Xác nhận? (có / không)")
+    assert out.index("Sau đó tự động") < out.index(WRITE_CONFIRM_SUFFIX)
 
 
 def test_render_draft_purchase_variant_note():
     out = render_draft({"name": "ACME"}, [{"name": "Tủ", "qty": 2}], None,
                        head="Đơn mua từ", note=NOTE)
-    assert out.index("Sau đó tự động") < out.index("Xác nhận? (có / không)")
+    assert out.index("Sau đó tự động") < out.index(WRITE_CONFIRM_SUFFIX)
 
 
 def test_render_draft_no_note_unchanged():
@@ -259,7 +260,7 @@ def test_render_draft_no_note_unchanged():
 def test_render_diff_note_before_question():
     out = _render_diff(eo.SALE_EDIT_CFG, "S00040", "Azur",
                        ["Tủ × 2 = 10"], [], [], NOTE)
-    assert out.index("Sau đó tự động") < out.index("Xác nhận? (có / không)")
+    assert out.index("Sau đó tự động") < out.index(WRITE_CONFIRM_SUFFIX)
 
 
 def _ok_env(matches, needs=False):
@@ -290,7 +291,7 @@ async def test_create_order_confirm_shows_chain_note(monkeypatch):
     res = await graph.ainvoke(state, {"configurable": {"thread_id": "n1"}})
     q = res["__interrupt__"][0].value["question"]
     assert "Sau đó tự động: Xác nhận báo giá" in q
-    assert q.index("Sau đó tự động") < q.index("Xác nhận? (có / không)")
+    assert q.index("Sau đó tự động") < q.index(WRITE_CONFIRM_SUFFIX)
 
 
 # ── integration: create → (auto) confirm qua graph write thật ────────────────

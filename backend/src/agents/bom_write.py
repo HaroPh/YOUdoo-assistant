@@ -18,6 +18,7 @@ from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG)
 from . import write_gate
+from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory, mrp
 
 
@@ -154,7 +155,7 @@ def make_create_bom_node(tools):
         if code:
             head += f" (mã {code})"
         draft = (f"{head}:\nMẻ: {batch_qty:g} đơn vị thành phẩm\n"
-                 + "\n".join(lines) + note + "\nXác nhận? (có / không)")
+                 + "\n".join(lines) + note + "\n" + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -273,7 +274,7 @@ def make_update_bom_node(tools):
                             for l in after.values())
         draft = (f"Sửa BoM {_bom_label(bom)} của {product_ref}:\n"
                  f"Hiện tại:\n{cur_txt}\nSau khi sửa:\n{aft_txt}{warn}\n"
-                 f"Xác nhận? (có / không)")
+                 + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:

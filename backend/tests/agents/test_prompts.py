@@ -179,3 +179,24 @@ def test_fuse_prompt_neu_dung_mot_lua_chon_thi_neu_thang():
     assert ("hãy nêu thẳng lựa chọn đó kèm số liệu thật và đề nghị tiến hành, "
             "thay vì hỏi lại người dùng chọn gì" in FUSE_PROMPT)
     assert "Nếu có NHIỀU lựa chọn, liệt kê ra để người dùng chọn." in FUSE_PROMPT
+
+
+def test_write_confirm_suffix_giu_dau_hieu_cong_xac_nhan():
+    """RÀNG BUỘC BẮT BUỘC: live_verify_common._looks_like_confirm_gate dò cổng
+    xác nhận bằng ĐÚNG hai dấu hiệu — cụm 'xác nhận' và dấu '?'. Mất một trong
+    hai là làm hỏng 3 script live-verify skill agentic."""
+    from src.agents.prompts import WRITE_CONFIRM_SUFFIX
+    assert "xác nhận" in WRITE_CONFIRM_SUFFIX.lower()
+    assert "?" in WRITE_CONFIRM_SUFFIX
+
+
+def test_khong_con_literal_xac_nhan_lap_lai_trong_src():
+    """Chuỗi này từng lặp nguyên văn 19 chỗ / 10 file. Sau khi gom về hằng số,
+    không file nguồn nào được viết lại literal đó nữa."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[2]
+    offenders = []
+    for path in list((root / "src").rglob("*.py")) + list((root / "skills").rglob("*.py")):
+        if "Xác nhận? (có / không)" in path.read_text(encoding="utf-8"):
+            offenders.append(str(path))
+    assert offenders == [], f"còn literal chưa gom: {offenders}"

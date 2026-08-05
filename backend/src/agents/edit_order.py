@@ -16,6 +16,7 @@ from .create_order import (
 from .tool_result import parse_write_result
 from .working_context import derive_working_context
 from . import write_gate
+from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import sales, inventory, purchase
 
 FLAG_TOOL = "flag_order_for_review"
@@ -88,7 +89,7 @@ def _render_diff(cfg, name, partner, adds, removes, sets, note: str = "") -> str
     body += [f"  - Xóa: {r}" for r in removes]
     body += [f"  ~ Đổi SL: {s}" for s in sets]
     return (f"Sửa {cfg.order_label} {name} ({partner}):\n"
-            + "\n".join(body) + note + "\nXác nhận? (có / không)")
+            + "\n".join(body) + note + "\n" + WRITE_CONFIRM_SUFFIX)
 
 
 def make_edit_order_node(tools, cfg: EditCfg):

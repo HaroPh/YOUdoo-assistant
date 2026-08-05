@@ -12,7 +12,8 @@ from langgraph.types import interrupt as _interrupt
 
 from .state import ERPAgentState
 from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
-                      WRITE_CONFIRM_PREFIX, CHITCHAT_PROMPT, render_working_context)
+                      WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
+                      CHITCHAT_PROMPT, render_working_context)
 from .write_registry import COORDINATED_TOOLS, expand_chain
 from ..rag.retrieve import retrieve
 from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
@@ -251,7 +252,7 @@ def make_erp_write_planner_node(llm):
         question = WRITE_CONFIRM_PREFIX + (f"**{summary}**\n"
                                            f"({plan.get('tool')}: {args_line})"
                                            f"{plan.get('chain_note') or ''}\n\n"
-                                           f"Xác nhận? (có / không)")
+                                           + WRITE_CONFIRM_SUFFIX)
         ttl = int(os.environ.get("CONFIRMATION_TTL_SECONDS", "300"))
         confirmed = _interrupt({
             "question": question,

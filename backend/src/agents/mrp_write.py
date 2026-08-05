@@ -13,6 +13,7 @@ from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG)
 from . import write_gate
+from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory, mrp
 
 
@@ -117,7 +118,7 @@ def make_create_mo_node(tools):
         note = action.get("chain_note") or ""
         draft = (f"Lệnh sản xuất: {product['name']} × {qty:g}\n"
                  f"Định mức {_bom_label(bom)}:\n" + "\n".join(avail_lines)
-                 + warn + note + "\nXác nhận? (có / không)")
+                 + warn + note + "\n" + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
