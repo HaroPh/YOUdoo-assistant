@@ -27,7 +27,10 @@ def load_env(env_path: str | None = None) -> None:
             os.environ.setdefault(k, v)
 
 
-load_env()
+try:
+    load_env()
+except FileNotFoundError:      # .env không track git — vắng mặt là hợp lệ
+    pass
 BASE_URL = f"http://localhost:{os.environ.get('BACKEND_PORT', '8002')}"
 CHAT_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
 

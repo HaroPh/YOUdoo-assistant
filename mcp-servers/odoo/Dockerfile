@@ -15,5 +15,5 @@ COPY tools/ ./tools/
 
 EXPOSE 8003
 
-# FastMCP SSE server mặc định bind 0.0.0.0:8003 (đọc MCP_ODOO_PORT) → override bằng env hoặc args
+# Đọc MCP_ODOO_PORT (mặc định 8003 — xem server.py); EXPOSE dưới đây phải khớp giá trị mặc định đó
 CMD ["python", "server.py"]
