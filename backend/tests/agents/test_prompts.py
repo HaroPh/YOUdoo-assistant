@@ -157,4 +157,4 @@ def test_chitchat_prompt_has_brand_name():
     prompts.py xác nhận 0 lần xuất hiện trước khi sửa. Chốt cứng để không
     bị mất khi ai đó sửa lại CHITCHAT_PROMPT sau này."""
     from src.agents.prompts import CHITCHAT_PROMPT
-    assert "Youdoo" in CHITCHAT_PROMPT
+    assert CHITCHAT_PROMPT.startswith("Bạn là Youdoo,")
