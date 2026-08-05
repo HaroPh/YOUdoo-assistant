@@ -479,8 +479,9 @@ MULTI_SOURCE_GATHER_CASES = [
     # đơn này có "khẩn cấp" hay không, nên không thể áp đúng điều khoản
     # 3-ngày thay vì hạn 7-ngày mặc định — KHÔNG có field có sẵn nào bị bỏ
     # sót (khác lớp "hạng lỗi thứ ba" ở get_product_price/
-    # get_overdue_invoices bên dưới); đây là giới hạn thật của demo Odoo,
-    # không có gì để sửa bằng cách thêm field hay đổi prompt.
+    # get_overdue_invoices bên dưới — cả hai đã sửa 2026-08-04); đây là
+    # giới hạn thật của demo Odoo, không có gì để sửa bằng cách thêm field
+    # hay đổi prompt.
     ("sla_giao_hang",
      {"get_sale_order_detail":
       "Đơn S00042 | Azure Interior | Tổng 1.500.000\n"
@@ -721,6 +722,11 @@ GATHER_CASES = [
     # fixtures.load_chunks()) dù ca CỤ THỂ này trong GATHER_CASES giờ đo
     # tra giá, không phải tra chiết khấu — lệch tên/nội dung có chủ đích,
     # đổi tên topic ngoài phạm vi plan này.
+    #
+    # find_customer không còn thực sự bắt buộc cho câu hỏi MỚI (giá niêm
+    # yết không phụ thuộc partner_id — sales.py:73-90) như với câu hỏi CŨ
+    # (chiết khấu theo tier); nếu tool_recall sau này tụt còn 0.75 ở đúng
+    # ca này, có thể là model chọn tool tối giản hợp lý, không hẳn regression.
     ("bang_gia_chiet_khau", "Azure Interior đặt 50 Large Cabinet, giá niêm yết là bao nhiêu?",
      ("find_customer", "find_product", "get_product_price"),
      ("2.400.000",),
