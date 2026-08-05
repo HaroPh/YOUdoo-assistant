@@ -158,3 +158,16 @@ def test_chitchat_prompt_has_brand_name():
     bị mất khi ai đó sửa lại CHITCHAT_PROMPT sau này."""
     from src.agents.prompts import CHITCHAT_PROMPT
     assert CHITCHAT_PROMPT.startswith("Bạn là Youdoo,")
+
+
+def test_gather_erp_prompt_yeu_cau_tra_cuu_truoc_khi_hoi_lai():
+    """Bug thật 2026-08-05: agent hỏi 'nhà cung cấp nào?' mà không tra cứu,
+    dù chính nó tra được ngay khi được hỏi thẳng ở lượt sau."""
+    from src.agents.prompts import GATHER_ERP_PROMPT
+    assert "tra cứu" in GATHER_ERP_PROMPT.lower()
+    assert "hỏi lại" in GATHER_ERP_PROMPT.lower()
+
+
+def test_fuse_prompt_neu_dung_mot_lua_chon_thi_neu_thang():
+    from src.agents.prompts import FUSE_PROMPT
+    assert "một lựa chọn" in FUSE_PROMPT.lower()
