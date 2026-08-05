@@ -22,6 +22,39 @@ USED_MARKER = "NGUỒN_DÙNG"
 # (there shouldn't be any) is dropped along with the marker itself.
 _MARKER_RE = re.compile(rf'\n?{USED_MARKER}:\s*([0-9,\s]*)', re.IGNORECASE)
 
+WRITE_SUGGEST_MARKER = "ĐỀ_XUẤT_GHI"
+# KHÁC _MARKER_RE ở trên một điểm QUAN TRỌNG: extract_used_citations() cắt cụt
+# body[:m.start()] (bỏ mọi thứ từ marker trở đi) vì NGUỒN_DÙNG theo hợp đồng
+# là dòng CUỐI. Marker này KHÔNG được phép làm vậy — nếu model đặt ĐỀ_XUẤT_GHI
+# TRƯỚC NGUỒN_DÙNG thì cắt cụt sẽ nuốt luôn dòng trích dẫn và footer
+# "📄 Nguồn:" biến mất lặng lẽ. Nên ở đây xoá ĐÚNG MỘT DÒNG bằng sub(), giữ
+# nguyên phần sau — hai marker nhờ vậy sống chung được ở bất kỳ thứ tự nào.
+_WRITE_SUGGEST_RE = re.compile(rf'\n?{WRITE_SUGGEST_MARKER}:([^\n]*)',
+                               re.IGNORECASE)
+# Giá trị được coi là "có". Mọi giá trị khác (kể cả "không") → False, nhưng
+# marker vẫn bị cắt khỏi văn bản hiển thị.
+_WRITE_SUGGEST_YES = {"có", "co", "yes", "true", "1"}
+
+
+def extract_write_suggestion(body: str) -> tuple[str, bool]:
+    """Tách cờ "câu trả lời này đang ĐỀ XUẤT một hành động ghi" khỏi văn bản.
+
+    Trả (văn bản đã bỏ dòng marker, có_đề_xuất_ghi). Người dùng KHÔNG BAO GIỜ
+    thấy marker — đây là kênh tín hiệu máy-đọc, tách hẳn khỏi câu chữ hiển
+    thị, nên prompt không phải ép model viết theo khuôn cứng nào cả.
+
+    Cờ này được routing.decide_route đọc ở lượt SAU (qua
+    AIMessage.additional_kwargs) để hiểu "okay" là xác nhận. Nó CHỈ ảnh hưởng
+    định tuyến — không hành động ghi nào chạy nếu chưa qua _interrupt() thật
+    của erp_write_planner.
+    """
+    m = _WRITE_SUGGEST_RE.search(body or "")
+    if not m:
+        return body, False
+    clean = _WRITE_SUGGEST_RE.sub("", body, count=1).rstrip()
+    value = (m.group(1) or "").strip().lower()
+    return clean, value in _WRITE_SUGGEST_YES
+
 
 def build_citations(chunks) -> str:
     """Deterministic '📄 Nguồn:' footer from chunk metadata.

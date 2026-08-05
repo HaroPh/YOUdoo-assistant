@@ -251,3 +251,55 @@ async def test_verify_citations_missing_verdict_for_one_chunk_keeps_it():
     chunks = _two_chunks()
     out = await verify_citations("Trả lời.", chunks, llm)
     assert out == [chunks[1]]
+
+
+def test_extract_write_suggestion_khong_co_marker():
+    from src.agents.synthesis import extract_write_suggestion
+    body = "Sản phẩm còn 16 cái trong kho."
+    clean, suggested = extract_write_suggestion(body)
+    assert clean == body
+    assert suggested is False
+
+
+def test_extract_write_suggestion_co_marker_thi_cat_bo():
+    from src.agents.synthesis import extract_write_suggestion
+    body = "Bạn có muốn tôi tạo đơn mua không?\nĐỀ_XUẤT_GHI: có"
+    clean, suggested = extract_write_suggestion(body)
+    assert clean == "Bạn có muốn tôi tạo đơn mua không?"
+    assert suggested is True
+    assert "ĐỀ_XUẤT_GHI" not in clean
+
+
+def test_extract_write_suggestion_gia_tri_phu_dinh():
+    from src.agents.synthesis import extract_write_suggestion
+    clean, suggested = extract_write_suggestion("Chỉ tra cứu thôi.\nĐỀ_XUẤT_GHI: không")
+    assert suggested is False
+    assert "ĐỀ_XUẤT_GHI" not in clean       # vẫn phải cắt marker khỏi văn bản
+
+
+def test_extract_write_suggestion_giu_nguyen_dong_nguon_dung_phia_sau():
+    """Marker CHỈ được xoá đúng dòng của nó, KHÔNG cắt cụt phần còn lại.
+
+    Bug thật nếu làm sai: extract_used_citations() dùng body[:m.start()] —
+    cắt bỏ MỌI THỨ từ NGUỒN_DÙNG trở đi. Nếu helper này cũng cắt cụt kiểu đó
+    thì khi LLM đặt ĐỀ_XUẤT_GHI TRƯỚC NGUỒN_DÙNG, dòng trích dẫn sẽ bị nuốt
+    mất và toàn bộ footer "📄 Nguồn:" biến mất — hỏng lặng lẽ.
+    """
+    from src.agents.synthesis import extract_write_suggestion
+    body = "Câu trả lời.\nĐỀ_XUẤT_GHI: có\nNGUỒN_DÙNG: 1,2"
+    clean, suggested = extract_write_suggestion(body)
+    assert suggested is True
+    assert "NGUỒN_DÙNG: 1,2" in clean
+    assert "ĐỀ_XUẤT_GHI" not in clean
+
+
+def test_extract_write_suggestion_khong_pha_extract_used_citations():
+    """Hai marker sống chung: chạy helper mới TRƯỚC rồi extract_used_citations
+    vẫn phải ra đúng cả hai kết quả."""
+    from src.agents.synthesis import extract_write_suggestion, extract_used_citations
+    body = "Câu trả lời.\nĐỀ_XUẤT_GHI: có\nNGUỒN_DÙNG: 1"
+    clean, suggested = extract_write_suggestion(body)
+    final, used = extract_used_citations(clean, ["chunk1", "chunk2"])
+    assert suggested is True
+    assert final == "Câu trả lời."
+    assert used == ["chunk1"]
