@@ -465,6 +465,22 @@ MULTI_SOURCE_GATHER_CASES = [
     # get_sale_order_detail đọc: id, name, partner_id, amount_total, state,
     # date_order, delivery_status, commitment_date, effective_date
     # (sales.py:52-55) — mọi nhãn dưới đây ứng đúng một field trong đó.
+    #
+    # GIỚI HẠN DỮ LIỆU THẬT (không phải bug — đã tra trực tiếp Odoo,
+    # 2026-08-04): ca này đo FAIL ổn định trong set `multi_source_gather`
+    # sau khi sửa FUSE_PROMPT (xem
+    # docs/superpowers/plans/2026-08-04-fuse-prompt-obligation-penalty-fix-report.md
+    # §4) vì doc_fact "3 ngày" ứng điều khoản "đơn hàng khẩn cấp xử lý
+    # trong 3 ngày" ở sla.docx, nhưng `sale.order` KHÔNG có field nào biểu
+    # thị "khẩn cấp"/priority — gọi trực tiếp
+    # `fields_get('sale.order')` qua Odoo thật xác nhận: 117 field, 0
+    # custom field (`x_*`), không field nào (tên hay label) khớp
+    # ưu tiên/khẩn cấp/gấp/priority/urgent. Model không có căn cứ để biết
+    # đơn này có "khẩn cấp" hay không, nên không thể áp đúng điều khoản
+    # 3-ngày thay vì hạn 7-ngày mặc định — KHÔNG có field có sẵn nào bị bỏ
+    # sót (khác lớp "hạng lỗi thứ ba" ở get_product_price/
+    # get_overdue_invoices bên dưới); đây là giới hạn thật của demo Odoo,
+    # không có gì để sửa bằng cách thêm field hay đổi prompt.
     ("sla_giao_hang",
      {"get_sale_order_detail":
       "Đơn S00042 | Azure Interior | Tổng 1.500.000\n"
