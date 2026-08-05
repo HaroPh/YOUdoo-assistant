@@ -1,6 +1,11 @@
 # Hạ tầng SP-1B. KHÔNG có litellm (ADR-011 mục 2 — cả 3 nhà đã
-# OpenAI-compatible nên LiteLLM hết lý do tồn tại) và KHÔNG có open-webui
-# (giao diện chat chỉ có nghĩa khi có /v1, tức kế hoạch C).
+# OpenAI-compatible nên LiteLLM hết lý do tồn tại).
+#
+# CÓ open-webui (thêm sau khi /v1 đã tồn tại — điều kiện "kế hoạch C" từng
+# ghi ở đây nay đã có thật). Container + volume + port đều đặt tên riêng
+# (youdoo-open-webui / youdoo_open_webui_data / 3002), KHÔNG dùng chung với
+# bất kỳ instance open-webui nào khác có sẵn trên máy — tách biệt hoàn toàn,
+# tránh đụng cấu hình của instance khác đang phục vụ việc riêng của nó.
 #
 # KHÔNG có ollama: D:\Project đã chạy sẵn một instance ollama dùng chung
 # (localhost:11434, đã pull sẵn bge-m3). Ollama chỉ là model server, không có
@@ -22,6 +27,8 @@
 
 volumes:
   youdoo_postgres_data:
+    driver: local
+  youdoo_open_webui_data:
     driver: local
   langfuse_clickhouse_data:
     driver: local
@@ -52,6 +59,33 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: youdoo-open-webui
+    restart: unless-stopped
+    # 3002 — không phải 3000/3001: một instance open-webui KHÁC (không thuộc
+    # project này) có thể đã chiếm 3000 trên máy dev; Langfuse đã chiếm 3001.
+    ports: ["3002:8080"]
+    environment:
+      # Backend FastAPI (backend/run.py) chạy TRÊN HOST, không nằm trong
+      # compose này — trỏ qua host.docker.internal, cùng cách ODOO_URL đã
+      # dùng (xem comment đầu file).
+      OPENAI_API_BASE_URL: http://host.docker.internal:${BACKEND_PORT:-8000}/v1
+      # Backend /v1 không yêu cầu Authorization header — giá trị dưới đây chỉ
+      # để điền field bắt buộc của Open WebUI, không phải secret thật.
+      OPENAI_API_KEY: youdoo-local-dev
+      WEBUI_NAME: "Youdoo ERP Assistant"
+      # Open WebUI tự bật tích hợp Ollama nếu detect được instance khả dụng
+      # qua mạng — extra_hosts bên dưới (cần để gọi backend Youdoo) vô tình
+      # cũng cho container thấy Ollama DÙNG CHUNG của D:\Project
+      # (localhost:11434, có model local KHÔNG liên quan project này). Tắt
+      # hẳn để danh sách model chỉ còn đúng "erp-assistant".
+      ENABLE_OLLAMA_API: "false"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - youdoo_open_webui_data:/app/backend/data
 
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:4
