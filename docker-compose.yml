@@ -144,6 +144,19 @@ services:
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-thay_bang_secret_that}
+      # Headless init (self-hosting/administration/headless-initialization) —
+      # tự tạo org/project/user/API-key lúc boot đầu tiên, không cần qua UI
+      # (agent không có trình duyệt). Chỉ tác dụng khi DB `langfuse` còn
+      # trống; đổi giá trị sau khi đã init lần đầu không có tác dụng gì.
+      LANGFUSE_INIT_ORG_ID: youdoo
+      LANGFUSE_INIT_ORG_NAME: Youdoo
+      LANGFUSE_INIT_PROJECT_ID: youdoo-erp
+      LANGFUSE_INIT_PROJECT_NAME: Youdoo ERP Assistant
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-admin@youdoo.local}
+      LANGFUSE_INIT_USER_NAME: Youdoo Admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-thay_bang_mat_khau_langfuse}
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:25.12
