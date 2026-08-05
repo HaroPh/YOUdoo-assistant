@@ -71,7 +71,7 @@ services:
       # Backend FastAPI (backend/run.py) chạy TRÊN HOST, không nằm trong
       # compose này — trỏ qua host.docker.internal, cùng cách ODOO_URL đã
       # dùng (xem comment đầu file).
-      OPENAI_API_BASE_URL: http://host.docker.internal:${BACKEND_PORT:-8000}/v1
+      OPENAI_API_BASE_URL: http://host.docker.internal:${BACKEND_PORT:-8002}/v1
       # Backend /v1 không yêu cầu Authorization header — giá trị dưới đây chỉ
       # để điền field bắt buộc của Open WebUI, không phải secret thật.
       OPENAI_API_KEY: youdoo-local-dev

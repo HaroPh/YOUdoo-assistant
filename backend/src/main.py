@@ -2,7 +2,7 @@
 FastAPI backend — OpenAI-compatible API bọc ERP agent.
 Open WebUI nối vào endpoint /v1 này như một "model" (erp-assistant).
 
-Chạy (host, cần mcp-odoo SSE :8001 đang chạy):
+Chạy (host, cần mcp-odoo SSE :8003 đang chạy):
     cd backend
     python run.py
 """

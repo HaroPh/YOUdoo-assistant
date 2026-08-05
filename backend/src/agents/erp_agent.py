@@ -18,7 +18,7 @@ from .disambiguation import parse_selection
 from .models import make_llms
 from src.llm import tracing
 
-MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8001/sse")
+MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
 PG_CONN      = os.environ.get(
     "DATABASE_URL",
     "postgresql://admin:changeme@localhost:5433/ai_assistant",

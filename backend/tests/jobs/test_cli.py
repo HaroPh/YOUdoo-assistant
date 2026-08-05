@@ -83,7 +83,7 @@ def test_job_specific_args_reach_fn():
 
 
 @pytest.mark.skip(reason="e2e-smoke job không được port ở SP-1C1 (Bước 8: "
-                          "ngoài phạm vi, cần backend :8000 sống — kế hoạch "
+                          "ngoài phạm vi, cần backend :8002 sống — kế hoạch "
                           "C2). Bật lại khi C2 port lại 4 job e2e_*.")
 def test_cli_survives_redirected_cp1252_stdout():
     """Regression (whole-branch review, Critical): khi stdout bị redirect ra

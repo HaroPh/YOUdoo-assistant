@@ -12,7 +12,7 @@ import requests
 from src.erp_query.transport import XmlRpcTransport
 from src.agents.tool_leak_guard import TOOL_NAME_LEAK_MARKERS, has_tool_leak  # noqa: F401
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = f"http://localhost:{os.environ.get('BACKEND_PORT', '8002')}"
 CHAT_ENDPOINT = f"{BASE_URL}/v1/chat/completions"
 
 

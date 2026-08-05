@@ -21,7 +21,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 # ── job modules đăng ký tại import ───────────────────────────────────────────
-# 4 job e2e_* (D:\Project) cần backend :8000 sống (kế hoạch C2, chưa tồn tại
+# 4 job e2e_* (D:\Project) cần backend :8002 sống (kế hoạch C2, chưa tồn tại
 # ở đây) — NGOÀI PHẠM VI SP-1C1, cố ý không port. Thêm lại khi C2 xong.
 from jobs import eval_gate  # noqa: F401  (đăng ký side-effect)
 

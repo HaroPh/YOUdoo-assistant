@@ -1,19 +1,23 @@
-"""MCP server Odoo — chỉ khởi tạo, đăng ký, chạy.
+r"""MCP server Odoo — chỉ khởi tạo, đăng ký, chạy.
 
 Toàn bộ tool nằm ở tools/ chia theo domain; mọi đường ra Odoo nằm ở
 odoo_call.py. Đường cắt theo domain là đường biên SP-2 sẽ dùng để cấp cho mỗi
 specialist agent một tập tool hẹp riêng.
 
-Transport: HTTP/SSE tại port 8001
-Connect:   http://mcp-odoo:8001/sse  (từ backend container)
+Transport: HTTP/SSE tại port MCP_ODOO_PORT (mặc định 8003 — KHÔNG phải
+8001 mặc định của D:\Project, cùng gốc codebase, tránh trùng port từng
+gây backend Youdoo nhận nhầm request test của D:\Project).
+Connect:   http://mcp-odoo:${MCP_ODOO_PORT:-8003}/sse  (từ backend container)
 """
+import os
 import sys
 
 from mcp.server.fastmcp import FastMCP
 
 from security import forbid_extra_kwargs
 
-mcp = FastMCP("odoo-mcp", host="0.0.0.0", port=8001)
+mcp = FastMCP("odoo-mcp", host="0.0.0.0",
+             port=int(os.environ.get("MCP_ODOO_PORT", "8003")))
 
 # Bí danh module hiện tại thành "server" trong sys.modules TRƯỚC khi import
 # tools/* — bắt buộc khi tiến trình được khởi động bằng `python server.py`

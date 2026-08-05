@@ -20,7 +20,7 @@ def main() -> None:
     config = Config(
         "src.main:app",
         host=os.environ.get("BACKEND_HOST", "0.0.0.0"),
-        port=int(os.environ.get("BACKEND_PORT", "8000")),
+        port=int(os.environ.get("BACKEND_PORT", "8002")),
     )
     server = Server(config)
 
