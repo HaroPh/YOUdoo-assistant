@@ -50,7 +50,7 @@ $env:PYTHONUTF8 = "1"   # tránh UnicodeEncodeError ở dòng "✓ ERP agent rea
 
 # ── Docker (postgres + open-webui) — idempotent, bỏ qua nếu docker không có
 # hoặc đã chạy sẵn (restart: unless-stopped nên thường đã lên rồi). ─────────
-Write-Host "[0/2] docker compose up -d (postgres + open-webui) ..." -ForegroundColor Green
+Write-Host "[0/2] docker compose up -d (postgres + open-webui + ollama) ..." -ForegroundColor Green
 # LƯU Ý: không dùng `2>&1 | Out-Null` quanh lệnh native ở đây — PowerShell
 # 5.1 bọc từng dòng stderr thành NativeCommandError khi $ErrorActionPreference
 # = Stop đang bật TOÀN CỤC (đầu file), dù exit code THẬT SỰ là 0 (docker CLI

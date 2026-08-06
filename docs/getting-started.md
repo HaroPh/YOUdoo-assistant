@@ -8,11 +8,9 @@ it.
 
 ## Prerequisites
 
-- Docker (for Postgres + Open WebUI + optional Langfuse stack)
+- Docker (for Postgres + Open WebUI + Ollama + optional Langfuse stack)
 - Python 3.11, with `backend/.venv` already set up (`pip install -r
   backend/requirements.txt` if not)
-- Ollama running locally with `bge-m3` pulled (`ollama pull bge-m3`) — used
-  for RAG embeddings regardless of which LLM provider is active
 - A real Odoo instance reachable at the URL in your `.env` (`ODOO_URL`)
 - API keys for at least one LLM provider (`GOOGLE_API_KEY` / `GROQ_API_KEY`
   / `OPENROUTER_API_KEY`) in `.env`
@@ -37,14 +35,22 @@ it.
    cd ..\..
    ```
 
-3. **Start Postgres + Open WebUI** (default `docker compose up` does NOT
-   include Langfuse — that's behind the `observability` profile, optional
-   for UI testing):
+3. **Start Postgres + Open WebUI + Ollama** (default `docker compose up`
+   does NOT include Langfuse — that's behind the `observability` profile,
+   optional for UI testing):
 
    ```powershell
    docker compose up -d
    # optional, only if you want real traces:
    # docker compose --profile observability up -d
+   ```
+
+   **One-time: pull the embedding model into the new Ollama container**
+   (~1.1GB download, only needed once — the model persists in the
+   `youdoo_ollama_data` volume across restarts):
+
+   ```powershell
+   docker exec youdoo-ollama ollama pull bge-m3
    ```
 
 4. **Index the RAG corpus into Postgres — required once, the table starts

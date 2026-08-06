@@ -7,13 +7,17 @@
 # bất kỳ instance open-webui nào khác có sẵn trên máy — tách biệt hoàn toàn,
 # tránh đụng cấu hình của instance khác đang phục vụ việc riêng của nó.
 #
-# KHÔNG có ollama: D:\Project đã chạy sẵn một instance ollama dùng chung
-# (localhost:11434, đã pull sẵn bge-m3). Ollama chỉ là model server, không có
-# dữ liệu cần cách ly theo project — dựng thêm một container thứ hai ở đây chỉ
-# tốn thêm ~1.2GB+ disk/VRAM mà không mang lại lợi ích gì, nên dùng chung thay
-# vì trùng lặp. .env.example: OLLAMA_URL đã trỏ thẳng vào instance dùng chung
-# đó (khác với litellm/open-webui — hai cái đó bị bỏ vì hoãn sang kế hoạch
-# khác, không phải vì dùng chung).
+# CÓ ollama (đổi 2026-08-06 — xem
+# docs/superpowers/specs/2026-08-06-rag-ollama-isolation-design.md): trước
+# đây dùng chung instance của D:\Project (localhost:11434) vì "không có dữ
+# liệu cần cách ly". Live-test 2026-08-06 lộ ra lý do đó bỏ sót khía cạnh
+# uptime — RAG sập khi D:\Project không chạy, và ở luồng mixed còn sập MỘT
+# CÁCH IM LẶNG (fuse_answer nuốt lỗi, trả lời như thể chính sách không quy
+# định thay vì báo lỗi hạ tầng). Container riêng, port host 11435 (11434 đã
+# bị D:\Project chiếm), volume riêng youdoo_ollama_data, KHÔNG cấp GPU (máy
+# dev dùng GPU cho Ollama của D:\Project chạy qwen3:8b — không khai báo GPU
+# passthrough ở đây để tự chạy CPU-only, tránh tranh chấp VRAM). Chỉ cần
+# pull bge-m3 (~1.1GB, nhỏ hơn nhiều qwen3:8b) — xem docs/getting-started.md.
 #
 # Postgres THÌ CÓ instance riêng, không dùng chung với D:\Project: D:\Project
 # đã có container postgres của riêng nó trên cổng host 5433, đang chạy với dữ
@@ -27,6 +31,8 @@
 
 volumes:
   youdoo_postgres_data:
+    driver: local
+  youdoo_ollama_data:
     driver: local
   youdoo_open_webui_data:
     driver: local
@@ -58,6 +64,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: youdoo-ollama
+    # 11435 — không phải 11434 mặc định: D:\Project đã chạy instance riêng
+    # của nó ở đó. KHÔNG khai báo GPU passthrough (không có block
+    # deploy.resources.reservations.devices) — instance này chỉ cần embed
+    # bge-m3 (~1.1GB), để CPU-only tránh tranh chấp VRAM với Ollama của
+    # D:\Project (đang giữ GPU cho qwen3:8b).
+    ports: ["11435:11434"]
+    volumes:
+      - youdoo_ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:11434/api/tags >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   open-webui:
