@@ -1,15 +1,18 @@
-# Nạp .env ở gốc repo vào biến môi trường của PHIÊN PowerShell hiện tại.
+﻿# Nạp .env ở gốc repo vào biến môi trường của PHIÊN PowerShell hiện tại.
 #
 # backend/run.py và mcp-servers/odoo/server.py đều đọc thẳng os.environ,
 # không tự nạp .env (không dùng python-dotenv) — nên trước khi chạy
 # `python run.py` hoặc `python server.py` từ PowerShell, phải nạp biến môi
-# trường vào phiên trước, dot-source file này:
+# trường vào phiên trước:
 #
-#   . .\scripts\load-env.ps1
+#   .\scripts\load-env.ps1
 #
-# (dấu chấm đầu dòng bắt buộc — chạy trực tiếp `.\scripts\load-env.ps1`
-# không có dấu chấm sẽ set biến trong PROCESS CON, biến mất ngay khi script
-# kết thúc, không ích gì cho các lệnh chạy SAU trong cùng phiên.)
+# Không cần dot-source (kiểm chứng thật 2026-08-06): [Environment]::
+# SetEnvironmentVariable(...) không truyền EnvironmentVariableTarget ghi
+# thẳng vào PROCESS block của tiến trình PowerShell hiện tại — khác biến
+# PowerShell thường ($x = ...), biến môi trường KHÔNG bị giới hạn theo
+# scope script, nên chạy trực tiếp hay dot-source (`. .\scripts\load-env.ps1`)
+# đều cho kết quả như nhau.
 
 Get-Content (Join-Path $PSScriptRoot "..\.env") | ForEach-Object {
     if ($_ -match '^\s*([^#=][^=]*)=(.*)$') {

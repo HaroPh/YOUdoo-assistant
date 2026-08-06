@@ -70,7 +70,7 @@ loaded into its shell process first — open two separate terminals.
 **Terminal 1 — mcp-odoo:**
 
 ```powershell
-. .\scripts\load-env.ps1
+.\scripts\load-env.ps1
 cd mcp-servers\odoo
 .\.venv\Scripts\python.exe server.py
 ```
@@ -80,7 +80,7 @@ Expect `Uvicorn running on http://0.0.0.0:8003`.
 **Terminal 2 — backend:**
 
 ```powershell
-. .\scripts\load-env.ps1
+.\scripts\load-env.ps1
 cd backend
 $env:PYTHONUTF8 = "1"
 .\.venv\Scripts\python.exe run.py
@@ -112,10 +112,8 @@ Quick sanity check before running full scenarios — ask "Bạn là ai?"
 
 - **`KeyError: 'ODOO_URL'` (or similar) on startup** — `.env` wasn't
   loaded into that shell's process before running `python server.py` /
-  `python run.py`. Re-run `. .\scripts\load-env.ps1` in that same
-  terminal, then start the service again (the dot at the start of the
-  command is required — it loads variables into the *current* session,
-  not a throwaway child process).
+  `python run.py`. Re-run `.\scripts\load-env.ps1` in that same terminal,
+  then start the service again.
 - **`psycopg.OperationalError: ... password authentication failed ...
   port 5433`** — same root cause as above (env not loaded), but the
   symptom looks different: without `DATABASE_URL` from `.env`, code falls
