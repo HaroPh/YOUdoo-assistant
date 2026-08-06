@@ -122,3 +122,103 @@ def test_find_posted_invoice_happy():
     out = accounting.find_posted_invoice("INV/2026/00017", gw=gw)
     assert out["status"] == "success"
     assert out["data"]["invoice"]["id"] == 68
+
+
+class TwoModelTransport:
+    """account.move rồi account.move.line — phân biệt bằng tên model."""
+    def __init__(self, move_rows, line_rows):
+        self.move_rows = move_rows
+        self.line_rows = line_rows
+        self.calls = []
+
+    def call(self, model, method, args, kwargs):
+        self.calls.append((model, method, args, kwargs))
+        return self.move_rows if model == "account.move" else self.line_rows
+
+
+_DRAFT = {"id": 105, "name": False, "partner_id": [41, "Acme Corporation"],
+          "invoice_date": "2026-08-06", "amount_total": 17520.0,
+          "amount_residual": 17520.0, "move_type": "in_invoice", "state": "draft"}
+_LINE = {"product_id": [7, "[FURN_0789] Individual Workplace"],
+         "quantity": 20.0, "price_subtotal": 17520.0}
+
+
+def test_get_invoice_detail_loc_dong_product():
+    """Bẫy thật đo trên Odoo 2026-08-06: account.move.line của một hóa đơn
+    trả về CẢ dòng 'payment_term' (đối ứng phải thu/phải trả, 0 đồng).
+    Thiếu bộ lọc display_type thì bảng tóm tắt có một dòng rác 0 đồng."""
+    t = TwoModelTransport([_DRAFT], [_LINE])
+    out = accounting.get_invoice_detail(105, gw=Gateway(t))
+    assert out["status"] == "success"
+    assert out["data"]["invoice"]["id"] == 105
+    assert out["data"]["lines"] == [_LINE]
+    line_domain = t.calls[1][2][0]
+    assert ["move_id", "=", 105] in line_domain
+    assert ["display_type", "=", "product"] in line_domain
+
+
+def test_get_invoice_detail_khong_thay_thi_bao_loi():
+    out = accounting.get_invoice_detail(999, gw=_gw([]))
+    assert out["status"] == "error"
+    assert "999" in out["display"]
+
+
+def test_find_draft_invoices_domain_va_tra_danh_sach():
+    """Trả DANH SÁCH: hóa đơn nháp chưa có số nên nhiều bản cùng đối tác là
+    chuyện thường (đo thật: 5 bản nháp cùng 'Acme', 4 trùng số tiền)."""
+    t = TwoModelTransport([_DRAFT, {**_DRAFT, "id": 99}], [])
+    out = accounting.find_draft_invoices("Acme", gw=Gateway(t))
+    assert out["data"]["count"] == 2
+    dom = t.calls[0][2][0]
+    assert ["state", "=", "draft"] in dom
+    assert ["partner_id.name", "ilike", "Acme"] in dom
+
+
+def test_find_draft_invoices_loc_them_khi_co_amount_va_date():
+    t = TwoModelTransport([_DRAFT], [])
+    accounting.find_draft_invoices("Acme", amount=140.0,
+                                   invoice_date="2026-08-06", gw=Gateway(t))
+    dom = t.calls[0][2][0]
+    assert ["amount_total", "=", 140.0] in dom
+    assert ["invoice_date", "=", "2026-08-06"] in dom
+
+
+def test_find_draft_invoices_rong_thi_bao_loi():
+    out = accounting.find_draft_invoices("Không Tồn Tại", gw=_gw([]))
+    assert out["status"] == "error"
+
+
+def test_find_open_invoices_chi_lay_con_no():
+    """Hóa đơn đã trả hết không còn gì để thanh toán — đưa vào danh sách
+    chọn chỉ gây nhiễu."""
+    posted = {**_DRAFT, "id": 100, "name": "INV/2026/00028",
+              "state": "posted", "move_type": "out_invoice",
+              "amount_total": 350.0, "amount_residual": 350.0}
+    t = TwoModelTransport([posted], [])
+    out = accounting.find_open_invoices(partner_name="Acme", gw=Gateway(t))
+    assert out["data"]["count"] == 1
+    dom = t.calls[0][2][0]
+    assert ["state", "=", "posted"] in dom
+    assert ["payment_state", "in", ["not_paid", "partial"]] in dom
+
+
+def test_find_open_invoices_nhan_ca_invoice_ref_lan_partner_name():
+    """register_payment nhận CẢ HAI — đường partner_name mơ hồ y hệt
+    post_invoice nên phải xử lý cùng cách."""
+    t = TwoModelTransport([], [])
+    accounting.find_open_invoices(invoice_ref="INV/2026/00028", gw=Gateway(t))
+    assert ["name", "=", "INV/2026/00028"] in t.calls[0][2][0]
+    t2 = TwoModelTransport([], [])
+    accounting.find_open_invoices(partner_name="Acme", gw=Gateway(t2))
+    assert ["partner_id.name", "ilike", "Acme"] in t2.calls[0][2][0]
+
+
+def test_find_open_invoices_bao_gom_ca_hoa_don_mua():
+    """KHÔNG dùng lại find_posted_invoice được: hàm đó lọc cứng
+    move_type='out_invoice', trong khi register_payment phục vụ cả
+    in_invoice (mình trả NCC)."""
+    t = TwoModelTransport([], [])
+    accounting.find_open_invoices(partner_name="Acme", gw=Gateway(t))
+    dom = t.calls[0][2][0]
+    move_type_cond = [c for c in dom if c[0] == "move_type"][0]
+    assert "in_invoice" in move_type_cond[2]

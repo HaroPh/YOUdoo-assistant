@@ -6,6 +6,10 @@ from .gateway import default_gateway
 
 _FIELDS = ["name", "partner_id", "invoice_date", "invoice_date_due",
            "amount_total", "amount_residual", "payment_state"]
+_DETAIL_FIELDS = ["id", "name", "partner_id", "invoice_date", "amount_total",
+                  "amount_residual", "move_type", "state"]
+_LINE_FIELDS = ["product_id", "quantity", "price_subtotal"]
+_INVOICE_TYPES = ["out_invoice", "in_invoice", "out_refund", "in_refund"]
 
 
 def _today():
@@ -120,3 +124,90 @@ def find_posted_invoice(invoice_ref, *, gw=None):
               f"Hóa đơn {inv['name']} | "
               f"{(inv['partner_id'] or [0, 'N/A'])[1]} | "
               f"{inv['amount_total']:,.0f}.")
+
+
+def get_invoice_detail(invoice_id, *, gw=None):
+    """Chi tiết 1 hóa đơn + dòng hàng, cho coordinator render bản tóm tắt
+    trước cổng xác nhận ghi (spec 2026-08-06 §3.1).
+
+    Lọc display_type='product' là BẮT BUỘC, không phải tối ưu: đo thật trên
+    Odoo 2026-08-06 cho thấy account.move.line của một hóa đơn còn chứa dòng
+    'payment_term' (dòng đối ứng phải thu/phải trả, số tiền 0) — không lọc
+    thì bảng tóm tắt có một dòng rác 0 đồng."""
+    gw = gw or default_gateway()
+    try:
+        rows = gw.search_read("account.move", [["id", "=", invoice_id]],
+                              _DETAIL_FIELDS, limit=1)
+    except Exception as e:                                  # noqa: BLE001
+        return err(f"Lỗi tra hóa đơn: {e}")
+    if not rows:
+        return err(f"Không tìm thấy hóa đơn ID {invoice_id}.")
+    try:
+        lines = gw.search_read("account.move.line",
+                               [["move_id", "=", invoice_id],
+                                ["display_type", "=", "product"]],
+                               _LINE_FIELDS, limit=100)
+    except Exception as e:                                  # noqa: BLE001
+        return err(f"Lỗi tra dòng hóa đơn: {e}")
+    return ok({"invoice": rows[0], "lines": lines},
+              f"Hóa đơn ID {invoice_id}: {len(lines)} dòng.")
+
+
+def find_draft_invoices(partner_name, amount=None, invoice_date=None, *, gw=None):
+    """Danh sách hóa đơn NHÁP khớp tên đối tác — cho coordinator post_invoice.
+
+    Trả DANH SÁCH (không phải một) có chủ đích: hóa đơn nháp chưa có số
+    (name=False, đo thật 2026-08-06 — 5 bản nháp cùng 'Acme Corporation',
+    4 trùng y hệt số tiền), nên coordinator phải để người dùng chọn TRƯỚC
+    cổng xác nhận, thay vì để tool báo lỗi mơ hồ SAU khi đã xác nhận.
+    Domain khớp domain của mcp-servers/odoo/tools/accounting.py:57-64."""
+    gw = gw or default_gateway()
+    domain = [["move_type", "in", _INVOICE_TYPES],
+              ["state", "=", "draft"],
+              ["partner_id.name", "ilike", partner_name]]
+    if amount is not None:
+        domain.append(["amount_total", "=", amount])
+    if invoice_date:
+        domain.append(["invoice_date", "=", invoice_date])
+    try:
+        rows = gw.search_read("account.move", domain, _DETAIL_FIELDS,
+                              order="invoice_date desc", limit=10)
+    except Exception as e:                                  # noqa: BLE001
+        return err(f"Lỗi tra hóa đơn nháp: {e}")
+    if not rows:
+        return err(f"Không tìm thấy hóa đơn nháp nào của '{partner_name}'.")
+    return ok({"rows": rows, "count": len(rows)},
+              f"{len(rows)} hóa đơn nháp.")
+
+
+def find_open_invoices(invoice_ref=None, partner_name=None, amount=None,
+                       invoice_date=None, *, gw=None):
+    """Hóa đơn ĐÃ PHÁT HÀNH còn nợ — cho coordinator register_payment.
+
+    KHÔNG dùng lại find_posted_invoice được: hàm đó lọc cứng
+    move_type='out_invoice' (chỉ hóa đơn bán) trong khi register_payment
+    phục vụ cả in_invoice (mình trả NCC), nó không đọc amount_residual, và
+    chỉ nhận số hóa đơn chính xác chứ không nhận tên đối tác.
+
+    payment_state lọc not_paid/partial: hóa đơn đã trả hết không còn gì để
+    thanh toán, đưa vào danh sách chọn chỉ gây nhiễu."""
+    gw = gw or default_gateway()
+    domain = [["move_type", "in", _INVOICE_TYPES],
+              ["state", "=", "posted"],
+              ["payment_state", "in", ["not_paid", "partial"]]]
+    if invoice_ref:
+        domain.append(["name", "=", invoice_ref])
+    if partner_name:
+        domain.append(["partner_id.name", "ilike", partner_name])
+    if amount is not None:
+        domain.append(["amount_total", "=", amount])
+    if invoice_date:
+        domain.append(["invoice_date", "=", invoice_date])
+    try:
+        rows = gw.search_read("account.move", domain, _DETAIL_FIELDS,
+                              order="invoice_date desc", limit=10)
+    except Exception as e:                                  # noqa: BLE001
+        return err(f"Lỗi tra hóa đơn: {e}")
+    if not rows:
+        return err("Không tìm thấy hóa đơn đã phát hành còn nợ phù hợp.")
+    return ok({"rows": rows, "count": len(rows)}, f"{len(rows)} hóa đơn.")
