@@ -9,7 +9,7 @@ TIKTOKEN_ENCODING = "cl100k_base"
 # Embedding (external, via Ollama)
 EMBED_MODEL = "bge-m3"
 EMBED_DIM = 1024
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11435")
 
 # Store
 RAG_DB_DSN = os.environ.get("DATABASE_URL",

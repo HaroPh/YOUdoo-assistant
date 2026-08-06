@@ -8,11 +8,9 @@ it.
 
 ## Prerequisites
 
-- Docker (for Postgres + Open WebUI + optional Langfuse stack)
+- Docker (for Postgres + Open WebUI + Ollama + optional Langfuse stack)
 - Python 3.11, with `backend/.venv` already set up (`pip install -r
   backend/requirements.txt` if not)
-- Ollama running locally with `bge-m3` pulled (`ollama pull bge-m3`) — used
-  for RAG embeddings regardless of which LLM provider is active
 - A real Odoo instance reachable at the URL in your `.env` (`ODOO_URL`)
 - API keys for at least one LLM provider (`GOOGLE_API_KEY` / `GROQ_API_KEY`
   / `OPENROUTER_API_KEY`) in `.env`
@@ -37,14 +35,22 @@ it.
    cd ..\..
    ```
 
-3. **Start Postgres + Open WebUI** (default `docker compose up` does NOT
-   include Langfuse — that's behind the `observability` profile, optional
-   for UI testing):
+3. **Start Postgres + Open WebUI + Ollama** (default `docker compose up`
+   does NOT include Langfuse — that's behind the `observability` profile,
+   optional for UI testing):
 
    ```powershell
    docker compose up -d
    # optional, only if you want real traces:
    # docker compose --profile observability up -d
+   ```
+
+   **One-time: pull the embedding model into the new Ollama container**
+   (~1.1GB download, only needed once — the model persists in the
+   `youdoo_ollama_data` volume across restarts):
+
+   ```powershell
+   docker exec youdoo-ollama ollama pull bge-m3
    ```
 
 4. **Index the RAG corpus into Postgres — required once, the table starts
@@ -57,14 +63,22 @@ it.
    python -m src.rag.ingest src/rag/seed
    ```
 
-   Takes about 4 minutes (measured: 3m55s for the full 17-document, ~3,300
-   -chunk seed corpus via Ollama). One-time — `ingest_path` skips files
-   whose content hash hasn't changed, so re-running later is fast and safe.
+   Timing depends heavily on which Ollama instance is embedding: the
+   3m55s figure below was measured on a GPU-backed Ollama. The
+   `youdoo-ollama` container this repo now runs (see
+   `docs/superpowers/specs/2026-08-06-rag-ollama-isolation-design.md`) is
+   deliberately CPU-only, so expect this step to take substantially
+   longer on a fresh setup — plan for tens of minutes, not 4. One-time —
+   `ingest_path` skips files whose content hash hasn't changed, so
+   re-running later is fast and safe.
+
+   (Historical measurement, GPU-backed Ollama: 3m55s for the full
+   17-document, ~3,300-chunk seed corpus.)
 
 ## Every time you start
 
-Three things need to be running: Postgres+Open WebUI (docker), `mcp-odoo`,
-and the `backend` itself.
+Three things need to be running: Postgres+Open WebUI+Ollama (docker),
+`mcp-odoo`, and the `backend` itself.
 
 **Fast path — one command, one terminal:**
 
@@ -149,6 +163,11 @@ Quick sanity check before running full scenarios — ask "Bạn là ai?"
 - **RAG/mixed-query scenarios return "no info" / can't find anything** —
   the corpus was never ingested (or Postgres was reset). Re-run the
   one-time ingest step above.
+- Also check: is `youdoo-ollama` running and healthy, and was `bge-m3`
+  pulled into it (`docker exec youdoo-ollama ollama list`)? RAG needs
+  Ollama for embeddings — if it's down or the model was never pulled,
+  the symptom looks identical to an empty corpus. See
+  `curl http://localhost:11435/api/tags`.
 - **A scenario needs a write action and gets refused outright** — the
   write kill-switch (`erp_ai.write_actions_enabled` in Odoo → Settings →
   Technical → System Parameters) defaults to **off**. That refusal is the

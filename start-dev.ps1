@@ -48,9 +48,9 @@ Get-Content $envFile | ForEach-Object {
 }
 $env:PYTHONUTF8 = "1"   # tránh UnicodeEncodeError ở dòng "✓ ERP agent ready"
 
-# ── Docker (postgres + open-webui) — idempotent, bỏ qua nếu docker không có
+# ── Docker (postgres + open-webui + ollama) — idempotent, bỏ qua nếu docker không có
 # hoặc đã chạy sẵn (restart: unless-stopped nên thường đã lên rồi). ─────────
-Write-Host "[0/2] docker compose up -d (postgres + open-webui) ..." -ForegroundColor Green
+Write-Host "[0/2] docker compose up -d (postgres + open-webui + ollama) ..." -ForegroundColor Green
 # LƯU Ý: không dùng `2>&1 | Out-Null` quanh lệnh native ở đây — PowerShell
 # 5.1 bọc từng dòng stderr thành NativeCommandError khi $ErrorActionPreference
 # = Stop đang bật TOÀN CỤC (đầu file), dù exit code THẬT SỰ là 0 (docker CLI
@@ -64,7 +64,7 @@ $ErrorActionPreference = $prevEap
 if ($LASTEXITCODE -eq 0) {
     Write-Host "    OK (hoặc đã chạy sẵn)" -ForegroundColor Green
 } else {
-    Write-Host "    [WARN] docker compose exit code $LASTEXITCODE — bỏ qua, backend vẫn khởi động (chỉ Postgres/Open WebUI bị ảnh hưởng)." -ForegroundColor Yellow
+    Write-Host "    [WARN] docker compose exit code $LASTEXITCODE — bỏ qua, backend vẫn khởi động (Postgres/Open WebUI/Ollama bị ảnh hưởng — RAG có thể lỗi nếu youdoo-ollama không lên)." -ForegroundColor Yellow
 }
 
 # ── Helper: cổng đã có ai lắng nghe chưa? Tránh lặp lại đúng sự cố vừa gặp
