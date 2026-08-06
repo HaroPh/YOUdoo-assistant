@@ -83,6 +83,16 @@ for explicit confirmation *before* touching Odoo — verifying the
 confirm-before-execute flow the README describes. Don't confirm it unless
 you're fine with S00042's live state actually changing.
 
+## 8. Chitchat — identity
+
+```
+Bạn là ai?
+```
+Exercises `respond_unknown`/chitchat directly, no ERP or RAG call. Verified
+2026-08-06: replies "Tôi là Youdoo, trợ lý ERP nội bộ của bạn" — confirms
+the assistant identifies itself correctly (was a real gap, fixed 2026-08-05,
+see README "Why it's structured this way").
+
 ## What to watch for across all of these
 
 - Does the assistant ever state a number or date that isn't traceable to
