@@ -125,6 +125,20 @@ based on evidence, not just designed once and left alone:
   cloud APIs**, once it was clear the project's Odoo data is demo data,
   not something requiring on-prem inference for privacy reasons — a
   boundary chosen deliberately, not drifted into.
+- **RAG's separate Ollama instance (embeddings only, `bge-m3`) was shared
+  with a sibling repo on the same dev machine, then deliberately
+  un-shared.** Youdoo forked from an earlier project that runs its own
+  Docker stack including an Ollama instance already serving `bge-m3`;
+  reusing it looked free — no business data to isolate, no extra disk/VRAM.
+  A live test surfaced the cost that reasoning missed: when the sibling
+  project's stack wasn't running, Youdoo's RAG broke, and in the `mixed`
+  fan-out path the failure was silently absorbed by `fuse_answer` and
+  answered as if it were a legitimate "policy doesn't cover this" business
+  response — indistinguishable from a real gap (see Known limitations).
+  Youdoo now runs its own CPU-only `ollama` container — deliberately not
+  competing for the sibling project's GPU — independently verified to
+  serve byte-identical `bge-m3` weights (matching model digest) so no
+  re-ingest of the existing RAG corpus was needed.
 - **A previous design used one `fusion` node with an agent that pulled in
   ERP context ad hoc.** It was replaced with the explicit fan-out shown
   above after eval measurement showed the old design was architecturally
@@ -192,6 +206,19 @@ against the real ERP actually surfaced.
   number up" — a small NLI-based fact-checker was scoped as a possible
   upgrade but not built, since the current approach hasn't yet produced
   enough false positives/negatives to justify the added complexity.
+- **A failed document-retrieval step can still be answered as if it were a
+  legitimate "not covered by policy" response, not surfaced as an error.**
+  In the `mixed` fan-out path, `fuse_answer` synthesizes over ERP and
+  document results in a single LLM call; if `gather_docs` comes back empty
+  because retrieval itself failed (embedding service unreachable, corpus
+  never ingested, etc.), the synthesis step has no signal telling it "the
+  document half failed" versus "the document genuinely doesn't cover
+  this," so it produces the same style of sentence either way. The
+  pure-`rag` route degrades loudly with an explicit error message; `mixed`
+  does not — confirmed by live-testing the identical underlying failure
+  through both routes side by side. Isolating the RAG embedding
+  infrastructure (see "Why it's structured this way") makes this failure
+  rarer, not impossible, and doesn't close the gap on its own.
 
 ## Roadmap
 
@@ -200,6 +227,9 @@ against the real ERP actually surfaced.
 - Extend the fixture-vs-real-capability contract test beyond date/status
   fields to cover pricing/discount claims, closing the same detection gap
   that let the issue above go untracked as long as it did.
+- Make `fuse_answer` distinguish "document retrieval failed" from
+  "document search found nothing relevant" in the `mixed` path, closing
+  the silent-failure gap noted in Known limitations.
 - **SP-4 (shelved):** a meeting-agent extension — joining a live meeting,
   taking notes, and answering ERP questions in real time. Two open design
   questions are already answered (it should integrate into this agent
@@ -214,7 +244,7 @@ against the real ERP actually surfaced.
 
 **Backend:** Python, FastAPI, LangGraph, LangChain
 **LLM providers:** Google Gemini, Groq, OpenRouter (multi-provider fallback router)
-**Retrieval:** PostgreSQL + pgvector (hybrid dense/sparse + cross-encoder reranking)
+**Retrieval:** PostgreSQL + pgvector (hybrid dense/sparse + cross-encoder reranking), embeddings via a dedicated self-hosted Ollama (`bge-m3`)
 **ERP:** Odoo (XML-RPC, read-only gateway with allow-listed business functions)
 **Observability:** Langfuse (self-hosted: Postgres, ClickHouse, MinIO, Redis)
 **Frontend:** [Open WebUI](https://openwebui.com/) via an OpenAI-compatible `/v1` endpoint
