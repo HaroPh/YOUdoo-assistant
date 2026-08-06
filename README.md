@@ -84,7 +84,13 @@ Separately, the entire write path is also gated by a runtime kill-switch
 read from Odoo's own config (`ir.config_parameter`) — toggle it from the
 Odoo admin UI, no backend restart needed. If that switch can't be read, or
 its value is ambiguous, the system fails **closed** (writes disabled), not
-open.
+open. This same confirm-before-write guarantee also covers *informal*
+write suggestions raised inside a natural-language answer (e.g. a
+read-only synthesis step reasoning "this order looks eligible — want me to
+confirm it?") — a state-field marker set by the synthesis node and read by
+the router carries that suggestion across turns, so a bare "okay" reply
+correctly reaches the same interrupt-gated executor instead of falling
+through to chitchat and losing context.
 
 **ERP access is read-only by construction**, not by convention: the query
 gateway wraps Odoo's XML-RPC surface with an allow-list of business-layer
@@ -125,6 +131,20 @@ based on evidence, not just designed once and left alone:
   blind to whether ERP collection itself was working — a new eval set was
   built specifically to exercise the real collection path, since the old
   one only ever scored a hand-written ERP fixture.
+- **A write-confirmation marker was first attached to the LLM message
+  object itself, and it was silently non-functional in production despite
+  six clean per-task code reviews.** The marker lived in
+  `AIMessage.additional_kwargs`; every task's tests constructed that state
+  by hand, so none exercised the code path that actually discards it — the
+  real per-turn request rebuild keeps only `{role, content}` from
+  client-resent history, dropping everything else. Only a final
+  whole-branch review that drove a real two-turn conversation through the
+  actual entry point caught it. The fix moved the flag into dedicated
+  LangGraph state fields (a separate channel the rebuild doesn't touch),
+  self-expiring via a message-count anchor instead of requiring every
+  terminal node to clear it, then was re-verified against a live backend
+  with real Langfuse traces and real ERP data — not just a passing test
+  suite.
 
 ## Engineering practices
 
