@@ -12,6 +12,7 @@ from .crm_write import make_create_lead_node, make_convert_lead_node, make_log_a
 from .mrp_write import make_create_mo_node
 from .bom_write import make_create_bom_node, make_update_bom_node
 from .returns_write import make_return_order_node, make_create_credit_memo_node
+from .invoice_write import make_post_invoice_node
 from .purchase_write import (make_create_vendor_node, make_update_vendor_pricing_node,
                              make_create_bulk_rfq_node)
 
@@ -41,6 +42,7 @@ WRITE_COORDINATORS = {
     "create_vendor":          Spec("create_vendor",         lambda llm, tools: make_create_vendor_node(tools)),
     "update_vendor_pricing":  Spec("update_vendor_pricing", lambda llm, tools: make_update_vendor_pricing_node(tools)),
     "create_bulk_rfq":        Spec("create_bulk_rfq",       lambda llm, tools: make_create_bulk_rfq_node(tools)),
+    "post_invoice": Spec("post_invoice", lambda llm, tools: make_post_invoice_node(tools)),
 }
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
