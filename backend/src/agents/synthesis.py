@@ -37,6 +37,18 @@ WRITE_SUGGEST_MARKER = "ĐỀ_XUẤT_GHI"
 # nên chỉ khớp ở đầu dòng là đúng ngữ nghĩa.
 _WRITE_SUGGEST_RE = re.compile(rf'\n?^{WRITE_SUGGEST_MARKER}:([^\n]*)',
                                re.IGNORECASE | re.MULTILINE)
+# Bổ sung (2026-08-06): bug thật đo được qua backend live, tái lập 2/2 lần
+# độc lập — model đặt marker NGAY SAU dấu hỏi, không xuống dòng trước
+# ("...không? ĐỀ_XUẤT_GHI: có"), dù prompt yêu cầu "dòng CUỐI CÙNG". Pattern
+# neo-đầu-dòng ở trên bỏ sót case này: marker lộ ra văn bản hiển thị VÀ
+# suggested_write không được set — tái hiện đúng bug gốc plan
+# write-confirmation-ux-fix từng sửa. Pattern dưới bắt marker DÍNH cuối câu,
+# nhưng CHỈ khi giá trị theo sau nó là ĐÚNG MỘT TOKEN rồi hết chuỗi
+# (`\s*(\S*)\s*$`) — phân biệt với marker nằm giữa câu có nội dung thật theo
+# sau ("... ĐỀ_XUẤT_GHI: có vào sổ tay rồi nhé." KHÔNG khớp, vì "vào sổ tay
+# rồi nhé." không phải toàn khoảng trắng).
+_WRITE_SUGGEST_TRAILING_RE = re.compile(
+    rf'[ \t]*{WRITE_SUGGEST_MARKER}:\s*(\S*)\s*$', re.IGNORECASE)
 # Giá trị được coi là "có". Mọi giá trị khác (kể cả "không") → False, nhưng
 # marker vẫn bị cắt khỏi văn bản hiển thị.
 _WRITE_SUGGEST_YES = {"có", "co", "yes", "true", "1"}
@@ -58,12 +70,18 @@ def extract_write_suggestion(body: str) -> tuple[str, bool]:
 
     Cắt TẤT CẢ dòng marker (count=0), không chỉ dòng đầu: model nhỏ/local có
     lúc phát marker hai lần, và bản cũ (count=1) để lần thứ hai lọt thẳng ra
-    văn bản người dùng đọc. Giá trị boolean vẫn lấy từ lần khớp ĐẦU TIÊN.
+    văn bản người dùng đọc. Giá trị boolean lấy từ lần khớp ĐẦU TIÊN — thử
+    pattern neo-đầu-dòng trước, rồi mới thử pattern dính-cuối-câu (xem
+    _WRITE_SUGGEST_TRAILING_RE ở trên).
     """
-    m = _WRITE_SUGGEST_RE.search(body or "")
+    body = body or ""
+    m = _WRITE_SUGGEST_RE.search(body)
+    if not m:
+        m = _WRITE_SUGGEST_TRAILING_RE.search(body)
     if not m:
         return body, False
-    clean = _WRITE_SUGGEST_RE.sub("", body, count=0).rstrip()
+    clean = _WRITE_SUGGEST_RE.sub("", body, count=0)
+    clean = _WRITE_SUGGEST_TRAILING_RE.sub("", clean, count=0).rstrip()
     value = (m.group(1) or "").strip().lower()
     return clean, value in _WRITE_SUGGEST_YES
 

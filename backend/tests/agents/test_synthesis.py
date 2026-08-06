@@ -325,3 +325,23 @@ def test_extract_write_suggestion_bo_qua_marker_giua_dong():
     clean, suggested = extract_write_suggestion(body)
     assert suggested is False
     assert clean == body        # KHÔNG cắt gì, kể cả đuôi "vào sổ tay rồi nhé."
+
+
+def test_extract_write_suggestion_dinh_cuoi_cau_khong_xuong_dong():
+    """Bug thật đo được qua backend live 2026-08-06, tái lập 2/2 lần độc lập
+    (curl thật, model thật) — model đặt marker NGAY SAU dấu hỏi, không xuống
+    dòng trước, dù prompt yêu cầu "dòng CUỐI CÙNG". Regex chỉ neo đầu-dòng bỏ
+    sót case này: marker lộ ra văn bản hiển thị VÀ suggested_write không được
+    set — tái hiện đúng bug gốc plan write-confirmation-ux-fix từng sửa.
+
+    Phân biệt với test_..._bo_qua_marker_giua_dong ở trên: ở đó marker có nội
+    dung THẬT theo sau ("vào sổ tay rồi nhé."), ở đây marker+giá trị là thứ
+    CUỐI CÙNG trong toàn bộ chuỗi — không có gì theo sau ngoài khoảng trắng."""
+    from src.agents.synthesis import extract_write_suggestion
+    body = ("Bạn có muốn tôi tiến hành tạo đơn mua 20 cái từ nhà cung cấp "
+           "Acme Corporation không? ĐỀ_XUẤT_GHI: có")
+    clean, suggested = extract_write_suggestion(body)
+    assert suggested is True
+    assert "ĐỀ_XUẤT_GHI" not in clean
+    assert clean == ("Bạn có muốn tôi tiến hành tạo đơn mua 20 cái từ nhà cung cấp "
+                     "Acme Corporation không?")
