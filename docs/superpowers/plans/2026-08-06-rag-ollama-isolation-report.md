@@ -265,3 +265,76 @@ cd D:/Youdoo/.claude/worktrees/rag-ollama-isolation && python run_backend_tests.
 ### Commit
 
 All 8 changes staged (`docker-compose.yml`, `start-dev.ps1`, `docs/getting-started.md`, và chính file report này) và committed.
+
+## Sau khi merge — live rollout (controller, trực tiếp trên D:\Youdoo)
+
+Thực hiện trực tiếp trên `D:\Youdoo` (repo chính, sau khi merge branch
+`worktree-rag-ollama-isolation` vào `main` tại commit `593ee8d`) — không
+qua worktree/subagent, đúng như plan §"Sau khi merge" yêu cầu.
+
+**1. Sửa `.env` thật** (không track git): `OLLAMA_URL` từ
+`http://localhost:11434` sang `http://localhost:11435`.
+
+**2. `docker compose up -d`** — `youdoo-ollama` lên `healthy` sau 7 giây
+(healthcheck `ollama list || exit 1` từ fix round 1 hoạt động đúng — không
+còn lỗi `wget: not found` như bản `wget` gốc trong brief sẽ gây ra).
+Snapshot `docker ps` trước/sau xác nhận 4 container không tiền tố
+`youdoo-` của `D:\Project` (`ollama`, `postgres`, `litellm`, `open-webui`)
+đều giữ nguyên `Up 10 hours` — không bị khởi động lại hay đụng tới.
+
+**3. `docker exec youdoo-ollama ollama pull bge-m3`** — tải thành công
+(1.2GB, ~1 phút). Xác nhận qua `curl http://localhost:11435/api/tags`.
+
+**3b. Kiểm chứng thêm theo khuyến nghị final review (không có trong plan
+gốc, thêm vì review chỉ ra đây là cách biến "giả định không cần re-ingest"
+thành một xác nhận thật thay vì niềm tin):** so sánh digest `bge-m3` giữa
+hai instance —
+
+```
+:11435 (youdoo-ollama, mới pull) — digest 7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab, size 1157672605
+:11434 (D:\Project, ollama)      — digest 7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab, size 1157672605
+```
+
+Khớp tuyệt đối — xác nhận model weights giống hệt nhau, KHÔNG cần
+re-ingest `rag_chunks`, đúng như spec §2 khẳng định nhưng lần đầu được đo
+thật thay vì suy luận từ việc "cùng tag public".
+
+**4-5. Dừng backend cũ (PID 22056, giữ :8002), khởi động lại qua
+`start-dev.ps1`** — script tự nạp `.env` mới, phát hiện `mcp-odoo` (:8003)
+đã chạy sẵn nên bỏ qua (không cần restart, không dùng `OLLAMA_URL`), chỉ
+khởi động lại backend. Backend mới lên healthy ở PID 16388,
+`curl http://localhost:8002/health` → `{"status":"ok","agent_ready":true}`.
+
+**6. Live-verify — gọi lại đúng 2 câu hỏi đã lỗi trong báo cáo kiểm thử
+agent cùng ngày (session `verify1`/`verify2`), cộng 1 câu đã tốt trước đó
+để kiểm tra không hồi quy (`verify3`):**
+
+- **"Chính sách hoàn hàng quy định bao nhiêu ngày?"** (luồng `rag` thuần)
+  — TRƯỚC: `"Xin lỗi, tính năng tra cứu tài liệu tạm thời gặp sự cố. Vui
+  lòng thử lại sau."` SAU: `"Theo chính sách, bạn có thể hoàn hàng trong
+  vòng 30 ngày kể từ ngày mua... 📄 Nguồn: Chính sách hoàn hàng › Mục 1 —
+  Điều kiện hoàn hàng (policy.docx)"` — nội dung thật, có trích dẫn nguồn.
+  **Lỗi hạ tầng đã hết.**
+- **"Đơn S00050 quá hạn thanh toán 32 ngày, đơn hàng mới của khách này có
+  bị tạm dừng xử lý không?"** (luồng `mixed`) — TRƯỚC: trả lời như một kết
+  luận nghiệp vụ hợp lệ ("tài liệu nội bộ không cung cấp thông tin...")
+  trong khi thực ra RAG đang lỗi ngầm. SAU: `"Xin lỗi, tôi không chắc chắn
+  về độ chính xác của câu trả lời này. Vui lòng kiểm tra lại trực tiếp
+  trên hệ thống hoặc hỏi lại cụ thể hơn."` — đây là một nhánh HOÀN TOÀN
+  KHÁC, xác nhận bằng grep (`src/agents/erp_grounding.py`): cổng
+  fact-check/groundedness của agent, không phải nhánh lỗi hạ tầng RAG cũ.
+  Nghĩa là pipeline giờ thật sự chạy retrieval + tổng hợp, và cơ chế chống
+  bịa đặt (không phải cơ chế báo lỗi hạ tầng) là thứ đang lên tiếng — đúng
+  loại hành vi plan này nhắm tới (không còn lẫn lộn "lỗi hạ tầng" với "câu
+  trả lời nghiệp vụ").
+- **"Đơn S00042 có đáp ứng SLA giao hàng không?"** (luồng `mixed`, đã tốt
+  từ trước) — vẫn trả lời thành thật "không đủ căn cứ" như cũ, y hệt hành
+  vi trước khi đổi hạ tầng. **Không hồi quy.**
+
+## Tiêu chí hoàn thành (đối chiếu spec §6 / plan)
+
+1. ✅ `youdoo-ollama` chạy healthy, không GPU, có `bge-m3`, volume riêng.
+2. ✅ `OLLAMA_URL` trong `.env`/`.env.example` trỏ `11435`.
+3. ✅ Backend chạy lại thành công, 2 câu hỏi lỗi đã xác nhận hết lỗi bằng
+   gọi thật (không suy đoán), digest model xác nhận không cần re-ingest.
+4. ✅ `D:\Project` không bị sửa hay khởi động lại ở bất kỳ bước nào.
