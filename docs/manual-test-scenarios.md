@@ -93,6 +93,39 @@ Exercises `respond_unknown`/chitchat directly, no ERP or RAG call. Verified
 the assistant identifies itself correctly (was a real gap, fixed 2026-08-05,
 see README "Why it's structured this way").
 
+## 9. Informal write suggestion → bare "okay" (also has a real effect, read
+   scenario 7's caveat first)
+
+Different code path from scenario 7: instead of an explicit write command,
+this asks a *mixed* question, gets a natural-language suggestion back, then
+replies with a bare "okay" — the case README's "Why it's structured this
+way" describes (state-field marker carrying the suggestion across turns).
+Send these three messages **in the same conversation, in order**:
+
+```
+có 1 khách hàng sắp đặt 30 cái individual workplace, nhưng kho chỉ còn 16 cái, tôi muốn nhập 20 cái individual workplace
+```
+Expect a clarifying question (which supplier) — or, if the product/supplier
+data has changed since, it may answer differently; either is fine, just
+keep going with what it actually asks.
+
+```
+có các nhà cung cấp nào bán individual workplace?
+```
+Expect a natural-language write suggestion ending in a question, e.g. "Bạn
+có muốn tôi tạo đơn mua **20 cái** ... không?" — **no visible marker text**
+in the reply (if you ever see literal "ĐỀ_XUẤT_GHI" in the response, that's
+the bug from 2026-08-06 regressing — report it).
+
+```
+okay
+```
+Expect this to reach the **same interrupt-gated confirmation** as scenario
+7 (e.g. "Bạn xác nhận giúp mình nhé? (trả lời "có" để thực hiện, "không" để
+hủy)") — not a generic chitchat reply. Verified live 2026-08-06 against the
+real backend on this exact 3-message conversation. Don't send a follow-up
+"có" unless you're fine with a real purchase order being created.
+
 ## What to watch for across all of these
 
 - Does the assistant ever state a number or date that isn't traceable to
