@@ -33,12 +33,6 @@ def _finish(tool_name: str, result) -> dict:
             "last_write": {"tool": tool_name, **env} if env else None}
 
 
-def _vnd(n) -> str:
-    """Định dạng số tiền kiểu Việt Nam: dấu chấm phân cách hàng nghìn
-    (17.520), không phải dấu phẩy mặc định của Python (17,520)."""
-    return f"{(n or 0):,.0f}".replace(",", ".")
-
-
 def render_invoice_summary(head: str, lines: list, totals: list) -> str:
     """Bảng tóm tắt hóa đơn, khớp khuôn render_draft của create_order.py.
 
@@ -47,7 +41,7 @@ def render_invoice_summary(head: str, lines: list, totals: list) -> str:
     hiển thị nguyên sẽ vỡ bảng."""
     body = [f"  - {(l.get('product_id') or [0, '?'])[1]}"
             f" × {(l.get('quantity') or 0):g}"
-            f" = {_vnd(l.get('price_subtotal'))}" for l in lines]
+            f" = {(l.get('price_subtotal') or 0):,.0f}" for l in lines]
     return "\n".join([head, *body, *totals]) + "\n" + WRITE_CONFIRM_SUFFIX
 
 
@@ -56,7 +50,7 @@ def _invoice_label(r: dict) -> str:
     có số nên chỉ tên đối tác thì không phân biệt được."""
     partner = (r.get("partner_id") or [0, "?"])[1]
     return (f"{r.get('name') or 'chưa có số'} — {partner}"
-            f" — {_vnd(r.get('amount_total'))}"
+            f" — {(r.get('amount_total') or 0):,.0f}"
             f" — {r.get('invoice_date') or 'chưa có ngày'}")
 
 
@@ -120,7 +114,7 @@ def make_post_invoice_node(tools):
         head = (f"Hóa đơn nháp của {partner} — ngày "
                 f"{inv.get('invoice_date') or 'chưa có'}:")
         draft = render_invoice_summary(
-            head, lines, [f"  Tổng: {_vnd(inv.get('amount_total'))}"])
+            head, lines, [f"  Tổng: {(inv.get('amount_total') or 0):,.0f}"])
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:

@@ -63,8 +63,8 @@ def test_render_dung_ten_san_pham_khong_dung_line_name():
     """Đo thật: line['name'] chứa mô tả NHIỀU DÒNG
     ('[FURN_0789] Individual Workplace\\n[FURN_0...') — hiển thị nó sẽ vỡ
     bảng. Tên đúng nằm ở product_id[1]."""
-    out = iw.render_invoice_summary("Đầu:", [_LINE], ["  Tổng: 17.520"])
-    assert "[FURN_0789] Individual Workplace × 20 = 17.520" in out
+    out = iw.render_invoice_summary("Đầu:", [_LINE], ["  Tổng: 17,520"])
+    assert "[FURN_0789] Individual Workplace × 20 = 17,520" in out
     assert "\n[FURN_0" not in out
 
 
@@ -88,7 +88,7 @@ async def test_post_invoice_co_id_thi_hien_bang_roi_moi_hoi(monkeypatch):
     assert itr["kind"] == "confirm"
     assert "Acme Corporation" in itr["question"]
     assert "Individual Workplace × 20" in itr["question"]
-    assert "17.520" in itr["question"]
+    assert "17,520" in itr["question"]
     assert "args" not in rec           # chưa gọi tool trước khi xác nhận
 
 
