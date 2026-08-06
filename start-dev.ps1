@@ -64,7 +64,7 @@ $ErrorActionPreference = $prevEap
 if ($LASTEXITCODE -eq 0) {
     Write-Host "    OK (hoặc đã chạy sẵn)" -ForegroundColor Green
 } else {
-    Write-Host "    [WARN] docker compose exit code $LASTEXITCODE — bỏ qua, backend vẫn khởi động (chỉ Postgres/Open WebUI bị ảnh hưởng)." -ForegroundColor Yellow
+    Write-Host "    [WARN] docker compose exit code $LASTEXITCODE — bỏ qua, backend vẫn khởi động (Postgres/Open WebUI/Ollama bị ảnh hưởng — RAG có thể lỗi nếu youdoo-ollama không lên)." -ForegroundColor Yellow
 }
 
 # ── Helper: cổng đã có ai lắng nghe chưa? Tránh lặp lại đúng sự cố vừa gặp

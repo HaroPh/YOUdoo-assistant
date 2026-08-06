@@ -63,14 +63,22 @@ it.
    python -m src.rag.ingest src/rag/seed
    ```
 
-   Takes about 4 minutes (measured: 3m55s for the full 17-document, ~3,300
-   -chunk seed corpus via Ollama). One-time — `ingest_path` skips files
-   whose content hash hasn't changed, so re-running later is fast and safe.
+   Timing depends heavily on which Ollama instance is embedding: the
+   3m55s figure below was measured on a GPU-backed Ollama. The
+   `youdoo-ollama` container this repo now runs (see
+   `docs/superpowers/specs/2026-08-06-rag-ollama-isolation-design.md`) is
+   deliberately CPU-only, so expect this step to take substantially
+   longer on a fresh setup — plan for tens of minutes, not 4. One-time —
+   `ingest_path` skips files whose content hash hasn't changed, so
+   re-running later is fast and safe.
+
+   (Historical measurement, GPU-backed Ollama: 3m55s for the full
+   17-document, ~3,300-chunk seed corpus.)
 
 ## Every time you start
 
-Three things need to be running: Postgres+Open WebUI (docker), `mcp-odoo`,
-and the `backend` itself.
+Three things need to be running: Postgres+Open WebUI+Ollama (docker),
+`mcp-odoo`, and the `backend` itself.
 
 **Fast path — one command, one terminal:**
 
@@ -155,6 +163,11 @@ Quick sanity check before running full scenarios — ask "Bạn là ai?"
 - **RAG/mixed-query scenarios return "no info" / can't find anything** —
   the corpus was never ingested (or Postgres was reset). Re-run the
   one-time ingest step above.
+- Also check: is `youdoo-ollama` running and healthy, and was `bge-m3`
+  pulled into it (`docker exec youdoo-ollama ollama list`)? RAG needs
+  Ollama for embeddings — if it's down or the model was never pulled,
+  the symptom looks identical to an empty corpus. See
+  `curl http://localhost:11435/api/tags`.
 - **A scenario needs a write action and gets refused outright** — the
   write kill-switch (`erp_ai.write_actions_enabled` in Odoo → Settings →
   Technical → System Parameters) defaults to **off**. That refusal is the

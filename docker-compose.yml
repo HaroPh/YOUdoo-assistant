@@ -74,7 +74,12 @@ services:
     # deploy.resources.reservations.devices) — instance này chỉ cần embed
     # bge-m3 (~1.1GB), để CPU-only tránh tranh chấp VRAM với Ollama của
     # D:\Project (đang giữ GPU cho qwen3:8b).
-    ports: ["11435:11434"]
+    ports: ["127.0.0.1:11435:11434"]
+    environment:
+      # Instance CPU-only (không GPU) chỉ phục vụ đúng 1 model nhỏ (bge-m3),
+      # không cạnh tranh VRAM với ai — giữ model load sẵn lâu để tránh phải
+      # nạp lại ~1.1GB từ đĩa sau mỗi 5 phút rảnh (mặc định của Ollama).
+      OLLAMA_KEEP_ALIVE: "24h"
     volumes:
       - youdoo_ollama_data:/root/.ollama
     healthcheck:
@@ -104,8 +109,10 @@ services:
       # Open WebUI tự bật tích hợp Ollama nếu detect được instance khả dụng
       # qua mạng — extra_hosts bên dưới (cần để gọi backend Youdoo) vô tình
       # cũng cho container thấy Ollama DÙNG CHUNG của D:\Project
-      # (localhost:11434, có model local KHÔNG liên quan project này). Tắt
-      # hẳn để danh sách model chỉ còn đúng "erp-assistant".
+      # (localhost:11434, có model local KHÔNG liên quan project này), VÀ
+      # (từ 2026-08-06) instance youdoo-ollama riêng của chính project này
+      # (bge-m3 — một embedding model, không phải chat model). Tắt hẳn để
+      # danh sách model chỉ còn đúng "erp-assistant".
       ENABLE_OLLAMA_API: "false"
     extra_hosts:
       - host.docker.internal:host-gateway
