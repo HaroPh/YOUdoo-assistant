@@ -101,7 +101,7 @@ docker-compose.yml:16: # (11434 đã D:\Project chiếm) — context lịch sử
 docker-compose.yml:72: # không phải 11434 mặc định — comment giải thích
 docker-compose.yml:77: ports: ["11435:11434"] — ĐÚNG: Docker port mapping (host → container)
 docker-compose.yml:81: http://localhost:11434 — ĐÚNG: healthcheck internal container port
-docker-compose.yml:107: # localhost:11434 — context lịch sử (old shared instance)
+docker-compose.yml:106: # localhost:11434 — context lịch sử (old shared instance)
 ```
 
 **Analysis**: 
@@ -136,3 +136,70 @@ Per spec (brief Step 12):
 - ✗ Manual testing qua UI
 
 Những phần đó do controller thực hiện SAU KHI merge (xem "Sau khi merge" trong full plan).
+
+## Fix Round 1
+
+**Date**: 2026-08-06 (task reviewer feedback)
+
+### Changes Made
+
+**1. Fix `docker-compose.yml` healthcheck (line 81)**
+- **Problem**: `ollama/ollama:latest` image does NOT contain `wget` (nor `curl`)
+  - Verified: `docker exec ollama which wget` → exit 1
+  - Verified: `docker exec ollama which curl` → exit 1
+  - Result: healthcheck always fails with "wget: not found" even though Ollama server works
+  
+- **Fix**: Changed from:
+  ```yaml
+  test: ["CMD-SHELL", "wget -qO- http://localhost:11434/api/tags >/dev/null || exit 1"]
+  ```
+  to:
+  ```yaml
+  test: ["CMD-SHELL", "ollama list || exit 1"]
+  ```
+  - `ollama` CLI IS present in image at `/usr/bin/ollama` ✓
+  - `ollama list` talks to local server over its own client ✓
+  - Valid liveness check ✓
+
+**2. Fix `start-dev.ps1` comment (line 51)**
+- **Problem**: Comment said "Docker (postgres + open-webui)" but line 53 actually says "+ ollama"
+- **Fix**: Updated comment from:
+  ```powershell
+  # ── Docker (postgres + open-webui) — idempotent...
+  ```
+  to:
+  ```powershell
+  # ── Docker (postgres + open-webui + ollama) — idempotent...
+  ```
+
+**3. Fix report line number (line 107 → 106)**
+- **Problem**: Grep result cited line 107 but actual line was 106
+- **Fix**: Updated report line from:
+  ```
+  docker-compose.yml:107: # localhost:11434 — context lịch sử (old shared instance)
+  ```
+  to:
+  ```
+  docker-compose.yml:106: # localhost:11434 — context lịch sử (old shared instance)
+  ```
+
+### Validation
+
+**Step 1: Docker Compose Config**
+```bash
+cd D:/Youdoo/.claude/worktrees/rag-ollama-isolation && docker compose config --quiet
+```
+**Result**: ✓ PASS (exit code 0)
+
+**Step 2: Backend Unit Tests**
+```bash
+cd D:/Youdoo/.claude/worktrees/rag-ollama-isolation && python run_backend_tests.py
+```
+**Result**: ✓ PASS
+```
+1152 passed, 4 skipped, 46 deselected in 37.66s
+```
+
+### Commit
+
+All changes staged and committed.

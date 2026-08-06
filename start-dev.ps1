@@ -48,7 +48,7 @@ Get-Content $envFile | ForEach-Object {
 }
 $env:PYTHONUTF8 = "1"   # tránh UnicodeEncodeError ở dòng "✓ ERP agent ready"
 
-# ── Docker (postgres + open-webui) — idempotent, bỏ qua nếu docker không có
+# ── Docker (postgres + open-webui + ollama) — idempotent, bỏ qua nếu docker không có
 # hoặc đã chạy sẵn (restart: unless-stopped nên thường đã lên rồi). ─────────
 Write-Host "[0/2] docker compose up -d (postgres + open-webui + ollama) ..." -ForegroundColor Green
 # LƯU Ý: không dùng `2>&1 | Out-Null` quanh lệnh native ở đây — PowerShell
