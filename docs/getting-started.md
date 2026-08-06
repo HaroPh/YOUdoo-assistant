@@ -63,9 +63,28 @@ it.
 
 ## Every time you start
 
-Three things need to be running: Postgres+Open WebUI (docker, see above),
-`mcp-odoo`, and the `backend` itself. Each of the latter two needs `.env`
-loaded into its shell process first — open two separate terminals.
+Three things need to be running: Postgres+Open WebUI (docker), `mcp-odoo`,
+and the `backend` itself.
+
+**Fast path — one command, one terminal:**
+
+```powershell
+.\start-dev.ps1
+```
+
+Brings up docker (idempotent — fine if already running), then `mcp-odoo`
+and `backend`, waiting for each to actually be ready (`/health` returning
+`agent_ready: true`) before declaring success. If a port is already
+occupied by a healthy process from a previous run, it detects that and
+skips starting a duplicate rather than erroring — this exact collision
+happened while writing this doc (started `python run.py` by hand in a
+terminal while an earlier background instance still held :8002) and is
+what motivated adding the port check. `Ctrl+C` stops only what it started
+this run (docker keeps running). Logs land in `logs/`.
+
+**Manual path — same steps, useful for understanding what's happening or
+when the script doesn't fit (e.g. you want each service in its own visible
+terminal window):**
 
 **Terminal 1 — mcp-odoo:**
 
@@ -114,6 +133,10 @@ Quick sanity check before running full scenarios — ask "Bạn là ai?"
   loaded into that shell's process before running `python server.py` /
   `python run.py`. Re-run `.\scripts\load-env.ps1` in that same terminal,
   then start the service again.
+- **A port is already in use / bind error** — `.\start-dev.ps1` detects
+  this and skips (see above); the manual path doesn't. Check who's
+  listening and stop it if it's stale: `Get-NetTCPConnection -LocalPort
+  8002 -State Listen` (or 8003), then `Stop-Process -Id <pid> -Force`.
 - **`psycopg.OperationalError: ... password authentication failed ...
   port 5433`** — same root cause as above (env not loaded), but the
   symptom looks different: without `DATABASE_URL` from `.env`, code falls
