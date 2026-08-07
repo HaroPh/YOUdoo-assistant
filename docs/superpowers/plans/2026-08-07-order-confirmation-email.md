@@ -424,6 +424,30 @@ async def test_khong_tim_thay_don_thi_bao_loi_khong_hoi(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_preview_loi_thi_bao_loi_khong_crash(monkeypatch):
+    """Task 2 review finding (plan-mandated, 2 tool MCP không try/except) —
+    ruling: xử lý ở tầng coordinator thay vì tool. preview_tool.ainvoke ném
+    exception (vd Odoo mạng lỗi) không được để lộ traceback ra ngoài node —
+    phải trả về _msg lỗi rõ ràng, giống hệt cách send_tool đã xử lý."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    send_rec = {}
+
+    def _raise(_args):
+        raise RuntimeError("Lỗi kết nối Odoo")
+
+    preview_tool = MagicMock()
+    preview_tool.name = "preview_template_email"
+    preview_tool.ainvoke = _raise
+    send_tool = _fake_tool("send_prepared_email", send_rec, _SEND_OK)
+    graph = _graph(mw.make_send_order_confirmation_email_node([preview_tool, send_tool]))
+    res = await graph.ainvoke(_state({"order_ref": "S00166"}),
+                              {"configurable": {"thread_id": "m4b"}})
+    assert "__interrupt__" not in res
+    assert "args" not in send_rec
+    assert "lỗi" in res["messages"][-1].content.lower()
+
+
+@pytest.mark.asyncio
 async def test_thieu_order_ref_thi_hoi_lai(monkeypatch):
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     preview_rec, send_rec = {}, {}
@@ -499,9 +523,12 @@ def make_send_order_confirmation_email_node(tools):
         preview_tool = by_name.get("preview_template_email")
         if preview_tool is None:
             return _msg("Công cụ soạn mail không khả dụng.")
-        result = await preview_tool.ainvoke({
-            "template_name": "Sales: Order Confirmation",
-            "res_model": "sale.order", "ref": order_ref})
+        try:
+            result = await preview_tool.ainvoke({
+                "template_name": "Sales: Order Confirmation",
+                "res_model": "sale.order", "ref": order_ref})
+        except Exception as e:  # noqa: BLE001
+            return _msg(f"Lỗi khi soạn mail: {e}")
         # preview_template_email trả JSON phẳng {ok, display, mail_id, subject,
         # recipient_count} — parse_write_result chỉ cần key "ok"+"display" để
         # coi là envelope hợp lệ, KHÔNG lồng dưới "data" (đó là shape khác của
