@@ -151,6 +151,12 @@ def build_erp_query_tools() -> list:
         return _json(purchase.get_supplier_detail(name))
 
     @tool
+    def get_customer_detail(name: str) -> str:
+        """Hồ sơ chi tiết MỘT khách hàng: liên hệ, thuế, điều khoản thanh
+        toán, số đơn bán."""
+        return _json(sales.get_customer_detail(name))
+
+    @tool
     def list_crm_leads(kind: str = "", stage: str = "") -> str:
         """Liệt kê lead/cơ hội CRM. kind = 'lead' | 'opportunity', bỏ trống =
         cả hai; stage lọc theo tên giai đoạn (New/Qualified/...)."""
@@ -216,7 +222,7 @@ def build_erp_query_tools() -> list:
              get_sale_order_detail, get_product_price, sales_summary, top_products,
              get_stock, get_lots, list_purchase_orders, get_purchase_order_detail,
              list_suppliers, get_product_suppliers, get_supplier_detail,
-             list_crm_leads, list_invoices, get_overdue_invoices,
+             get_customer_detail, list_crm_leads, list_invoices, get_overdue_invoices,
              list_reorder_needed, get_bom_detail, list_manufacturing_orders,
              list_late_deliveries, check_po_matching, list_po_mismatches,
              get_partner_balance]

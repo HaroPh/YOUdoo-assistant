@@ -179,3 +179,29 @@ def test_get_sale_order_detail_description_mentions_effective_dates():
                 if t.name == "get_sale_order_detail")
     assert "ngày giao dự kiến" in tool.description
     assert "ngày giao thực tế" in tool.description
+
+
+def test_build_tools_exposes_get_customer_detail():
+    names = {t.name for t in build_erp_query_tools()}
+    assert "get_customer_detail" in names
+
+
+def test_get_customer_detail_tool_returns_envelope_json(monkeypatch):
+    import src.erp_query.tools as tmod
+    monkeypatch.setattr(tmod.sales, "get_customer_detail",
+                        lambda *a, **kw: {"status": "success",
+                                          "data": {"so_count": 0}, "display": "ok"})
+    tool = next(t for t in build_erp_query_tools() if t.name == "get_customer_detail")
+    out = json.loads(tool.invoke({"name": "Acme"}))
+    assert out["status"] == "success" and out["display"] == "ok"
+
+
+def test_ref_shaped_get_customer_detail_name_rejected(monkeypatch):
+    """name khớp hình dạng mã đơn (vd S00059) phải bị chặn — cùng cơ chế
+    _reject_ref_shaped_partner_names đã áp cho list_sale_orders/customer."""
+    import src.erp_query.tools as tmod
+    monkeypatch.setattr(tmod.sales, "get_customer_detail",
+                        lambda *a, **kw: {"status": "success", "data": {}, "display": "ok"})
+    tool = next(t for t in build_erp_query_tools() if t.name == "get_customer_detail")
+    with pytest.raises(ValidationError):
+        tool.invoke({"name": "S00059"})
