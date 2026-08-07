@@ -92,6 +92,7 @@ Available write tools — use the tool name and arg keys EXACTLY as written:
 - create_vendor(name: str, email: str = null, phone: str = null, vat: str = null, street: str = null, city: str = null)  # tạo hồ sơ nhà cung cấp mới; name bắt buộc, các field khác điền được gì thì điền
 - update_vendor_pricing(vendor_name: str, product: str, price: float, min_qty: float = null, delay: int = null)  # khai/cập nhật giá mua 1 sản phẩm từ 1 NCC; ghi đè giá cũ nếu đã có; min_qty/delay chỉ nêu khi user có nói rõ
 - create_bulk_rfq(vendor_names: list, lines: list)  # tạo RFQ nháp CÙNG LÚC cho NHIỀU NCC (tối đa 10) với CÙNG danh sách sản phẩm — dùng khi user muốn so sánh giá nhiều NCC; vendor_names = ["<tên NCC 1>", ...]; lines = [{"product": "<tên SP>", "qty": <số>}, ...]
+- send_order_confirmation_email(order_ref: str)  # gửi mail XÁC NHẬN đơn bán ĐÃ XÁC NHẬN cho khách qua email (dùng template Odoo "Sales: Order Confirmation"); order_ref = mã đơn bán, vd "S00012"; KHÔNG tự động chạy sau confirm_sale_order — chỉ gọi khi user yêu cầu rõ ràng
 
 From the user's message, choose the matching tool and extract its args.
 Also write a short Vietnamese summary (1 sentence, start with a verb).
