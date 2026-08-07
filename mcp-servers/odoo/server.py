@@ -50,7 +50,7 @@ sys.modules.setdefault("server", sys.modules[__name__])
 # từ dòng sys.modules.setdefault ở trên, "server" đã có mặt trong sys.modules
 # dưới đúng tên mà tools/*.py tìm — kể cả khi tiến trình này tự nó là
 # __main__).
-from tools import sales, purchase, inventory, mrp, crm, accounting  # noqa: E402,F401
+from tools import sales, purchase, inventory, mrp, crm, accounting, mail  # noqa: E402,F401
 
 # Chặn tool-call kwarg lạ ở mọi write-tool đã đăng ký — chạy 1 lần lúc
 # import, sau khi toàn bộ @mcp.tool() ở trên đã đăng ký xong. Tool đăng ký
