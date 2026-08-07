@@ -145,7 +145,7 @@ def get_customer_detail(name, *, gw=None):
                                "property_payment_term_id"], limit=1)
         p = rows[0]
         sos = gw.search_read("sale.order", [["partner_id", "=", cus["id"]]],
-                             ["id"], limit=200)
+                             ["id"], limit=100)
     except Exception as e:                                  # noqa: BLE001
         return err(f"Lỗi tra cứu hồ sơ khách hàng: {e}")
     term = p.get("property_payment_term_id")

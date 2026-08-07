@@ -205,12 +205,20 @@ def test_khong_con_literal_xac_nhan_lap_lai_trong_src():
 def test_gather_erp_prompt_chu_dong_neu_lien_lac_khi_dung_mot_doi_tac():
     """Rule mới (spec 2026-08-07): khi câu trả lời xoay quanh ĐÚNG MỘT đối
     tác cụ thể có tính nghiệp vụ, agent phải chủ động nêu contact — không
-    chờ người dùng hỏi thẳng. Assert CẢ mệnh đề hành động (không chỉ từ
-    khoá rời) — cùng lý do với test_gather_erp_prompt_yeu_cau_tra_cuu_truoc_khi_hoi_lai
-    trong file này: một sửa lệch đảo ngược nghĩa vẫn có thể giữ từ khoá rời."""
+    chờ người dùng hỏi thẳng. Assert CẢ CÂU (điều kiện lẫn hành động), không
+    chỉ mệnh đề hành động — cùng lý do với test_gather_erp_prompt_yeu_cau_tra_cuu_truoc_khi_hoi_lai
+    trong file này: một sửa lệch đảo ngược nghĩa vẫn có thể giữ từ khoá rời.
+    Bản gốc chỉ ghim mệnh đề hành động, để lọt mệnh đề điều kiện — đúng nửa
+    phần kiểm soát tiếng ồn/chi phí (ĐÚNG MỘT, "không phải danh sách nhiều
+    đối tác") — ai xoá cụm đó test vẫn xanh (review 2026-08-07). Ghim CẢ
+    dòng liền mạch để bịt lỗ đó."""
     from src.agents.prompts import GATHER_ERP_PROMPT
-    assert ("hãy chủ động gọi get_customer_detail/get_supplier_detail và nêu "
-            "email/SĐT nếu có, không cần người dùng hỏi thẳng"
+    assert ("Nếu câu trả lời xoay quanh ĐÚNG MỘT khách hàng/nhà cung cấp cụ "
+            "thể làm trọng tâm (không phải danh sách nhiều đối tác), và câu "
+            "hỏi có tính chất nghiệp vụ có thể cần liên hệ tiếp theo (đặt "
+            "hàng, hỏi thêm, xác nhận, báo giá) — hãy chủ động gọi "
+            "get_customer_detail/get_supplier_detail và nêu email/SĐT nếu "
+            "có, không cần người dùng hỏi thẳng"
             in GATHER_ERP_PROMPT)
 
 
@@ -219,3 +227,16 @@ def test_gather_erp_prompt_no_think_van_la_token_cuoi():
     cuối cùng (bất biến của toàn bộ prompts.py, xem CHITCHAT_PROMPT/FUSE_PROMPT)."""
     from src.agents.prompts import GATHER_ERP_PROMPT
     assert GATHER_ERP_PROMPT.rstrip().endswith("/no_think")
+
+
+def test_system_prompt_advertises_get_customer_detail():
+    """Review cuối nhánh 2026-08-07 (customer-contact-detail): get_customer_detail
+    được bind đầy đủ vào node erp_read (SYSTEM_PROMPT là system prompt thật của
+    node đó, xem test_simple_nodes.py) nhưng thiếu trong danh mục tool "Bán hàng:"
+    — trong khi get_supplier_detail đã có mặt ở danh mục "Mua hàng:" từ trước.
+    Đây đúng là bất đối xứng khách/NCC mà plan này tồn tại để đóng, chỉ là ở
+    SYSTEM_PROMPT thay vì GATHER_ERP_PROMPT (nơi Task 3 đã sửa). Cùng khuôn mẫu
+    với test_mrp_registered_in_registry_and_prompts trong test_mrp_write.py
+    (kiểm get_bom_detail/list_manufacturing_orders có trong SYSTEM_PROMPT)."""
+    from src.agents.prompts import SYSTEM_PROMPT
+    assert "get_customer_detail" in SYSTEM_PROMPT

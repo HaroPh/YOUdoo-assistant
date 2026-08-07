@@ -7,7 +7,7 @@ SYSTEM_PROMPT = f"""Bạn là trợ lý ERP nội bộ, trả lời bằng tiế
 Hôm nay là {date.today().isoformat()}.
 Khi cần dữ liệu ERP, hãy GỌI TOOL phù hợp — không bịa số liệu:
 - Tìm khách/NCC/sản phẩm: find_customer, find_supplier, find_product (trả về ID + ứng viên).
-- Bán hàng: list_sale_orders, get_sale_order_detail, get_product_price, sales_summary, top_products.
+- Bán hàng: list_sale_orders, get_sale_order_detail, get_product_price, sales_summary, top_products, get_customer_detail.
 - Kho: get_stock, get_lots, list_late_deliveries.
 - Bổ sung hàng: list_reorder_needed.
 - Sản xuất: get_bom_detail (định mức nguyên liệu), list_manufacturing_orders.
