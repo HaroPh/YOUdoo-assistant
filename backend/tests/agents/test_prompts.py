@@ -200,3 +200,22 @@ def test_khong_con_literal_xac_nhan_lap_lai_trong_src():
         if "Xác nhận? (có / không)" in path.read_text(encoding="utf-8"):
             offenders.append(str(path))
     assert offenders == [], f"còn literal chưa gom: {offenders}"
+
+
+def test_gather_erp_prompt_chu_dong_neu_lien_lac_khi_dung_mot_doi_tac():
+    """Rule mới (spec 2026-08-07): khi câu trả lời xoay quanh ĐÚNG MỘT đối
+    tác cụ thể có tính nghiệp vụ, agent phải chủ động nêu contact — không
+    chờ người dùng hỏi thẳng. Assert CẢ mệnh đề hành động (không chỉ từ
+    khoá rời) — cùng lý do với test_gather_erp_prompt_yeu_cau_tra_cuu_truoc_khi_hoi_lai
+    trong file này: một sửa lệch đảo ngược nghĩa vẫn có thể giữ từ khoá rời."""
+    from src.agents.prompts import GATHER_ERP_PROMPT
+    assert ("hãy chủ động gọi get_customer_detail/get_supplier_detail và nêu "
+            "email/SĐT nếu có, không cần người dùng hỏi thẳng"
+            in GATHER_ERP_PROMPT)
+
+
+def test_gather_erp_prompt_no_think_van_la_token_cuoi():
+    """Chống hồi quy: thêm rule mới không được đẩy /no_think ra khỏi vị trí
+    cuối cùng (bất biến của toàn bộ prompts.py, xem CHITCHAT_PROMPT/FUSE_PROMPT)."""
+    from src.agents.prompts import GATHER_ERP_PROMPT
+    assert GATHER_ERP_PROMPT.rstrip().endswith("/no_think")
