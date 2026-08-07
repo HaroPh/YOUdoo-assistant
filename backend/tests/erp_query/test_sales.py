@@ -114,3 +114,67 @@ def test_get_sale_order_detail_includes_effective_dates():
     order_call = next(c for c in gw._t.calls if c[0] == "sale.order")
     assert "commitment_date" in order_call[3]["fields"]
     assert "effective_date" in order_call[3]["fields"]
+
+
+class MultiModelTransport:
+    def __init__(self, responses):
+        self.responses = responses
+        self.calls = []
+
+    def call(self, model, method, args, kwargs):
+        self.calls.append((model, method, args, kwargs))
+        return self.responses.get((model, method), [])
+
+
+def test_get_customer_detail_happy_path():
+    from src.erp_query.gateway import Gateway
+    t = MultiModelTransport({
+        ("res.partner", "name_search"): [(41, "Azure Interior")],
+        ("res.partner", "search_read"): [{
+            "id": 41, "name": "Azure Interior", "email": "contact@azure.example",
+            "phone": "0900000000", "vat": "VN123456", "street": "12 Le Loi",
+            "city": "HCMC", "property_payment_term_id": [3, "15 Days"]}],
+        ("sale.order", "search_read"): [{"id": 1}, {"id": 2}, {"id": 3}],
+    })
+    out = sales.get_customer_detail("Azure", gw=Gateway(t))
+    assert out["status"] == "success"
+    assert out["data"]["so_count"] == 3
+    assert out["data"]["partner"]["email"] == "contact@azure.example"
+    assert "contact@azure.example" in out["display"]
+    assert "0900000000" in out["display"]
+    assert "bank_ids" not in out["data"]["partner"]
+    partner_call = next(c for c in t.calls if c[0] == "res.partner" and c[1] == "search_read")
+    assert "bank_ids" not in partner_call[3]["fields"]
+
+
+def test_get_customer_detail_ambiguous():
+    from src.erp_query.gateway import Gateway
+    t = MultiModelTransport({
+        ("res.partner", "name_search"): [(1, "Công ty A Miền Bắc"), (2, "Công ty A Miền Nam")],
+    })
+    out = sales.get_customer_detail("Công ty A", gw=Gateway(t))
+    assert out["status"] == "error"
+    assert "nhiều" in out["display"].lower()
+
+
+def test_get_customer_detail_not_found():
+    from src.erp_query.gateway import Gateway
+    t = MultiModelTransport({("res.partner", "name_search"): []})
+    out = sales.get_customer_detail("Không tồn tại", gw=Gateway(t))
+    assert out["status"] == "error"
+
+
+def test_get_customer_detail_missing_fields_render_dash():
+    from src.erp_query.gateway import Gateway
+    t = MultiModelTransport({
+        ("res.partner", "name_search"): [(9, "Acme Corporation")],
+        ("res.partner", "search_read"): [{
+            "id": 9, "name": "Acme Corporation", "email": False, "phone": False,
+            "vat": False, "street": False, "city": False,
+            "property_payment_term_id": False}],
+        ("sale.order", "search_read"): [],
+    })
+    out = sales.get_customer_detail("Acme", gw=Gateway(t))
+    assert out["status"] == "success"
+    assert out["data"]["so_count"] == 0
+    assert "—" in out["display"]

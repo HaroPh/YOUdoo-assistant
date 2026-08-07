@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from .envelope import ok, err
 from .gateway import default_gateway
-from .resolve import resolve_entity
+from .resolve import resolve_entity, _resolve_single
 
 
 def _period_from(period):
@@ -129,3 +129,30 @@ def top_products(by="quantity", period=None, limit=10, *, gw=None):
     body = "\n".join(f"  {i}. {r['product']} | SL {r['qty']:,.0f} | DT {r['revenue']:,.0f}"
                      for i, r in enumerate(rows, 1))
     return ok({"by": by, "rows": rows}, f"Top {len(rows)} sản phẩm:\n{body}")
+
+
+def get_customer_detail(name, *, gw=None):
+    """Hồ sơ chi tiết MỘT khách hàng: liên hệ, thuế, điều khoản thanh toán,
+    số đơn bán. Mirror get_supplier_detail (purchase.py), KHÔNG đọc bank_ids
+    — không có giá trị nghiệp vụ tương đương bản NCC (spec 2026-08-07 §2)."""
+    gw = gw or default_gateway()
+    cus, msg = _resolve_single("res.partner", name, gw)
+    if msg:
+        return err(msg)
+    try:
+        rows = gw.search_read("res.partner", [["id", "=", cus["id"]]],
+                              ["name", "email", "phone", "vat", "street", "city",
+                               "property_payment_term_id"], limit=1)
+        p = rows[0]
+        sos = gw.search_read("sale.order", [["partner_id", "=", cus["id"]]],
+                             ["id"], limit=200)
+    except Exception as e:                                  # noqa: BLE001
+        return err(f"Lỗi tra cứu hồ sơ khách hàng: {e}")
+    term = p.get("property_payment_term_id")
+    display = (f"Khách hàng: {p['name']}\n"
+              f"  Email: {p['email'] or '—'} | Điện thoại: {p['phone'] or '—'}\n"
+              f"  Mã số thuế: {p['vat'] or '—'}\n"
+              f"  Địa chỉ: {p['street'] or '—'}, {p['city'] or '—'}\n"
+              f"  Điều khoản thanh toán: {term[1] if term else '—'}\n"
+              f"  Số đơn bán đã có: {len(sos)}")
+    return ok({"partner": p, "so_count": len(sos)}, display)

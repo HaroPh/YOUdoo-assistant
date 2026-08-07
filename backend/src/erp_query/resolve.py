@@ -119,3 +119,23 @@ def _resolve_enhanced(model, query, limit, gw) -> dict:
         needs = len(matches) > 1 and len(exact) != 1
     return ok({"matches": matches, "needs_disambiguation": needs},
               _display(query, matches, exact, needs))
+
+
+def _resolve_single(model, query, gw):
+    """resolve_entity envelope -> (row_with_id_and_name, None) | (None, error_msg).
+    Dùng chung cho mọi bounded context cần resolve MỘT bản ghi res.partner/
+    product.product... theo tên trước khi đọc chi tiết (get_supplier_detail,
+    get_customer_detail, get_product_suppliers)."""
+    env = resolve_entity(model, query, gw=gw)
+    if env.get("status") != "success":
+        return None, env.get("display") or "Lỗi tra cứu."
+    data = env.get("data") or {}
+    matches = data.get("matches") or []
+    if not matches:
+        return None, f"Không tìm thấy '{query}'."
+    if data.get("needs_disambiguation"):
+        names = "; ".join(f"{m['name']} (ID {m['id']})" for m in matches)
+        return None, f"Có nhiều kết quả cho '{query}': {names}."
+    exact = [m for m in matches if (m["name"] or "").strip().lower() == query.strip().lower()]
+    chosen = exact[0] if exact else matches[0]
+    return {"id": chosen["id"], "name": chosen["name"]}, None

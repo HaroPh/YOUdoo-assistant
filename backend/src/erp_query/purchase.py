@@ -1,7 +1,7 @@
 """Purchase bounded context — suppliers and purchase orders."""
 from .envelope import ok, err
 from .gateway import default_gateway
-from .resolve import resolve_entity
+from .resolve import resolve_entity, _resolve_single
 
 
 def find_supplier(name, *, gw=None):
@@ -67,26 +67,6 @@ def list_suppliers(limit=50, *, gw=None):
     lines = [f"{r['name']} | {r['email'] or '—'} | {r['phone'] or '—'}" for r in rows]
     return ok({"rows": rows, "count": len(rows)},
               f"{len(rows)} nhà cung cấp:\n" + "\n".join(lines))
-
-
-def _resolve_single(model, query, gw):
-    """resolve_entity envelope -> (row_with_id_and_name, None) | (None, error_msg).
-    Cùng logic với resolve_entity_for_order (backend/src/agents/create_order.py)
-    nhưng viết lại tại đây — erp_query KHÔNG import từ backend/src/agents (chiều
-    phụ thuộc ngược lại: agents phụ thuộc erp_query)."""
-    env = resolve_entity(model, query, gw=gw)
-    if env.get("status") != "success":
-        return None, env.get("display") or "Lỗi tra cứu."
-    data = env.get("data") or {}
-    matches = data.get("matches") or []
-    if not matches:
-        return None, f"Không tìm thấy '{query}'."
-    if data.get("needs_disambiguation"):
-        names = "; ".join(f"{m['name']} (ID {m['id']})" for m in matches)
-        return None, f"Có nhiều kết quả cho '{query}': {names}."
-    exact = [m for m in matches if (m["name"] or "").strip().lower() == query.strip().lower()]
-    chosen = exact[0] if exact else matches[0]
-    return {"id": chosen["id"], "name": chosen["name"]}, None
 
 
 def get_product_suppliers(product, *, gw=None):
