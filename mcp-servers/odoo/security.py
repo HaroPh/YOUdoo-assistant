@@ -24,6 +24,8 @@ ODOO_METHOD_OPERATION_MAP = {
     "action_validate": "write",
     "action_apply_inventory": "write",
     "action_register_payment": "write",
+    "send_mail": "create",   # mail.template.send_mail — tạo bản mail.mail nháp
+    "send": "write",         # mail.mail.send — gửi thật (hoặc set state=exception)
     "action_create_payments": "write",
     "convert_opportunity": "write",
     "button_mark_done": "write",
