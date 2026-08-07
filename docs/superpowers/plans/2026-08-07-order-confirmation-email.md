@@ -912,9 +912,11 @@ Xác nhận thật một đơn bán (chuỗi `create_quotation → confirm_sale_
 qua đối tác/sản phẩm thật), rồi gửi: `"Gửi mail xác nhận đơn [mã đơn
 thật] cho khách"`.
 
-ĐẠT khi: hiện bản xem trước (số người nhận + tiêu đề) rồi mới hỏi xác
-nhận, **chưa** gửi gì; và **không** tự động chạy tiếp `deliver_order`
-(xác nhận đơn vẫn ở đúng trạng thái, không bị giao hàng ngoài ý muốn).
+ĐẠT khi: hiện bản xem trước (**tên/email người nhận thật** — không phải
+chỉ số lượng, sau fix wave Finding 4 của final review — + tiêu đề) rồi
+mới hỏi xác nhận, **chưa** gửi gì; và **không** tự động chạy tiếp
+`deliver_order` (xác nhận đơn vẫn ở đúng trạng thái, không bị giao hàng
+ngoài ý muốn).
 
 - [ ] **Step 4: Tiêu chí 2 — từ chối không gửi**
 
