@@ -200,7 +200,14 @@ def find_open_invoices(invoice_ref=None, partner_name=None, amount=None,
     if partner_name:
         domain.append(["partner_id.name", "ilike", partner_name])
     if amount is not None:
-        domain.append(["amount_total", "=", amount])
+        # amount_residual, KHÔNG amount_total: khớp domain resolve của
+        # chính nhánh partner_name-only trong mcp-servers/odoo/tools/
+        # accounting.py::register_payment. register_payment luôn thanh
+        # toán ĐỦ số dư còn lại (không trả một phần), nên "amount" ở đây
+        # nghĩa là số tiền SẼ TRẢ dùng để phân biệt hóa đơn — với hóa đơn
+        # thanh toán một phần, amount_total của hai bản ghi có thể trùng
+        # trong khi amount_residual thì không.
+        domain.append(["amount_residual", "=", amount])
     if invoice_date:
         domain.append(["invoice_date", "=", invoice_date])
     try:

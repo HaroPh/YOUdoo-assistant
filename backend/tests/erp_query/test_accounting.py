@@ -213,6 +213,19 @@ def test_find_open_invoices_nhan_ca_invoice_ref_lan_partner_name():
     assert ["partner_id.name", "ilike", "Acme"] in t2.calls[0][2][0]
 
 
+def test_find_open_invoices_amount_loc_theo_so_du():
+    """amount lọc theo amount_residual, khớp domain resolve của chính nhánh
+    partner_name-only của mcp-servers/odoo/tools/accounting.py::register_payment
+    (dòng domain.append(["amount_residual", "=", amount])) — KHÔNG phải
+    amount_total, vì register_payment luôn thanh toán ĐỦ số dư còn lại,
+    amount chỉ dùng để phân biệt hóa đơn theo số tiền SẼ TRẢ."""
+    t = TwoModelTransport([], [])
+    accounting.find_open_invoices(partner_name="Acme", amount=210.0, gw=Gateway(t))
+    dom = t.calls[0][2][0]
+    assert ["amount_residual", "=", 210.0] in dom
+    assert ["amount_total", "=", 210.0] not in dom
+
+
 def test_find_open_invoices_bao_gom_ca_hoa_don_mua():
     """KHÔNG dùng lại find_posted_invoice được: hàm đó lọc cứng
     move_type='out_invoice', trong khi register_payment phục vụ cả

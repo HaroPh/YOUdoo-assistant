@@ -164,6 +164,24 @@ async def test_post_invoice_thieu_ca_id_lan_ten_thi_hoi_lai(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_post_invoice_tu_choi_hoa_don_da_phat_hanh(monkeypatch):
+    """§Finding 1: nhánh invoice_id-only KHÔNG check state trước khi render
+    tóm tắt — hóa đơn đã posted (vd chain-supplied) sẽ hiện như thể còn
+    nháp, người dùng xác nhận rồi tool mới báo lỗi. Phải chặn TRƯỚC khi
+    hiện bảng/hỏi xác nhận."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    posted = {**_DRAFT, "state": "posted", "name": "INV/2026/00099"}
+    _detail(monkeypatch, inv=posted)
+    rec = {}
+    graph = _graph(iw.make_post_invoice_node([_fake_tool("post_invoice", rec)]))
+    res = await graph.ainvoke(_state("post_invoice", {"invoice_id": 105}),
+                              {"configurable": {"thread_id": "p8"}})
+    assert "__interrupt__" not in res
+    assert "args" not in rec
+    assert "đã phát hành rồi" in res["messages"][-1].content
+
+
+@pytest.mark.asyncio
 async def test_post_invoice_write_tat_thi_tu_choi_ngay(monkeypatch):
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: False)
     rec = {}
@@ -253,6 +271,53 @@ async def test_register_payment_partner_name_mo_ho_thi_hoi_chon(monkeypatch):
         _state("register_payment", {"partner_name": "Acme"}), cfg)
     assert res["__interrupt__"][0].value["kind"] == "disambiguation"
     assert "args" not in rec
+
+
+@pytest.mark.asyncio
+async def test_register_payment_tu_choi_hoan_tien(monkeypatch):
+    """§Finding 1: register_payment (tool) chỉ chấp nhận
+    move_type in (out_invoice, in_invoice) — kể cả ở nhánh invoice_id-only.
+    Một credit memo posted/chưa đối soát (out_refund/in_refund) vẫn lọt
+    qua find_open_invoices và sẽ render tóm tắt như thể thanh toán được,
+    người dùng xác nhận rồi tool mới báo lỗi. Phải chặn TRƯỚC khi hiện
+    bảng/hỏi xác nhận."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    refund = {**_POSTED, "id": 102, "name": "RINV/2026/00003",
+              "move_type": "out_refund"}
+    _detail(monkeypatch, inv=refund, lines=[_CHAIR])
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    res = await graph.ainvoke(_state("register_payment", {"invoice_id": 102}),
+                              {"configurable": {"thread_id": "r6"}})
+    assert "__interrupt__" not in res
+    assert "args" not in rec
+    assert "credit memo" in res["messages"][-1].content.lower()
+
+
+@pytest.mark.asyncio
+async def test_register_payment_nhan_disambig_hien_so_du_khong_phai_tong(monkeypatch):
+    """§Finding 2: hai hóa đơn thanh toán một phần, CÙNG amount_total nhưng
+    KHÁC amount_residual — nhãn disambig của register_payment phải phân
+    biệt được bằng số dư (số tiền thực sự sẽ trả), không phải tổng hóa đơn
+    (số không liên quan tới quyết định chọn)."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    row_a = {**_POSTED, "id": 100, "name": "INV/2026/00028",
+             "amount_total": 500.0, "amount_residual": 210.0}
+    row_b = {**_POSTED, "id": 101, "name": "INV/2026/00029",
+             "amount_total": 500.0, "amount_residual": 90.0}
+    _opens(monkeypatch, [row_a, row_b])
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    res = await graph.ainvoke(
+        _state("register_payment", {"partner_name": "Acme"}),
+        {"configurable": {"thread_id": "r7"}})
+    itr = res["__interrupt__"][0].value
+    labels = [o["name"] for o in itr["options"]]
+    assert labels[0] != labels[1]
+    assert "210" in labels[0] and "90" in labels[1]
+    assert "500" not in labels[0] and "500" not in labels[1]
 
 
 @pytest.mark.asyncio

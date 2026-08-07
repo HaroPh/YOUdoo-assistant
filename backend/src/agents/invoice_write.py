@@ -45,16 +45,22 @@ def render_invoice_summary(head: str, lines: list, totals: list) -> str:
     return "\n".join([head, *body, *totals]) + "\n" + WRITE_CONFIRM_SUFFIX
 
 
-def _invoice_label(r: dict) -> str:
+def _invoice_label(r: dict, amount_field: str = "amount_total") -> str:
     """Nhãn chọn trong disambig. PHẢI có số tiền + ngày: hóa đơn nháp không
-    có số nên chỉ tên đối tác thì không phân biệt được."""
+    có số nên chỉ tên đối tác thì không phân biệt được.
+
+    amount_field CHỌN ĐƯỢC (mặc định amount_total, đúng cho draft — hai
+    trường bằng nhau ở draft nên không đổi hành vi post_invoice): picker của
+    register_payment truyền "amount_residual" vì đó mới là số tiền sẽ trả,
+    và với hóa đơn thanh toán một phần amount_total của hai bản ghi có thể
+    trùng nhau trong khi amount_residual thì không (spec Finding 2)."""
     partner = (r.get("partner_id") or [0, "?"])[1]
     return (f"{r.get('name') or 'chưa có số'} — {partner}"
-            f" — {(r.get('amount_total') or 0):,.0f}"
+            f" — {(r.get(amount_field) or 0):,.0f}"
             f" — {r.get('invoice_date') or 'chưa có ngày'}")
 
 
-def _pick_invoice(env: dict, label: str):
+def _pick_invoice(env: dict, label: str, amount_field: str = "amount_total"):
     """envelope find_*_invoices → ('ok', <row>) | ('msg', <state update>).
     Nhiều kết quả → disambig interrupt (pattern _resolve_product của
     returns_write.py)."""
@@ -65,7 +71,7 @@ def _pick_invoice(env: dict, label: str):
         return "msg", _msg("Không tìm thấy hóa đơn phù hợp.")
     if len(rows) == 1:
         return "ok", rows[0]
-    options = [{"id": r["id"], "name": _invoice_label(r)} for r in rows]
+    options = [{"id": r["id"], "name": _invoice_label(r, amount_field)} for r in rows]
     chosen = _interrupt({"kind": "disambiguation",
                          "question": _disambig_q(label, options),
                          "options": options, "expires_at": _ttl_expiry()})
@@ -110,6 +116,17 @@ def make_post_invoice_node(tools):
             return val
         inv, lines = val
 
+        # Chặn TRƯỚC cổng xác nhận (final review Finding 1): nhánh
+        # invoice_id-only KHÔNG check state — một hóa đơn đã posted
+        # (chain-supplied hoặc phát hành trùng) vẫn render như thể còn
+        # nháp, người dùng xác nhận rồi tool mới báo "đã phát hành rồi".
+        if inv.get("state") != "draft":
+            name = inv.get("name") or "chưa có số"
+            if inv.get("state") == "posted":
+                return _msg(f"Hóa đơn {name} đã phát hành rồi.")
+            return _msg(f"Hóa đơn {name} không ở trạng thái nháp "
+                       f"(trạng thái: {inv.get('state')}).")
+
         partner = (inv.get("partner_id") or [0, "?"])[1]
         head = (f"Hóa đơn nháp của {partner} — ngày "
                 f"{inv.get('invoice_date') or 'chưa có'}:")
@@ -152,7 +169,7 @@ def make_register_payment_node(tools):
                                               partner_name or None,
                                               args.get("amount"),
                                               args.get("invoice_date")),
-                "hóa đơn")
+                "hóa đơn", amount_field="amount_residual")
             if kind == "msg":
                 return val
             invoice_id = val["id"]
@@ -161,6 +178,19 @@ def make_register_payment_node(tools):
         if kind == "msg":
             return val
         inv, lines = val
+
+        # Chặn TRƯỚC cổng xác nhận (final review Finding 1): tool
+        # register_payment chỉ chấp nhận move_type in (out_invoice,
+        # in_invoice) — kể cả nhánh invoice_id-only. Một credit memo
+        # (out_refund/in_refund) posted/chưa đối soát vẫn lọt qua
+        # find_open_invoices (payment_state='not_paid' hợp lệ) và có thể
+        # tới đây qua chain create_credit_memo → post_invoice →
+        # register_payment (NEXT_STEPS) — không chặn ở đây thì người dùng
+        # xác nhận một bảng tóm tắt đầy đủ rồi tool mới báo lỗi.
+        if inv.get("move_type") not in ("out_invoice", "in_invoice"):
+            name = inv.get("name") or "chưa có số"
+            return _msg(f"Hóa đơn {name} là credit memo (hoàn tiền), "
+                       f"không thể ghi nhận thanh toán qua đây.")
 
         partner = (inv.get("partner_id") or [0, "?"])[1]
         head = (f"Thanh toán hóa đơn {inv.get('name') or 'chưa có số'}"

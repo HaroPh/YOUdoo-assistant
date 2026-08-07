@@ -492,7 +492,8 @@ async def test_chuoi_dung_tien_dung_lai_hoi_lai_qua_do_thi_that(monkeypatch):
         "status": "success",
         "data": {"invoice": {"partner_id": [41, "Azur"],
                              "invoice_date": "2026-08-07",
-                             "amount_total": 100000.0},
+                             "amount_total": 100000.0,
+                             "state": "draft"},
                  "lines": [{"product_id": [552, "Tủ"], "quantity": 2.0,
                            "price_subtotal": 100000.0}]},
         "display": "x"})
