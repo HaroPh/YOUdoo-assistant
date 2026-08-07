@@ -172,3 +172,96 @@ async def test_post_invoice_write_tat_thi_tu_choi_ngay(monkeypatch):
                               {"configurable": {"thread_id": "p7"}})
     assert "__interrupt__" not in res
     assert "args" not in rec
+
+
+# ── register_payment ────────────────────────────────────────────────────────
+
+_POSTED = {"id": 100, "name": "INV/2026/00028",
+           "partner_id": [41, "Acme Corporation"], "invoice_date": "2026-08-01",
+           "amount_total": 350.0, "amount_residual": 350.0,
+           "move_type": "out_invoice", "state": "posted"}
+_CHAIR = {"product_id": [9, "[FURN_7777] Office Chair"],
+          "quantity": 2.0, "price_subtotal": 140.0}
+
+
+def _opens(monkeypatch, rows):
+    monkeypatch.setattr(iw.accounting, "find_open_invoices", lambda *a, **k: {
+        "status": "success", "data": {"rows": rows, "count": len(rows)},
+        "display": "x"})
+
+
+@pytest.mark.asyncio
+async def test_register_payment_hien_so_du_khong_phai_tong(monkeypatch):
+    """Tool LUÔN thanh toán đủ số dư còn lại, không trả một phần — nên số
+    quyết định là amount_residual. Hiển thị amount_total sẽ SAI với hóa đơn
+    đã trả một phần (payment_state='partial')."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    partial = {**_POSTED, "amount_total": 350.0, "amount_residual": 210.0}
+    _detail(monkeypatch, inv=partial, lines=[_CHAIR])
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    res = await graph.ainvoke(_state("register_payment", {"invoice_id": 100}),
+                              {"configurable": {"thread_id": "r1"}})
+    q = res["__interrupt__"][0].value["question"]
+    assert "INV/2026/00028" in q
+    assert "Số dư sẽ thanh toán: 210" in q
+    assert "Tổng hóa đơn: 350" in q
+
+
+@pytest.mark.asyncio
+async def test_register_payment_xac_nhan_thi_goi_bang_invoice_id(monkeypatch):
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    _detail(monkeypatch, inv=_POSTED, lines=[_CHAIR])
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    cfg = {"configurable": {"thread_id": "r2"}}
+    await graph.ainvoke(_state("register_payment", {"invoice_id": 100}), cfg)
+    res = await graph.ainvoke(Command(resume=True), cfg)
+    assert rec["args"] == {"invoice_id": 100}
+    assert res["last_write"]["tool"] == "register_payment"
+
+
+@pytest.mark.asyncio
+async def test_register_payment_giu_journal_neu_co(monkeypatch):
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    _detail(monkeypatch, inv=_POSTED, lines=[_CHAIR])
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    cfg = {"configurable": {"thread_id": "r3"}}
+    await graph.ainvoke(
+        _state("register_payment", {"invoice_id": 100, "journal": "bank"}), cfg)
+    await graph.ainvoke(Command(resume=True), cfg)
+    assert rec["args"] == {"invoice_id": 100, "journal": "bank"}
+
+
+@pytest.mark.asyncio
+async def test_register_payment_partner_name_mo_ho_thi_hoi_chon(monkeypatch):
+    """register_payment nhận CẢ invoice_ref LẪN partner_name — đường
+    partner_name mơ hồ y hệt post_invoice nên phải xử lý cùng cách."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    _opens(monkeypatch, [_POSTED, {**_POSTED, "id": 96,
+                                   "name": "INV/2026/00026"}])
+    _detail(monkeypatch, inv=_POSTED, lines=[_CHAIR])
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    cfg = {"configurable": {"thread_id": "r4"}}
+    res = await graph.ainvoke(
+        _state("register_payment", {"partner_name": "Acme"}), cfg)
+    assert res["__interrupt__"][0].value["kind"] == "disambiguation"
+    assert "args" not in rec
+
+
+@pytest.mark.asyncio
+async def test_register_payment_thieu_moi_thu_thi_hoi_lai(monkeypatch):
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    rec = {}
+    graph = _graph(iw.make_register_payment_node(
+        [_fake_tool("register_payment", rec)]))
+    res = await graph.ainvoke(_state("register_payment", {}),
+                              {"configurable": {"thread_id": "r5"}})
+    assert "__interrupt__" not in res
+    assert "args" not in rec

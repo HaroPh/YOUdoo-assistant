@@ -130,3 +130,62 @@ def make_post_invoice_node(tools):
         return _finish("post_invoice", result)
 
     return post_invoice_node
+
+
+def make_register_payment_node(tools):
+    by_name = {t.name: t for t in tools}
+
+    async def register_payment_node(state: ERPAgentState) -> dict:
+        if not write_gate.write_actions_enabled():
+            return _msg(WRITE_DISABLED_MSG)
+        args = (state.get("pending_action") or {}).get("args") or {}
+        invoice_id = args.get("invoice_id") or 0
+        journal = str(args.get("journal") or "").strip()
+
+        if not invoice_id:
+            invoice_ref = str(args.get("invoice_ref") or "").strip()
+            partner_name = str(args.get("partner_name") or "").strip()
+            if not invoice_ref and not partner_name:
+                return _msg("Bạn cần cho biết số hóa đơn hoặc tên khách hàng.")
+            kind, val = _pick_invoice(
+                accounting.find_open_invoices(invoice_ref or None,
+                                              partner_name or None,
+                                              args.get("amount"),
+                                              args.get("invoice_date")),
+                "hóa đơn")
+            if kind == "msg":
+                return val
+            invoice_id = val["id"]
+
+        kind, val = _detail_or_msg(invoice_id)
+        if kind == "msg":
+            return val
+        inv, lines = val
+
+        partner = (inv.get("partner_id") or [0, "?"])[1]
+        head = (f"Thanh toán hóa đơn {inv.get('name') or 'chưa có số'}"
+                f" — {partner}:")
+        # amount_residual, KHÔNG phải amount_total: tool luôn thanh toán ĐỦ số
+        # dư còn lại, không trả một phần — hiển thị tổng sẽ sai với hóa đơn
+        # payment_state='partial'.
+        totals = [f"  Tổng hóa đơn: {(inv.get('amount_total') or 0):,.0f}",
+                  f"  Số dư sẽ thanh toán: {(inv.get('amount_residual') or 0):,.0f}"]
+        draft = render_invoice_summary(head, lines, totals)
+        confirmed = _interrupt({"kind": "confirm", "question": draft,
+                                "expires_at": _ttl_expiry()})
+        if not confirmed:
+            return _msg("Đã hủy ghi nhận thanh toán.")
+
+        tool = by_name.get("register_payment")
+        if tool is None:
+            return _msg("Công cụ ghi nhận thanh toán không khả dụng.")
+        payload = {"invoice_id": invoice_id}
+        if journal:
+            payload["journal"] = journal
+        try:
+            result = await tool.ainvoke(payload)
+        except Exception as e:  # noqa: BLE001
+            return _msg(f"Lỗi khi ghi nhận thanh toán: {e}")
+        return _finish("register_payment", result)
+
+    return register_payment_node
