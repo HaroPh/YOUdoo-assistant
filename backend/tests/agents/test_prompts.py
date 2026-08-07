@@ -240,3 +240,32 @@ def test_system_prompt_advertises_get_customer_detail():
     (kiểm get_bom_detail/list_manufacturing_orders có trong SYSTEM_PROMPT)."""
     from src.agents.prompts import SYSTEM_PROMPT
     assert "get_customer_detail" in SYSTEM_PROMPT
+
+
+def test_system_prompt_chu_dong_neu_lien_lac_khi_dung_mot_doi_tac():
+    """Live-verify Task 4 (2026-08-07, sau merge): câu hỏi nghiệp vụ đơn
+    giản về MỘT khách hàng cụ thể (vd "công nợ của khách Azure Interior là
+    bao nhiêu?") đi qua route:read (SYSTEM_PROMPT), KHÔNG qua gather_erp
+    (GATHER_ERP_PROMPT) — xác nhận bằng Langfuse trace thật: trace chỉ có
+    đúng 1 observation "route:read", không có gather_erp/fuse_answer nào.
+    Rule chủ động gợi ý liên lạc mà Task 3 thêm vào GATHER_ERP_PROMPT vì vậy
+    KHÔNG BAO GIỜ chạy trên đường phổ biến này — agent biết get_customer_detail
+    tồn tại (test phía trên) nhưng không có chỉ dẫn nào bảo nó chủ động gọi.
+    Đo thật: câu trả lời không có email/SĐT dù dữ liệu có sẵn. Thêm ĐÚNG câu
+    rule đã duyệt/đã hoạt động ở GATHER_ERP_PROMPT vào đây để đóng đường thứ
+    hai của cùng một tính năng."""
+    from src.agents.prompts import SYSTEM_PROMPT
+    assert ("Nếu câu trả lời xoay quanh ĐÚNG MỘT khách hàng/nhà cung cấp cụ "
+            "thể làm trọng tâm (không phải danh sách nhiều đối tác), và câu "
+            "hỏi có tính chất nghiệp vụ có thể cần liên hệ tiếp theo (đặt "
+            "hàng, hỏi thêm, xác nhận, báo giá) — hãy chủ động gọi "
+            "get_customer_detail/get_supplier_detail và nêu email/SĐT nếu "
+            "có, không cần người dùng hỏi thẳng"
+            in SYSTEM_PROMPT)
+
+
+def test_system_prompt_no_think_van_la_token_cuoi():
+    """Chống hồi quy: thêm rule mới không được đẩy /no_think ra khỏi vị trí
+    cuối cùng — cùng bất biến với GATHER_ERP_PROMPT/FUSE_PROMPT."""
+    from src.agents.prompts import SYSTEM_PROMPT
+    assert SYSTEM_PROMPT.rstrip().endswith("/no_think")
