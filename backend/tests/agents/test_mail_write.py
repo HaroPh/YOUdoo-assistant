@@ -220,3 +220,59 @@ async def test_write_tat_thi_tu_choi_ngay(monkeypatch):
                               {"configurable": {"thread_id": "m6"}})
     assert "__interrupt__" not in res
     assert preview_calls == []
+
+
+@pytest.mark.asyncio
+async def test_gate_tat_giua_luc_cho_xac_nhan_thi_huy_ban_nhap_khong_gui(monkeypatch):
+    """Review round 2, Finding 1 (Important): LangGraph replay lại TOÀN BỘ
+    node khi resume — mọi coordinator 1-node khác nhờ vậy tự động re-check
+    write_gate ở MỌI lần resume (gate check nằm ở đầu node, node bị replay).
+    Tách 2 node đã VÔ TÌNH xóa mất bất biến an toàn đó: Node 1 chỉ check
+    gate một lần trước khi interrupt tồn tại; Node 2 (nơi gọi
+    send_prepared_email thật) trước đây KHÔNG check gate — nếu gate bị tắt
+    ngay lúc câu hỏi xác nhận đang chờ, resume(confirm=True) vẫn gửi mail.
+    Case tương đương ở post_invoice (1-node) đã từ chối đúng.
+
+    Ở đây gate BẬT lúc Node 1 chạy (preview thành công, bản nháp mail.mail
+    đã tồn tại thật trong Odoo) rồi TẮT trước khi Node 2 resume — bản nháp
+    đó đang ở trạng thái 'outgoing', cron sẽ gửi nó nếu không chủ động hủy,
+    nên nhánh gate-tắt ở Node 2 PHẢI gọi discard_prepared_email, không chỉ
+    từ chối gửi."""
+    gate = {"on": True}
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: gate["on"])
+    preview_calls, send_calls, discard_calls = [], [], []
+    preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
+    tools = [preview_tool, send_tool, discard_tool]
+    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
+                   mw.make_send_order_confirmation_email_node(tools))
+    cfg = {"configurable": {"thread_id": "m7"}}
+    res1 = await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
+    assert "__interrupt__" in res1                     # xác nhận đang chờ
+    assert preview_calls == [{"template_name": "Sales: Order Confirmation",
+                              "res_model": "sale.order", "ref": "S00166"}]
+
+    gate["on"] = False                                  # tắt NGAY lúc chờ
+    res2 = await graph.ainvoke(Command(resume=True), cfg)
+    assert send_calls == []                             # KHÔNG được gửi
+    assert discard_calls == [{"mail_id": 59}]            # phải chủ động hủy
+    assert "__interrupt__" not in res2
+
+
+def test_send_order_confirmation_email_registered_in_registry_and_prompts():
+    """Review round 2, Finding 2 (Important): coordinator này KHÔNG nằm
+    trong NEXT_STEPS (cố ý — xem docstring mail_write.py), nên dòng trong
+    WRITE_PLANNER_PROMPT là đường DUY NHẤT LLM biết tool này tồn tại. Nếu
+    dòng đó bị xóa, toàn bộ coordinator (dù cấu trúc đúng, dù mọi test dựng
+    state tay ở trên vẫn xanh) sẽ KHÔNG BAO GIỜ chạm tới được từ một lượt
+    chat thật — đúng lớp lỗi mà write-confirmation-ux-fix từng dính, và
+    test này (theo mẫu test_bom_registered_in_registry_and_prompts) khóa nó
+    lại ở mức test."""
+    from src.agents.write_registry import (COORDINATED_TOOLS,
+                                            WRITE_COORDINATORS, NEXT_STEPS)
+    from src.agents.prompts import WRITE_PLANNER_PROMPT
+    assert "send_order_confirmation_email" in COORDINATED_TOOLS
+    assert (WRITE_COORDINATORS["send_order_confirmation_email"].node
+            == "send_order_confirmation_email_preview")
+    # KHÔNG chain tự động — xem Global Constraints + docstring mail_write.py
+    assert "send_order_confirmation_email" not in NEXT_STEPS
+    assert "send_order_confirmation_email(order_ref" in WRITE_PLANNER_PROMPT

@@ -19,7 +19,21 @@ nó (nơi có interrupt) resume.
     (qua conditional edge ở graph.py, KHÔNG unconditional) chuyển sang Node 2
     nếu thành công, hoặc thẳng write_continuation nếu lỗi/thiếu input.
   Node 2 (send_order_confirmation_email): đọc dữ liệu đã lưu từ Node 1
-    (KHÔNG gọi lại preview), _interrupt xác nhận, rồi gọi send_prepared_email.
+    (KHÔNG gọi lại preview), tự re-check write_gate (xem Finding 1 dưới),
+    _interrupt xác nhận, rồi gọi send_prepared_email.
+
+NODE 2 PHẢI TỰ RE-CHECK write_gate (review round 2, Finding 1 — Important,
+2026-08-07): tách 2 node vô tình xóa mất một bất biến an toàn mà mọi
+coordinator 1-node khác có MIỄN PHÍ — LangGraph replay TOÀN BỘ node khi
+resume sau interrupt, nên gate check ở đầu node của họ tự động chạy lại ở
+MỌI lần resume. Node 1 ở đây chỉ chạy MỘT LẦN trước khi interrupt tồn tại,
+nên nếu chỉ Node 1 check gate, gate bị tắt (từ Odoo UI) ngay lúc câu hỏi
+xác nhận đang chờ sẽ không bao giờ được phát hiện — đo thật: thiếu check
+này, resume(confirm=True) vẫn gửi mail thật dù gate đã tắt. Nhánh gate-tắt
+ở Node 2 cũng phải discard_prepared_email (không chỉ từ chối gửi) vì bản
+nháp của Node 1 đã tồn tại thật, đang 'outgoing' — cron sẽ gửi nó nếu
+không chủ động hủy, khác các coordinator khác nơi gate-tắt chưa có
+side-effect nào cần dọn.
 
 TỪ CHỐI GỬI PHẢI CHỦ ĐỘNG HỦY BẢN NHÁP (đảo ngược quyết định §4.1 gốc của
 spec — quyết định đó được duyệt TRƯỚC KHI biết Odoo có cron "Mail: Email
@@ -94,14 +108,39 @@ def make_send_order_confirmation_email_preview_node(tools):
 
 def make_send_order_confirmation_email_node(tools):
     """Node 2: đọc mail_id/subject/recipient_count đã lưu (Node 1), xác
-    nhận, gửi. Từ chối → hủy bản nháp (best-effort) — xem docstring module."""
+    nhận, gửi. Từ chối → hủy bản nháp (best-effort) — xem docstring module.
+
+    RE-CHECK write_gate Ở ĐÂY, KHÔNG chỉ ở Node 1 (review round 2, Finding
+    1 — Important): mọi coordinator 1-node khác tự động re-check gate ở MỌI
+    lần resume, vì LangGraph replay TOÀN BỘ node (gồm cả check ở đầu) khi
+    resume sau _interrupt(). Tách 2 node đã vô tình xóa mất bất biến đó —
+    Node 1 chỉ chạy 1 lần TRƯỚC KHI interrupt tồn tại, nên gate có thể bị
+    tắt (từ Odoo UI, giữa lúc câu hỏi xác nhận đang chờ) mà Node 1 không
+    bao giờ biết. Đo thật: gate tắt lúc đang chờ + resume(confirm=True) →
+    node cũ (không check) vẫn gửi mail thật."""
     by_name = {t.name: t for t in tools}
+
+    async def _discard_draft(mail_id) -> None:
+        discard_tool = by_name.get("discard_prepared_email")
+        if discard_tool is not None:
+            try:
+                await discard_tool.ainvoke({"mail_id": mail_id})
+            except Exception:  # noqa: BLE001 — best-effort, không chặn thông báo cho user
+                pass
 
     async def send_order_confirmation_email_node(state: ERPAgentState) -> dict:
         args = (state.get("pending_action") or {}).get("args") or {}
-        order_ref = str(args.get("order_ref") or "")
         mail_id = args.get("mail_id")
 
+        if not write_gate.write_actions_enabled():
+            # Bản nháp (Node 1) đã tồn tại thật, đang ở trạng thái 'outgoing'
+            # — cron "Mail: Email Queue Manager" sẽ gửi nó bất kể gate nếu
+            # không chủ động hủy (khác các coordinator khác: gate tắt ở đó
+            # chỉ cần từ chối, KHÔNG có side-effect nào đã xảy ra để dọn).
+            await _discard_draft(mail_id)
+            return _msg(WRITE_DISABLED_MSG)
+
+        order_ref = str(args.get("order_ref") or "")
         preview_text = (f"Mail xác nhận đơn {order_ref}:\n"
                         f"  Tới: {args.get('recipient_count', 0)} người nhận\n"
                         f"  Tiêu đề: {args.get('subject')}\n"
@@ -109,12 +148,7 @@ def make_send_order_confirmation_email_node(tools):
         confirmed = _interrupt({"kind": "confirm", "question": preview_text,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
-            discard_tool = by_name.get("discard_prepared_email")
-            if discard_tool is not None:
-                try:
-                    await discard_tool.ainvoke({"mail_id": mail_id})
-                except Exception:  # noqa: BLE001 — best-effort, không chặn thông báo hủy
-                    pass
+            await _discard_draft(mail_id)
             return _msg("Đã hủy gửi mail xác nhận đơn.")
 
         send_tool = by_name.get("send_prepared_email")

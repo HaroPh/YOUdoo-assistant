@@ -299,6 +299,7 @@ from src.agents.nodes import make_erp_write_executor_node
 from src.agents.graph import (_route_after_write_planner,
                                       _route_after_continuation)
 from src.agents.write_registry import WRITE_COORDINATORS, CONFIRM_IN_CHAIN
+from src.agents.mail_write import make_send_order_confirmation_email_node, route_after_mail_preview
 
 
 def _env_tool(name, ref, state_val, display, rec):
@@ -322,6 +323,14 @@ def _write_graph(llm, tools):
     # CONFIRM_IN_CHAIN-extended one, so any future test using this helper to
     # exercise a money-touching chain step would have silently tested nothing
     # real (or hit the same KeyError production would hit if graph.py regressed).
+    #
+    # Drifted AGAIN — review round 2, Finding 3 (2026-08-07, order-confirmation-
+    # email task): send_order_confirmation_email became a 2-node coordinator
+    # (preview → interrupt+send) and graph.py grew a hand-wired skip +
+    # conditional edge for it (see build_graph in graph.py). This helper is
+    # copy-mirrored by hand from graph.py, same as the rest of its wiring —
+    # NOT factored into a shared function, to keep this fix low-risk/scoped;
+    # if it drifts a third time, that's the signal to actually share the code.
     g = StateGraph(ERPAgentState)
     g.add_node("erp_write_planner", make_erp_write_planner_node(llm))
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
@@ -334,7 +343,21 @@ def _write_graph(llm, tools):
     g.add_conditional_edges("erp_write_planner", _route_after_write_planner, targets)
     g.add_edge("erp_write_executor", "write_continuation")
     for s in WRITE_COORDINATORS.values():
+        if s.node == "send_order_confirmation_email_preview":
+            continue  # coordinator 2 node, nối tay ngay dưới — mirror graph.py
         g.add_edge(s.node, "write_continuation")
+
+    # send_order_confirmation_email: coordinator 2 node. Node 1 (preview) đã
+    # add ở vòng lặp add_node phía trên. Node 2 (gửi) KHÔNG nằm trong
+    # WRITE_COORDINATORS — add tay, khớp đúng graph.py.
+    g.add_node("send_order_confirmation_email",
+              make_send_order_confirmation_email_node(tools))
+    g.add_conditional_edges(
+        "send_order_confirmation_email_preview", route_after_mail_preview,
+        {"send_order_confirmation_email": "send_order_confirmation_email",
+         "write_continuation": "write_continuation"})
+    g.add_edge("send_order_confirmation_email", "write_continuation")
+
     cont_targets = {"erp_write_executor": "erp_write_executor", END: END}
     cont_targets.update({WRITE_COORDINATORS[t].node: WRITE_COORDINATORS[t].node
                          for t in CONFIRM_IN_CHAIN})
