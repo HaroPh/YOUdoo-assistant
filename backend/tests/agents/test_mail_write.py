@@ -46,10 +46,14 @@ def _state(args):
 
 def _preview_response(call_number):
     """mail_id ĐỔI theo call_number (58+n) — để test phát hiện được nếu
-    preview bị gọi hơn 1 lần (mail_id sẽ khác giữa các lần gọi)."""
+    preview bị gọi hơn 1 lần (mail_id sẽ khác giữa các lần gọi).
+
+    "recipients" (danh sách chuỗi người-nhận-thật), KHÔNG PHẢI
+    "recipient_count" (final review 2026-08-07, Finding 4) — khớp shape mới
+    của preview_template_email (mcp-servers/odoo/tools/mail.py)."""
     return {"ok": True, "display": "Đã soạn mail 'Order Confirmation', chờ xác nhận gửi.",
            "mail_id": 58 + call_number, "subject": "Order Confirmation (Ref S00166)",
-           "recipient_count": 1}
+           "recipients": ["Nguyễn Văn A <a@example.com>"]}
 
 
 _SEND_OK = {"ok": True, "display": "Đã gửi mail.", "ref": "Order Confirmation (Ref S00166)",
@@ -78,7 +82,10 @@ async def test_co_order_ref_thi_hien_preview_roi_moi_hoi(monkeypatch):
     itr = res["__interrupt__"][0].value
     assert itr["kind"] == "confirm"
     assert "S00166" in itr["question"]
-    assert "1 người nhận" in itr["question"]
+    # Finding 4 (final review 2026-08-07): cổng xác nhận phải lộ ra NGƯỜI
+    # NHẬN THẬT, không phải chỉ số lượng — mới đủ để người dùng bắt được sai
+    # người nhận tại đúng điểm được dựng ra để bắt lỗi này.
+    assert "Nguyễn Văn A <a@example.com>" in itr["question"]
     assert "Order Confirmation (Ref S00166)" in itr["question"]
     assert preview_calls == [{"template_name": "Sales: Order Confirmation",
                               "res_model": "sale.order", "ref": "S00166"}]
@@ -130,8 +137,13 @@ async def test_tu_choi_thi_goi_discard_va_khong_goi_send(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_discard_loi_khong_chan_thong_bao_huy(monkeypatch):
-    """discard_prepared_email lỗi (vd Odoo mạng lỗi) không được chặn thông
-    báo 'đã hủy' cho người dùng — best-effort, không phải hợp đồng chính."""
+    """discard_prepared_email lỗi (vd Odoo mạng lỗi, hoặc — trường hợp thật
+    hay gặp nhất — bị chính write_actions_enabled() gate chặn vì unlink cũng
+    là write, xem Finding 1 final review 2026-08-07) không được chặn thông
+    báo 'đã hủy' cho người dùng — best-effort, không phải hợp đồng chính.
+    NHƯNG (Finding 1, khác hành vi CŨ im lặng nuốt lỗi): phải kèm cảnh báo rõ
+    ràng rằng Odoo có thể vẫn tự gửi mail qua cron trong ~1 giờ tới, vì đây
+    chính là lúc cleanup thất bại thật sự có khả năng cao nhất."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     preview_calls, send_calls = [], []
     preview_tool, send_tool, _ = _tools(preview_calls, send_calls, [])
@@ -149,7 +161,45 @@ async def test_discard_loi_khong_chan_thong_bao_huy(monkeypatch):
     await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     res = await graph.ainvoke(Command(resume=False), cfg)
     assert send_calls == []
-    assert "hủy" in res["messages"][-1].content.lower()
+    final = res["messages"][-1].content
+    assert "hủy" in final.lower()
+    assert "không hủy được bản nháp" in final.lower()
+    assert "1 giờ" in final
+
+
+@pytest.mark.asyncio
+async def test_gate_tat_va_discard_loi_thi_canh_bao_ro_rui_ro_con_lai(monkeypatch):
+    """Finding 1 (final review 2026-08-07), nhánh gate-tắt-giữa-chừng: đây
+    chính là ca ĐO THẬT của lo ngại trong finding — discard_prepared_email
+    tự nó gọi odoo() với method 'unlink', bị CHÍNH write_actions_enabled()
+    gate (đã False ở nhánh này) chặn giống mọi write khác, nên gần như chắc
+    chắn thất bại đúng lúc cần dọn nhất. Trước đây lỗi này bị nuốt im lặng
+    và người dùng chỉ thấy WRITE_DISABLED_MSG — nghe an toàn nhưng có thể
+    không phải vậy. Giờ phải kèm cảnh báo."""
+    gate = {"on": True}
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: gate["on"])
+    preview_calls, send_calls = [], []
+    preview_tool, send_tool, _ = _tools(preview_calls, send_calls, [])
+    discard_tool = MagicMock()
+    discard_tool.name = "discard_prepared_email"
+
+    async def _raise_discard(_args):
+        raise RuntimeError("Thao tác 'unlink' bị chặn — write-mode đang tắt")
+
+    discard_tool.ainvoke = _raise_discard
+    tools = [preview_tool, send_tool, discard_tool]
+    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
+                   mw.make_send_order_confirmation_email_node(tools))
+    cfg = {"configurable": {"thread_id": "m3c"}}
+    res1 = await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
+    assert "__interrupt__" in res1
+
+    gate["on"] = False
+    res2 = await graph.ainvoke(Command(resume=True), cfg)
+    assert send_calls == []
+    final = res2["messages"][-1].content
+    assert "không hủy được bản nháp" in final.lower()
+    assert "1 giờ" in final
 
 
 @pytest.mark.asyncio

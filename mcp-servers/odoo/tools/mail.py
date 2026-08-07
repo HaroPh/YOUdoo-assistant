@@ -58,11 +58,28 @@ def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
 
     mail_id = odoo("mail.template", "send_mail", [tpls[0]["id"], recs[0]["id"]],
                    {"force_send": False})
-    rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["subject", "recipient_ids"]})
+    rows = odoo("mail.mail", "read", [[mail_id]],
+               {"fields": ["subject", "recipient_ids", "email_to"]})
     m = rows[0]
+
+    # Finding 4 (final review 2026-08-07): trả DANH SÁCH người nhận thật, không
+    # phải mỗi số lượng — người dùng phải nhìn thấy AI gửi cho ai để cổng xác
+    # nhận còn bắt được sai người nhận. recipient_ids là many2many res.partner
+    # (cần "read" thêm để lấy name/email — "read" đã whitelist toàn cục theo
+    # method, không theo model, nên không cần thêm gì vào security whitelist);
+    # email_to là field địa chỉ thô song song, template có thể populate CÁI
+    # NÀY thay vì recipient_ids — bỏ sót nó thì đếm ra 0 dù mail VẪN sẽ gửi.
+    recipients = []
+    partner_ids = m["recipient_ids"] or []
+    if partner_ids:
+        partners = odoo("res.partner", "read", [partner_ids], {"fields": ["name", "email"]})
+        recipients.extend(f"{p['name']} <{p['email'] or '?'}>" for p in partners)
+    if m.get("email_to"):
+        recipients.append(m["email_to"])
+
     return json.dumps({"ok": True, "display": f"Đã soạn mail '{m['subject']}', chờ xác nhận gửi.",
                        "mail_id": mail_id, "subject": m["subject"],
-                       "recipient_count": len(m["recipient_ids"] or [])},
+                       "recipients": recipients},
                       ensure_ascii=False)
 
 

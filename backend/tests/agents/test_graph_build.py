@@ -124,6 +124,36 @@ def test_continuation_routes_money_touching_chain_steps_to_coordinator():
         assert ("write_continuation", WRITE_COORDINATORS[t].node) in edges
 
 
+def test_mail_preview_node_has_no_unconditional_edge_to_continuation():
+    """Final review 2026-08-07, Finding 5 (Important): send_order_confirmation_
+    email_preview is the ONE WRITE_COORDINATORS entry graph.py's generic wiring
+    loop deliberately skips (`if spec.node == "send_order_confirmation_email_
+    preview": continue`) because it needs bespoke 2-node wiring — preview
+    itself is a real write (creates a mail.mail draft), so it must NOT get an
+    unconditional edge straight to write_continuation like every other
+    coordinator; it goes through route_after_mail_preview's conditional edge
+    instead (see docstring mail_write.py).
+
+    If that `continue` skip is ever accidentally deleted, the graph would
+    still compile clean (LangGraph allows both an unconditional edge AND a
+    conditional edge pair out of the same node) — but at RUNTIME,
+    write_continuation would see pending_action.tool ==
+    "send_order_confirmation_email" (which IS in CONFIRM_IN_CHAIN) and
+    _route_after_continuation would route straight back into the preview
+    node, creating an infinite loop that creates a fresh real mail.mail draft
+    on every iteration until LangGraph's recursion limit trips. Same idiom as
+    test_continuation_routes_money_touching_chain_steps_to_coordinator above:
+    lock the actual built-graph edge structure so a future revert fails at
+    test time, not at 2am in prod."""
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    edges = [(e.source, e.target, e.conditional) for e in graph.get_graph().edges]
+    assert ("send_order_confirmation_email_preview", "write_continuation", False) not in edges
+    # And the conditional path (the CORRECT wiring) must still exist.
+    assert ("send_order_confirmation_email_preview", "write_continuation", True) in edges
+    assert ("send_order_confirmation_email_preview", "send_order_confirmation_email",
+           True) in edges
+
+
 def test_build_graph_accepts_role_mapping(monkeypatch):
     # Previously this test asserted only `graph is not None`, which is VACUOUS:
     # StateGraph.compile() never invokes node bodies and MagicMock() swallows
