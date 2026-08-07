@@ -108,6 +108,22 @@ def test_continuation_loops_back_to_executor():
     assert ("write_continuation", "__end__") in edges
 
 
+def test_continuation_routes_money_touching_chain_steps_to_coordinator():
+    """Task 4 fix round 1, Finding 1: rebuilding the graph with the OLD
+    2-entry target map (deleting graph.py's `cont_targets.update(...)`)
+    still compiles clean — LangGraph only fails at RUNTIME with
+    `KeyError: 'post_invoice'` when a real money chain hits
+    write_continuation. Assert the built graph's ACTUAL conditional-edge
+    structure includes both CONFIRM_IN_CHAIN coordinator targets, so a
+    future revert of those two lines fails at test time, not at 2am in prod."""
+    from src.agents.write_registry import CONFIRM_IN_CHAIN, WRITE_COORDINATORS
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    edges = [(e.source, e.target) for e in graph.get_graph().edges]
+    assert CONFIRM_IN_CHAIN, "rỗng thì test này vô nghĩa"
+    for t in CONFIRM_IN_CHAIN:
+        assert ("write_continuation", WRITE_COORDINATORS[t].node) in edges
+
+
 def test_build_graph_accepts_role_mapping(monkeypatch):
     # Previously this test asserted only `graph is not None`, which is VACUOUS:
     # StateGraph.compile() never invokes node bodies and MagicMock() swallows

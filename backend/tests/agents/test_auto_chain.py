@@ -298,7 +298,7 @@ async def test_create_order_confirm_shows_chain_note(monkeypatch):
 from src.agents.nodes import make_erp_write_executor_node
 from src.agents.graph import (_route_after_write_planner,
                                       _route_after_continuation)
-from src.agents.write_registry import WRITE_COORDINATORS
+from src.agents.write_registry import WRITE_COORDINATORS, CONFIRM_IN_CHAIN
 
 
 def _env_tool(name, ref, state_val, display, rec):
@@ -316,6 +316,12 @@ def _env_tool(name, ref, state_val, display, rec):
 
 
 def _write_graph(llm, tools):
+    # Mirror graph.py's write_continuation wiring EXACTLY (same construction,
+    # not just same result) — Task 4 fix round 1, Finding 2: this helper had
+    # drifted to the old 2-target map while production moved to a
+    # CONFIRM_IN_CHAIN-extended one, so any future test using this helper to
+    # exercise a money-touching chain step would have silently tested nothing
+    # real (or hit the same KeyError production would hit if graph.py regressed).
     g = StateGraph(ERPAgentState)
     g.add_node("erp_write_planner", make_erp_write_planner_node(llm))
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
@@ -329,8 +335,11 @@ def _write_graph(llm, tools):
     g.add_edge("erp_write_executor", "write_continuation")
     for s in WRITE_COORDINATORS.values():
         g.add_edge(s.node, "write_continuation")
+    cont_targets = {"erp_write_executor": "erp_write_executor", END: END}
+    cont_targets.update({WRITE_COORDINATORS[t].node: WRITE_COORDINATORS[t].node
+                         for t in CONFIRM_IN_CHAIN})
     g.add_conditional_edges("write_continuation", _route_after_continuation,
-                            {"erp_write_executor": "erp_write_executor", END: END})
+                            cont_targets)
     return g.compile(checkpointer=MemorySaver())
 
 
@@ -433,7 +442,7 @@ async def test_buoc_dung_tien_trong_chuoi_KHONG_auto_run():
     res = await _cgraph().ainvoke(_cstate(lw, ["post_invoice"]),
                                   {"configurable": {"thread_id": "c1"}})
     assert res["pending_action"]["tool"] == "post_invoice"
-    assert res["confirmed"] is not True      # coordinator sẽ tự interrupt
+    assert res["confirmed"] is None          # coordinator sẽ tự interrupt
     assert res["auto_chain"] is None         # queue đã tiêu thụ bước này
 
 
@@ -446,3 +455,86 @@ def test_route_after_continuation_giu_nguyen_duong_executor():
     """Chống hồi quy: bước KHÔNG đụng tiền vẫn đi thẳng executor như cũ."""
     state = {"pending_action": {"tool": "confirm_sale_order"}, "confirmed": True}
     assert _route_after_continuation(state) == "erp_write_executor"
+
+
+# ── end-to-end: chuỗi đụng tiền qua ĐỒ THỊ THẬT (Task 4 fix round 1,
+# Finding 3) ─────────────────────────────────────────────────────────────────
+# test_buoc_dung_tien_trong_chuoi_KHONG_auto_run (trên) chỉ chạy qua _cgraph()
+# — write_continuation -> END, KHÔNG có conditional edge nào cả — nên câu
+# "coordinator sẽ tự interrupt" trong docstring của nó chưa từng được ai kiểm
+# chứng. Test này lái NGUYÊN chuỗi create_invoice_from_order -> post_invoice
+# qua _write_graph() (mirror graph.py thật, xem Finding 2) và xác nhận: (1)
+# CHUỖI TỰ ĐỘNG dừng đúng chỗ — một interrupt THỨ HAI (money gate) nổi lên
+# thay vì auto-run, mang theo bảng dòng hàng; (2) sau khi resume lần hai, tool
+# post_invoice thật sự được gọi ĐÚNG MỘT LẦN với invoice_id đã resolve từ chuỗi
+# (105, không phải giá trị nào khác) — không phải giả định suông.
+import src.agents.invoice_write as iw
+
+
+def _fake_invoice_tool(name, rec, ref, res_id, state_val, display):
+    t = MagicMock()
+    t.name = name
+
+    async def ainvoke(args):
+        rec.append((name, args))
+        return json.dumps({"ok": True, "ref": ref, "model": "account.move",
+                           "res_id": res_id, "state": state_val, "display": display},
+                          ensure_ascii=False)
+
+    t.ainvoke = ainvoke
+    return t
+
+
+@pytest.mark.asyncio
+async def test_chuoi_dung_tien_dung_lai_hoi_lai_qua_do_thi_that(monkeypatch):
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    monkeypatch.setattr(iw.accounting, "get_invoice_detail", lambda *a, **k: {
+        "status": "success",
+        "data": {"invoice": {"partner_id": [41, "Azur"],
+                             "invoice_date": "2026-08-07",
+                             "amount_total": 100000.0},
+                 "lines": [{"product_id": [552, "Tủ"], "quantity": 2.0,
+                           "price_subtotal": 100000.0}]},
+        "display": "x"})
+
+    rec = []
+    tools = [
+        _fake_invoice_tool("create_invoice_from_order", rec, "INV/2026/00030",
+                           105, "draft", "Đã tạo hóa đơn nháp cho Azur."),
+        _fake_invoice_tool("post_invoice", rec, "INV/2026/00030",
+                           105, "posted", "Đã phát hành hóa đơn."),
+    ]
+    llm = _mk_llm({"tool": "create_invoice_from_order",
+                   "args": {"order_ref": "S00099"},
+                   "summary": "Tạo hóa đơn và phát hành",
+                   "chain_until": "post_invoice"})
+    graph = _write_graph(llm, tools)
+    cfg = {"configurable": {"thread_id": "money-1"}}
+
+    # Turn 1: draft confirm (chain_note) — chưa write gì.
+    res = await graph.ainvoke(
+        {"messages": [HumanMessage(content="tạo hóa đơn cho đơn S00099 rồi phát hành luôn")],
+         "intent": "erp_write", "pending_action": None, "confirmed": None}, cfg)
+    assert "Sau đó tự động: Phát hành hóa đơn" in res["__interrupt__"][0].value["question"]
+    assert rec == []
+
+    # Resume "có": create_invoice_from_order chạy → write_continuation thấy
+    # bước kế (post_invoice) thuộc CONFIRM_IN_CHAIN → KHÔNG auto-run, route
+    # sang coordinator post_invoice → coordinator tự đọc hóa đơn, hiện bảng
+    # dòng hàng, và tự interrupt LẦN HAI. Đây chính là hành vi cần chứng minh.
+    res = await graph.ainvoke(Command(resume=True), cfg)
+    assert [n for n, _ in rec] == ["create_invoice_from_order"]   # post_invoice CHƯA chạy
+    assert "__interrupt__" in res
+    itr = res["__interrupt__"][0].value
+    assert itr["kind"] == "confirm"
+    assert "Tủ × 2" in itr["question"]        # bảng dòng hàng thật, không phải "(post_invoice: ...)"
+    assert "100,000" in itr["question"]
+
+    # Resume lần hai (money gate): post_invoice thật sự chạy, ĐÚNG MỘT LẦN,
+    # với invoice_id đã resolve từ chuỗi (105) — không phải args nào khác.
+    res = await graph.ainvoke(Command(resume=True), cfg)
+    assert [n for n, _ in rec] == ["create_invoice_from_order", "post_invoice"]
+    assert rec[1] == ("post_invoice", {"invoice_id": 105})
+    assert "__interrupt__" not in res
+    assert "Ghi nhận thanh toán" in res["messages"][-1].content  # suggestion sau chuỗi
+    assert res["auto_chain"] is None
