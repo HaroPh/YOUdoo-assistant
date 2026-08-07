@@ -13,6 +13,7 @@ from .mrp_write import make_create_mo_node
 from .bom_write import make_create_bom_node, make_update_bom_node
 from .returns_write import make_return_order_node, make_create_credit_memo_node
 from .invoice_write import make_post_invoice_node, make_register_payment_node
+from .mail_write import make_send_order_confirmation_email_node
 from .purchase_write import (make_create_vendor_node, make_update_vendor_pricing_node,
                              make_create_bulk_rfq_node)
 
@@ -44,6 +45,9 @@ WRITE_COORDINATORS = {
     "create_bulk_rfq":        Spec("create_bulk_rfq",       lambda llm, tools: make_create_bulk_rfq_node(tools)),
     "post_invoice": Spec("post_invoice", lambda llm, tools: make_post_invoice_node(tools)),
     "register_payment": Spec("register_payment", lambda llm, tools: make_register_payment_node(tools)),
+    "send_order_confirmation_email": Spec(
+        "send_order_confirmation_email",
+        lambda llm, tools: make_send_order_confirmation_email_node(tools)),
 }
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
@@ -55,7 +59,8 @@ COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
 # thấy convert_lead và update_vendor_pricing cũng VỪA là coordinated tool VỪA
 # là bước trong NEXT_STEPS — dùng điều kiện rộng sẽ đổi luôn hành vi của hai
 # tool đó, vượt phạm vi spec và không có tiêu chí nghiệm thu nào phủ.
-CONFIRM_IN_CHAIN = frozenset({"post_invoice", "register_payment"})
+CONFIRM_IN_CHAIN = frozenset({"post_invoice", "register_payment",
+                              "send_order_confirmation_email"})
 
 
 @dataclass(frozen=True)
