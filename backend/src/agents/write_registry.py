@@ -48,6 +48,15 @@ WRITE_COORDINATORS = {
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
 
+# Bước chuỗi PHẢI dừng hỏi lại kèm bản tóm tắt, KHÔNG auto-run (spec
+# 2026-08-06 §3.3, §4).
+#
+# TẬP TƯỜNG MINH, KHÔNG PHẢI `in COORDINATED_TOOLS`: đối chiếu registry cho
+# thấy convert_lead và update_vendor_pricing cũng VỪA là coordinated tool VỪA
+# là bước trong NEXT_STEPS — dùng điều kiện rộng sẽ đổi luôn hành vi của hai
+# tool đó, vượt phạm vi spec và không có tiêu chí nghiệm thu nào phủ.
+CONFIRM_IN_CHAIN = frozenset({"post_invoice", "register_payment"})
+
 
 @dataclass(frozen=True)
 class NextStep:

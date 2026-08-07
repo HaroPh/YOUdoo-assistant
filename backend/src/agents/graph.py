@@ -13,7 +13,7 @@ from .nodes import (
 from .routing import make_intent_router_node, decide_route
 from .fanout import (make_fuse_answer_node, make_gather_docs_node,
                      make_gather_erp_node, make_mixed_node)
-from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS
+from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS, CONFIRM_IN_CHAIN
 from .continuation import make_write_continuation_node, _route_after_continuation
 from .models import llms_from_single
 from .skill_loader import build_skill_node, load_skill_specs, render_worker_block
@@ -92,8 +92,11 @@ def build_graph(llm, tools, checkpointer) -> object:
     g.add_edge("erp_write_executor", "write_continuation")
     for spec in WRITE_COORDINATORS.values():
         g.add_edge(spec.node, "write_continuation")
+    cont_targets = {"erp_write_executor": "erp_write_executor", END: END}
+    cont_targets.update({WRITE_COORDINATORS[t].node: WRITE_COORDINATORS[t].node
+                         for t in CONFIRM_IN_CHAIN})
     g.add_conditional_edges("write_continuation", _route_after_continuation,
-                            {"erp_write_executor": "erp_write_executor", END: END})
+                            cont_targets)
     g.add_edge("rag", END)
     g.add_edge("mixed", "gather_docs")
     g.add_edge("mixed", "gather_erp")

@@ -401,3 +401,48 @@ def test_create_lead_next_step_args_lambda():
     step = NEXT_STEPS["create_lead"]
     assert step.tool == "convert_lead"
     assert step.args({"res_id": 45}) == {"lead_id": 45}
+
+
+# ── CONFIRM_IN_CHAIN: money-touching chain steps must not auto-run ──────────
+from src.agents.write_registry import CONFIRM_IN_CHAIN, WRITE_COORDINATORS
+from src.agents.continuation import _route_after_continuation
+
+
+def test_confirm_in_chain_la_tap_tuong_minh_chi_2_tool_dung_tien():
+    """PHẢI tường minh, KHÔNG được viết thành `in COORDINATED_TOOLS`:
+    convert_lead và update_vendor_pricing cũng vừa coordinated vừa là bước
+    trong NEXT_STEPS — điều kiện rộng sẽ đổi luôn hành vi của chúng, ngoài
+    phạm vi spec 2026-08-06 §3.3."""
+    assert CONFIRM_IN_CHAIN == frozenset({"post_invoice", "register_payment"})
+
+
+def test_moi_tool_trong_confirm_in_chain_deu_co_coordinator():
+    """Nếu thiếu, _route_after_continuation sẽ trả về node không tồn tại và
+    LangGraph ném lỗi định tuyến giữa một lượt chat thật."""
+    for tool in CONFIRM_IN_CHAIN:
+        assert tool in WRITE_COORDINATORS
+
+
+@pytest.mark.asyncio
+async def test_buoc_dung_tien_trong_chuoi_KHONG_auto_run():
+    """Đảo hành vi có chủ đích (spec §4): lúc khai báo chuỗi, hóa đơn CHƯA
+    tồn tại — user đồng ý với HÀNH ĐỘNG, không thể đồng ý với SỐ TIỀN."""
+    lw = {"tool": "create_invoice_from_order", "ok": True, "ref": "INV/2026/00030",
+          "model": "account.move", "res_id": 105, "state": "draft",
+          "display": "Đã tạo hóa đơn nháp."}
+    res = await _cgraph().ainvoke(_cstate(lw, ["post_invoice"]),
+                                  {"configurable": {"thread_id": "c1"}})
+    assert res["pending_action"]["tool"] == "post_invoice"
+    assert res["confirmed"] is not True      # coordinator sẽ tự interrupt
+    assert res["auto_chain"] is None         # queue đã tiêu thụ bước này
+
+
+def test_route_after_continuation_tro_vao_coordinator():
+    state = {"pending_action": {"tool": "post_invoice"}, "confirmed": None}
+    assert _route_after_continuation(state) == WRITE_COORDINATORS["post_invoice"].node
+
+
+def test_route_after_continuation_giu_nguyen_duong_executor():
+    """Chống hồi quy: bước KHÔNG đụng tiền vẫn đi thẳng executor như cũ."""
+    state = {"pending_action": {"tool": "confirm_sale_order"}, "confirmed": True}
+    assert _route_after_continuation(state) == "erp_write_executor"
