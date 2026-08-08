@@ -95,6 +95,17 @@ def send_prepared_email(mail_id: int) -> str:
     """
     odoo("mail.mail", "send", [[mail_id]], {})
     rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["state", "failure_reason", "subject"]})
+    if not rows:
+        # Đo thật 2026-08-08 (live-verify trước merge): template "Sales:
+        # Order Confirmation" có auto_delete=True — Odoo TỰ XÓA bản ghi
+        # mail.mail ngay sau khi gửi THÀNH CÔNG (hành vi mặc định của Odoo
+        # cho mail.mail.auto_delete, không phải lỗi). Không còn bản ghi để
+        # đọc lại là DẤU HIỆU GỬI THÀNH CÔNG, không phải trường hợp lỗi —
+        # gửi thất bại (SMTP lỗi) thì Odoo GIỮ LẠI bản ghi ở state='exception'
+        # (đã kiểm chứng thật trước khi có SMTP: state='exception' vẫn đọc
+        # được), auto_delete chỉ áp dụng cho nhánh thành công.
+        return envelope(True, "Đã gửi mail.", ref=str(mail_id), model="mail.mail",
+                        res_id=mail_id, state="sent")
     m = rows[0]
     if m["state"] == "exception":
         return envelope(False, f"Gửi thất bại: {m['failure_reason'] or 'không rõ lý do'}.",
