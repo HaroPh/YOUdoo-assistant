@@ -130,8 +130,8 @@ def make_send_order_confirmation_email_preview_node(tools):
 
 def make_send_order_confirmation_email_node(tools):
     """Node 2: đọc mail_id/subject/recipients đã lưu (Node 1), xác nhận, gửi.
-    Từ chối → hủy bản nháp (best-effort, thất bại thì cảnh báo — xem
-    docstring module) — xem docstring module.
+    Từ chối → hủy bản nháp (best-effort, thất bại im lặng nuốt vì bản nháp
+    đã trơ tính từ lúc tạo — xem docstring module) — xem docstring module.
 
     RE-CHECK write_gate Ở ĐÂY, KHÔNG chỉ ở Node 1 (review round 2, Finding
     1 — Important): mọi coordinator 1-node khác tự động re-check gate ở MỌI
