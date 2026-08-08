@@ -48,6 +48,8 @@ hoạt động đúng trên môi trường thật, không chỉ trong test mock)
 
 **ĐẠT.**
 
+**Lưu ý phạm vi:** tiêu chí này đo nhánh gate BẬT (discard thành công thật). Nhánh gate TẮT (discard thất bại) chỉ được phủ bởi unit test (mock) ở Task 2, không phải live-verify riêng — suy luận an toàn dựa trên tổ hợp Tiêu chí 1+2 (bản nháp đã ở state='cancel', cron xác nhận bỏ qua nó) vẫn đúng dù discard có thành công hay không, nhưng chưa có phép đo trực tiếp cho đúng nhánh này.
+
 ## Tiêu chí 4 — gửi thật vẫn hoạt động đúng (không hồi quy)
 
 Lặp lại với đơn khác (S00170) để tránh dùng lại bản nháp vừa hủy. Soạn
