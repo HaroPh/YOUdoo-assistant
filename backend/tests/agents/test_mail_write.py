@@ -136,14 +136,13 @@ async def test_tu_choi_thi_goi_discard_va_khong_goi_send(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_discard_loi_khong_chan_thong_bao_huy(monkeypatch):
-    """discard_prepared_email lỗi (vd Odoo mạng lỗi, hoặc — trường hợp thật
-    hay gặp nhất — bị chính write_actions_enabled() gate chặn vì unlink cũng
-    là write, xem Finding 1 final review 2026-08-07) không được chặn thông
+async def test_discard_loi_khong_chan_thong_bao_huy_khong_con_canh_bao_rui_ro(monkeypatch):
+    """discard_prepared_email lỗi (vd Odoo mạng lỗi) không được chặn thông
     báo 'đã hủy' cho người dùng — best-effort, không phải hợp đồng chính.
-    NHƯNG (Finding 1, khác hành vi CŨ im lặng nuốt lỗi): phải kèm cảnh báo rõ
-    ràng rằng Odoo có thể vẫn tự gửi mail qua cron trong ~1 giờ tới, vì đây
-    chính là lúc cleanup thất bại thật sự có khả năng cao nhất."""
+    KHÁC bản trước spec 2026-08-08 (bản nháp trơ tính — xem
+    mcp-servers/odoo/tools/mail.py): bản nháp đã ở state='cancel' từ lúc
+    Node 1 tạo ra, cron/gửi thật không thể chạm tới nó dù discard thất
+    bại, nên KHÔNG còn cần cảnh báo rủi ro cron 1 giờ như trước."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     preview_calls, send_calls = [], []
     preview_tool, send_tool, _ = _tools(preview_calls, send_calls, [])
@@ -163,19 +162,19 @@ async def test_discard_loi_khong_chan_thong_bao_huy(monkeypatch):
     assert send_calls == []
     final = res["messages"][-1].content
     assert "hủy" in final.lower()
-    assert "không hủy được bản nháp" in final.lower()
-    assert "1 giờ" in final
+    assert "không hủy được bản nháp" not in final.lower()
+    assert "1 giờ" not in final
 
 
 @pytest.mark.asyncio
-async def test_gate_tat_va_discard_loi_thi_canh_bao_ro_rui_ro_con_lai(monkeypatch):
-    """Finding 1 (final review 2026-08-07), nhánh gate-tắt-giữa-chừng: đây
-    chính là ca ĐO THẬT của lo ngại trong finding — discard_prepared_email
-    tự nó gọi odoo() với method 'unlink', bị CHÍNH write_actions_enabled()
-    gate (đã False ở nhánh này) chặn giống mọi write khác, nên gần như chắc
-    chắn thất bại đúng lúc cần dọn nhất. Trước đây lỗi này bị nuốt im lặng
-    và người dùng chỉ thấy WRITE_DISABLED_MSG — nghe an toàn nhưng có thể
-    không phải vậy. Giờ phải kèm cảnh báo."""
+async def test_gate_tat_va_discard_loi_khong_con_canh_bao_rui_ro(monkeypatch):
+    """Nhánh gate-tắt-giữa-chừng: discard_prepared_email tự nó gọi odoo()
+    với method 'unlink', bị CHÍNH write_actions_enabled() gate (đã False ở
+    nhánh này) chặn giống mọi write khác, nên gần như chắc chắn thất bại
+    đúng lúc cần dọn nhất. KHÁC bản trước spec 2026-08-08: bản nháp đã trơ
+    tính (state='cancel') từ lúc tạo, nên thất bại dọn dẹp ở đây chỉ để
+    lại rác trong Odoo — KHÔNG còn kéo theo rủi ro gửi ngoài ý muốn, nên
+    KHÔNG còn cần cảnh báo."""
     gate = {"on": True}
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: gate["on"])
     preview_calls, send_calls = [], []
@@ -198,8 +197,8 @@ async def test_gate_tat_va_discard_loi_thi_canh_bao_ro_rui_ro_con_lai(monkeypatc
     res2 = await graph.ainvoke(Command(resume=True), cfg)
     assert send_calls == []
     final = res2["messages"][-1].content
-    assert "không hủy được bản nháp" in final.lower()
-    assert "1 giờ" in final
+    assert "không hủy được bản nháp" not in final.lower()
+    assert "1 giờ" not in final
 
 
 @pytest.mark.asyncio
