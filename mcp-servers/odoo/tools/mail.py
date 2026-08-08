@@ -1,4 +1,5 @@
-"""Tool MCP domain Mail (mail.template / mail.mail) — spec 2026-08-07.
+"""Tool MCP domain Mail (mail.template / mail.mail) — spec 2026-08-07,
+cập nhật spec 2026-08-08 (bản nháp trơ tính).
 
 3 tool DÙNG CHUNG cho MỌI điểm nối gửi mail tương lai (không riêng theo
 domain — cơ chế gốc Odoo mail.template.send_mail/mail.mail.send đã là hàm
@@ -12,13 +13,21 @@ render template mà không tạo bản ghi qua XML-RPC — các method render n�
 bộ như _render_template bị chặn gọi từ xa, đã kiểm chứng thật 2026-08-07).
 Đây KHÔNG phải thao tác đọc thuần.
 
-Bản nháp bị từ chối gửi PHẢI được dọn qua discard_prepared_email (đảo
-ngược quyết định §4.1 gốc của spec — quyết định đó được duyệt TRƯỚC KHI
-biết Odoo có cron "Mail: Email Queue Manager" đang bật, tự động gửi MỌI
-mail.mail ở trạng thái 'outgoing' mỗi giờ, kể cả bản bị từ chối nếu không
-chủ động hủy; đã xác nhận thật trên Odoo 2026-08-07). Việc gọi tool này ở
-nhánh từ chối là trách nhiệm của coordinator (xem backend/src/agents/
-mail_write.py), không phải của 2 tool soạn/gửi ở trên."""
+BẢN NHÁP TRƠ TÍNH TỪ LÚC TẠO (spec 2026-08-08, xác minh qua mã nguồn Odoo
+thật D:\\Odoo\\server\\odoo\\addons\\mail\\models\\mail_mail.py): send_mail()
+mặc định tạo bản ghi ở state='outgoing' — cron "Mail: Email Queue Manager"
+của Odoo (chạy mỗi giờ) VÀ mail.mail._send() nội bộ đều chỉ xử lý bản ghi ở
+state này (cron lọc cứng theo domain, _send() có
+"if mail.state != 'outgoing': continue" — bỏ qua lặng lẽ, không lỗi).
+preview_template_email vì vậy chuyển NGAY state sang 'cancel' (giá trị
+Selection hợp lệ thật, không phải hack) sau khi tạo — bản nháp chưa xác
+nhận không bao giờ ở trạng thái cron/send() nhìn thấy. send_prepared_email
+PHẢI lật lại 'outgoing' NGAY TRƯỚC khi gọi send() thật (thiếu bước này thì
+send() sẽ lặng lẽ không làm gì, đúng dòng nói trên).
+
+discard_prepared_email giờ chỉ còn là DỌN DẸP (xóa bản nháp bị từ chối cho
+gọn CSDL), KHÔNG còn là cơ chế an toàn — bản nháp đã trơ tính sẵn kể từ lúc
+tạo nên thất bại của discard không còn kéo theo rủi ro gửi ngoài ý muốn."""
 import json
 
 from server import mcp
@@ -32,8 +41,10 @@ def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
     Soạn (nhưng CHƯA gửi) một mail từ template Odoo có sẵn cho MỘT bản ghi
     cụ thể. LƯU Ý: bước này TẠO một bản ghi mail.mail nháp thật trong Odoo
     (Odoo không cho render template mà không tạo bản ghi qua XML-RPC) —
-    KHÔNG phải thao tác đọc thuần. YÊU CẦU XÁC NHẬN từ người dùng trước
-    khi gọi send_prepared_email với mail_id trả về.
+    KHÔNG phải thao tác đọc thuần. Bản ghi được chuyển NGAY sang
+    state='cancel' (trơ tính với cron gửi mail của Odoo — xem docstring
+    module) cho tới khi send_prepared_email được gọi. YÊU CẦU XÁC NHẬN từ
+    người dùng trước khi gọi send_prepared_email với mail_id trả về.
 
     Args:
         template_name: Tên chính xác của mail.template, vd "Sales: Order Confirmation".
@@ -58,6 +69,15 @@ def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
 
     mail_id = odoo("mail.template", "send_mail", [tpls[0]["id"], recs[0]["id"]],
                    {"force_send": False})
+    # Bản nháp trơ tính (spec 2026-08-08): chuyển NGAY sang state='cancel' —
+    # giá trị Selection hợp lệ thật trong Odoo, không phải hack. Xác minh
+    # qua mã nguồn Odoo (mail_mail.py): cron "Mail: Email Queue Manager" lọc
+    # cứng theo state='outgoing', và _send() nội bộ có
+    # "if mail.state != 'outgoing': continue" — bỏ qua LẶNG LẼ mọi state
+    # khác, không lỗi. Bản nháp chưa xác nhận vì vậy không bao giờ ở trạng
+    # thái mà cron/send() nhìn thấy, cho tới khi send_prepared_email chủ
+    # động lật lại 'outgoing'.
+    odoo("mail.mail", "write", [[mail_id], {"state": "cancel"}], {})
     rows = odoo("mail.mail", "read", [[mail_id]],
                {"fields": ["subject", "recipient_ids", "email_to"]})
     m = rows[0]
@@ -87,12 +107,17 @@ def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
 def send_prepared_email(mail_id: int) -> str:
     """
     Gửi thật một mail đã soạn sẵn qua preview_template_email (dùng ĐÚNG
-    mail_id đã trả về, không tạo lại). YÊU CẦU XÁC NHẬN từ người dùng
-    trước khi gọi.
+    mail_id đã trả về, không tạo lại). Lật state từ 'cancel' (trơ tính)
+    sang 'outgoing' ngay trước khi gọi send() — xem docstring module.
+    YÊU CẦU XÁC NHẬN từ người dùng trước khi gọi.
 
     Args:
         mail_id: ID bản ghi mail.mail đã soạn (từ preview_template_email).
     """
+    # Bắt buộc lật lại 'outgoing' TRƯỚC send() — thiếu bước này, send() nội
+    # bộ của Odoo sẽ lặng lẽ bỏ qua bản ghi (state đang là 'cancel' từ
+    # preview_template_email), không gửi, không báo lỗi. Xem spec 2026-08-08.
+    odoo("mail.mail", "write", [[mail_id], {"state": "outgoing"}], {})
     odoo("mail.mail", "send", [[mail_id]], {})
     rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["state", "failure_reason", "subject"]})
     if not rows:
@@ -118,12 +143,11 @@ def send_prepared_email(mail_id: int) -> str:
 def discard_prepared_email(mail_id: int) -> str:
     """
     Hủy một mail đã soạn qua preview_template_email nhưng người dùng từ
-    chối gửi — xóa bản mail.mail nháp. BẮT BUỘC gọi khi từ chối: bản nháp
-    nằm ở trạng thái 'outgoing' (hàng đợi gửi), KHÔNG phải trạng thái thụ
-    động — Odoo có cron "Mail: Email Queue Manager" chạy định kỳ, tự động
-    gửi MỌI bản ghi ở trạng thái này, kể cả bản bị người dùng từ chối nếu
-    không chủ động hủy (đã xác nhận thật trên Odoo 2026-08-07: cron đang
-    bật, chạy mỗi giờ).
+    chối gửi — xóa bản mail.mail nháp. Bản nháp đã trơ tính với cron gửi
+    mail của Odoo ngay từ lúc tạo (state='cancel' — xem docstring module),
+    nên gọi tool này ở nhánh từ chối chỉ là DỌN DẸP (tránh tích lũy bản
+    nháp rác trong Odoo theo thời gian) — không còn là cơ chế an toàn bắt
+    buộc, thất bại của nó không còn kéo theo rủi ro gửi ngoài ý muốn.
 
     Args:
         mail_id: ID bản ghi mail.mail cần hủy (từ preview_template_email).
