@@ -220,6 +220,13 @@ WRITE_TOOL_NAMES = frozenset({
     "complete_manufacturing_order", "create_bom", "update_bom_lines",
     "return_order", "create_credit_memo", "create_vendor",
     "update_vendor_pricing", "create_bulk_rfq",
+    # 4 coordinator gửi mail (mail_write.py, MAIL_COORDINATOR_CFGS) — GỬI
+    # THẬT, KHÔNG THỂ THU HỒI (mail rời hệ thống, khác một bản ghi ERP còn
+    # sửa/hủy được), nên chọn nhầm sang một trong 4 tool này là misroute
+    # NGUY HIỂM NHẤT hệ thống — phải nằm trong tập này để dangerous_misroute
+    # (run_eval.py) tính đúng, không rơi vào bucket an toàn.
+    "send_order_confirmation_email", "send_quotation_email",
+    "send_rfq_email", "send_invoice_email",
 })
 
 # ── read set (SP-0) ──────────────────────────────────────────────────────────

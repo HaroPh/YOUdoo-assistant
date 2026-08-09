@@ -306,44 +306,51 @@ async def test_gate_tat_giua_luc_cho_xac_nhan_thi_huy_ban_nhap_khong_gui(monkeyp
     assert "__interrupt__" not in res2
 
 
-def test_send_order_confirmation_email_registered_in_registry_and_prompts():
-    """Review round 2, Finding 2 (Important): coordinator này KHÔNG nằm
-    trong NEXT_STEPS (cố ý — xem docstring mail_write.py), nên dòng trong
-    WRITE_PLANNER_PROMPT là đường DUY NHẤT LLM biết tool này tồn tại. Nếu
-    dòng đó bị xóa, toàn bộ coordinator (dù cấu trúc đúng, dù mọi test dựng
-    state tay ở trên vẫn xanh) sẽ KHÔNG BAO GIỜ chạm tới được từ một lượt
-    chat thật — đúng lớp lỗi mà write-confirmation-ux-fix từng dính, và
-    test này (theo mẫu test_bom_registered_in_registry_and_prompts) khóa nó
-    lại ở mức test."""
-    from src.agents.write_registry import (COORDINATED_TOOLS,
-                                            WRITE_COORDINATORS, NEXT_STEPS)
-    from src.agents.prompts import WRITE_PLANNER_PROMPT
-    assert "send_order_confirmation_email" in COORDINATED_TOOLS
-    assert (WRITE_COORDINATORS["send_order_confirmation_email"].node
-            == "send_order_confirmation_email_preview")
-    # KHÔNG chain tự động — xem Global Constraints + docstring mail_write.py
-    assert "send_order_confirmation_email" not in NEXT_STEPS
-    assert "send_order_confirmation_email(order_ref" in WRITE_PLANNER_PROMPT
+def test_moi_coordinator_mail_deu_dang_ky_day_du():
+    """Review round 2, Finding 2 (Important, 2026-08-07) + spec 2026-08-08
+    mail-trigger-points: mọi coordinator gửi mail (nay 4, dựng từ
+    MAIL_COORDINATOR_CFGS — không còn 1 tool hardcode + 3 tool copy-paste
+    riêng) đều KHÔNG nằm trong NEXT_STEPS (cố ý — mỗi khoá liên quan đã có
+    bước kế chiếm chỗ, thêm vào sẽ GHI ĐÈ im lặng, xem docstring
+    mail_write.py). Vì vậy dòng tương ứng trong WRITE_PLANNER_PROMPT là
+    ĐƯỜNG DUY NHẤT LLM biết một tool gửi mail tồn tại — đây là bất biến
+    LOAD-BEARING của cả bài test này.
 
-
-def test_ba_coordinator_mail_moi_dang_ky_day_du():
-    """Cùng lớp bảo vệ như test_send_order_confirmation_email_registered_...
-    ở trên: 3 tool này KHÔNG nằm trong NEXT_STEPS (cố ý — cả 3 khoá đã có
-    bước kế chiếm chỗ, thêm vào sẽ GHI ĐÈ im lặng), nên dòng trong
-    WRITE_PLANNER_PROMPT là đường DUY NHẤT LLM biết chúng tồn tại. Thiếu
-    dòng đó thì coordinator dù đúng hoàn toàn vẫn không bao giờ chạm tới
-    được từ một lượt chat thật."""
+    Đây CHÍNH XÁC là lớp lỗi mà việc sửa write-confirmation-ux-fix từng
+    dính: một coordinator được dựng đúng cấu trúc (đăng ký registry đúng,
+    node đúng, mọi test gọi thẳng graph 2-node ở trên vẫn xanh) nhưng KHÔNG
+    BAO GIỜ chạm tới được từ một lượt chat thật, vì con đường duy nhất tới
+    nó (dòng prompt) bị thiếu — và không có gì khác trong cả bộ test này
+    bắt được lỗ hổng đó. Trước bản test này, mỗi lần thêm 1 EmailCfg cũng
+    phải nhớ thêm tay 1 dòng vào một tuple literal riêng ở đây — quên 1
+    trong 2 chỗ vẫn để lọt cùng lỗ hổng đó (thêm cfg thứ 5 vào
+    MAIL_COORDINATOR_CFGS nhưng quên dòng prompt của nó sẽ không bị bài
+    test cũ, dựng trên tuple literal, phát hiện). Lặp thẳng trên
+    MAIL_COORDINATOR_CFGS xoá điểm quên đó: thêm 1 cfg tự động được test
+    này phủ, không cần sửa file test."""
     from src.agents.write_registry import (COORDINATED_TOOLS, WRITE_COORDINATORS,
                                             NEXT_STEPS, CONFIRM_IN_CHAIN)
     from src.agents.prompts import WRITE_PLANNER_PROMPT
-    for tool, ref_arg in (("send_invoice_email", "invoice_ref"),
-                          ("send_rfq_email", "order_ref"),
-                          ("send_quotation_email", "order_ref")):
-        assert tool in COORDINATED_TOOLS, tool
-        assert WRITE_COORDINATORS[tool].node == f"{tool}_preview", tool
-        assert tool not in NEXT_STEPS, tool
-        assert tool in CONFIRM_IN_CHAIN, tool
-        assert f"{tool}({ref_arg}" in WRITE_PLANNER_PROMPT, tool
+    for cfg in mw.MAIL_COORDINATOR_CFGS:
+        assert cfg.tool_name in COORDINATED_TOOLS, cfg.tool_name
+        assert WRITE_COORDINATORS[cfg.tool_name].node == cfg.preview_node, cfg.tool_name
+        assert cfg.tool_name not in NEXT_STEPS, cfg.tool_name
+        assert cfg.tool_name in CONFIRM_IN_CHAIN, cfg.tool_name
+        assert f"{cfg.tool_name}({cfg.ref_arg}" in WRITE_PLANNER_PROMPT, cfg.tool_name
+
+        # Fix 3 — hợp đồng label CHỮ THƯỜNG (EmailCfg docstring): confirm
+        # prompt render qua .capitalize(), câu từ chối dùng label thô. Một
+        # label có hoa (vd "RFQ mail") khiến .capitalize() âm thầm hạ hết các
+        # chữ hoa còn lại xuống thường ("Rfq mail") — không lỗi, không test
+        # nào khác bắt được, chỉ lộ ra khi người dùng đọc câu xác nhận.
+        assert cfg.label == cfg.label.lower(), (
+            f"{cfg.tool_name}: label {cfg.label!r} phải toàn CHỮ THƯỜNG")
+        # Chứng minh CẢ HAI chỗ render (tiền tố xác nhận .capitalize() + câu
+        # từ chối dùng label thô) ra đúng: chỉ ký tự đầu đổi hoa, phần còn
+        # lại giữ nguyên.
+        capitalized = cfg.label.capitalize()
+        assert capitalized[0].isupper(), cfg.tool_name
+        assert capitalized == cfg.label[0].upper() + cfg.label[1:], cfg.tool_name
 
 
 def test_moi_cfg_mail_co_template_va_model_rieng_biet():

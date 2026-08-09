@@ -28,6 +28,22 @@ phải lỗi; xem plan `order-confirmation-email`).
 `"Sales: Order Confirmation"` + arg `order_ref` trong Node 1. Node 2 (xác
 nhận + gửi) ĐÃ generic 100% — không chứa gì riêng của sale.
 
+> **Đính chính hậu kỳ (post-hoc, ghi lúc viết plan `2026-08-08-mail-
+> trigger-points`, không xoá nhận định gốc ở trên):** nhận định "Node 2 ĐÃ
+> generic 100%" ở trên là **SAI** — phát hiện khi đọc code lúc viết plan.
+> Node 2 thực tế hardcode 4 chỗ riêng của sale: tiền tố text xác nhận
+> (`"Mail xác nhận đơn"`), tên tool truyền cho `_finish(...)`, tên arg đọc
+> ref (`order_ref`), và câu từ chối (`"Đã hủy gửi mail xác nhận đơn."`).
+> Vì vậy **cả 2 factory đều nhận `cfg`**, không chỉ Node 1 như bản `EmailCfg`
+> 3 trường phác thảo dưới đây. `EmailCfg` thật được shipped có **6 trường**
+> (không phải 3): `tool_name`, `template_name`, `res_model`, `ref_arg`,
+> `label`, `missing_ref_msg` — cộng 2 property suy ra `preview_node`/
+> `send_node`. Xem `backend/src/agents/mail_write.py` (định nghĩa thật) và
+> plan `2026-08-08-mail-trigger-points.md` §"Sửa spec: Node 2 KHÔNG generic
+> 100%" cho lý do đầy đủ. Khối code mẫu ngay dưới đây GIỮ NGUYÊN như lúc
+> viết spec gốc (giá trị lịch sử — cho thấy thiết kế ban đầu trước khi đọc
+> code), KHÔNG phải chữ ký đã shipped.
+
 Chuyển sang mẫu `OrderCfg`/`SALE_CFG`/`PURCHASE_CFG` có sẵn trong
 `create_order.py` (không phát minh pattern mới):
 

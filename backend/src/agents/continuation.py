@@ -8,11 +8,11 @@ goes through the normal write-planner confirm gate like any other request
 branch, so a stale handle can never re-offer an old record's next step. Khi
 auto_chain còn bước khớp NEXT_STEPS, bước kế tự chạy không interrupt — user
 đã tự khai báo cả chuỗi trong 1 câu, mức đồng ý mạnh hơn 1 gợi ý bình
-thường. NGOẠI LỆ: bước thuộc CONFIRM_IN_CHAIN (post_invoice,
-register_payment) vẫn dừng hỏi lại. Lý lẽ trên có một biên: lúc khai báo
-chuỗi, hóa đơn CHƯA tồn tại, nên user đồng ý với HÀNH ĐỘNG chứ không thể
-đồng ý với SỐ TIỀN. Những bước đó được chuyển vào coordinator riêng để hiện
-bảng dòng hàng trước cổng xác nhận (spec 2026-08-06)."""
+thường. NGOẠI LỆ: bước thuộc CONFIRM_IN_CHAIN vẫn dừng hỏi lại. Lý lẽ trên
+có một biên: lúc khai báo chuỗi, hóa đơn CHƯA tồn tại, nên user đồng ý với
+HÀNH ĐỘNG chứ không thể đồng ý với SỐ TIỀN. Những bước đó được chuyển vào
+coordinator riêng để hiện bảng dòng hàng trước cổng xác nhận (spec
+2026-08-06)."""
 
 from langchain_core.messages import AIMessage
 from langgraph.graph import END

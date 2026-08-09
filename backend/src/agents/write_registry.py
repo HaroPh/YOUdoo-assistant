@@ -54,10 +54,10 @@ WRITE_COORDINATORS = {
 # Dùng default-arg `c=cfg` để mỗi lambda bắt ĐÚNG cfg của vòng lặp mình —
 # thiếu nó, cả 4 lambda cùng trỏ vào cfg CUỐI (late binding), nghĩa là mọi
 # coordinator gửi mail đều gửi mail hóa đơn.
-for cfg in MAIL_COORDINATOR_CFGS:
-    WRITE_COORDINATORS[cfg.tool_name] = Spec(
-        cfg.preview_node,
-        lambda llm, tools, c=cfg: make_send_template_email_preview_node(tools, c))
+for _cfg in MAIL_COORDINATOR_CFGS:
+    WRITE_COORDINATORS[_cfg.tool_name] = Spec(
+        _cfg.preview_node,
+        lambda llm, tools, c=_cfg: make_send_template_email_preview_node(tools, c))
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
 
