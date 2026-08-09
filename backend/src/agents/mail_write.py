@@ -1,6 +1,8 @@
 # backend/src/agents/mail_write.py
-"""Coordinator gửi mail xác nhận đơn hàng thật — spec 2026-08-07, cập nhật
-spec 2026-08-08 (bản nháp trơ tính — xem mcp-servers/odoo/tools/mail.py).
+"""Coordinator gửi mail thật — spec 2026-08-07, cập nhật spec 2026-08-08
+(bản nháp trơ tính — xem mcp-servers/odoo/tools/mail.py) và spec 2026-08-08
+mail-trigger-points (gom 4 coordinator gửi mail về chung 1 factory tham số
+hoá EmailCfg, theo mẫu OrderCfg/SALE_CFG/PURCHASE_CFG của create_order.py).
 
 TÁCH 2 NODE LangGraph — KHÁC MỌI coordinator khác trong package này (chỉ
 có 1 node). Lý do: preview_template_email TỰ NÓ là một write thật (tạo
@@ -14,12 +16,12 @@ duyệt. Tách node giải quyết triệt để: mỗi node hoàn tất là m�
 checkpoint LangGraph — node đã return xong không bị replay khi node SAU
 nó (nơi có interrupt) resume.
 
-  Node 1 (send_order_confirmation_email_preview): gọi preview_template_email
+  Node 1 (cfg.preview_node): gọi preview_template_email
     MỘT LẦN DUY NHẤT, lưu mail_id/subject/recipients vào pending_action.args
     (persist qua state, không phải biến cục bộ), rồi (qua conditional edge ở
     graph.py, KHÔNG unconditional) chuyển sang Node 2 nếu thành công, hoặc
     thẳng write_continuation nếu lỗi/thiếu input.
-  Node 2 (send_order_confirmation_email): đọc dữ liệu đã lưu từ Node 1
+  Node 2 (cfg.send_node): đọc dữ liệu đã lưu từ Node 1
     (KHÔNG gọi lại preview), tự re-check write_gate (xem Finding 1 dưới),
     _interrupt xác nhận, rồi gọi send_prepared_email.
 
@@ -65,6 +67,7 @@ KHÔNG đăng ký vào NEXT_STEPS: confirm_sale_order đã có bước kế ti�
 Gửi mail xác nhận là hành động người dùng tự yêu cầu riêng — PHẢI được
 liệt kê trong WRITE_PLANNER_PROMPT (prompts.py) để planner có thể chọn nó,
 khác các coordinator chỉ tới được qua NEXT_STEPS."""
+from dataclasses import dataclass
 from langgraph.types import interrupt as _interrupt
 
 from .state import ERPAgentState
@@ -74,38 +77,83 @@ from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 
 
+@dataclass(frozen=True)
+class EmailCfg:
+    """Cấu hình 1 coordinator gửi mail. Theo đúng mẫu OrderCfg/SALE_CFG/
+    PURCHASE_CFG trong create_order.py — không phát minh pattern mới.
+
+    tool_name        tên tool coordinator (khoá WRITE_COORDINATORS) — cũng là
+                     tên node 2, và là tool_name ghi vào last_write qua _finish
+    template_name    tên mail.template Odoo, phải khớp CHÍNH XÁC
+    res_model        model bản ghi nguồn (sale.order / purchase.order / account.move)
+    ref_arg          tên arg LLM truyền vào ("order_ref" hoặc "invoice_ref")
+    label            nhãn CHỮ THƯỜNG, vd "mail xác nhận đơn" — dùng cho CẢ text
+                     xác nhận (.capitalize()) LẪN câu từ chối, nên đổi nó là
+                     đổi cả hai chỗ, không lệch nhau được
+    missing_ref_msg  câu hỏi lại khi LLM không truyền ref
+    """
+    tool_name: str
+    template_name: str
+    res_model: str
+    ref_arg: str
+    label: str
+    missing_ref_msg: str
+
+    @property
+    def preview_node(self) -> str:
+        return f"{self.tool_name}_preview"
+
+    @property
+    def send_node(self) -> str:
+        return self.tool_name
+
+
+ORDER_CONFIRMATION_CFG = EmailCfg(
+    tool_name="send_order_confirmation_email",
+    template_name="Sales: Order Confirmation",
+    res_model="sale.order",
+    ref_arg="order_ref",
+    label="mail xác nhận đơn",
+    missing_ref_msg="Bạn cần cho biết mã đơn bán cần gửi mail xác nhận.")
+
+# Task 2 nối thêm 3 config mới vào tuple này. graph.py lặp trên NÓ để dựng
+# node — thêm coordinator gửi mail = thêm 1 phần tử ở đây + 1 dòng
+# WRITE_COORDINATORS + 1 dòng WRITE_PLANNER_PROMPT, không đụng graph.py.
+MAIL_COORDINATOR_CFGS = (ORDER_CONFIRMATION_CFG,)
+
+
 def _finish(tool_name: str, result) -> dict:
     display, env = parse_write_result(result)
     return {**_msg(display), "pending_action": None,
             "last_write": {"tool": tool_name, **env} if env else None}
 
 
-def make_send_order_confirmation_email_preview_node(tools):
+def make_send_template_email_preview_node(tools, cfg: EmailCfg):
     """Node 1: soạn mail (1 write thật), lưu kết quả vào state. KHÔNG
     interrupt ở đây — xem docstring module."""
     by_name = {t.name: t for t in tools}
 
-    async def send_order_confirmation_email_preview_node(state: ERPAgentState) -> dict:
+    async def send_template_email_preview_node(state: ERPAgentState) -> dict:
         if not write_gate.write_actions_enabled():
             return _msg(WRITE_DISABLED_MSG)
         action = state.get("pending_action") or {}
         args = action.get("args") or {}
-        order_ref = str(args.get("order_ref") or "").strip()
-        if not order_ref:
-            return _msg("Bạn cần cho biết mã đơn bán cần gửi mail xác nhận.")
+        ref = str(args.get(cfg.ref_arg) or "").strip()
+        if not ref:
+            return _msg(cfg.missing_ref_msg)
 
         preview_tool = by_name.get("preview_template_email")
         if preview_tool is None:
             return _msg("Công cụ soạn mail không khả dụng.")
         try:
             result = await preview_tool.ainvoke({
-                "template_name": "Sales: Order Confirmation",
-                "res_model": "sale.order", "ref": order_ref})
+                "template_name": cfg.template_name,
+                "res_model": cfg.res_model, "ref": ref})
         except Exception as e:  # noqa: BLE001
             return _msg(f"Lỗi khi soạn mail: {e}")
         # preview_template_email trả JSON phẳng {ok, display, mail_id, subject,
-        # recipient_count} — parse_write_result chỉ cần key "ok"+"display" để
-        # coi là envelope hợp lệ, KHÔNG lồng dưới "data" (đó là shape khác của
+        # recipients} — parse_write_result chỉ cần key "ok"+"display" để coi là
+        # envelope hợp lệ, KHÔNG lồng dưới "data" (đó là shape khác của
         # erp_query/envelope.py). env ở đây CHÍNH LÀ dict đã json.loads.
         display, env = parse_write_result(result)
         if env is None:
@@ -125,10 +173,10 @@ def make_send_order_confirmation_email_preview_node(tools):
                                             "subject": env.get("subject"),
                                             "recipients": env.get("recipients")}}}
 
-    return send_order_confirmation_email_preview_node
+    return send_template_email_preview_node
 
 
-def make_send_order_confirmation_email_node(tools):
+def make_send_template_email_node(tools, cfg: EmailCfg):
     """Node 2: đọc mail_id/subject/recipients đã lưu (Node 1), xác nhận, gửi.
     Từ chối → hủy bản nháp (best-effort, thất bại im lặng nuốt vì bản nháp
     đã trơ tính từ lúc tạo — xem docstring module).
@@ -140,7 +188,11 @@ def make_send_order_confirmation_email_node(tools):
     Node 1 chỉ chạy 1 lần TRƯỚC KHI interrupt tồn tại, nên gate có thể bị
     tắt (từ Odoo UI, giữa lúc câu hỏi xác nhận đang chờ) mà Node 1 không
     bao giờ biết. Đo thật: gate tắt lúc đang chờ + resume(confirm=True) →
-    node cũ (không check) vẫn gửi mail thật."""
+    node cũ (không check) vẫn gửi mail thật.
+
+    NHẬN cfg (spec mail-trigger-points sửa lại nhận định "Node 2 generic
+    100%" của spec gốc): node này hardcode 4 chỗ riêng của sale — tiền tố
+    text xác nhận, tên tool cho _finish, tên arg ref, và câu từ chối."""
     by_name = {t.name: t for t in tools}
 
     async def _discard_draft(mail_id) -> None:
@@ -158,7 +210,7 @@ def make_send_order_confirmation_email_node(tools):
         except Exception:  # noqa: BLE001 — best-effort, không raise cho user
             pass
 
-    async def send_order_confirmation_email_node(state: ERPAgentState) -> dict:
+    async def send_template_email_node(state: ERPAgentState) -> dict:
         args = (state.get("pending_action") or {}).get("args") or {}
         mail_id = args.get("mail_id")
 
@@ -170,9 +222,9 @@ def make_send_order_confirmation_email_node(tools):
             await _discard_draft(mail_id)
             return _msg(WRITE_DISABLED_MSG)
 
-        order_ref = str(args.get("order_ref") or "")
+        ref = str(args.get(cfg.ref_arg) or "")
         recipients = args.get("recipients") or []
-        preview_text = (f"Mail xác nhận đơn {order_ref}:\n"
+        preview_text = (f"{cfg.label.capitalize()} {ref}:\n"
                         f"  Tới: {', '.join(recipients) if recipients else 'không rõ người nhận'}\n"
                         f"  Tiêu đề: {args.get('subject')}\n"
                         + WRITE_CONFIRM_SUFFIX)
@@ -180,7 +232,7 @@ def make_send_order_confirmation_email_node(tools):
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
             await _discard_draft(mail_id)
-            return _msg("Đã hủy gửi mail xác nhận đơn.")
+            return _msg(f"Đã hủy gửi {cfg.label}.")
 
         send_tool = by_name.get("send_prepared_email")
         if send_tool is None:
@@ -189,15 +241,19 @@ def make_send_order_confirmation_email_node(tools):
             result = await send_tool.ainvoke({"mail_id": mail_id})
         except Exception as e:  # noqa: BLE001
             return _msg(f"Lỗi khi gửi mail: {e}")
-        return _finish("send_order_confirmation_email", result)
+        return _finish(cfg.tool_name, result)
 
-    return send_order_confirmation_email_node
+    return send_template_email_node
 
 
-def route_after_mail_preview(state: ERPAgentState) -> str:
+def make_route_after_mail_preview(cfg: EmailCfg):
     """Node 1 → Node 2 (thành công, có mail_id) hoặc thẳng write_continuation
-    (lỗi/thiếu input — Node 1 đã tự trả _msg lỗi, Node 2 không cần chạy)."""
-    args = (state.get("pending_action") or {}).get("args") or {}
-    if args.get("mail_id"):
-        return "send_order_confirmation_email"
-    return "write_continuation"
+    (lỗi/thiếu input — Node 1 đã tự trả _msg lỗi, Node 2 không cần chạy).
+    Tham số hoá theo cfg vì tên node đích khác nhau giữa 4 coordinator."""
+    def route_after_mail_preview(state: ERPAgentState) -> str:
+        args = (state.get("pending_action") or {}).get("args") or {}
+        if args.get("mail_id"):
+            return cfg.send_node
+        return "write_continuation"
+
+    return route_after_mail_preview

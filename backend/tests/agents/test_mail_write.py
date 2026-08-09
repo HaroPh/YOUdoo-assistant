@@ -25,17 +25,26 @@ def _fake_tool(name, calls_list, response_fn):
     return t
 
 
-def _graph(preview_node, send_node):
+def _graph(cfg, preview_node, send_node):
     g = StateGraph(ERPAgentState)
-    g.add_node("send_order_confirmation_email_preview", preview_node)
-    g.add_node("send_order_confirmation_email", send_node)
+    g.add_node(cfg.preview_node, preview_node)
+    g.add_node(cfg.send_node, send_node)
     g.add_conditional_edges(
-        "send_order_confirmation_email_preview", mw.route_after_mail_preview,
-        {"send_order_confirmation_email": "send_order_confirmation_email",
-         "write_continuation": END})
-    g.add_edge("send_order_confirmation_email", END)
-    g.set_entry_point("send_order_confirmation_email_preview")
+        cfg.preview_node, mw.make_route_after_mail_preview(cfg),
+        {cfg.send_node: cfg.send_node, "write_continuation": END})
+    g.add_edge(cfg.send_node, END)
+    g.set_entry_point(cfg.preview_node)
     return g.compile(checkpointer=MemorySaver())
+
+
+def _build(tools, cfg=mw.ORDER_CONFIRMATION_CFG):
+    """Dựng graph 2-node cho MỘT EmailCfg — thay 2 factory hardcode cũ bằng
+    factory tham số hoá (spec 2026-08-08 mail-trigger-points). Chỉ đổi CÁCH
+    DỰNG; mọi assertion bên dưới giữ nguyên, đó chính là bằng chứng refactor
+    không đổi hành vi."""
+    return _graph(cfg,
+                  mw.make_send_template_email_preview_node(tools, cfg),
+                  mw.make_send_template_email_node(tools, cfg))
 
 
 def _state(args):
@@ -75,8 +84,7 @@ async def test_co_order_ref_thi_hien_preview_roi_moi_hoi(monkeypatch):
     preview_calls, send_calls, discard_calls = [], [], []
     preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     cfg = {"configurable": {"thread_id": "m1"}}
     res = await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     itr = res["__interrupt__"][0].value
@@ -104,8 +112,7 @@ async def test_xac_nhan_thi_goi_send_bang_dung_mail_id_va_preview_chi_goi_1_lan(
     preview_calls, send_calls, discard_calls = [], [], []
     preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     cfg = {"configurable": {"thread_id": "m2"}}
     await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     res = await graph.ainvoke(Command(resume=True), cfg)
@@ -125,8 +132,7 @@ async def test_tu_choi_thi_goi_discard_va_khong_goi_send(monkeypatch):
     preview_calls, send_calls, discard_calls = [], [], []
     preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     cfg = {"configurable": {"thread_id": "m3"}}
     await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     res = await graph.ainvoke(Command(resume=False), cfg)
@@ -154,8 +160,7 @@ async def test_discard_loi_khong_chan_thong_bao_huy_khong_con_canh_bao_rui_ro(mo
 
     discard_tool.ainvoke = _raise_discard
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     cfg = {"configurable": {"thread_id": "m3b"}}
     await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     res = await graph.ainvoke(Command(resume=False), cfg)
@@ -187,8 +192,7 @@ async def test_gate_tat_va_discard_loi_khong_con_canh_bao_rui_ro(monkeypatch):
 
     discard_tool.ainvoke = _raise_discard
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     cfg = {"configurable": {"thread_id": "m3c"}}
     res1 = await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     assert "__interrupt__" in res1
@@ -210,8 +214,7 @@ async def test_khong_tim_thay_don_thi_bao_loi_khong_hoi(monkeypatch):
                                         "display": "Không tìm thấy bản ghi 'S99999' trong sale.order."})
     _, send_tool, discard_tool = _tools([], send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     res = await graph.ainvoke(_state({"order_ref": "S99999"}),
                               {"configurable": {"thread_id": "m4"}})
     assert "__interrupt__" not in res
@@ -234,8 +237,7 @@ async def test_preview_loi_thi_bao_loi_khong_crash(monkeypatch):
     preview_tool.ainvoke = _raise
     _, send_tool, discard_tool = _tools([], send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     res = await graph.ainvoke(_state({"order_ref": "S00166"}),
                               {"configurable": {"thread_id": "m4b"}})
     assert "__interrupt__" not in res
@@ -249,8 +251,7 @@ async def test_thieu_order_ref_thi_hoi_lai(monkeypatch):
     preview_calls, send_calls, discard_calls = [], [], []
     preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     res = await graph.ainvoke(_state({}), {"configurable": {"thread_id": "m5"}})
     assert "__interrupt__" not in res
     assert preview_calls == []
@@ -263,8 +264,7 @@ async def test_write_tat_thi_tu_choi_ngay(monkeypatch):
     preview_calls, send_calls, discard_calls = [], [], []
     preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     res = await graph.ainvoke(_state({"order_ref": "S00166"}),
                               {"configurable": {"thread_id": "m6"}})
     assert "__interrupt__" not in res
@@ -292,8 +292,7 @@ async def test_gate_tat_giua_luc_cho_xac_nhan_thi_huy_ban_nhap_khong_gui(monkeyp
     preview_calls, send_calls, discard_calls = [], [], []
     preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
     tools = [preview_tool, send_tool, discard_tool]
-    graph = _graph(mw.make_send_order_confirmation_email_preview_node(tools),
-                   mw.make_send_order_confirmation_email_node(tools))
+    graph = _build(tools)
     cfg = {"configurable": {"thread_id": "m7"}}
     res1 = await graph.ainvoke(_state({"order_ref": "S00166"}), cfg)
     assert "__interrupt__" in res1                     # xác nhận đang chờ

@@ -15,7 +15,8 @@ from .fanout import (make_fuse_answer_node, make_gather_docs_node,
                      make_gather_erp_node, make_mixed_node)
 from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS, CONFIRM_IN_CHAIN
 from .continuation import make_write_continuation_node, _route_after_continuation
-from .mail_write import make_send_order_confirmation_email_node, route_after_mail_preview
+from .mail_write import (MAIL_COORDINATOR_CFGS, make_send_template_email_node,
+                         make_route_after_mail_preview)
 from .models import llms_from_single
 from .skill_loader import build_skill_node, load_skill_specs, render_worker_block
 from .agentic_context_sync import make_agentic_context_sync_node
@@ -91,23 +92,25 @@ def build_graph(llm, tools, checkpointer) -> object:
     write_targets.update({spec.node: spec.node for spec in WRITE_COORDINATORS.values()})
     g.add_conditional_edges("erp_write_planner", _route_after_write_planner, write_targets)
     g.add_edge("erp_write_executor", "write_continuation")
+    mail_preview_nodes = {cfg.preview_node for cfg in MAIL_COORDINATOR_CFGS}
     for spec in WRITE_COORDINATORS.values():
-        if spec.node == "send_order_confirmation_email_preview":
+        if spec.node in mail_preview_nodes:
             continue  # coordinator 2 node, nối tay ngay dưới — xem docstring
                      # mail_write.py: preview là 1 write thật, không được
                      # unconditional-edge thẳng write_continuation
         g.add_edge(spec.node, "write_continuation")
 
-    # send_order_confirmation_email: coordinator 2 node. Node 1 (preview) đã
-    # add ở vòng lặp add_node phía trên (.node của Spec trỏ vào nó). Node 2
-    # (gửi) KHÔNG nằm trong WRITE_COORDINATORS — add tay ở đây.
-    g.add_node("send_order_confirmation_email",
-              make_send_order_confirmation_email_node(tools))
-    g.add_conditional_edges(
-        "send_order_confirmation_email_preview", route_after_mail_preview,
-        {"send_order_confirmation_email": "send_order_confirmation_email",
-         "write_continuation": "write_continuation"})
-    g.add_edge("send_order_confirmation_email", "write_continuation")
+    # Mỗi coordinator gửi mail là 2 node. Node 1 (preview) đã add ở vòng lặp
+    # add_node phía trên (.node của Spec trỏ vào nó). Node 2 (gửi) KHÔNG nằm
+    # trong WRITE_COORDINATORS — add tay ở đây, MỘT CẶP RIÊNG cho mỗi cfg
+    # (không share node instance giữa các lối vào).
+    for cfg in MAIL_COORDINATOR_CFGS:
+        g.add_node(cfg.send_node, make_send_template_email_node(tools, cfg))
+        g.add_conditional_edges(
+            cfg.preview_node, make_route_after_mail_preview(cfg),
+            {cfg.send_node: cfg.send_node,
+             "write_continuation": "write_continuation"})
+        g.add_edge(cfg.send_node, "write_continuation")
 
     cont_targets = {"erp_write_executor": "erp_write_executor", END: END}
     cont_targets.update({WRITE_COORDINATORS[t].node: WRITE_COORDINATORS[t].node

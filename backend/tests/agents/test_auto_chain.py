@@ -299,7 +299,8 @@ from src.agents.nodes import make_erp_write_executor_node
 from src.agents.graph import (_route_after_write_planner,
                                       _route_after_continuation)
 from src.agents.write_registry import WRITE_COORDINATORS, CONFIRM_IN_CHAIN
-from src.agents.mail_write import make_send_order_confirmation_email_node, route_after_mail_preview
+from src.agents.mail_write import (MAIL_COORDINATOR_CFGS, make_send_template_email_node,
+                                    make_route_after_mail_preview)
 
 
 def _env_tool(name, ref, state_val, display, rec):
@@ -342,21 +343,22 @@ def _write_graph(llm, tools):
     targets.update({s.node: s.node for s in WRITE_COORDINATORS.values()})
     g.add_conditional_edges("erp_write_planner", _route_after_write_planner, targets)
     g.add_edge("erp_write_executor", "write_continuation")
+    mail_preview_nodes = {cfg.preview_node for cfg in MAIL_COORDINATOR_CFGS}
     for s in WRITE_COORDINATORS.values():
-        if s.node == "send_order_confirmation_email_preview":
+        if s.node in mail_preview_nodes:
             continue  # coordinator 2 node, nối tay ngay dưới — mirror graph.py
         g.add_edge(s.node, "write_continuation")
 
-    # send_order_confirmation_email: coordinator 2 node. Node 1 (preview) đã
-    # add ở vòng lặp add_node phía trên. Node 2 (gửi) KHÔNG nằm trong
-    # WRITE_COORDINATORS — add tay, khớp đúng graph.py.
-    g.add_node("send_order_confirmation_email",
-              make_send_order_confirmation_email_node(tools))
-    g.add_conditional_edges(
-        "send_order_confirmation_email_preview", route_after_mail_preview,
-        {"send_order_confirmation_email": "send_order_confirmation_email",
-         "write_continuation": "write_continuation"})
-    g.add_edge("send_order_confirmation_email", "write_continuation")
+    # Mỗi coordinator gửi mail là 2 node. Node 1 (preview) đã add ở vòng lặp
+    # add_node phía trên. Node 2 (gửi) KHÔNG nằm trong WRITE_COORDINATORS —
+    # add tay, khớp đúng graph.py.
+    for cfg in MAIL_COORDINATOR_CFGS:
+        g.add_node(cfg.send_node, make_send_template_email_node(tools, cfg))
+        g.add_conditional_edges(
+            cfg.preview_node, make_route_after_mail_preview(cfg),
+            {cfg.send_node: cfg.send_node,
+             "write_continuation": "write_continuation"})
+        g.add_edge(cfg.send_node, "write_continuation")
 
     cont_targets = {"erp_write_executor": "erp_write_executor", END: END}
     cont_targets.update({WRITE_COORDINATORS[t].node: WRITE_COORDINATORS[t].node

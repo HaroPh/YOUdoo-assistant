@@ -13,8 +13,7 @@ from .mrp_write import make_create_mo_node
 from .bom_write import make_create_bom_node, make_update_bom_node
 from .returns_write import make_return_order_node, make_create_credit_memo_node
 from .invoice_write import make_post_invoice_node, make_register_payment_node
-from .mail_write import (make_send_order_confirmation_email_preview_node,
-                         make_send_order_confirmation_email_node)
+from .mail_write import make_send_template_email_preview_node, ORDER_CONFIRMATION_CFG
 from .purchase_write import (make_create_vendor_node, make_update_vendor_pricing_node,
                              make_create_bulk_rfq_node)
 
@@ -46,9 +45,13 @@ WRITE_COORDINATORS = {
     "create_bulk_rfq":        Spec("create_bulk_rfq",       lambda llm, tools: make_create_bulk_rfq_node(tools)),
     "post_invoice": Spec("post_invoice", lambda llm, tools: make_post_invoice_node(tools)),
     "register_payment": Spec("register_payment", lambda llm, tools: make_register_payment_node(tools)),
-    "send_order_confirmation_email": Spec(
-        "send_order_confirmation_email_preview",
-        lambda llm, tools: make_send_order_confirmation_email_preview_node(tools)),
+    # Spec.node PHẢI khớp cfg.preview_node — graph.py lặp trên
+    # MAIL_COORDINATOR_CFGS để dựng node 2 + conditional edge, hai bên phải
+    # gọi cùng một tên node thì đồ thị mới nối được.
+    ORDER_CONFIRMATION_CFG.tool_name: Spec(
+        ORDER_CONFIRMATION_CFG.preview_node,
+        lambda llm, tools: make_send_template_email_preview_node(
+            tools, ORDER_CONFIRMATION_CFG)),
 }
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
