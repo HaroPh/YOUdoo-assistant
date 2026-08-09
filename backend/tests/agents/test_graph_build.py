@@ -145,13 +145,15 @@ def test_mail_preview_node_has_no_unconditional_edge_to_continuation():
     test_continuation_routes_money_touching_chain_steps_to_coordinator above:
     lock the actual built-graph edge structure so a future revert fails at
     test time, not at 2am in prod."""
+    from src.agents.mail_write import MAIL_COORDINATOR_CFGS
     graph = build_graph(MagicMock(), tools=[], checkpointer=None)
     edges = [(e.source, e.target, e.conditional) for e in graph.get_graph().edges]
-    assert ("send_order_confirmation_email_preview", "write_continuation", False) not in edges
-    # And the conditional path (the CORRECT wiring) must still exist.
-    assert ("send_order_confirmation_email_preview", "write_continuation", True) in edges
-    assert ("send_order_confirmation_email_preview", "send_order_confirmation_email",
-           True) in edges
+    assert len(MAIL_COORDINATOR_CFGS) == 4, "rỗng/thiếu thì test này vô nghĩa"
+    for cfg in MAIL_COORDINATOR_CFGS:
+        assert (cfg.preview_node, "write_continuation", False) not in edges, cfg.tool_name
+        # And the conditional path (the CORRECT wiring) must still exist.
+        assert (cfg.preview_node, "write_continuation", True) in edges, cfg.tool_name
+        assert (cfg.preview_node, cfg.send_node, True) in edges, cfg.tool_name
 
 
 def test_build_graph_accepts_role_mapping(monkeypatch):

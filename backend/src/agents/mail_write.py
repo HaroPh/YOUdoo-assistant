@@ -116,10 +116,38 @@ ORDER_CONFIRMATION_CFG = EmailCfg(
     label="mail xác nhận đơn",
     missing_ref_msg="Bạn cần cho biết mã đơn bán cần gửi mail xác nhận.")
 
-# Task 2 nối thêm 3 config mới vào tuple này. graph.py lặp trên NÓ để dựng
-# node — thêm coordinator gửi mail = thêm 1 phần tử ở đây + 1 dòng
-# WRITE_COORDINATORS + 1 dòng WRITE_PLANNER_PROMPT, không đụng graph.py.
-MAIL_COORDINATOR_CFGS = (ORDER_CONFIRMATION_CFG,)
+QUOTATION_EMAIL_CFG = EmailCfg(
+    tool_name="send_quotation_email",
+    template_name="Sales: Send Quotation",
+    res_model="sale.order",
+    ref_arg="order_ref",
+    label="mail báo giá",
+    missing_ref_msg="Bạn cần cho biết mã báo giá cần gửi mail.")
+
+RFQ_EMAIL_CFG = EmailCfg(
+    tool_name="send_rfq_email",
+    template_name="Purchase: Request For Quotation",
+    res_model="purchase.order",
+    ref_arg="order_ref",
+    label="mail yêu cầu báo giá",
+    missing_ref_msg="Bạn cần cho biết mã đơn mua (RFQ) cần gửi mail.")
+
+# Hóa đơn NHÁP có name = False (đo thật 2026-08-08), nên tra theo mã chỉ
+# tìm được hóa đơn ĐÃ PHÁT HÀNH — đúng ý đồ (post_invoice → gửi mail), và
+# hóa đơn nháp tự nhiên trả "Không tìm thấy bản ghi… trong account.move".
+INVOICE_EMAIL_CFG = EmailCfg(
+    tool_name="send_invoice_email",
+    template_name="Invoice: Sending",
+    res_model="account.move",
+    ref_arg="invoice_ref",
+    label="mail hóa đơn",
+    missing_ref_msg="Bạn cần cho biết số hóa đơn cần gửi mail.")
+
+# graph.py lặp trên tuple NÀY để dựng node — thêm coordinator gửi mail =
+# thêm 1 phần tử ở đây + 1 dòng WRITE_COORDINATORS + 1 dòng
+# WRITE_PLANNER_PROMPT, không đụng graph.py.
+MAIL_COORDINATOR_CFGS = (ORDER_CONFIRMATION_CFG, QUOTATION_EMAIL_CFG,
+                         RFQ_EMAIL_CFG, INVOICE_EMAIL_CFG)
 
 
 def _finish(tool_name: str, result) -> dict:

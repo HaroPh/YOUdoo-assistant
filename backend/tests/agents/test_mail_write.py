@@ -324,3 +324,60 @@ def test_send_order_confirmation_email_registered_in_registry_and_prompts():
     # KHÔNG chain tự động — xem Global Constraints + docstring mail_write.py
     assert "send_order_confirmation_email" not in NEXT_STEPS
     assert "send_order_confirmation_email(order_ref" in WRITE_PLANNER_PROMPT
+
+
+def test_ba_coordinator_mail_moi_dang_ky_day_du():
+    """Cùng lớp bảo vệ như test_send_order_confirmation_email_registered_...
+    ở trên: 3 tool này KHÔNG nằm trong NEXT_STEPS (cố ý — cả 3 khoá đã có
+    bước kế chiếm chỗ, thêm vào sẽ GHI ĐÈ im lặng), nên dòng trong
+    WRITE_PLANNER_PROMPT là đường DUY NHẤT LLM biết chúng tồn tại. Thiếu
+    dòng đó thì coordinator dù đúng hoàn toàn vẫn không bao giờ chạm tới
+    được từ một lượt chat thật."""
+    from src.agents.write_registry import (COORDINATED_TOOLS, WRITE_COORDINATORS,
+                                            NEXT_STEPS, CONFIRM_IN_CHAIN)
+    from src.agents.prompts import WRITE_PLANNER_PROMPT
+    for tool, ref_arg in (("send_invoice_email", "invoice_ref"),
+                          ("send_rfq_email", "order_ref"),
+                          ("send_quotation_email", "order_ref")):
+        assert tool in COORDINATED_TOOLS, tool
+        assert WRITE_COORDINATORS[tool].node == f"{tool}_preview", tool
+        assert tool not in NEXT_STEPS, tool
+        assert tool in CONFIRM_IN_CHAIN, tool
+        assert f"{tool}({ref_arg}" in WRITE_PLANNER_PROMPT, tool
+
+
+def test_moi_cfg_mail_co_template_va_model_rieng_biet():
+    """Copy-paste một EmailCfg rồi quên đổi template_name/res_model sẽ khiến
+    một coordinator âm thầm gửi SAI loại mail cho SAI đối tượng — lỗi chỉ lộ
+    ra khi mail đã bay đi thật. Khoá lại: 4 config phải đôi một khác nhau ở
+    cả tool_name lẫn cặp (template_name, res_model)."""
+    cfgs = mw.MAIL_COORDINATOR_CFGS
+    assert len(cfgs) == 4
+    assert len({c.tool_name for c in cfgs}) == 4
+    assert len({(c.template_name, c.res_model) for c in cfgs}) == 4
+    assert len({c.preview_node for c in cfgs}) == 4
+    assert len({c.send_node for c in cfgs}) == 4
+
+
+@pytest.mark.asyncio
+async def test_cfg_quyet_dinh_template_model_va_ten_arg_gui_xuong_tool(monkeypatch):
+    """Node 1 phải chuyển ĐÚNG template_name/res_model của cfg xuống tool, và
+    đọc ref từ ĐÚNG tên arg của cfg (invoice_ref cho hóa đơn, order_ref cho
+    đơn) — nếu nó vẫn hardcode "order_ref" như bản trước refactor thì
+    send_invoice_email sẽ luôn báo thiếu mã dù LLM truyền invoice_ref đúng."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    cfg = mw.INVOICE_EMAIL_CFG
+    preview_calls, send_calls, discard_calls = [], [], []
+    preview_tool, send_tool, discard_tool = _tools(preview_calls, send_calls, discard_calls)
+    tools = [preview_tool, send_tool, discard_tool]
+    graph = _build(tools, cfg)
+    state = {"messages": [], "intent": "erp_write", "confirmed": None,
+             "pending_action": {"tool": cfg.tool_name,
+                                "args": {"invoice_ref": "INV/2026/00030"},
+                                "summary": "x"}}
+    res = await graph.ainvoke(state, {"configurable": {"thread_id": "mi1"}})
+    assert preview_calls == [{"template_name": "Invoice: Sending",
+                              "res_model": "account.move",
+                              "ref": "INV/2026/00030"}]
+    assert "INV/2026/00030" in res["__interrupt__"][0].value["question"]
+    assert send_calls == []

@@ -28,9 +28,17 @@ def test_edit_tools_in_planner_prompt_with_changes_key():
 # itself. The prompt must tell the LLM to always route edit requests to these
 # tools regardless of apparent order state.
 def test_edit_tools_prompt_does_not_restrict_to_unconfirmed_orders():
-    assert "CHƯA xác nhận" not in WRITE_PLANNER_PROMPT
-    assert "chưa xác nhận" not in WRITE_PLANNER_PROMPT
+    # Task 2 (2026-08-08): send_quotation_email now mentions "CHƯA xác nhận"
+    # in its description (quotations are unconfirmed orders), so we can't check
+    # globally. Instead verify edit tools specifically have the "kể cả nếu đơn
+    # đã xác nhận" clause and that send_quotation_email (not an edit tool) can
+    # mention unconfirmed state without breaking edit tool behavior.
+    assert "update_quotation_lines" in WRITE_PLANNER_PROMPT
+    assert "update_rfq_lines" in WRITE_PLANNER_PROMPT
     assert "kể cả nếu đơn đã xác nhận" in WRITE_PLANNER_PROMPT
+    # New mail coordinators can mention confirmed/unconfirmed state without
+    # restricting themselves — that's specific to edit tool semantics above.
+    assert "send_quotation_email" in WRITE_PLANNER_PROMPT
 
 
 def test_edit_tools_registered_as_coordinated():

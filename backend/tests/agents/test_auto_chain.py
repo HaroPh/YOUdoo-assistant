@@ -449,9 +449,12 @@ def test_confirm_in_chain_la_tap_tuong_minh_chi_3_tool_dung_tien():
     phạm vi spec 2026-08-06 §3.3. send_order_confirmation_email thêm vào
     spec 2026-08-07 §3 (task 3): cũng là hành động "đụng" tới thực tế bên
     ngoài (gửi mail thật) nên phải dừng hỏi lại kèm bản tóm tắt, không
-    auto-run trong chuỗi."""
+    auto-run trong chuỗi. Task 2 (2026-08-08) mở rộng thêm 3 coordinator gửi
+    mail nữa: send_quotation_email, send_rfq_email, send_invoice_email."""
     assert CONFIRM_IN_CHAIN == frozenset({"post_invoice", "register_payment",
-                                          "send_order_confirmation_email"})
+                                          "send_order_confirmation_email",
+                                          "send_quotation_email", "send_rfq_email",
+                                          "send_invoice_email"})
 
 
 def test_moi_tool_trong_confirm_in_chain_deu_co_coordinator():

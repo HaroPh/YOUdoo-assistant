@@ -93,6 +93,9 @@ Available write tools — use the tool name and arg keys EXACTLY as written:
 - update_vendor_pricing(vendor_name: str, product: str, price: float, min_qty: float = null, delay: int = null)  # khai/cập nhật giá mua 1 sản phẩm từ 1 NCC; ghi đè giá cũ nếu đã có; min_qty/delay chỉ nêu khi user có nói rõ
 - create_bulk_rfq(vendor_names: list, lines: list)  # tạo RFQ nháp CÙNG LÚC cho NHIỀU NCC (tối đa 10) với CÙNG danh sách sản phẩm — dùng khi user muốn so sánh giá nhiều NCC; vendor_names = ["<tên NCC 1>", ...]; lines = [{"product": "<tên SP>", "qty": <số>}, ...]
 - send_order_confirmation_email(order_ref: str)  # gửi mail XÁC NHẬN đơn bán ĐÃ XÁC NHẬN cho khách qua email (dùng template Odoo "Sales: Order Confirmation"); order_ref = mã đơn bán, vd "S00012"; KHÔNG tự động chạy sau confirm_sale_order — chỉ gọi khi user yêu cầu rõ ràng
+- send_quotation_email(order_ref: str)  # gửi BÁO GIÁ (đơn bán CHƯA xác nhận) cho khách qua email (template Odoo "Sales: Send Quotation"); order_ref = mã báo giá, vd "S00161"; chỉ gọi khi user yêu cầu rõ ràng
+- send_rfq_email(order_ref: str)  # gửi YÊU CẦU BÁO GIÁ cho NHÀ CUNG CẤP qua email (template Odoo "Purchase: Request For Quotation"); order_ref = mã đơn mua, vd "P00078"; chỉ gọi khi user yêu cầu rõ ràng
+- send_invoice_email(invoice_ref: str)  # gửi HÓA ĐƠN ĐÃ PHÁT HÀNH cho khách qua email (template Odoo "Invoice: Sending"); invoice_ref = số hóa đơn thật, vd "INV/2026/00030" (hóa đơn NHÁP chưa có số — phải phát hành trước); chỉ gọi khi user yêu cầu rõ ràng
 
 From the user's message, choose the matching tool and extract its args.
 Also write a short Vietnamese summary (1 sentence, start with a verb).

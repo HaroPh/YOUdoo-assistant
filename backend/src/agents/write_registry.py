@@ -13,7 +13,8 @@ from .mrp_write import make_create_mo_node
 from .bom_write import make_create_bom_node, make_update_bom_node
 from .returns_write import make_return_order_node, make_create_credit_memo_node
 from .invoice_write import make_post_invoice_node, make_register_payment_node
-from .mail_write import make_send_template_email_preview_node, ORDER_CONFIRMATION_CFG
+from .mail_write import (make_send_template_email_preview_node,
+                         MAIL_COORDINATOR_CFGS)
 from .purchase_write import (make_create_vendor_node, make_update_vendor_pricing_node,
                              make_create_bulk_rfq_node)
 
@@ -45,14 +46,18 @@ WRITE_COORDINATORS = {
     "create_bulk_rfq":        Spec("create_bulk_rfq",       lambda llm, tools: make_create_bulk_rfq_node(tools)),
     "post_invoice": Spec("post_invoice", lambda llm, tools: make_post_invoice_node(tools)),
     "register_payment": Spec("register_payment", lambda llm, tools: make_register_payment_node(tools)),
-    # Spec.node PHẢI khớp cfg.preview_node — graph.py lặp trên
-    # MAIL_COORDINATOR_CFGS để dựng node 2 + conditional edge, hai bên phải
-    # gọi cùng một tên node thì đồ thị mới nối được.
-    ORDER_CONFIRMATION_CFG.tool_name: Spec(
-        ORDER_CONFIRMATION_CFG.preview_node,
-        lambda llm, tools: make_send_template_email_preview_node(
-            tools, ORDER_CONFIRMATION_CFG)),
 }
+
+# 4 coordinator gửi mail dựng từ MAIL_COORDINATOR_CFGS (mail_write.py) —
+# Spec.node PHẢI khớp cfg.preview_node, vì graph.py lặp trên chính tuple đó
+# để dựng node 2 + conditional edge; hai bên lệch tên là đồ thị đứt.
+# Dùng default-arg `c=cfg` để mỗi lambda bắt ĐÚNG cfg của vòng lặp mình —
+# thiếu nó, cả 4 lambda cùng trỏ vào cfg CUỐI (late binding), nghĩa là mọi
+# coordinator gửi mail đều gửi mail hóa đơn.
+for cfg in MAIL_COORDINATOR_CFGS:
+    WRITE_COORDINATORS[cfg.tool_name] = Spec(
+        cfg.preview_node,
+        lambda llm, tools, c=cfg: make_send_template_email_preview_node(tools, c))
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
 
@@ -63,8 +68,8 @@ COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
 # thấy convert_lead và update_vendor_pricing cũng VỪA là coordinated tool VỪA
 # là bước trong NEXT_STEPS — dùng điều kiện rộng sẽ đổi luôn hành vi của hai
 # tool đó, vượt phạm vi spec và không có tiêu chí nghiệm thu nào phủ.
-CONFIRM_IN_CHAIN = frozenset({"post_invoice", "register_payment",
-                              "send_order_confirmation_email"})
+CONFIRM_IN_CHAIN = frozenset({"post_invoice", "register_payment"}
+                             | {cfg.tool_name for cfg in MAIL_COORDINATOR_CFGS})
 
 
 @dataclass(frozen=True)
