@@ -442,7 +442,7 @@ from src.agents.write_registry import CONFIRM_IN_CHAIN, WRITE_COORDINATORS
 from src.agents.continuation import _route_after_continuation
 
 
-def test_confirm_in_chain_la_tap_tuong_minh_chi_3_tool_dung_tien():
+def test_confirm_in_chain_la_tap_tuong_minh_chi_6_tool_dung_tien():
     """PHẢI tường minh, KHÔNG được viết thành `in COORDINATED_TOOLS`:
     convert_lead và update_vendor_pricing cũng vừa coordinated vừa là bước
     trong NEXT_STEPS — điều kiện rộng sẽ đổi luôn hành vi của chúng, ngoài

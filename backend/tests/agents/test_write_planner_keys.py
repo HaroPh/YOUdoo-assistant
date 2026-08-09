@@ -27,18 +27,18 @@ def test_edit_tools_in_planner_prompt_with_changes_key():
 # (Invariants #2/#3/#4), which is supposed to make that state-based decision
 # itself. The prompt must tell the LLM to always route edit requests to these
 # tools regardless of apparent order state.
+#
+# Task 2 (2026-08-08) added send_quotation_email which legitimately mentions
+# "CHƯA xác nhận" (quotations ARE unconfirmed orders). The regression guard must
+# be scoped to the edit-tool lines only: the negative that caught the live bug
+# still applies to update_quotation_lines/update_rfq_lines but not globally.
 def test_edit_tools_prompt_does_not_restrict_to_unconfirmed_orders():
-    # Task 2 (2026-08-08): send_quotation_email now mentions "CHƯA xác nhận"
-    # in its description (quotations are unconfirmed orders), so we can't check
-    # globally. Instead verify edit tools specifically have the "kể cả nếu đơn
-    # đã xác nhận" clause and that send_quotation_email (not an edit tool) can
-    # mention unconfirmed state without breaking edit tool behavior.
-    assert "update_quotation_lines" in WRITE_PLANNER_PROMPT
-    assert "update_rfq_lines" in WRITE_PLANNER_PROMPT
-    assert "kể cả nếu đơn đã xác nhận" in WRITE_PLANNER_PROMPT
-    # New mail coordinators can mention confirmed/unconfirmed state without
-    # restricting themselves — that's specific to edit tool semantics above.
-    assert "send_quotation_email" in WRITE_PLANNER_PROMPT
+    edit_lines = "\n".join(l for l in WRITE_PLANNER_PROMPT.splitlines()
+                           if l.strip().startswith(("- update_quotation_lines(", "- update_rfq_lines(")))
+    assert edit_lines, "không tìm thấy dòng edit-tool nào — test này vô nghĩa nếu rỗng"
+    assert "CHƯA xác nhận" not in edit_lines
+    assert "chưa xác nhận" not in edit_lines
+    assert "kể cả nếu đơn đã xác nhận" in edit_lines
 
 
 def test_edit_tools_registered_as_coordinated():
