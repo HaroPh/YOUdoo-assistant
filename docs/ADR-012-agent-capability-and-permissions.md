@@ -195,14 +195,115 @@ Backend đã nhận sẵn header `x-openwebui-user-id` (`backend/src/main.py:117
 nhưng mới chỉ dùng để tách luồng hội thoại — chưa bao giờ ánh xạ sang user
 Odoo. Đó là nửa hạ tầng đã có cho bước ánh xạ.
 
-## 7. Quyết định còn mở
+## 7. Quyết định đã chốt (cập nhật 2026-08-09, sau khảo sát vòng 2)
 
-1. **Danh tính cho phần activity**: hiện tất cả kèm tên chủ mỗi dòng (không cần
-   cấu hình) / ánh xạ user Open WebUI → user Odoo / agent hỏi "bạn là ai".
-   *Lưu ý: nếu đằng nào cũng đi tới §4 bước 3 thì ánh xạ chính là bước một, và
-   hai câu hỏi này là một.*
-2. **Có làm nửa kho trước không** (không phụ thuộc quyết định 1).
-3. **Thời điểm siết phân quyền** — trước hay sau khi thêm tính năng đọc.
+Chủ dự án chọn **hướng kiến trúc production-ready**, không phải trình diễn
+tính năng. Ba vai, đặt tên tiếng Anh: **`admin`, `warehouse`, `accounting`**.
+
+### 7.1 Ba tầng danh tính, không tầng nào tự khai
+
+```
+Nhân viên đăng nhập Open WebUI (:3002)      ← xác thực thật, có mật khẩu
+            │  x-openwebui-user-id (header)
+   backend tra bảng ánh xạ user_id → role   ← phía server, người dùng không sửa được
+            │
+   chọn graph + tiến trình MCP + credential Odoo
+            │
+   Odoo cưỡng chế theo nhóm quyền           ← lớp cuối, không tin code phía trên
+```
+
+**Phương án "3 model trong dropdown" đã bị LOẠI.** Nó cho phép người dùng tự
+chọn vai — tức tự khai, không xác thực. Vai phải suy từ tài khoản đăng nhập.
+
+Hai điều kiện kèm theo:
+
+- `docker-compose.yml` hiện **không** đặt `ENABLE_FORWARD_USER_INFO_HEADERS`,
+  nên header nhận dạng **chưa bao giờ được gửi sang**. `main.py` đã có code
+  đọc `x-openwebui-user-id` nhưng thực tế luôn rỗng, và `thread_id` đang rơi
+  về phương án dự phòng (băm câu hỏi đầu tiên). Phải bật.
+- Bảng ánh xạ khoá theo **`user_id` (chuỗi mờ)**, KHÔNG theo email — tôn trọng
+  quyết định PII đã ghi ở `main.py:114-118` ("name/email/role là PII, không bao
+  giờ được đọc hoặc ghi log").
+
+⇒ Quyết định mở số 1 của bản cũ (**danh tính cho activity**) **đã được giải
+quyết** bởi chính chuỗi này: có ánh xạ rồi thì "việc của tôi" lọc đúng người
+miễn phí.
+
+### 7.2 Bốn credential, không phải ba — đường ĐỌC không đi qua MCP
+
+Phát hiện khi khảo sát: có **ba** đường ra Odoo, không phải một.
+
+| Đường | Chạy ở | Credential |
+|---|---|---|
+| Ghi (33 tool) | tiến trình MCP | env của MCP |
+| **Đọc (27 tool `erp_query`)** | **thẳng từ backend** (`gateway.py:67-69`) | `ODOO_USERNAME` của backend |
+| Kiểm tra write-gate | backend (`write_gate.py:31`) | như trên |
+
+Nên kiến trúc "3 tiến trình MCP" chỉ phủ phần GHI. Phân bổ đúng:
+
+| Tài khoản | Dùng ở | Quyền |
+|---|---|---|
+| `ai-readonly` | backend (đọc + write-gate) | Đọc rộng mọi module, **không một quyền ghi nào** |
+| `ai-admin` | MCP :8003 | Ghi đầy đủ |
+| `ai-warehouse` | MCP :8004 | Ghi kho |
+| `ai-accounting` | MCP :8005 | Ghi kế toán |
+
+Điều này làm thiết kế **gọn hơn**, vì khớp đúng nguyên tắc "đọc rộng tay, siết
+ghi" ở §5: đọc chéo domain không gãy, backend không cần sửa cho phần đọc, và
+đường đọc trở thành read-only **thật** (kể cả bị chiếm quyền hoàn toàn cũng
+không ghi được — vì tài khoản không có quyền, không phải vì code từ chối).
+
+**Đánh đổi có chủ ý:** một credential đọc dùng chung ⇒ mọi vai đọc được mọi dữ
+liệu. Đúng với nghiệp vụ (kho cần biết đơn đã thanh toán chưa trước khi xuất).
+Nếu sau cần siết: mọi hàm `erp_query` đều nhận `gw=None`, tức gateway tiêm được
+theo từng lời gọi — chuyển sang gateway theo vai là việc làm được, không phải
+viết lại.
+
+### 7.3 Cô lập theo tiến trình, không phải 1 tiến trình giữ 3 credential
+
+`MCP_ODOO_PORT`, `ODOO_USERNAME`, `ODOO_PASSWORD` **đều đã lấy từ env** — nên
+chạy 3 tiến trình MCP với 3 credential **không cần sửa dòng nào** trong
+`mcp-servers/odoo/`.
+
+Lý do chọn cô lập tiến trình: tiến trình `warehouse` **không hề nắm** credential
+admin. Một bug định tuyến vai khi đó chỉ dẫn tới "sai bộ tool", chứ không phải
+"leo thang đặc quyền" — bảo đảm khác hẳn về chất so với "code chọn đúng
+credential", thứ chỉ đúng chừng nào code không có bug.
+
+**Phương án truyền `role` như tham số tool đã bị LOẠI**: tham số tool do LLM
+điền, mà LLM là thành phần ta tin cậy ít nhất. Đó là bảo mật giả.
+
+### 7.4 Hai lớp: lọc ở backend, cưỡng chế ở Odoo
+
+Mỗi tiến trình MCP vẫn lộ đủ 33 tool (cùng code). Backend **lọc xuống tập cho
+phép** trước khi dựng graph:
+
+- LLM chỉ thấy tool liên quan → chọn đúng hơn, prompt gọn hơn (lợi ích **chất
+  lượng**, không chỉ bảo mật — dự án đang đo `tool_acc`/`dangerous_misroute`)
+- Nếu bộ lọc có bug → Odoo vẫn chặn
+
+Phần liệt kê tool trong prompt phải **sinh động từ `allowed_tools`**, không viết
+tay 3 prompt cứng — nếu không chúng sẽ trôi lệch, đúng lớp lỗi đã bắt được ở
+`mail-trigger-points` (`WRITE_TOOL_NAMES` thiếu 4 tool mail khiến chỉ số
+"misroute nguy hiểm" mù với đúng những tool gửi mail ra ngoài).
+
+### 7.5 Cạm bẫy: `thread_id` chưa mang vai
+
+`thread_id` suy từ người dùng + cuộc chat, **không có vai**. Kịch bản hỏng: đang
+ở vai warehouse, agent hỏi xác nhận một lệnh ghi → đổi vai → trả lời "có" →
+LangGraph resume interrupt trong graph **không có node đó**. Cách chặn: đưa vai
+vào `thread_id`.
+
+### 7.6 Phạm vi vòng đầu
+
+Khi một vai chạm việc ngoài quyền: vòng này chỉ làm **thông báo rõ ràng**.
+Phần **bàn giao bằng activity** để vòng sau — cần tổng quát hoá `log_activity`
+(§5), đủ lớn để đứng riêng.
+
+### Còn mở
+
+- Nhóm quyền Odoo cụ thể cho từng vai → **đang đo** (§9).
+- Có làm hàng đợi kho (§2, §3) trong cùng vòng hay tách.
 
 ## 8. Mảng đã phủ tốt, không cần làm lại
 
