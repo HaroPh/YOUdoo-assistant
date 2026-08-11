@@ -154,6 +154,44 @@ nhưng nó cho thấy đúng lý do phải có lớp cưỡng chế dưới cùn
 bộ phận, `pending_action=None`, không cổng xác nhận. Prompt giữ nguyên nhưng từ
 nay chỉ là gợi ý.
 
+### Số liệu ĐẦY ĐỦ sau khi chạy script (controller chạy thật, 2026-08-09)
+
+Bản ghi ở trên nói "4 khoảng trống đã biết" — con số đó đến từ phần kiểm thủ
+công của final review. Khi chạy `scripts/check_role_odoo_consistency.py` phủ
+hết 18 tool × 2 vai, kết quả thật là **9 khoảng trống + 2 lỗi chức năng**:
+
+| Vai | Kết quả |
+|---|---|
+| `warehouse` | 16/18 đúng. 2 gap: `confirm_sale_order`, `send_invoice_email` |
+| `accounting` | 7 gap: `deliver_order`, `receive_order`, `validate_picking`, `internal_transfer`, `confirm_sale_order`, `confirm_purchase_order`, `send_delivery_email` |
+
+**Vai kho gần như sạch** — mọi tool `own` đều chạy được, mọi tool `other_dept`
+đều bị Odoo chặn trừ 2. Đây là vai bị hạn chế nhiều nhất và cũng là vai được
+cưỡng chế tốt nhất. Khoảng trống tập trung ở vai kế toán, vì `Accounting /
+Invoicing` không tách được theo loại phiếu kho.
+
+### HAI LỖI CHỨC NĂNG (khác hẳn khoảng trống — sẽ hỏng thật khi dùng)
+
+```
+accounting  create_invoice_from_order    expect=has  actual=lacks  BLOCKED
+accounting  create_bill_from_po          expect=has  actual=lacks  BLOCKED
+```
+
+`roles.py` khai hai tool này thuộc `own` của kế toán, nhưng tài khoản
+`ai-accounting` KHÔNG có quyền — nên chúng sẽ báo lỗi Odoo khi kế toán dùng
+thật. Nguyên nhân: cả hai gọi wizard `sale.advance.payment.inv`, tức cần quyền
+Sales mà `Accounting / Invoicing` không cấp.
+
+Đây KHÔNG phải lỗ hổng bảo mật (chặn chặt hơn khai báo, không lỏng hơn), nhưng
+là năng lực được hứa mà không dùng được. Chưa sửa trong nhánh này — cần quyết
+định chính sách: hoặc cấp thêm nhóm Sales cho `ai-accounting`, hoặc chuyển hai
+tool này ra khỏi `own` của kế toán. Ghi lại ở đây để không rơi vào im lặng.
+
+**Bài học lặp lại hai lần trong nhánh này:** "đã kiểm tra" không đồng nghĩa "đã
+kiểm tra đúng thứ đang tuyên bố". Kết luận gốc nói 3 tầng đều được chứng minh —
+thực ra đo 1 tool 1 chiều. Bản sửa nói 4 gap — thực ra 9, cộng 2 lỗi chức năng.
+Chỉ khi có script phủ hết ma trận và CHẠY THẬT thì con số mới đúng.
+
 ## Kết luận
 
 **6/6 tiêu chí ĐẠT, đo TRƯỚC merge, trên code worktree thật.** Ba tầng bảo vệ
