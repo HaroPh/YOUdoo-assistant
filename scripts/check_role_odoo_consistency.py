@@ -112,8 +112,37 @@ def _authenticate(url, db, login, password):
 
 def _has_access(obj_proxy, db, uid, password, model, operation) -> bool:
     """has_access gọi trên recordset RỖNG (env[model]) — kiểm ir.model.access
-    theo NHÓM, không theo bản ghi. Xem 'GIỚI HẠN CỐ Ý' ở docstring module."""
-    return bool(obj_proxy.execute_kw(db, uid, password, model, "has_access", [operation]))
+    theo NHÓM, không theo bản ghi. Xem 'GIỚI HẠN CỐ Ý' ở docstring module.
+
+    LƯU Ý CONTRACT execute_kw (bug thật, bắt bởi live run 2026-08-11):
+    `args` của execute_kw truyền THEO VỊ TRÍ cho method — với một method gọi
+    trên recordset (như has_access), phần tử ĐẦU TIÊN của args luôn là danh
+    sách ids (rỗng = env[model], đúng ý ta cần ở đây), KHÔNG PHẢI tham số
+    đầu tiên của has_access(self, operation). Thiếu `[]` dẫn ids này khiến
+    Odoo hiểu `operation` (chuỗi) là ids và báo thiếu tham số 'operation' —
+    lỗi CONTRACT của lệnh gọi, không phải kết quả quyền. Dễ lặp lại (đã lặp
+    lại ít nhất 2 lần trong dự án, xem backend/spikes/) — để ý mọi
+    execute_kw(..., "has_access", ...) khác thêm vào sau này."""
+    return bool(obj_proxy.execute_kw(db, uid, password, model, "has_access", [[], operation]))
+
+
+def _self_check(obj_proxy, db, uid, password):
+    """Gọi has_access() MỘT LẦN cho (res.partner, read) — mọi tài khoản nội
+    bộ (BASE_USER, group_user) đều có quyền này qua Odoo mặc định, nên nếu
+    _has_access TỰ NÓ raise ở đây thì đó là LỖI SCRIPT (sai contract
+    execute_kw, method đổi tên/chữ ký ở version Odoo khác, v.v...) — KHÔNG
+    PHẢI phát hiện về quyền. py_compile chỉ chứng minh cú pháp đúng, không
+    chứng minh contract gọi đúng (đo thật: script này từng crash ngay ở lần
+    chạy sống đầu tiên với TypeError, dù py_compile sạch) — self-check này
+    tách hai loại lỗi ra ngay từ đầu thay vì để nó lẫn vào bảng PASS/GAP."""
+    try:
+        _has_access(obj_proxy, db, uid, password, "res.partner", "read")
+    except Exception as e:  # noqa: BLE001 — cố ý bắt rộng, phân loại rõ bằng thông điệp
+        sys.exit(
+            f"LỖI SCRIPT (không phải phát hiện về quyền): has_access() tự nó "
+            f"raise khi tự kiểm với (res.partner, read) — {type(e).__name__}: {e}\n"
+            f"Kiểm tra lại contract execute_kw (xem docstring _has_access) "
+            f"trước khi tin bất kỳ dòng nào trong bảng bên dưới.")
 
 
 def check_tool(obj_proxy, db, uid, password, tool):
@@ -138,6 +167,7 @@ def main():
         if role_cfg is None:
             continue
         uid = _authenticate(url, db, login, password)
+        _self_check(obj, db, uid, password)
 
         for tool, pairs in TOOL_ACCESS_MAP.items():
             state = role_cfg.state_of(tool)
