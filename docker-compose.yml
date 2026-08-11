@@ -114,6 +114,9 @@ services:
       # (bge-m3 — một embedding model, không phải chat model). Tắt hẳn để
       # danh sách model chỉ còn đúng "erp-assistant".
       ENABLE_OLLAMA_API: "false"
+      # Cần cho phân quyền theo vai: backend suy vai từ x-openwebui-user-id
+      # (chuỗi mờ). KHÔNG đọc name/email/role — đó là PII (xem main.py).
+      ENABLE_FORWARD_USER_INFO_HEADERS: "true"
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:

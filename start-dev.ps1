@@ -1,5 +1,6 @@
-﻿# start-dev.ps1 — khởi động mcp-odoo (:8003) + backend (:8002) cho dev hàng
-# ngày, gói gọn lại quy trình thủ công trong docs/getting-started.md.
+﻿# start-dev.ps1 — khởi động mcp-odoo × 3 vai (:8003/:8004/:8005) + backend
+# (:8002) cho dev hàng ngày, gói gọn lại quy trình thủ công trong
+# docs/getting-started.md.
 #
 # Chạy từ thư mục gốc D:\Youdoo:
 #   .\start-dev.ps1
@@ -79,35 +80,51 @@ function Get-PortOwnerPid($port) {
     return $null
 }
 
-# ── mcp-odoo (:8003) ─────────────────────────────────────────────────────
-$mcpPort = 8003
-if (Test-PortOpen $mcpPort) {
-    $ownerPid = Get-PortOwnerPid $mcpPort
-    Write-Host "[1/2] :$mcpPort đã có tiến trình lắng nghe (PID $ownerPid) — bỏ qua, dùng lại." -ForegroundColor Yellow
-    Write-Host "      Muốn khởi động lại sạch: Stop-Process -Id $ownerPid -Force, rồi chạy lại script." -ForegroundColor DarkGray
-} else {
-    Write-Host "[1/2] Khởi động mcp-odoo :$mcpPort ..." -ForegroundColor Green
-    $mcpLog = Join-Path $logDir "mcp-odoo.log"
-    $mcpErr = Join-Path $logDir "mcp-odoo_err.log"
-    $mcp = Start-Process -FilePath $mcpPy -ArgumentList "server.py" `
+# ── mcp-odoo × 3 vai (:8003 admin / :8004 warehouse / :8005 accounting) ────
+# Mỗi tiến trình CHỈ nắm credential của vai mình — đó là lý do chọn cô lập
+# theo tiến trình: bug định tuyến vai chỉ gây "sai bộ tool", không leo thang.
+Write-Host "[1/2] Khởi động mcp-odoo theo vai (:8003/:8004/:8005) ..." -ForegroundColor Green
+$mcpProcs = @()
+$mcpRoles = @(
+    @{ Port = 8003; User = "ai-admin";      Log = "mcp-odoo-admin" },
+    @{ Port = 8004; User = "ai-warehouse";  Log = "mcp-odoo-warehouse" },
+    @{ Port = 8005; User = "ai-accounting"; Log = "mcp-odoo-accounting" }
+)
+foreach ($r in $mcpRoles) {
+    if (Test-PortOpen $r.Port) {
+        $ownerPid = Get-PortOwnerPid $r.Port
+        Write-Host "    :$($r.Port) đã có tiến trình lắng nghe (PID $ownerPid) — bỏ qua, dùng lại." -ForegroundColor Yellow
+        continue
+    }
+    $env:MCP_ODOO_PORT = $r.Port
+    $env:ODOO_USERNAME = $r.User
+    $env:ODOO_PASSWORD = $env:AI_ACCOUNT_PASSWORD
+    $mcpErr = Join-Path $logDir "$($r.Log)_err.log"
+    $p = Start-Process -FilePath $mcpPy -ArgumentList "server.py" `
         -WorkingDirectory (Join-Path $root "mcp-servers\odoo") `
         -PassThru -WindowStyle Hidden `
-        -RedirectStandardOutput $mcpLog -RedirectStandardError $mcpErr
-    Write-Host "    PID $($mcp.Id) — log: logs\mcp-odoo.log"
+        -RedirectStandardOutput (Join-Path $logDir "$($r.Log).log") `
+        -RedirectStandardError $mcpErr
+    Write-Host "    PID $($p.Id) — log: logs\$($r.Log).log"
 
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $ok = $false
     while ($sw.Elapsed.TotalSeconds -lt 30) {
-        if (Test-PortOpen $mcpPort) { $ok = $true; break }
+        if (Test-PortOpen $r.Port) { $ok = $true; break }
         Start-Sleep -Milliseconds 400
     }
     if (-not $ok) {
-        Write-Host "  [ERR] mcp-odoo không mở được :$mcpPort sau 30s" -ForegroundColor Red
+        Write-Host "  [ERR] mcp-odoo ($($r.User)) không mở được :$($r.Port) sau 30s" -ForegroundColor Red
         Get-Content $mcpErr -Tail 20
         exit 1
     }
-    Write-Host "    :$mcpPort OK" -ForegroundColor Green
+    Write-Host "    :$($r.Port) $($r.User) OK" -ForegroundColor Green
+    $mcpProcs += $p
 }
+# Backend đọc Odoo bằng tài khoản CHỈ ĐỌC — kể cả bị chiếm quyền hoàn toàn
+# cũng không ghi được gì, vì tài khoản không có quyền (không phải vì code từ chối).
+$env:ODOO_USERNAME = "ai-readonly"
+$env:ODOO_PASSWORD = $env:AI_ACCOUNT_PASSWORD
 
 # ── backend (:8002) ──────────────────────────────────────────────────────
 $backendPort = [int]([System.Environment]::GetEnvironmentVariable("BACKEND_PORT"))
@@ -155,13 +172,15 @@ Write-Host "   http://localhost:3002 — model 'Youdoo ERP Assistant'"
 Write-Host "   Xem docs/manual-test-scenarios.md để có kịch bản mẫu."
 Write-Host ""
 Write-Host " Logs:"
-Write-Host "   mcp-odoo : logs\mcp-odoo.log  /  logs\mcp-odoo_err.log"
-Write-Host "   backend  : logs\backend.log   /  logs\backend_err.log"
+Write-Host "   mcp-odoo (admin)      : logs\mcp-odoo-admin.log      / logs\mcp-odoo-admin_err.log"
+Write-Host "   mcp-odoo (warehouse)  : logs\mcp-odoo-warehouse.log  / logs\mcp-odoo-warehouse_err.log"
+Write-Host "   mcp-odoo (accounting) : logs\mcp-odoo-accounting.log/ logs\mcp-odoo-accounting_err.log"
+Write-Host "   backend               : logs\backend.log             / logs\backend_err.log"
 Write-Host "======================================" -ForegroundColor Cyan
 Write-Host ""
 
-if (-not $mcp -and -not $be) {
-    Write-Host "Cả hai đều đã chạy sẵn từ trước — thoát ngay, không có gì để theo dõi." -ForegroundColor DarkGray
+if ($mcpProcs.Count -eq 0 -and -not $be) {
+    Write-Host "Tất cả đều đã chạy sẵn từ trước — thoát ngay, không có gì để theo dõi." -ForegroundColor DarkGray
     exit 0
 }
 
@@ -169,12 +188,14 @@ Write-Host "Nhấn Ctrl+C để dừng các tiến trình VỪA khởi động �
 try {
     while ($true) {
         Start-Sleep -Seconds 5
-        if ($mcp -and $mcp.HasExited) { Write-Host "[WARN] mcp-odoo đã thoát (exit $($mcp.ExitCode))" -ForegroundColor Yellow }
+        foreach ($p in $mcpProcs) {
+            if ($p.HasExited) { Write-Host "[WARN] mcp-odoo (PID $($p.Id)) đã thoát (exit $($p.ExitCode))" -ForegroundColor Yellow }
+        }
         if ($be -and $be.HasExited)  { Write-Host "[WARN] backend đã thoát (exit $($be.ExitCode))"  -ForegroundColor Yellow }
     }
 } finally {
     Write-Host "`nDừng các tiến trình vừa khởi động..." -ForegroundColor DarkGray
-    foreach ($p in @($be, $mcp)) {
+    foreach ($p in (@($be) + $mcpProcs)) {
         if ($p -and -not $p.HasExited) {
             try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
         }
