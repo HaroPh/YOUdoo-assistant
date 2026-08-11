@@ -356,14 +356,14 @@ def test_moi_coordinator_mail_deu_dang_ky_day_du():
 def test_moi_cfg_mail_co_template_va_model_rieng_biet():
     """Copy-paste một EmailCfg rồi quên đổi template_name/res_model sẽ khiến
     một coordinator âm thầm gửi SAI loại mail cho SAI đối tượng — lỗi chỉ lộ
-    ra khi mail đã bay đi thật. Khoá lại: 4 config phải đôi một khác nhau ở
+    ra khi mail đã bay đi thật. Khoá lại: 5 config phải đôi một khác nhau ở
     cả tool_name lẫn cặp (template_name, res_model)."""
     cfgs = mw.MAIL_COORDINATOR_CFGS
-    assert len(cfgs) == 4
-    assert len({c.tool_name for c in cfgs}) == 4
-    assert len({(c.template_name, c.res_model) for c in cfgs}) == 4
-    assert len({c.preview_node for c in cfgs}) == 4
-    assert len({c.send_node for c in cfgs}) == 4
+    assert len(cfgs) == 5
+    assert len({c.tool_name for c in cfgs}) == 5
+    assert len({(c.template_name, c.res_model) for c in cfgs}) == 5
+    assert len({c.preview_node for c in cfgs}) == 5
+    assert len({c.send_node for c in cfgs}) == 5
 
 
 @pytest.mark.asyncio

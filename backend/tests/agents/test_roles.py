@@ -1,5 +1,42 @@
 import pytest
 from src.agents import roles
+from src.agents.prompts import WRITE_PLANNER_PROMPT
+
+
+def _real_tool_names() -> set[str]:
+    """Tên tool 'thật' theo đúng cách planner_prompt_for (prompts.py) trích
+    xuất: mỗi dòng bắt đầu bằng '- ' và có '(', tên là phần trước dấu '(' đầu
+    tiên. Dùng lại nguyên logic đó (không viết lại) để test và generator LUÔN
+    đồng thuận về việc gì được tính là một tool thật."""
+    names = set()
+    for line in WRITE_PLANNER_PROMPT.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- ") and "(" in stripped:
+            names.add(stripped[2:].split("(", 1)[0].strip())
+    return names
+
+
+def test_moi_ten_tool_trong_role_cfg_la_tool_that():
+    """Task 6's prompt generator (planner_prompt_for) phát ra tên tool từ
+    needs_sign_off/other_dept THẲNG vào prompt mà KHÔNG kiểm tra tên đó có
+    thật hay không. Đây chính xác là cách một tool ma lọt vào production:
+    send_delivery_email từng nằm trong _WH_SIGN_OFF ở roles.py TRƯỚC KHI
+    tool đó được xây (Task 7 mới xây nó). Một tên trong RoleCfg mà không
+    phải tool thật sẽ khiến prompt sinh ra nhắc tới một năng lực mà planner
+    không có schema, và executor sẽ từ chối khi LLM cố gọi nó — bài test này
+    khoá bất biến đó lại cho MỌI profile/vai, để lần gõ nhầm tên tool tiếp
+    theo bị bắt ngay ở test, không phải ở production."""
+    real = _real_tool_names()
+    assert real, "rỗng thì test này vô nghĩa"
+    for profile_name, roles_by_name in roles.PROFILES.items():
+        for role_name, cfg in roles_by_name.items():
+            if cfg.unrestricted:
+                continue
+            declared = cfg.own | cfg.needs_sign_off | cfg.other_dept
+            missing = declared - real
+            assert not missing, (
+                f"{profile_name}/{role_name} khai báo tool không tồn tại "
+                f"trong WRITE_PLANNER_PROMPT: {sorted(missing)}")
 
 
 def test_tool_khong_khai_bao_thi_mac_dinh_bi_tu_choi():

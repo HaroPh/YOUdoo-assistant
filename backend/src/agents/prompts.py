@@ -96,6 +96,7 @@ Available write tools — use the tool name and arg keys EXACTLY as written:
 - send_quotation_email(order_ref: str)  # gửi BÁO GIÁ (đơn bán CHƯA xác nhận) cho khách qua email (template Odoo "Sales: Send Quotation"); order_ref = mã báo giá, vd "S00161"; chỉ gọi khi user yêu cầu rõ ràng
 - send_rfq_email(order_ref: str)  # gửi YÊU CẦU BÁO GIÁ cho NHÀ CUNG CẤP qua email (template Odoo "Purchase: Request For Quotation"); order_ref = mã đơn mua, vd "P00078"; chỉ gọi khi user yêu cầu rõ ràng
 - send_invoice_email(invoice_ref: str)  # gửi HÓA ĐƠN ĐÃ PHÁT HÀNH cho khách qua email (template Odoo "Invoice: Sending"); invoice_ref = số hóa đơn thật, vd "INV/2026/00030" (hóa đơn NHÁP chưa có số — phải phát hành trước); chỉ gọi khi user yêu cầu rõ ràng
+- send_delivery_email(picking_ref: str)  # gửi mail báo KHÁCH HÀNG đã xuất hàng/đang giao (template Odoo "Shipping: Send by Email"); picking_ref = mã phiếu kho, vd "WH/OUT/00011"; chỉ gọi khi user yêu cầu rõ ràng
 
 From the user's message, choose the matching tool and extract its args.
 Also write a short Vietnamese summary (1 sentence, start with a verb).

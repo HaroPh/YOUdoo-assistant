@@ -150,7 +150,7 @@ def test_mail_preview_node_has_no_unconditional_edge_to_continuation():
     from src.agents.mail_write import MAIL_COORDINATOR_CFGS
     graph = build_graph(MagicMock(), tools=[], checkpointer=None)
     edges = [(e.source, e.target, e.conditional) for e in graph.get_graph().edges]
-    assert len(MAIL_COORDINATOR_CFGS) == 4, "rỗng/thiếu thì test này vô nghĩa"
+    assert len(MAIL_COORDINATOR_CFGS) == 5, "rỗng/thiếu thì test này vô nghĩa"
     for cfg in MAIL_COORDINATOR_CFGS:
         assert (cfg.preview_node, "write_continuation", False) not in edges, cfg.tool_name
         # And the conditional path (the CORRECT wiring) must still exist.

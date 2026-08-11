@@ -143,11 +143,19 @@ INVOICE_EMAIL_CFG = EmailCfg(
     label="mail hóa đơn",
     missing_ref_msg="Bạn cần cho biết số hóa đơn cần gửi mail.")
 
+DELIVERY_EMAIL_CFG = EmailCfg(
+    tool_name="send_delivery_email",
+    template_name="Shipping: Send by Email",
+    res_model="stock.picking",
+    ref_arg="picking_ref",
+    label="mail báo giao hàng",
+    missing_ref_msg="Bạn cần cho biết mã phiếu kho cần gửi mail.")
+
 # graph.py lặp trên tuple NÀY để dựng node — thêm coordinator gửi mail =
 # thêm 1 phần tử ở đây + 1 dòng WRITE_COORDINATORS + 1 dòng
 # WRITE_PLANNER_PROMPT, không đụng graph.py.
 MAIL_COORDINATOR_CFGS = (ORDER_CONFIRMATION_CFG, QUOTATION_EMAIL_CFG,
-                         RFQ_EMAIL_CFG, INVOICE_EMAIL_CFG)
+                         RFQ_EMAIL_CFG, INVOICE_EMAIL_CFG, DELIVERY_EMAIL_CFG)
 
 
 def _finish(tool_name: str, result) -> dict:

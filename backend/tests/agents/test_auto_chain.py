@@ -442,7 +442,7 @@ from src.agents.write_registry import CONFIRM_IN_CHAIN, WRITE_COORDINATORS
 from src.agents.continuation import _route_after_continuation
 
 
-def test_confirm_in_chain_la_tap_tuong_minh_chi_6_tool_dung_tien():
+def test_confirm_in_chain_la_tap_tuong_minh_chi_7_tool_dung_tien():
     """PHẢI tường minh, KHÔNG được viết thành `in COORDINATED_TOOLS`:
     convert_lead và update_vendor_pricing cũng vừa coordinated vừa là bước
     trong NEXT_STEPS — điều kiện rộng sẽ đổi luôn hành vi của chúng, ngoài
@@ -450,11 +450,13 @@ def test_confirm_in_chain_la_tap_tuong_minh_chi_6_tool_dung_tien():
     spec 2026-08-07 §3 (task 3): cũng là hành động "đụng" tới thực tế bên
     ngoài (gửi mail thật) nên phải dừng hỏi lại kèm bản tóm tắt, không
     auto-run trong chuỗi. Task 2 (2026-08-08) mở rộng thêm 3 coordinator gửi
-    mail nữa: send_quotation_email, send_rfq_email, send_invoice_email."""
+    mail nữa: send_quotation_email, send_rfq_email, send_invoice_email.
+    Task 7 (2026-08-09 role-based-access) thêm coordinator gửi mail thứ 5:
+    send_delivery_email (báo khách đã xuất hàng, vai kho)."""
     assert CONFIRM_IN_CHAIN == frozenset({"post_invoice", "register_payment",
                                           "send_order_confirmation_email",
                                           "send_quotation_email", "send_rfq_email",
-                                          "send_invoice_email"})
+                                          "send_invoice_email", "send_delivery_email"})
 
 
 def test_moi_tool_trong_confirm_in_chain_deu_co_coordinator():
