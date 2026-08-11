@@ -206,6 +206,66 @@ Với MỖI đoạn, trả lời CÓ hoặc KHÔNG, đúng định dạng, mỗi
 KHÔNG giải thích. KHÔNG thêm chữ nào khác ngoài định dạng trên. /no_think"""
 
 
+def planner_prompt_for(cfg) -> str:
+    """WRITE_PLANNER_PROMPT rút gọn theo vai.
+
+    Sinh từ chính RoleCfg thay vì viết tay 3 bản — nếu viết tay, danh sách tool
+    trong prompt sẽ trôi lệch khỏi tập tool thật (lớp lỗi đã gặp ở
+    mail-trigger-points: WRITE_TOOL_NAMES thiếu 4 tool mail khiến chỉ số eval
+    'misroute nguy hiểm' mù với đúng những tool gửi mail ra ngoài).
+
+    Vai admin dùng nguyên bản gốc — không lọc gì."""
+    from .roles import OTHER_DEPT
+
+    allowed = cfg.allowed_tools()
+    if allowed is None:
+        return WRITE_PLANNER_PROMPT
+
+    kept = []
+    for line in WRITE_PLANNER_PROMPT.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- ") and "(" in stripped:
+            tool = stripped[2:].split("(", 1)[0].strip()
+            if tool and tool not in allowed:
+                continue
+        kept.append(line)
+
+    kept.append("")
+    kept.append(f"# BẠN ĐANG Ở VAI: {cfg.label}")
+
+    sign_off = sorted(cfg.needs_sign_off)
+    if sign_off:
+        # Vòng này CHƯA có luồng duyệt thật (spec §9). Vẫn cho thực hiện để
+        # không mất năng lực hiện có, nhưng phải nói rõ thực tế cần cấp trên
+        # duyệt — im lặng sẽ khiến người dùng tưởng đã đủ thẩm quyền.
+        kept.append("# Các việc sau thuộc vai này NHƯNG thực tế cần cấp trên duyệt.")
+        kept.append("# Vẫn thực hiện được, nhưng khi làm hãy nhắc người dùng một câu")
+        kept.append("# rằng theo quy định nội bộ việc này cần được duyệt:")
+        for t in sign_off:
+            kept.append(f"#   - {t}")
+
+    other = sorted(cfg.other_dept)
+    if other:
+        kept.append("# Các việc sau KHÔNG thuộc quyền vai này. Nếu người dùng yêu cầu,")
+        kept.append("# hãy TỪ CHỐI và nêu rõ bộ phận phụ trách, KHÔNG cố gọi tool:")
+        for t in other:
+            kept.append(f"#   - {t} → thuộc bộ phận {_DEPT_OF.get(t, 'khác')}")
+    return "\n".join(kept)
+
+
+# Bộ phận phụ trách từng nghiệp vụ — dùng để câu từ chối chỉ được sang đâu.
+_DEPT_OF = {
+    "post_invoice": "Kế toán", "register_payment": "Kế toán",
+    "create_credit_memo": "Kế toán", "create_invoice_from_order": "Kế toán",
+    "create_bill_from_po": "Kế toán",
+    "create_quotation": "Bán hàng", "confirm_sale_order": "Bán hàng",
+    "create_rfq": "Mua hàng", "confirm_purchase_order": "Mua hàng",
+    "deliver_order": "Kho", "receive_order": "Kho", "validate_picking": "Kho",
+    "internal_transfer": "Kho", "inventory_adjustment": "Kho",
+    "scrap_product": "Kho", "return_order": "Kho",
+}
+
+
 def render_working_context(wc: dict) -> str:
     """Khối ngữ cảnh ghép vào system prompt. Đặt TRƯỚC prompt gốc (caller làm)
     để chỉ thị định dạng / '/no_think' của prompt gốc giữ vị trí cuối."""

@@ -175,7 +175,8 @@ class ERPAgent:
             tools = _filter_tools_for_role(await client.get_tools(), cfg)
             if role_name == "admin":
                 self.tool_names = [t.name for t in tools]
-            self.graphs[role_name] = build_graph(self._llms, tools, checkpointer)
+            self.graphs[role_name] = build_graph(self._llms, tools, checkpointer,
+                                                 role_cfg=cfg)
 
     async def chat(self, messages: list[dict], thread_id: str | None = None,
                    reset_if_fresh: bool = False, role: str = "admin") -> str:

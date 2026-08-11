@@ -33,7 +33,7 @@ def _route_after_write_planner(state: ERPAgentState) -> str:
     return "erp_write_executor"
 
 
-def build_graph(llm, tools, checkpointer) -> object:
+def build_graph(llm, tools, checkpointer, role_cfg=None) -> object:
     # Nhận single-llm (test/back-compat: mọi role chung 1 model) HOẶC mapping
     # role→llm (production, từ make_llms()). Normalize về mapping.
     llms = llm if isinstance(llm, dict) else llms_from_single(llm)
@@ -49,7 +49,10 @@ def build_graph(llm, tools, checkpointer) -> object:
         llms["router"], render_worker_block(skill_specs),
         frozenset(s.name for s in skill_specs)))
     g.add_node("erp_read", make_erp_read_node(llms["read"], build_erp_query_tools()))
-    g.add_node("erp_write_planner", make_erp_write_planner_node(llms["planner"]))
+    from .prompts import planner_prompt_for
+    g.add_node("erp_write_planner", make_erp_write_planner_node(
+        llms["planner"],
+        planner_prompt_for(role_cfg) if role_cfg is not None else None))
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
     g.add_node("rag", make_rag_node(llms["synthesis"]))
     # Fan-out đường đọc (SP-2b): `mixed` giữ TÊN và giữ chỗ trong intent_targets

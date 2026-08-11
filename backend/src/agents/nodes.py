@@ -219,7 +219,7 @@ async def _plan_json(llm, system: str, messages: list) -> dict | None:
     return None
 
 
-def make_erp_write_planner_node(llm):
+def make_erp_write_planner_node(llm, planner_prompt=None):
     async def erp_write_planner(state: ERPAgentState) -> dict:
         if not write_gate.write_actions_enabled():
             return {"messages": [AIMessage(
@@ -232,8 +232,11 @@ def make_erp_write_planner_node(llm):
         # Plan the action — invariant A: ONE effective system prompt; context
         # first so the JSON-format block stays last.
         wc = state.get("working_context")
-        system = (render_working_context(wc) + "\n\n" + WRITE_PLANNER_PROMPT) \
-            if wc else WRITE_PLANNER_PROMPT
+        # planner_prompt = bản rút gọn theo vai (prompts.planner_prompt_for);
+        # None = bản đầy đủ, giữ nguyên hành vi cũ cho test và vai admin.
+        base_prompt = planner_prompt or WRITE_PLANNER_PROMPT
+        system = (render_working_context(wc) + "\n\n" + base_prompt) \
+            if wc else base_prompt
         plan = await _plan_json(llm, system, state["messages"])
         if plan is None:
             return {"messages": [AIMessage(content="Không thể xác định thao tác cần thực hiện. Vui lòng mô tả rõ hơn.")],
