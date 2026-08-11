@@ -9,6 +9,7 @@ Chạy (host, cần mcp-odoo SSE :8003 đang chạy):
 import hashlib
 import json
 import logging
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.agents.erp_agent import ERPAgent
+from src.agents import roles as roles_mod
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +99,28 @@ def _is_owui_task_prompt(messages: list[dict]) -> bool:
             and (messages[0].get("content") or "").startswith(_OWUI_TASK_PREFIX))
 
 
-def _derive_thread_id(body: dict, messages: list[dict], headers=None) -> str | None:
+def _role_from_headers(headers):
+    """Suy vai từ tài khoản đăng nhập Open WebUI.
+
+    CHỈ đọc x-openwebui-user-id (chuỗi mờ) — name/email/role là PII, không bao
+    giờ được đọc (xem docstring _derive_thread_id). Vai KHÔNG lấy từ body: mọi
+    thứ trong body đều do client gửi, tức tự khai được.
+
+    Trả None khi không xác định được — gọi tầng trên phải TỪ CHỐI, không được
+    mặc định thành admin."""
+    if headers is None:
+        return None
+    return roles_mod.role_for_user(headers.get("x-openwebui-user-id"))
+
+
+def _derive_thread_id(body: dict, messages: list[dict], headers=None,
+                      role: str | None = None) -> str | None:
     """Stable per-conversation thread for interrupt/resume.
 
     Priority (R7 fix, spec 2026-07-09-r7-thread-scoping):
+      0. Vai (role) là TIỀN TỐ của mọi phương án dưới đây — đổi vai phải sang
+         luồng mới, nếu không một câu xác nhận đang treo ở vai cũ sẽ bị resume
+         trong graph của vai mới (graph đó không có node tương ứng).
       1. Open WebUI identity headers — real per-chat id, sent when the
          open-webui container has ENABLE_FORWARD_USER_INFO_HEADERS=true.
          Only the two id headers are read; name/email/role are PII and must
@@ -115,13 +135,14 @@ def _derive_thread_id(body: dict, messages: list[dict], headers=None) -> str | N
         chat_id = headers.get("x-openwebui-chat-id")
         if chat_id:
             user_id = headers.get("x-openwebui-user-id") or "anon"
-            return f"owui:{user_id}:{chat_id}"
+            return f"{role or 'norole'}:owui:{user_id}:{chat_id}"
     if _explicit_session(body):
-        return str(body.get("session_id") or body.get("id"))
+        return f"{role or 'norole'}:" + str(body.get("session_id") or body.get("id"))
     first_user = next((m["content"] for m in messages if m.get("role") == "user"), "")
     if not first_user:
         return None
-    return "conv-" + hashlib.sha1(first_user.encode("utf-8")).hexdigest()[:16]
+    return (f"{role or 'norole'}:conv-"
+            + hashlib.sha1(first_user.encode("utf-8")).hexdigest()[:16])
 
 
 @app.post("/v1/chat/completions")
@@ -142,9 +163,18 @@ async def chat_completions(req: Request):
             # correctly. Priority: Open WebUI identity headers (R7) > explicit
             # client session_id/id > hash of the first user message (see
             # _derive_thread_id docstring).
-            thread_id = _derive_thread_id(body, messages, headers=req.headers)
-            answer = await agent.chat(messages, thread_id=thread_id,
-                                      reset_if_fresh=not _explicit_session(body))
+            role = _role_from_headers(req.headers)
+            if role is None:
+                role = os.environ.get("YOUDOO_FALLBACK_ROLE") or None
+            if role is None:
+                answer = ("Không xác định được quyền truy cập của bạn. "
+                          "Vui lòng đăng nhập bằng tài khoản đã được cấp vai, "
+                          "hoặc liên hệ quản trị viên.")
+            else:
+                thread_id = _derive_thread_id(body, messages, headers=req.headers,
+                                              role=role)
+                answer = await agent.chat(messages, thread_id=thread_id, role=role,
+                                          reset_if_fresh=not _explicit_session(body))
     except Exception:
         # Finding 2 (live-test 2026-07-10): a transient failure (cloud LLM
         # hiccup/timeout/rate-limit) here used to propagate uncaught → FastAPI

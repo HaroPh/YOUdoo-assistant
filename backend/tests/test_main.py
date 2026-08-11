@@ -48,20 +48,22 @@ def test_is_owui_task_prompt_false_khi_nhieu_tin_nhan():
 
 
 def test_derive_thread_id_uu_tien_header_openwebui():
+    # role không truyền vào ⇒ tiền tố "norole:" (xem test_main_roles.py cho
+    # hành vi tiền tố vai thật — ở đây chỉ kiểm tra thứ tự ưu tiên nguồn).
     headers = {"x-openwebui-chat-id": "chat123", "x-openwebui-user-id": "user9"}
     tid = _derive_thread_id({}, [], headers=headers)
-    assert tid == "owui:user9:chat123"
+    assert tid == "norole:owui:user9:chat123"
 
 
 def test_derive_thread_id_uu_tien_session_id_neu_khong_co_header():
     tid = _derive_thread_id({"session_id": "sess1"}, [], headers={})
-    assert tid == "sess1"
+    assert tid == "norole:sess1"
 
 
 def test_derive_thread_id_hash_tin_nhan_dau_neu_khong_co_gi_khac():
     messages = [{"role": "user", "content": "câu hỏi đầu tiên"}]
     tid = _derive_thread_id({}, messages, headers={})
-    assert tid is not None and tid.startswith("conv-")
+    assert tid is not None and tid.startswith("norole:conv-")
 
 
 def test_derive_thread_id_none_neu_khong_co_user_message():
@@ -78,6 +80,11 @@ async def test_chat_completions_tra_error_msg_khi_agent_nem_loi(monkeypatch):
         async def chat(self, *a, **k):
             raise RuntimeError("lỗi giả lập agent")
 
+    # Request không có header đăng nhập ⇒ role sẽ là None trừ khi có escape
+    # hatch dev tường minh. Đặt YOUDOO_FALLBACK_ROLE để yêu cầu này đi tới
+    # agent.chat() thật sự — mục đích của test là kiểm tra lỗi từ agent.chat
+    # được bọc thành ERROR_MSG, không phải kiểm tra đường từ chối vì thiếu vai.
+    monkeypatch.setenv("YOUDOO_FALLBACK_ROLE", "admin")
     main_module._state["agent"] = _FakeAgentThrows()
     try:
         transport = httpx.ASGITransport(app=main_module.app)
