@@ -13,7 +13,8 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
-                      CHITCHAT_PROMPT, render_working_context)
+                      CHITCHAT_PROMPT, render_working_context, dept_of)
+from .roles import OTHER_DEPT, DENIED
 from .write_registry import COORDINATED_TOOLS, expand_chain
 from ..rag.retrieve import retrieve
 from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
@@ -219,7 +220,20 @@ async def _plan_json(llm, system: str, messages: list) -> dict | None:
     return None
 
 
-def make_erp_write_planner_node(llm, planner_prompt=None):
+def _role_refusal_message(role_cfg, tool: str) -> str:
+    """Câu từ chối tất định khi vai hiện tại không có quyền gọi `tool`
+    (state OTHER_DEPT/DENIED — xem roles.RoleCfg.state_of). Dùng chung cho
+    cả hai nguyên nhân: (a) tool có thật nhưng thuộc bộ phận khác, và (b)
+    tool không hề tồn tại trong bất kỳ vai nào (vd LLM bịa tên như 'other') —
+    RoleCfg.state_of fail-closed nên cả hai rơi vào cùng nhánh DENIED/OTHER_DEPT,
+    và dept_of trả 'khác' cho trường hợp (b) vì không có bộ phận cụ thể để chỉ
+    sang."""
+    dept = dept_of(tool)
+    return (f"Việc này không thuộc quyền hạn của bộ phận {role_cfg.label}. "
+            f"Vui lòng liên hệ bộ phận {dept} để thực hiện.")
+
+
+def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
     async def erp_write_planner(state: ERPAgentState) -> dict:
         if not write_gate.write_actions_enabled():
             return {"messages": [AIMessage(
@@ -246,6 +260,22 @@ def make_erp_write_planner_node(llm, planner_prompt=None):
         last_human = next((m.content for m in reversed(state["messages"])
                            if m.type == "human"), "")
         plan = enforce_explicit_ref(plan, last_human)
+
+        # Cổng vai TẤT ĐỊNH (Task 8 fix — live defect 2026-08-09): prompts.py
+        # CHỈ dặn LLM từ chối bằng lời (planner_prompt_for), không có cách
+        # nào biểu đạt "chỉ trả lời, không hành động" trong hợp đồng JSON bắt
+        # buộc nêu tool — nên model bịa tool "other" và node cũ tạo
+        # pending_action cho một cái tên không tồn tại, hỏi người dùng "xác
+        # nhận" một sự từ chối (vô lý). Bảo đảm phải nằm ở CODE, không phải
+        # prompt (đúng nguyên tắc §3 spec role-based-access — LLM không bao
+        # giờ là nơi giữ ranh giới duy nhất). role_cfg=None (mọi caller cũ,
+        # test, vai admin) → nhánh này không chạy, hành vi giữ y nguyên.
+        if role_cfg is not None:
+            tool_name = plan.get("tool")
+            if tool_name and role_cfg.state_of(tool_name) in (OTHER_DEPT, DENIED):
+                return {"messages": [AIMessage(
+                    content=_role_refusal_message(role_cfg, tool_name)
+                )], "pending_action": None, "auto_chain": None}
 
         # Chuỗi đa bước khai báo trước: validate tất định qua registry walk.
         # LLM bịa chain_until → None → single-step như cũ (fail-safe).

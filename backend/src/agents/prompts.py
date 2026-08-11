@@ -247,11 +247,34 @@ def planner_prompt_for(cfg) -> str:
 
     other = sorted(cfg.other_dept)
     if other:
-        kept.append("# Các việc sau KHÔNG thuộc quyền vai này. Nếu người dùng yêu cầu,")
-        kept.append("# hãy TỪ CHỐI và nêu rõ bộ phận phụ trách, KHÔNG cố gọi tool:")
+        # Task 8 fix (live defect 2026-08-09): trước đây dòng này dặn LLM "TỪ
+        # CHỐI, KHÔNG cố gọi tool" — nhưng hợp đồng JSON của planner BẮT BUỘC
+        # nêu một tool, nên model bịa ra tool "other" (không tồn tại) và node
+        # cũ biến lời từ chối thành một pending_action chờ xác nhận (vô lý:
+        # hỏi người dùng "xác nhận" một sự từ chối). Ranh giới thật giờ nằm ở
+        # CODE (erp_write_planner: role_cfg.state_of → OTHER_DEPT/DENIED chặn
+        # tất định trước khi tạo pending_action — xem nodes.py). Dòng dưới
+        # đây giờ chỉ là HINT giúp model trả về ĐÚNG tên tool thật (để câu từ
+        # chối tất định nêu đúng bộ phận, vd "Kế toán" thay vì rơi về "khác")
+        # — không còn là ranh giới, chỉ là chất lượng thông điệp.
+        kept.append("# Các việc sau KHÔNG thuộc quyền vai này. Hệ thống sẽ TỰ")
+        kept.append("# ĐỘNG chặn và trả lời từ chối — bạn KHÔNG cần tự viết câu")
+        kept.append("# từ chối. Nếu người dùng yêu cầu một trong các việc dưới")
+        kept.append("# đây, cứ trả JSON như bình thường với ĐÚNG tên tool nêu ở")
+        kept.append("# đây (KHÔNG bịa tên tool khác như \"other\"):")
         for t in other:
             kept.append(f"#   - {t} → thuộc bộ phận {_DEPT_OF.get(t, 'khác')}")
     return "\n".join(kept)
+
+
+def dept_of(tool: str) -> str:
+    """Accessor cho _DEPT_OF — NGUỒN SỰ THẬT DUY NHẤT cho "tool X thuộc bộ
+    phận nào". Dùng bởi nodes.py (Task 8: cổng từ chối tất định trong
+    erp_write_planner) để không chép lại bảng _DEPT_OF lần hai — chép tay 2
+    nơi là đúng lớp lỗi gather_erp/GATHER_CASES đã gặp (một bảng trôi lệch
+    bảng kia). 'khác' = tool không nằm trong bảng (vd tên tool LLM bịa ra,
+    như 'other') — không có bộ phận cụ thể để chỉ sang."""
+    return _DEPT_OF.get(tool, "khác")
 
 
 # Bộ phận phụ trách từng nghiệp vụ — dùng để câu từ chối chỉ được sang đâu.
