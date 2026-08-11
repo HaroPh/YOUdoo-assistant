@@ -1,93 +1,62 @@
 # Phiếu phỏng vấn phân quyền theo vai
-
-**Mục đích:** kiểm chứng ranh giới quyền hạn với người làm thật, trước khi
-chốt thiết kế phân vai cho agent (xem `ADR-012`).
-
-**Cách dùng:** Phần A hỏi trực tiếp nhân viên — không có thuật ngữ kỹ thuật.
-Phần B là bản đồ nghiệp vụ → model/tool, dành cho người thiết kế, **không đưa
-cho người được phỏng vấn**.
-
-Đánh dấu mỗi dòng: **Đ** = được làm · **K** = không được · **X** = được nhưng
-phải xin duyệt · **?** = không rõ / không liên quan
-
----
-
-# PHẦN A — Phiếu hỏi
-
-## A1. Nhân viên KHO
-
-### A1.1 Việc hằng ngày — xuất/nhập hàng
-
-| # | Câu hỏi | Đ/K/X |
-|---|---|---|
-| 1 | Anh/chị có tự xác nhận **đã giao hàng xong** cho một đơn không? | |
-| 2 | Có tự xác nhận **đã nhận hàng** từ nhà cung cấp không? | |
-| 3 | Có tự tạo **phiếu chuyển hàng nội bộ** giữa các kho/khu vực không? | |
-| 4 | Có được **sửa số lượng thực giao** khác với số trên đơn không (giao thiếu/thừa)? | |
-| 5 | Khi hàng nhận về **thiếu hoặc hỏng**, anh/chị tự xử lý hay phải báo ai? | |
-
-### A1.2 Kiểm kê và hàng hỏng
-
-| # | Câu hỏi | Đ/K/X |
-|---|---|---|
-| 6 | Có được **tự điều chỉnh số lượng tồn kho** sau khi kiểm kê không? | |
-| 7 | Nếu được, có **giới hạn giá trị** không (vd trên X triệu phải xin duyệt)? | |
-| 8 | Có được **khai báo hàng hỏng/huỷ** (scrap) không? | |
-| 9 | Có được **tạo phiếu trả hàng** cho nhà cung cấp không? | |
-
-### A1.3 Thông tin được XEM — *phần quan trọng nhất, hỏi kỹ*
-
-| # | Câu hỏi | Đ/K/X |
-|---|---|---|
-| 10 | Có xem được **giá bán** của sản phẩm không? | |
-| 11 | Có xem được **giá mua / giá vốn** không? | |
-| 12 | Có xem được **công nợ của khách hàng** (khách còn nợ bao nhiêu) không? | |
-| 13 | Có xem được **hoá đơn** (đã phát hành, đã thanh toán chưa) không? | |
-| 14 | Trước khi xuất hàng, có cần biết **đơn đó khách đã thanh toán chưa** không? | |
-| 15 | Có xem được **thông tin liên hệ** của khách/nhà cung cấp không? | |
-| 16 | Có xem được **doanh thu, báo cáo bán hàng** không? | |
-
-### A1.4 Liên lạc ra ngoài
-
-| # | Câu hỏi | Đ/K/X |
-|---|---|---|
-| 17 | Có được **gửi email cho khách** báo đã xuất hàng / đang giao không? | |
-| 18 | Nếu có, email đó **gửi thẳng** hay phải qua ai duyệt? | |
-| 19 | Có được **liên hệ trực tiếp nhà cung cấp** (gọi/mail) khi hàng về thiếu không? | |
-
-### A1.5 Ngoài phạm vi kho
-
-| # | Câu hỏi | Đ/K/X |
-|---|---|---|
-| 20 | Có được **tạo đơn bán / báo giá** cho khách không? | |
-| 21 | Có được **tạo đơn mua** đặt hàng nhà cung cấp không? | |
-| 22 | Có được **phát hành hoá đơn** không? | |
-| 23 | Có được **xác nhận đơn bán** (chốt đơn) không? | |
-| 24 | Khi gặp việc thuộc bộ phận khác, quy trình hiện tại là gì? *(báo miệng / phần mềm / email / giấy)* | |
-
-### A1.6 Câu hỏi mở — *đừng bỏ qua, thường lộ ra thứ không ai nghĩ tới*
-
-| # | Câu hỏi |
-|---|---|
-| 25 | Việc gì anh/chị **thường phải chờ người khác** làm hộ, mà thấy mất thời gian nhất? |
-| 26 | Có việc gì hệ thống **cho phép làm nhưng thực tế bị cấm** (quy định nội bộ) không? |
-| 27 | Đầu ca làm việc, anh/chị **nhìn vào đâu** để biết hôm nay phải làm gì? |
-| 28 | Có bao giờ làm nhầm vì **không thấy được thông tin** của bộ phận khác không? |
-
----
-
-## A2. Nhân viên KẾ TOÁN *(hỏi sau, nếu có dịp)*
-
-| # | Câu hỏi | Đ/K/X |
-|---|---|---|
-| 1 | Có tự **phát hành hoá đơn** (post) không, hay cần kế toán trưởng duyệt? | |
-| 2 | Có tự **ghi nhận thanh toán** không? Có giới hạn số tiền? | |
-| 3 | Có được **tạo credit memo / hoàn tiền** không? | |
-| 4 | Có được **gửi hoá đơn qua email** cho khách không? | |
-| 5 | Có xem được **tồn kho** không? Có cần không? | |
-| 6 | Có được **sửa/huỷ** hoá đơn đã phát hành không? | |
-| 7 | Có được xem **giá vốn** không? | |
-| 8 | Ai là người **đối chiếu đơn mua với hoá đơn NCC** (3-way matching)? | |
+              **Mục đích:** kiểm chứng ranh giới quyền hạn với người làm thật, trước khi
+       chốt thiết kế phân vai cho agent (xem `ADR-012`).
+              **Cách dùng:** Phần A hỏi trực tiếp nhân viên — không có thuật ngữ kỹ thuật.
+       Phần B là bản đồ nghiệp vụ → model/tool, dành cho người thiết kế, **không đưa
+       cho người được phỏng vấn**.
+              Đánh dấu mỗi dòng: **Đ** = được làm · **K** = không được · **X** = được nhưng
+       phải xin duyệt · **?** = không rõ / không liên quan
+              ---              # PHẦN A — Phiếu hỏi
+              ## A1. Nhân viên KHO              ### A1.1 Việc hằng ngày — xuất/nhập hàng
+              | # | Câu hỏi | Đ/K/X |
+       |---|---|---|       | 1 | Anh/chị có tự xác nhận **đã giao hàng xong** cho một đơn không? |Đ|
+       | 2 | Có tự xác nhận **đã nhận hàng** từ nhà cung cấp không? |Đ|
+       | 3 | Có tự tạo **phiếu chuyển hàng nội bộ** giữa các kho/khu vực không? |Đ|
+       | 4 | Có được **sửa số lượng thực giao** khác với số trên đơn không (giao thiếu/thừa)? |Đ|
+       | 5 | Khi hàng nhận về **thiếu hoặc hỏng**, anh/chị tự xử lý hay phải báo ai? |Đ|
+              ### A1.2 Kiểm kê và hàng hỏng
+              | # | Câu hỏi | Đ/K/X |
+       |---|---|---|       | 6 | Có được **tự điều chỉnh số lượng tồn kho** sau khi kiểm kê không? |Đ|
+       | 7 | Nếu được, có **giới hạn giá trị** không (vd trên X triệu phải xin duyệt)? |X|
+       | 8 | Có được **khai báo hàng hỏng/huỷ** (scrap) không? |Đ|
+       | 9 | Có được **tạo phiếu trả hàng** cho nhà cung cấp không? |X|
+              ### A1.3 Thông tin được XEM — *phần quan trọng nhất, hỏi kỹ*
+              | # | Câu hỏi | Đ/K/X |
+       |---|---|---|       | 10 | Có xem được **giá bán** của sản phẩm không? |Đ|
+       | 11 | Có xem được **giá mua / giá vốn** không? |Đ|
+       | 12 | Có xem được **công nợ của khách hàng** (khách còn nợ bao nhiêu) không? |X|
+       | 13 | Có xem được **hoá đơn** (đã phát hành, đã thanh toán chưa) không? |Đ|
+       | 14 | Trước khi xuất hàng, có cần biết **đơn đó khách đã thanh toán chưa** không? |Đ|
+       | 15 | Có xem được **thông tin liên hệ** của khách/nhà cung cấp không? |Đ|
+       | 16 | Có xem được **doanh thu, báo cáo bán hàng** không? |X|
+              ### A1.4 Liên lạc ra ngoài
+              | # | Câu hỏi | Đ/K/X |
+       |---|---|---|       | 17 | Có được **gửi email cho khách** báo đã xuất hàng / đang giao không? |Đ|
+       | 18 | Nếu có, email đó **gửi thẳng** hay phải qua ai duyệt? |X|
+       | 19 | Có được **liên hệ trực tiếp nhà cung cấp** (gọi/mail) khi hàng về thiếu không? |X|
+              ### A1.5 Ngoài phạm vi kho
+              | # | Câu hỏi | Đ/K/X |
+       |---|---|---|       | 20 | Có được **tạo đơn bán / báo giá** cho khách không? |X|
+       | 21 | Có được **tạo đơn mua** đặt hàng nhà cung cấp không? |X|
+       | 22 | Có được **phát hành hoá đơn** không? |X|
+       | 23 | Có được **xác nhận đơn bán** (chốt đơn) không? |X|
+       | 24 | Khi gặp việc thuộc bộ phận khác, quy trình hiện tại là gì? *(báo miệng / phần mềm / email / giấy)* |X|
+              ### A1.6 Câu hỏi mở — *đừng bỏ qua, thường lộ ra thứ không ai nghĩ tới*
+              | # | Câu hỏi |
+       |---|---|       | 25 | Việc gì anh/chị **thường phải chờ người khác** làm hộ, mà thấy mất thời gian nhất? |
+       | 26 | Có việc gì hệ thống **cho phép làm nhưng thực tế bị cấm** (quy định nội bộ) không? |
+       | 27 | Đầu ca làm việc, anh/chị **nhìn vào đâu** để biết hôm nay phải làm gì? |
+       | 28 | Có bao giờ làm nhầm vì **không thấy được thông tin** của bộ phận khác không? |
+              ---              ## A2. Nhân viên KẾ TOÁN *(hỏi sau, nếu có dịp)*
+              | # | Câu hỏi | Đ/K/X |
+       |---|---|---|       | 1 | Có tự **phát hành hoá đơn** (post) không, hay cần kế toán trưởng duyệt? |X|
+       | 2 | Có tự **ghi nhận thanh toán** không? Có giới hạn số tiền? |X|
+       | 3 | Có được **tạo credit memo / hoàn tiền** không? |Đ|
+       | 4 | Có được **gửi hoá đơn qua email** cho khách không? |Đ|
+       | 5 | Có xem được **tồn kho** không? Có cần không? |Đ|
+       | 6 | Có được **sửa/huỷ** hoá đơn đã phát hành không? |X|
+       | 7 | Có được xem **giá vốn** không? |Đ|
+       | 8 | Ai là người **đối chiếu đơn mua với hoá đơn NCC** (3-way matching)? |Đ|
 
 ---
 
