@@ -16,6 +16,7 @@ from .graph import build_graph
 from .confirmation import CONFIRM, UNCLEAR, classify_confirmation
 from .disambiguation import parse_selection
 from .models import make_llms
+from . import roles as roles_mod
 from src.llm import tracing
 
 MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
@@ -125,9 +126,22 @@ async def _decide_resume(kind, options, question, reply, llm):
     return Command(resume=verdict == CONFIRM)
 
 
+def _filter_tools_for_role(tools, cfg):
+    """Lọc tool xuống tập vai được phép. None = không lọc (vai admin).
+
+    Đây là lớp UX/độ-chính-xác, KHÔNG phải lớp bảo mật: LLM chỉ thấy tool liên
+    quan nên chọn đúng hơn (dự án đo tool_acc/dangerous_misroute). Lớp cưỡng
+    chế thật là tài khoản Odoo của tiến trình MCP tương ứng — nếu bộ lọc này
+    có bug, Odoo vẫn chặn."""
+    allowed = cfg.allowed_tools()
+    if allowed is None:
+        return list(tools)
+    return [t for t in tools if t.name in allowed]
+
+
 class ERPAgent:
     def __init__(self) -> None:
-        self.graph = None
+        self.graphs: dict = {}
         self.tool_names: list[str] = []
         self._pool = None
         self._llms = None
@@ -137,11 +151,6 @@ class ERPAgent:
     async def setup(self) -> None:
         self._handler = tracing.get_handler()
         self._llms = make_llms()
-        client = MultiServerMCPClient(
-            {"odoo": {"url": MCP_ODOO_URL, "transport": "sse"}}
-        )
-        tools = await client.get_tools()
-        self.tool_names = [t.name for t in tools]
 
         self._pool = AsyncConnectionPool(
             conninfo=PG_CONN,
@@ -154,10 +163,22 @@ class ERPAgent:
         await checkpointer.setup()  # creates checkpoint tables if not present
         self._checkpointer = checkpointer
 
-        self.graph = build_graph(self._llms, tools, checkpointer)
+        # MỘT graph mỗi vai. llms/pool/checkpointer DÙNG CHUNG nên 3 graph gần
+        # như không tốn thêm bộ nhớ; chỉ tool khác nhau. Mỗi vai nối tới tiến
+        # trình MCP riêng — tiến trình đó nắm credential Odoo của vai, nên nó
+        # KHÔNG THỂ làm việc ngoài quyền dù graph có gọi nhầm.
+        self.graphs = {}
+        for role_name, cfg in roles_mod.load_profile().items():
+            client = MultiServerMCPClient(
+                {"odoo": {"url": cfg.mcp_url, "transport": "sse"}}
+            )
+            tools = _filter_tools_for_role(await client.get_tools(), cfg)
+            if role_name == "admin":
+                self.tool_names = [t.name for t in tools]
+            self.graphs[role_name] = build_graph(self._llms, tools, checkpointer)
 
     async def chat(self, messages: list[dict], thread_id: str | None = None,
-                   reset_if_fresh: bool = False) -> str:
+                   reset_if_fresh: bool = False, role: str = "admin") -> str:
         """
         messages: list of {"role", "content"} dicts (user/assistant).
         thread_id: stable ID per conversation — needed for interrupt/resume.
@@ -173,6 +194,10 @@ class ERPAgent:
         if not messages:
             return "Vui lòng nhập câu hỏi."
 
+        graph = self.graphs.get(role)
+        if graph is None:
+            return "Không xác định được quyền truy cập của bạn. Liên hệ quản trị viên."
+
         tid = thread_id or uuid.uuid4().hex
         config = {"configurable": {"thread_id": tid}}
         if self._handler:
@@ -183,19 +208,19 @@ class ERPAgent:
         try:
             if is_fresh:
                 await self._checkpointer.adelete_thread(tid)
-                result = await self._invoke_fresh(messages, config)
+                result = await self._invoke_fresh(messages, config, graph)
             else:
                 # If the thread is parked at a write-confirmation interrupt, this
                 # turn is the user's answer — classify it and resume instead of
                 # starting over.
-                snapshot = await self.graph.aget_state(config)
+                snapshot = await graph.aget_state(config)
                 if _is_parked(snapshot):
                     expires_at = _pending_expiry(snapshot)
                     if expires_at is not None and time.time() > expires_at:
                         # Stale confirmation: discard it (resume=False is a no-op
                         # write, result ignored) and process this turn as fresh.
-                        await self.graph.ainvoke(Command(resume=False), config=config)
-                        result = await self._invoke_fresh(messages, config)
+                        await graph.ainvoke(Command(resume=False), config=config)
+                        result = await self._invoke_fresh(messages, config, graph)
                     else:
                         reply = messages[-1]["content"]
                         decision = await _decide_resume(
@@ -204,9 +229,9 @@ class ERPAgent:
                         if isinstance(decision, str):
                             # Unclear reply: re-ask, leave the thread parked.
                             return decision
-                        result = await self.graph.ainvoke(decision, config=config)
+                        result = await graph.ainvoke(decision, config=config)
                 else:
-                    result = await self._invoke_fresh(messages, config)
+                    result = await self._invoke_fresh(messages, config, graph)
         except GraphRecursionError:
             # Spike v10b 2026-07-16: subgraph-as-node KHÔNG bị chặn bởi
             # default 25 — trần thật đến từ with_config tại graph wiring.
@@ -261,7 +286,7 @@ class ERPAgent:
             [HumanMessage(content=content)], config=config)
         return response.content
 
-    async def _invoke_fresh(self, messages: list[dict], config: dict):
+    async def _invoke_fresh(self, messages: list[dict], config: dict, graph=None):
         """Run a non-resume turn, overwriting the persisted message channel.
 
         Open WebUI resends the full conversation every turn, so appending it to
@@ -270,7 +295,7 @@ class ERPAgent:
         first, leaving state["messages"] == exactly the incoming history.
         """
         reset = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *messages]
-        return await self.graph.ainvoke({"messages": reset}, config=config)
+        return await (graph or self.graphs["admin"]).ainvoke({"messages": reset}, config=config)
 
     async def aclose(self) -> None:
         if self._pool is not None:

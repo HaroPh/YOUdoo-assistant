@@ -45,7 +45,7 @@ class _FakeGraph:
 
 def _agent_with(graph):
     agent = ERPAgent()
-    agent.graph = graph
+    agent.graphs = {"admin": graph}
     agent._llms = {"evaluator": MagicMock()}
     agent._checkpointer = MagicMock()
     agent._checkpointer.adelete_thread = AsyncMock()

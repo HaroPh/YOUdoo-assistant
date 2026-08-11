@@ -72,6 +72,6 @@ async def test_chat_returns_polite_message_on_graph_recursion_error():
             raise GraphRecursionError("loop")
 
     agent = ERPAgent()
-    agent.graph = _RecursionGraph()
+    agent.graphs = {"admin": _RecursionGraph()}
     out = await agent.chat([{"role": "user", "content": "nhập kho P00021"}])
     assert out == RECURSION_MSG
