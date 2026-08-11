@@ -244,6 +244,70 @@ def build_skill_tools(spec: SkillSpec, mcp_tools) -> list:
     return tools
 
 
+def skill_role_gap(spec: SkillSpec, tools, all_tools, role_cfg) -> str | None:
+    """None nếu skill `spec` phải được nạp bình thường cho vai hiện tại; nếu
+    không, trả một lý do ngắn (để log) — skill này phải bị BỎ QUA khỏi graph,
+    KHÔNG phải lỗi cấu hình.
+
+    Phân biệt hai trường hợp một tool ghi mà skill cần không có mặt trong
+    `tools` (danh sách ĐÃ LỌC theo vai, xem erp_agent._filter_tools_for_role):
+
+      (a) tool đó TỒN TẠI trong `all_tools` (registry MCP ĐẦY ĐỦ, chưa lọc) —
+          nghĩa là vai này không được cấp tool đó theo chính sách (roles.py).
+          Đây là chỗ ĐÚNG để bỏ qua: một skill cần quyền vai không có thì
+          không nên hiện ra cho vai đó (vd kho không được offer SOP báo giá
+          chiết khấu, xem roles._WH_OTHER chứa create_quotation).
+      (b) tool đó KHÔNG có trong `all_tools` — nghĩa là SKILL.md khai một tool
+          không tồn tại ở BẤT KỲ ĐÂU trong registry MCP: lỗi cấu hình thật.
+          KHÔNG được nuốt ở đây — để build_skill_tools() ném SkillManifestError
+          như cũ (gọi hàm này KHÔNG tự nó gọi build_skill_tools; caller vẫn
+          phải gọi build_skill_node()/build_skill_tools() bình thường khi hàm
+          này trả None, và exception đó vẫn xuyên ra ngoài).
+
+    role_cfg is None, role_cfg.allowed_tools() is None (vai admin — không
+    lọc), hoặc all_tools is None (không có tham chiếu registry đầy đủ, vd
+    test cũ gọi build_graph() không truyền role_cfg/mcp_all_tools) → luôn trả
+    None, giữ NGUYÊN hành vi trước Task này (admin/test không đổi gì)."""
+    if role_cfg is None or role_cfg.allowed_tools() is None or all_tools is None:
+        return None
+
+    filtered_names = {t.name for t in tools}
+    all_names = {t.name for t in all_tools}
+
+    if spec.entry:
+        # Skill dựng tool qua entry (bao-gia-chiet-khau/logic.py): manifest
+        # không khai tên tool MCP GỐC skill đó cần (declares_tools là tên
+        # WRAPPER, vd create_discount_quote, khác create_quotation) — nên
+        # không so tên trực tiếp được. Thay vào đó, dựng thử build_tools() với
+        # CẢ HAI registry rồi so KẾT QUẢ: nếu registry đầy đủ dựng được trọn
+        # declares_tools mà registry đã lọc theo vai thì KHÔNG, gap đó là do
+        # bộ lọc vai (case a) → bỏ qua cả skill. Nếu registry đầy đủ CŨNG
+        # không dựng được đủ, gap không phải do vai — giữ nguyên hành vi cũ
+        # (nạp node, thiếu tool ghi thì entry tự bớt, không raise — xem
+        # docstring build_skill_tools/logic.py).
+        declared = set(spec.declares_tools)
+        produced_filtered = {t.name for t in build_skill_tools(spec, tools)
+                             if t.name != "ask_human"}
+        if declared <= produced_filtered:
+            return None
+        produced_full = {t.name for t in build_skill_tools(spec, all_tools)
+                         if t.name != "ask_human"}
+        if declared <= produced_full:
+            missing = sorted(declared - produced_filtered)
+            return (f"entry dựng thiếu tool {missing} khi dùng registry đã lọc "
+                     f"theo vai {role_cfg.name!r} nhưng dựng ĐỦ với registry đầy "
+                     "đủ — tool MCP gốc mà entry phụ thuộc bị lọc vì chính sách vai")
+        return None
+
+    missing_for_role = sorted(
+        w.name for w in spec.write_tools
+        if w.name not in filtered_names and w.name in all_names)
+    if missing_for_role:
+        return (f"tool ghi {missing_for_role} có trong registry MCP nhưng vai "
+                f"{role_cfg.name!r} không có quyền")
+    return None
+
+
 def build_skill_node(spec: SkillSpec, llm, mcp_tools):
     """Node SOP = CompiledStateGraph của create_agent, TRẢ VỀ TRỰC TIẾP.
 

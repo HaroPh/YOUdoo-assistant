@@ -1,18 +1,33 @@
 import pytest
 from src.agents import roles
 from src.agents.prompts import WRITE_PLANNER_PROMPT
+from src.agents.skill_loader import load_skill_specs
 
 
 def _real_tool_names() -> set[str]:
-    """Tên tool 'thật' theo đúng cách planner_prompt_for (prompts.py) trích
-    xuất: mỗi dòng bắt đầu bằng '- ' và có '(', tên là phần trước dấu '(' đầu
-    tiên. Dùng lại nguyên logic đó (không viết lại) để test và generator LUÔN
-    đồng thuận về việc gì được tính là một tool thật."""
+    """Tên tool 'thật' — hợp của HAI nguồn, không chỉ một:
+
+    1) WRITE_PLANNER_PROMPT (planner_prompt_for trích xuất y hệt cách này):
+       tool GHI đường tier-1 (erp_write_planner gọi trực tiếp).
+    2) tools.write khai trong SKILL.md của các SOP thật (backend/skills/) —
+       role-based-access (2026-08-09, Task 8 fix) khiến RoleCfg giờ CŨNG gate
+       tool ghi CHỈ dùng trong SOP, không có mặt ở tier-1 planner:
+       flag_order_for_review (nhap-kho) không hề xuất hiện trong
+       WRITE_PLANNER_PROMPT — nó chỉ được gọi bên trong SOP qua wrapper do
+       skill_loader sinh — nhưng vẫn là MỘT TOOL THẬT trong registry MCP, và
+       roles._WH_OWN PHẢI khai nó (skill_loader.skill_role_gap dùng
+       allowed_tools() để quyết định nạp/bỏ SOP nhap-kho cho vai kho). Bỏ sót
+       nguồn (2) sẽ khiến test này coi một tool THẬT là tool ma.
+
+    Nguồn (1) vẫn giữ NGUYÊN — không viết lại logic trích xuất — để test và
+    generator LUÔN đồng thuận về việc gì được tính là một tool thật."""
     names = set()
     for line in WRITE_PLANNER_PROMPT.splitlines():
         stripped = line.strip()
         if stripped.startswith("- ") and "(" in stripped:
             names.add(stripped[2:].split("(", 1)[0].strip())
+    for spec in load_skill_specs():
+        names.update(w.name for w in spec.write_tools)
     return names
 
 

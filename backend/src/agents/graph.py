@@ -1,4 +1,6 @@
 # backend/src/agents/graph.py
+import logging
+
 from langgraph.graph import StateGraph, END
 
 from .state import ERPAgentState
@@ -18,8 +20,11 @@ from .continuation import make_write_continuation_node, _route_after_continuatio
 from .mail_write import (MAIL_COORDINATOR_CFGS, make_send_template_email_node,
                          make_route_after_mail_preview)
 from .models import llms_from_single
-from .skill_loader import build_skill_node, load_skill_specs, render_worker_block
+from .skill_loader import (build_skill_node, load_skill_specs,
+                           render_worker_block, skill_role_gap)
 from .agentic_context_sync import make_agentic_context_sync_node
+
+logger = logging.getLogger(__name__)
 
 
 def _route_after_write_planner(state: ERPAgentState) -> str:
@@ -33,7 +38,7 @@ def _route_after_write_planner(state: ERPAgentState) -> str:
     return "erp_write_executor"
 
 
-def build_graph(llm, tools, checkpointer, role_cfg=None) -> object:
+def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> object:
     # Nhận single-llm (test/back-compat: mọi role chung 1 model) HOẶC mapping
     # role→llm (production, từ make_llms()). Normalize về mapping.
     llms = llm if isinstance(llm, dict) else llms_from_single(llm)
@@ -43,7 +48,23 @@ def build_graph(llm, tools, checkpointer, role_cfg=None) -> object:
     # Nạp SOP MỘT LẦN, fail-loud: SKILL.md sai thẩm quyền/cấu trúc → ném
     # SkillManifestError ra ngoài build_graph → ERPAgent.setup() → app KHÔNG
     # LÊN. Thà không lên còn hơn lên sai (cùng triết lý assert_embedding_marker).
-    skill_specs = load_skill_specs()
+    #
+    # role-based-access: một skill có thể cần tool ghi mà BỘ LỌC VAI
+    # (_filter_tools_for_role, erp_agent.py) đã bỏ khỏi `tools` — đó KHÔNG
+    # phải lỗi cấu hình (skill_role_gap phân biệt rõ với tool thật sự không
+    # tồn tại trong registry MCP, vẫn ném SkillManifestError như cũ qua
+    # build_skill_node bên dưới). Bỏ qua skill đó khỏi TOÀN BỘ graph — không
+    # node, không route — thay vì crash: vai admin (role_cfg=None hoặc
+    # unrestricted) và mọi test không truyền role_cfg/mcp_all_tools không đổi
+    # gì (skill_role_gap luôn trả None trong hai trường hợp đó).
+    skill_specs = []
+    for spec in load_skill_specs():
+        reason = skill_role_gap(spec, tools, mcp_all_tools, role_cfg)
+        if reason:
+            logger.info("skill %r bỏ qua cho vai %r: %s", spec.name,
+                       getattr(role_cfg, "name", None), reason)
+            continue
+        skill_specs.append(spec)
 
     g.add_node("intent_router", make_intent_router_node(
         llms["router"], render_worker_block(skill_specs),

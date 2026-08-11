@@ -55,9 +55,14 @@ class RoleCfg:
 # ── Nghiệp vụ theo vai, suy trực tiếp từ phiếu phỏng vấn đã điền ────────────
 # Kho: A1.1-A1.4 là địa hạt của họ (Đ hoặc X); A1.5 "Ngoài phạm vi kho" nên
 # mọi X trong mục đó là OTHER_DEPT, không phải NEEDS_SIGN_OFF.
+# flag_order_for_review: câu 5 phiếu phỏng vấn (docs/role-permission-interview.md)
+# — "Khi hàng nhận về thiếu hoặc hỏng, anh/chị tự xử lý hay phải báo ai?" → Đ
+# (tự xử lý). Ghi chú bất thường lên đơn mua LÀ hành động "tự xử lý" đó, nên
+# thuộc own, không phải needs_sign_off/other_dept. Cả 2 profile dùng chung
+# _WH_OWN nên một dòng này áp cho cả small-business lẫn enterprise.
 _WH_OWN = frozenset({
     "deliver_order", "receive_order", "validate_picking", "internal_transfer",
-    "inventory_adjustment", "scrap_product",
+    "inventory_adjustment", "scrap_product", "flag_order_for_review",
 })
 _WH_SIGN_OFF = frozenset({"return_order", "send_delivery_email"})
 _WH_OTHER = frozenset({

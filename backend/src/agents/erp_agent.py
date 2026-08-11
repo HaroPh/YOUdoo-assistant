@@ -172,11 +172,17 @@ class ERPAgent:
             client = MultiServerMCPClient(
                 {"odoo": {"url": cfg.mcp_url, "transport": "sse"}}
             )
-            tools = _filter_tools_for_role(await client.get_tools(), cfg)
+            # raw_tools = registry MCP ĐẦY ĐỦ (chưa lọc) — cần giữ lại tách
+            # biệt với `tools` (đã lọc theo vai) để build_graph phân biệt
+            # được "tool bị lọc vì chính sách vai" (skip skill) khỏi "tool
+            # không tồn tại trong registry MCP ở bất kỳ đâu" (lỗi cấu hình
+            # thật, vẫn phải SkillManifestError) — xem skill_loader.skill_role_gap.
+            raw_tools = await client.get_tools()
+            tools = _filter_tools_for_role(raw_tools, cfg)
             if role_name == "admin":
                 self.tool_names = [t.name for t in tools]
             self.graphs[role_name] = build_graph(self._llms, tools, checkpointer,
-                                                 role_cfg=cfg)
+                                                 role_cfg=cfg, mcp_all_tools=raw_tools)
 
     async def chat(self, messages: list[dict], thread_id: str | None = None,
                    reset_if_fresh: bool = False, role: str = "admin") -> str:
