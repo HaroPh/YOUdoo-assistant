@@ -1,5 +1,5 @@
 # scripts/odoo_setup_ai_accounts.py
-"""Tạo 4 tài khoản AI + 2 nhóm quyền tuỳ chỉnh cho kiến trúc phân vai.
+"""Tạo 4 tài khoản AI + 3 nhóm quyền tuỳ chỉnh cho kiến trúc phân vai.
 
 IDEMPOTENT: chạy lại không tạo trùng. KHÔNG sửa/xoá tài khoản có sẵn.
 Chạy: backend/.venv/Scripts/python.exe scripts/odoo_setup_ai_accounts.py
@@ -56,6 +56,17 @@ ensure_access("youdoo_ai_mail_mail_mail", g_mail, "mail.mail",
               {"read": 1, "write": 1, "create": 1, "unlink": 1})
 ensure_access("youdoo_ai_mail_config_param", g_mail, "ir.config_parameter", {"read": 1})
 
+# `create_invoice_from_order` gọi wizard sale.advance.payment.inv, mà nhóm
+# "Accounting / Invoicing" KHÔNG cấp — nên tool này khai `own` cho kế toán
+# nhưng gãy thật khi chạy (đo 2026-08-11). Nhóm chuẩn duy nhất cấp wizard đó
+# là "Sales / User: Own Documents Only", nhưng nó kéo theo 52 cặp (model,
+# operation) trên 25 model — gồm mrp.production create/write, toàn bộ CRM, và
+# sale.order create (thứ này biến `create_quotation` từ CHẶN ĐÚNG thành một
+# khoảng trống mới). Nhóm hẹp dưới đây mở đúng 1 model, không hơn.
+g_sinv = ensure_group("Youdoo AI / Sale Invoicing")
+ensure_access("youdoo_ai_sinv_wizard", g_sinv, "sale.advance.payment.inv",
+              {"read": 1, "write": 1, "create": 1})
+
 g_ro = ensure_group("Youdoo AI / Read Only")
 for tech in READ_MODELS:
     ensure_access("youdoo_ai_ro_" + tech.replace(".", "_"), g_ro, tech, {"read": 1})
@@ -78,7 +89,7 @@ PLAN = {
         "Role / Administrator")],
     "ai-warehouse":  [BASE_USER, g_mail] + [gid_by_full_name(n) for n in (
         "Inventory / User", "Contact / Creation")],
-    "ai-accounting": [BASE_USER, g_mail] + [gid_by_full_name(n) for n in (
+    "ai-accounting": [BASE_USER, g_mail, g_sinv] + [gid_by_full_name(n) for n in (
         "Accounting / Invoicing", "Contact / Creation")],
 }
 

@@ -165,6 +165,12 @@ hết 18 tool × 2 vai, kết quả thật là **9 khoảng trống + 2 lỗi ch
 | `warehouse` | 16/18 đúng. 2 gap: `confirm_sale_order`, `send_invoice_email` |
 | `accounting` | 7 gap: `deliver_order`, `receive_order`, `validate_picking`, `internal_transfer`, `confirm_sale_order`, `confirm_purchase_order`, `send_delivery_email` |
 
+> **ĐÍNH CHÍNH LẦN BA (2026-08-11, nhánh `fix/role-access-map-correction`).**
+> Con số "2 lỗi chức năng" ngay dưới đây **SAI** — thực tế chỉ có **1**. Số 9
+> khoảng trống thì đúng, nhưng đúng do trùng hợp: `TOOL_ACCESS_MAP` mà cả hai
+> con số dựa vào có **8/18 dòng sai operation hoặc thiếu cặp**. Xem mục
+> "Đính chính lần ba" ở cuối tài liệu để có số liệu đã kiểm chứng.
+
 **Vai kho gần như sạch** — mọi tool `own` đều chạy được, mọi tool `other_dept`
 đều bị Odoo chặn trừ 2. Đây là vai bị hạn chế nhiều nhất và cũng là vai được
 cưỡng chế tốt nhất. Khoảng trống tập trung ở vai kế toán, vì `Accounting /
@@ -237,3 +243,74 @@ chí 4 đã đo, vốn giả định request đi qua MCP layer bình thường) 
 Odoo chặn lại ở 4 chỗ này. `scripts/check_role_odoo_consistency.py` chạy
 lại được, nên nếu granularity Odoo đổi (thêm/bớt nhóm quyền) mà không cập
 nhật bảng này, GAP mới sẽ hiện ra tường minh thay vì nằm im.
+
+---
+
+## Đính chính lần ba (2026-08-11) — bảng map sai, không phải quyền Odoo sai
+
+Việc parked "cần quyết định chính sách cho 2 tool kế toán" hoá ra chỉ đúng một
+nửa. Đi kiểm bằng `has_access` trực tiếp thì thấy `ai-accounting` **đã có đủ**
+mọi quyền `create_bill_from_po` cần. Nghi vấn: bảng map sai. Đọc lại code tool
+thì đúng vậy — và không chỉ một dòng.
+
+### 8/18 dòng `TOOL_ACCESS_MAP` sai hoặc thiếu
+
+| Tool | Map cũ | Code thật gọi | |
+|---|---|---|---|
+| `create_bill_from_po` | `purchase.order create` | `write` (action_create_invoice trên PO **có sẵn**) + `account.move create/write` | sai |
+| `return_order` | `stock.return.picking write` | `create` wizard + `.line write` + `stock.picking create` | sai |
+| `send_delivery_email` / `send_invoice_email` | `mail.template create` | `mail.template` **read** + `mail.mail create/write/unlink` | sai |
+| `register_payment` | `account.move write` | thêm `account.payment.register create` | thiếu |
+| `internal_transfer` | `stock.picking create` | thêm `write` (`button_validate`) | thiếu |
+| `inventory_adjustment` | `stock.quant write` | thêm `create` (nhánh chưa có quant — quyền **riêng**, chú thích cũ nói dùng chung gate write là sai) | thiếu |
+| `scrap_product` | `stock.scrap create` | thêm `write` (`action_validate`) | thiếu |
+| `create_credit_memo` | `account.move.reversal create` | thêm `write` (`refund_moves`) | thiếu |
+
+### Số liệu thật sau khi sửa map
+
+**9 khoảng trống + 1 lỗi chức năng** (không phải 2). `create_bill_from_po`
+chạy được bằng `ai-accounting` — **chứng minh bằng phép thử sống**, không phải
+suy luận: gọi `action_create_invoice` trên `P00068`, sinh hoá đơn NCC nháp
+`id=108` (`in_invoice`, 900.0), rồi xoá, `P00068` trở lại `to invoice`.
+
+Số 9 giữ nguyên nhưng đó là **trùng hợp**, không phải xác nhận: bảng map đứng
+sau cả hai con số đều sai ở 8 dòng. Thành phần 9 khoảng trống nay đã được
+kiểm chứng từng dòng và ghi vào `KNOWN_ODOO_GAPS` (trước đó chỉ ghi 4/9 — 5
+khoảng trống thật nằm ngoài danh sách "đã biết").
+
+### Lỗi chức năng duy nhất — ĐÃ SỬA
+
+`create_invoice_from_order` thiếu đúng **một** thứ: `sale.advance.payment.inv`.
+Mọi quyền khác nó chạm (`sale.order` read/write, `account.move` create/write,
+`account.move.line` create) `ai-accounting` **đã có**.
+
+Nhóm chuẩn duy nhất của Odoo cấp wizard này là `Sales / User: Own Documents
+Only` — đo ra **52 cặp (model, operation) trên 25 model**, gồm `mrp.production`
+create/write, toàn bộ CRM, và `sale.order create` (thứ này biến
+`create_quotation` từ **chặn đúng** thành khoảng trống thứ 10). Nên tạo nhóm
+hẹp `Youdoo AI / Sale Invoicing` mở đúng 1 model.
+
+Kiểm chứng sống sau khi sửa: `ai-accounting` gọi wizard trên `S00115`, sinh
+hoá đơn nháp `id=109` (`out_invoice`, 70.0), xoá, đơn trở lại nguyên trạng.
+`check_role_odoo_consistency.py` exit 0, 36/36 dòng khớp, 0 BLOCKED.
+
+### Phát hiện mới chưa từng ghi: tầng mail không có backstop Odoo
+
+`send_delivery_email` hở với kế toán và `send_invoice_email` hở với kho —
+**cả hai chiều**. Nhóm `Youdoo AI / Mail` cấp `mail.mail` cho *mọi* vai, còn
+`mail.template` thì ai cũng đọc được. Bốn tool gửi mail là nhóm tool duy nhất
+gây hậu quả **không thu hồi được**, và chúng chỉ được chặn ở tầng agent. Map
+cũ (`mail.template create`) che mất điều này: nó hỏi một quyền không vai nào
+có, nên báo "chặn đúng" ở cả hai vai.
+
+### Bài học (lần thứ ba cùng một hạng lỗi)
+
+Hai lần trước là *kết luận* sai vì đo thiếu. Lần này là **công cụ đo** sai hợp
+đồng — cùng hạng lỗi với `has_access(ids, operation)` từng gọi sai hai lần.
+Một công cụ kiểm tra không tự kiểm được chính nó: `check_role_odoo_consistency.py`
+chạy sạch, exit 0, và vẫn cho số sai suốt hai ngày. Thứ duy nhất bắt được là
+**chạy tool thật trên tài khoản thật** rồi đối chiếu với thứ công cụ dự đoán.
+
+`TOOL_ACCESS_MAP` vẫn chép tay từ code tool, nên vẫn lệch được lần nữa. Chốt
+drift cho bảng này đã được nêu ra nhưng **để lại cho đợt sau** (ngoài phạm vi
+đợt này theo quyết định của user).
