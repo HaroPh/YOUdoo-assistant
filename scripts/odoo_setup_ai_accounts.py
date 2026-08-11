@@ -10,7 +10,7 @@ import xmlrpc.client
 
 URL = os.environ["ODOO_URL"]; DB = os.environ["ODOO_DB"]
 ADMIN = os.environ["ODOO_USERNAME"]; PWD = os.environ["ODOO_PASSWORD"]
-NEW_PWD = os.environ.get("AI_ACCOUNT_PASSWORD", "Youdoo@2026")
+NEW_PWD = os.environ["AI_ACCOUNT_PASSWORD"]   # BẮT BUỘC — không đặt mặc định
 
 uid = xmlrpc.client.ServerProxy(URL + "/xmlrpc/2/common").authenticate(DB, ADMIN, PWD, {})
 if not uid:
@@ -91,4 +91,3 @@ for login, gids in PLAN.items():
     else:
         vals |= {"name": "AI " + login.replace("ai-", "").title(), "login": login, "password": NEW_PWD}
         print("  TẠO:", login, "uid", call("res.users", "create", [vals]))
-print("\nMật khẩu:", NEW_PWD)
