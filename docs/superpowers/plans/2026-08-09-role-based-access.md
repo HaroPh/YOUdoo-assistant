@@ -27,7 +27,7 @@
 - Create: `scripts/odoo_setup_ai_accounts.py`
 
 **Interfaces:**
-- Produces: 4 tài khoản Odoo (`ai-readonly`, `ai-admin`, `ai-warehouse`, `ai-accounting`, mật khẩu chung `Youdoo@2026`) và 2 nhóm `Youdoo AI / Mail`, `Youdoo AI / Read Only`. Task 2 và Task 8 dùng các login này trong env.
+- Produces: 4 tài khoản Odoo (`ai-readonly`, `ai-admin`, `ai-warehouse`, `ai-accounting`, mật khẩu lấy từ biến môi trường `AI_ACCOUNT_PASSWORD`) và 2 nhóm `Youdoo AI / Mail`, `Youdoo AI / Read Only`. Task 2 và Task 8 dùng các login này trong env.
 
 > **⚠️ Task này thay đổi cấu hình Odoo thật.** Nếu môi trường tự động bị chặn quyền, DỪNG và báo người dùng chạy tay — không tìm đường lách.
 
@@ -48,7 +48,7 @@ import xmlrpc.client
 
 URL = os.environ["ODOO_URL"]; DB = os.environ["ODOO_DB"]
 ADMIN = os.environ["ODOO_USERNAME"]; PWD = os.environ["ODOO_PASSWORD"]
-NEW_PWD = os.environ.get("AI_ACCOUNT_PASSWORD", "Youdoo@2026")
+NEW_PWD = os.environ["AI_ACCOUNT_PASSWORD"]   # BẮT BUỘC — không đặt mặc định
 
 uid = xmlrpc.client.ServerProxy(URL + "/xmlrpc/2/common").authenticate(DB, ADMIN, PWD, {})
 if not uid:
@@ -145,7 +145,7 @@ Nếu bị chặn quyền: DỪNG, báo người dùng chạy tay, đừng dùng
 ```bash
 cd d:/Youdoo && set -a && . ./.env && set +a && backend/.venv/Scripts/python.exe -c "
 import os, xmlrpc.client
-URL=os.environ['ODOO_URL']; DB=os.environ['ODOO_DB']; PWD='Youdoo@2026'
+URL=os.environ['ODOO_URL']; DB=os.environ['ODOO_DB']; PWD=os.environ['AI_ACCOUNT_PASSWORD']
 for login in ['ai-readonly','ai-admin','ai-warehouse','ai-accounting']:
     uid = xmlrpc.client.ServerProxy(URL+'/xmlrpc/2/common').authenticate(DB, login, PWD, {})
     o = xmlrpc.client.ServerProxy(URL+'/xmlrpc/2/object')
@@ -197,7 +197,7 @@ thành:
 
 ```
 ODOO_USERNAME=ai-admin
-ODOO_PASSWORD=Youdoo@2026
+ODOO_PASSWORD=${AI_ACCOUNT_PASSWORD}
 ```
 
 - [ ] **Step 2: Khởi động lại backend + mcp-odoo, kiểm tra health**
@@ -1126,7 +1126,7 @@ $env:ODOO_USERNAME = "ai-readonly"
 $env:ODOO_PASSWORD = $env:AI_ACCOUNT_PASSWORD
 ```
 
-Thêm `AI_ACCOUNT_PASSWORD=Youdoo@2026` vào `.env`.
+Thêm `AI_ACCOUNT_PASSWORD=<mật khẩu bạn tự đặt>` vào `.env` (đã gitignore).
 
 - [ ] **Step 4: Khởi động và lấy `user_id` thật**
 
@@ -1173,7 +1173,7 @@ không phải cùng một quyền đội lốt.
 ```bash
 cd d:/Youdoo && backend/.venv/Scripts/python.exe -c "
 import xmlrpc.client
-URL='http://localhost:8069'; DB='odoo'; U='ai-warehouse'; P='Youdoo@2026'
+URL='http://localhost:8069'; DB='odoo'; U='ai-warehouse'; P=os.environ['AI_ACCOUNT_PASSWORD']
 uid = xmlrpc.client.ServerProxy(URL+'/xmlrpc/2/common').authenticate(DB,U,P,{})
 o = xmlrpc.client.ServerProxy(URL+'/xmlrpc/2/object')
 print('has_access(account.move, write) =', o.execute_kw(DB,uid,P,'account.move','has_access',[[],'write'],{}))
