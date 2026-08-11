@@ -280,6 +280,25 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         # Chuỗi đa bước khai báo trước: validate tất định qua registry walk.
         # LLM bịa chain_until → None → single-step như cũ (fail-safe).
         chain = expand_chain(plan.get("tool"), plan.get("chain_until"))
+
+        # Cổng vai TẤT ĐỊNH cho TOÀN CHUỖI (final-review Fix 1, role-based-
+        # access): cổng bên trên (dòng ~273) chỉ soi plan["tool"] — bước ĐẦU.
+        # expand_chain() duyệt qua NEXT_STEPS mà KHÔNG hỏi role_cfg, nên một
+        # chuỗi "giao hàng rồi xuất hóa đơn" của vai kho lọt qua cổng đầu
+        # (deliver_order = own), quảng cáo bước cấm trong lời xác nhận, THỰC
+        # SỰ giao hàng, và chỉ bị chặn ở executor khi tới create_invoice_from_
+        # order — nửa chuỗi đã chạy, ranh giới không còn nằm ở CODE tất định
+        # nữa mà trôi ra executor. Kiểm TOÀN BỘ bước còn lại TRƯỚC khi bất cứ
+        # gì chạy; nếu có bước cấm, từ chối CẢ CHUỖI (không âm thầm cắt bớt —
+        # người dùng hỏi 2 việc mà chỉ được 1 việc, không báo, còn tệ hơn bị
+        # từ chối thẳng cả 2).
+        if role_cfg is not None and chain:
+            for step_tool, _ in chain:
+                if role_cfg.state_of(step_tool) in (OTHER_DEPT, DENIED):
+                    return {"messages": [AIMessage(
+                        content=_role_refusal_message(role_cfg, step_tool)
+                    )], "pending_action": None, "auto_chain": None}
+
         auto_chain = [t for t, _ in chain] if chain else None
         if chain:
             plan = {**plan, "chain_note":

@@ -157,6 +157,45 @@ nay chỉ là gợi ý.
 ## Kết luận
 
 **6/6 tiêu chí ĐẠT, đo TRƯỚC merge, trên code worktree thật.** Ba tầng bảo vệ
-đều được chứng minh hoạt động độc lập: lọc tool ở backend (trải nghiệm), chặn
-tất định trong code (đúng đắn), và cưỡng chế ở tầng Odoo (bảo mật) — tầng cuối
-được chứng minh bằng cách bỏ qua hoàn toàn hai tầng trên.
+đều CÓ và hoạt động đúng thiết kế ở những chỗ đã đo: lọc tool ở backend (trải
+nghiệm — tiêu chí 1/2/3/6), chặn tất định trong code (đúng đắn — tiêu chí
+2/3/5, cộng phần "Hai lỗi thật" ở trên), và cưỡng chế ở tầng Odoo (bảo mật —
+tiêu chí 4).
+
+**Sửa lại nhận định trước đây (final-review Fix 6a, việc kiểm tra toàn nhánh
+2026-08-09):** câu kết luận gốc ở đây viết "Ba tầng bảo vệ đều được chứng
+minh hoạt động độc lập" — quá rộng so với những gì đã đo. Tiêu chí 4, phép đo
+QUYẾT ĐỊNH duy nhất cho tầng Odoo, chỉ đo **MỘT tool, MỘT chiều**:
+`ai-warehouse` bị Odoo chặn ghi trên `account.move` (bảng so sánh 2 dòng ở
+trên). Không có phép đo tương đương cho: chiều ngược lại (`ai-accounting` có
+bị Odoo chặn ghi `stock.picking`/`sale.order` không?), hay bất kỳ tool nào
+khác trong 16 khai báo `other_dept` của `roles.py`. Kết quả thật của việc đi
+kiểm — xem ngay dưới — là tầng Odoo **không** đồng nhất: nó cưỡng chế được ở
+một số cặp (role, tool) và không cưỡng chế được ở một số cặp khác, tùy độ
+mịn của nhóm quyền Odoo chuẩn.
+
+### Các khoảng trống tầng Odoo đã biết (final-review Fix 2, đo thật)
+
+Kiểm bằng `scripts/check_role_odoo_consistency.py` (gọi `has_access()` trực
+tiếp trên tài khoản Odoo của từng vai, bỏ qua hoàn toàn backend/LLM — cùng
+kiểu phép đo tiêu chí 4, nhưng phủ hết các tool khai trong `roles.py` thay vì
+một tool) tìm ra 4 khai báo `other_dept` **không có backstop ở tầng Odoo**:
+
+| Vai (tài khoản Odoo) | Tool bị chặn ở agent | Nhưng Odoo thực ra CHO PHÉP |
+|---|---|---|
+| `accounting` (`ai-accounting`) | `deliver_order` | ghi `stock.picking` |
+| `accounting` (`ai-accounting`) | `validate_picking` | ghi `stock.picking` |
+| `accounting` (`ai-accounting`) | `internal_transfer` | tạo `stock.picking` |
+| `warehouse` (`ai-warehouse`) | `confirm_sale_order` | ghi `sale.order` |
+
+Đây **không phải lỗi code** — nhóm quyền chuẩn của Odoo ("Inventory / User",
+"Sales / User"...) không tách nhỏ tới mức phân biệt "được giao hàng" khỏi
+"được điều chỉnh tồn kho", nên cấp quyền qua nhóm kéo theo cấp luôn cả cụm.
+Hồ sơ chính sách hiện dùng (`small-business`) chấp nhận cưỡng chế yếu ở
+những nghiệp vụ này — đúng tinh thần "doanh nghiệp nhỏ gần như không có gì bị
+cấm tuyệt đối" (`roles.py` docstring) — nhưng **4 tool này chỉ được chặn ở
+tầng agent**: một cách nào đó bỏ qua được backend (không phải kịch bản tiêu
+chí 4 đã đo, vốn giả định request đi qua MCP layer bình thường) sẽ không bị
+Odoo chặn lại ở 4 chỗ này. `scripts/check_role_odoo_consistency.py` chạy
+lại được, nên nếu granularity Odoo đổi (thêm/bớt nhóm quyền) mà không cập
+nhật bảng này, GAP mới sẽ hiện ra tường minh thay vì nằm im.

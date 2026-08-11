@@ -85,9 +85,14 @@ PLAN = {
 for login, gids in PLAN.items():
     ex = call("res.users", "search_read", [[["login", "=", login]]],
               {"fields": ["id"], "context": {"active_test": False}})
-    vals = {"group_ids": [(6, 0, sorted(set(gids)))], "active": True}
+    # "active" chỉ đặt lúc TẠO. Không đặt lại trên nhánh cập nhật: một operator
+    # có thể đã chủ động vô hiệu hoá tài khoản AI này trong Odoo (đó là công
+    # tắc tắt DUY NHẤT các tài khoản này có) — script "idempotent" ghi đè
+    # active=True mỗi lần chạy lại sẽ âm thầm bật lại nó, xoá mất công tắc.
+    vals = {"group_ids": [(6, 0, sorted(set(gids)))]}
     if ex:
         call("res.users", "write", [[ex[0]["id"]], vals]); print("  cập nhật:", login, "uid", ex[0]["id"])
     else:
-        vals |= {"name": "AI " + login.replace("ai-", "").title(), "login": login, "password": NEW_PWD}
+        vals |= {"name": "AI " + login.replace("ai-", "").title(), "login": login,
+                 "password": NEW_PWD, "active": True}
         print("  TẠO:", login, "uid", call("res.users", "create", [vals]))

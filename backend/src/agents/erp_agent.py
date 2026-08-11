@@ -293,16 +293,24 @@ class ERPAgent:
             [HumanMessage(content=content)], config=config)
         return response.content
 
-    async def _invoke_fresh(self, messages: list[dict], config: dict, graph=None):
+    async def _invoke_fresh(self, messages: list[dict], config: dict, graph):
         """Run a non-resume turn, overwriting the persisted message channel.
 
         Open WebUI resends the full conversation every turn, so appending it to
         the checkpointer (the add_messages default) duplicates history without
         bound. Prepending RemoveMessage(REMOVE_ALL_MESSAGES) clears the channel
         first, leaving state["messages"] == exactly the incoming history.
+
+        `graph` is REQUIRED (final-review Fix 4, role-based-access): the old
+        `graph or self.graphs["admin"]` fallback was dead on every current call
+        site (all three pass graph explicitly, already resolved+None-checked by
+        the caller), but in a permission system a latent "if unspecified, use
+        admin" defaults open — the wrong direction. Fail loudly instead.
         """
+        if graph is None:
+            raise ValueError("_invoke_fresh: graph is required (no admin fallback)")
         reset = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *messages]
-        return await (graph or self.graphs["admin"]).ainvoke({"messages": reset}, config=config)
+        return await graph.ainvoke({"messages": reset}, config=config)
 
     async def aclose(self) -> None:
         if self._pool is not None:

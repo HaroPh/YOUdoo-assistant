@@ -142,3 +142,40 @@ async def test_unknown_tool_name_refused_not_confirmed(monkeypatch):
     assert len(result["messages"]) == 1
     # Không có bộ phận cụ thể cho tool bịa ra — dept_of fallback 'khác'.
     assert "khác" in result["messages"][0].content
+
+
+# ── (5) final-review Fix 1: auto_chain rò khỏi cổng vai. plan["tool"] (bước
+#     ĐẦU, deliver_order) là own của vai kho nên qua được cổng ở dòng ~273 —
+#     nhưng expand_chain() thêm bước THỨ HAI (create_invoice_from_order,
+#     "xuất hóa đơn") mà cổng đầu không hề soi tới. Trước fix: node trả thẳng
+#     {"pending_action": plan, "auto_chain": [...]} cho non-coordinated tool
+#     → interrupt() sẽ CHẠY (hiện confirm quảng cáo bước cấm, và nếu người
+#     dùng đồng ý, executor sẽ THỰC SỰ giao hàng trước khi bị chặn ở bước
+#     hai) — đúng ca sống 2026-08-09 nêu trong report review. Sau fix: TOÀN
+#     CHUỖI bị soi trước khi bất cứ gì chạy — no pending_action nghĩa là
+#     _interrupt() không hề được gọi, nên deliver_order KHÔNG được thực thi
+#     dù nó tự nó được phép. ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_warehouse_chain_deliver_then_invoice_refused_whole_chain(monkeypatch):
+    """'giao hàng đơn S00012 rồi xuất hóa đơn luôn' — deliver_order (own, vai
+    kho) chain_until create_invoice_from_order (Kế toán). Phải từ chối CẢ
+    CHUỖI trước khi chạy — không giao hàng rồi mới báo lỗi ở bước hai."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    _interrupt_must_not_fire(monkeypatch)
+    plan = {"tool": "deliver_order", "args": {"order_ref": "S00012"},
+            "summary": "Giao hàng và xuất hóa đơn",
+            "chain_until": "create_invoice_from_order"}
+    llm = make_mock_llm(json.dumps(plan, ensure_ascii=False))
+    node = make_erp_write_planner_node(llm, role_cfg=WAREHOUSE)
+
+    result = await node(_write_state("giao hàng đơn S00012 rồi xuất hóa đơn luôn"))
+
+    assert result["pending_action"] is None, \
+        "giao hàng KHÔNG được thực thi — cả chuỗi phải bị chặn trước khi chạy"
+    assert result["auto_chain"] is None
+    assert len(result["messages"]) == 1
+    content = result["messages"][0].content
+    # Nêu đúng bước cấm ĐẦU TIÊN và bộ phận phụ trách thật (Kế toán), không
+    # phải bộ phận của deliver_order (Kho) — deliver_order tự nó được phép.
+    assert "Kế toán" in content

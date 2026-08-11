@@ -116,6 +116,32 @@ Bảng ánh xạ khoá theo **`user_id` (chuỗi mờ)**, KHÔNG theo email — 
 quyết định PII ở `main.py:114-118` ("name/email/role là PII, không bao giờ được
 đọc hoặc ghi log").
 
+### 3.2 Rủi ro còn lại đã biết (final-review Fix 6b, chưa sửa — chỉ ghi nhận)
+
+§3 viết "phía server, người dùng không sửa được" cho bước tra bảng ánh xạ
+user_id → role. Đúng cho **chặng Open WebUI → backend**: header
+`x-openwebui-user-id` do container `open-webui` tự gắn phía server, người
+dùng cuối không chỉnh được nó qua giao diện chat.
+
+Nhưng **`/v1/chat/completions` của chính backend không có xác thực**, và
+`run.py` mặc định `BACKEND_HOST=0.0.0.0` (nghe mọi interface, không chỉ
+`127.0.0.1`) — xem `.env.example`. Bất kỳ ai gọi thẳng tới cổng `8002` (bỏ
+qua Open WebUI hoàn toàn) đều có thể tự đặt `x-openwebui-user-id` thành BẤT
+KỲ giá trị nào, kể cả id của tài khoản admin thật. Tầng Odoo **không bắt
+được** trường hợp này — không phải vì nó bị vượt qua, mà vì request khi đó
+**hợp lệ đúng nghĩa admin** (role tra ra đúng là `admin` theo bảng ánh xạ),
+nên Odoo cưỡng chế đúng như thiết kế, chỉ là đang cưỡng chế cho một danh
+tính bị mạo nhận ở tầng phía trên nó.
+
+Nói cách khác: "người dùng không sửa được" đúng cho người dùng **đi qua Open
+WebUI**; không đúng cho bất kỳ ai gọi thẳng backend. Thiết kế này CHƯA đóng
+rủi ro đó — ghi nhận để không claim nhiều hơn những gì đã triển khai. Hai
+hướng giảm thiểu khả thi, chưa làm: (a) ràng `BACKEND_HOST` về `127.0.0.1`
+(chỉ nhận kết nối cục bộ, đúng mô hình "backend + open-webui cùng một máy/
+mạng tin cậy"), hoặc (b) một shared secret giữa container `open-webui` và
+backend (header/token riêng mà backend đòi hỏi, open-webui tự đính kèm) để
+phân biệt "request thật từ open-webui" khỏi "ai đó tự gọi thẳng cổng 8002".
+
 ## 4. Bốn credential và nhóm quyền
 
 | Tài khoản | Dùng ở | Nhóm quyền |
