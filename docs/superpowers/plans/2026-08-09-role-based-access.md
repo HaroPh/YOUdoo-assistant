@@ -1171,9 +1171,10 @@ không phải cùng một quyền đội lốt.
 `ai-warehouse`, bỏ qua toàn bộ backend và LLM:
 
 ```bash
-cd d:/Youdoo && backend/.venv/Scripts/python.exe -c "
-import xmlrpc.client
-URL='http://localhost:8069'; DB='odoo'; U='ai-warehouse'; P=os.environ['AI_ACCOUNT_PASSWORD']
+cd d:/Youdoo && set -a && . ./.env && set +a && backend/.venv/Scripts/python.exe -c "
+import os, xmlrpc.client
+URL=os.environ['ODOO_URL']; DB=os.environ['ODOO_DB']
+U='ai-warehouse'; P=os.environ['AI_ACCOUNT_PASSWORD']
 uid = xmlrpc.client.ServerProxy(URL+'/xmlrpc/2/common').authenticate(DB,U,P,{})
 o = xmlrpc.client.ServerProxy(URL+'/xmlrpc/2/object')
 print('has_access(account.move, write) =', o.execute_kw(DB,uid,P,'account.move','has_access',[[],'write'],{}))
