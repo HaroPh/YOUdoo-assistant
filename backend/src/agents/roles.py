@@ -111,8 +111,14 @@ class RoleCfg:
 # flag_order_for_review: câu 5 phiếu phỏng vấn (docs/role-permission-interview.md)
 # — "Khi hàng nhận về thiếu hoặc hỏng, anh/chị tự xử lý hay phải báo ai?" → Đ
 # (tự xử lý). Ghi chú bất thường lên đơn mua LÀ hành động "tự xử lý" đó, nên
-# thuộc own, không phải needs_sign_off/other_dept. Cả 2 profile dùng chung
-# _WH_OWN nên một dòng này áp cho cả small-business lẫn enterprise.
+# thuộc own, không phải needs_sign_off/other_dept — nhưng CHỈ đúng cho
+# small-business. _WH_OWN dưới đây chỉ được profile small-business dùng;
+# enterprise/warehouse khai own của riêng nó (xem PROFILES bên dưới) và
+# KHÔNG đưa flag_order_for_review vào own/needs_sign_off/other_dept_extra.
+# Hệ quả: đây là vai DUY NHẤT mà state_of("flag_order_for_review") rơi vào
+# DENIED, và vì allowed_tools() cũng thiếu nó nên
+# skill_loader.skill_role_gap() âm thầm loại skill SOP "nhap-kho" khỏi vai
+# enterprise/warehouse.
 _WH_OWN = frozenset({
     "deliver_order", "receive_order", "validate_picking", "internal_transfer",
     "inventory_adjustment", "scrap_product", "flag_order_for_review",

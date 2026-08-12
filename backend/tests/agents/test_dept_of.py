@@ -6,7 +6,23 @@ Bảng này từng nằm ở prompts.py và ĐÃ TRÔI LỆCH: đo 2026-08-12 th
 từ chối nói "liên hệ bộ phận khác" thay vì nêu tên bộ phận thật.
 
 Test dưới đây khoá bất biến đó lại: một tool đã được vai nào đó sở hữu mà chưa
-khai bộ phận là đỏ ngay."""
+khai bộ phận là đỏ ngay.
+
+ĐIỂM MÙ: test_moi_tool_duoc_so_huu_deu_co_bo_phan chỉ duyệt tool đã được MỘT
+vai nào đó SỞ HỮU (own ∪ needs_sign_off), nên không thấy được chiều ngược lại
+— tool KHÔNG được vai nào sở hữu thì không nằm trong vòng lặp, dù DEPT_OF có
+thiếu nó hay không. Đo 2026-08-12: DEPT_OF chỉ phủ 19/34 write tool khai
+trong WRITE_PLANNER_PROMPT; 16 tool còn lại (gồm send_order_confirmation_email,
+send_quotation_email, send_rfq_email, create_lead, convert_lead,
+create_vendor, create_bom, create_bulk_rfq, update_quotation_lines,
+update_rfq_lines, update_bom_lines, update_vendor_pricing, log_activity,
+create_manufacturing_order, confirm_manufacturing_order,
+complete_manufacturing_order) bị DENIED cho cả vai kho lẫn kế toán, nên cả
+hai lỗi mà nhánh này sửa (lời từ chối rơi về "bộ phận khác" thay vì nêu tên,
+và other_dept suy nhầm) vẫn còn sống nguyên cho 16 tool đó. Đây là khoảng
+trống ĐÃ BIẾT, để lại cho một đợt sau — không phải hồi quy của nhánh này,
+tình trạng giống hệt trước khi nhánh này chạm vào. KHÔNG thêm 16 tool đó vào
+DEPT_OF và KHÔNG mở rộng test ở đây để che điểm mù này."""
 from src.agents import roles
 from src.agents import prompts
 

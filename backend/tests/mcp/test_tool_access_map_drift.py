@@ -151,7 +151,15 @@ def test_moi_tool_trong_roles_deu_duoc_bang_phu(script_mod):
 
 
 def test_model_khai_deu_co_that_trong_nguon_tool(script_mod, funcs, coordinator_aliases):
-    """Khai -> có thật. Bắt model khai nhầm hoặc không còn được đụng tới."""
+    """Khai -> có thật. Bắt model khai nhầm hoặc không còn được đụng tới.
+
+    GIỚI HẠN: test này chỉ đòi model được ĐỤNG TỚI, không đòi được GHI. Một
+    model khai cho một pair ghi nhưng nguồn chỉ còn gọi odoo() ĐỌC trên model
+    đó vẫn xanh. Đo thật: return_order khai ("stock.picking", "create"); nguồn
+    chỉ còn đúng một lệnh odoo("stock.picking", ...) và đó là lệnh ĐỌC; xoá
+    hẳn dòng khai đó đi thì cả 3 test trong file này vẫn xanh. Vậy test này
+    canh "có nhắc tới", không canh "có ghi thật" — không đổi logic để canh
+    thêm việc đó."""
     vi_pham = []
     for tool, pairs in script_mod.TOOL_ACCESS_MAP.items():
         calls = _odoo_calls_for_tool(tool, funcs, coordinator_aliases)
@@ -169,7 +177,19 @@ def test_model_khai_deu_co_that_trong_nguon_tool(script_mod, funcs, coordinator_
 
 def test_model_bi_ghi_trong_nguon_deu_da_duoc_khai(script_mod, funcs, read_methods,
                                                     coordinator_aliases):
-    """Có thật -> đã khai. Bắt ĐÚNG 5 dòng thiếu cặp của lần trước."""
+    """Có thật -> đã khai.
+
+    Đo lại bằng cách revert từng dòng trong 8 dòng mà 6c06aaa đã sửa rồi chạy
+    test: CHỈ 3/8 lên đỏ (return_order, register_payment,
+    create_bill_from_po). 5 dòng còn lại (internal_transfer,
+    inventory_adjustment, scrap_product, create_credit_memo, và cặp
+    send_delivery_email/send_invoice_email) vẫn xanh — không phải vì test
+    yếu mà vì cặp thiếu của chúng là một OPERATION thứ hai trên một model ĐÃ
+    khai (vd tool đã khai (X, "read") rồi ghi thêm (X, "write") mà không
+    thêm dòng), trong khi test này CHỈ so model, không so operation (xem
+    PHẠM VI ở docstring module, spec §4.3 — thiết kế model-scope là cố ý,
+    không phải chỗ cần sửa). Với những dòng đó, model vẫn nằm trong đã_khai
+    nên vòng lặp không có gì để bắt."""
     vi_pham = []
     for tool, pairs in script_mod.TOOL_ACCESS_MAP.items():
         calls = _odoo_calls_for_tool(tool, funcs, coordinator_aliases)
@@ -187,10 +207,16 @@ def test_model_bi_ghi_trong_nguon_deu_da_duoc_khai(script_mod, funcs, read_metho
 
 
 def test_helper_mot_cap_that_su_duoc_di_vao(funcs):
-    """Đối chứng cho giới hạn nêu ở docstring: nếu việc đi một cấp hỏng, hai
-    test trên sẽ xanh giả cho mọi tool gọi Odoo qua helper. deliver_order là
-    ví dụ thật — nó không tự gọi odoo() trên stock.picking mà đi qua
-    _validate_order_pickings trong helpers.py."""
+    """Đối chứng cho giới hạn nêu ở docstring module: nếu việc đi một cấp
+    hỏng, KHÔNG phải cả hai test trên đều xanh giả như nhau. Đo thật bằng
+    cách tắt bước đi một cấp: test_model_bi_ghi_trong_nguon_deu_da_duoc_khai
+    xanh giả thật (nguồn coi như không ghi gì, nên không có gì để bắt) —
+    nhưng test_model_khai_deu_co_that_trong_nguon_tool lại chuyển ĐỎ, vì lý
+    do khác hẳn: model đã khai (vd stock.picking cho deliver_order) không
+    còn được đụng tới ở đâu cả một khi không đi vào helper, nên chính khai
+    báo đó bị coi là khai nhầm. deliver_order là ví dụ thật — nó không tự
+    gọi odoo() trên stock.picking mà đi qua _validate_order_pickings trong
+    helpers.py."""
     node = funcs.get("deliver_order")
     assert node is not None, "không tìm thấy deliver_order"
     models = {m for m, _ in _odoo_calls(node, funcs)}

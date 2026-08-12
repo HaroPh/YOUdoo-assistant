@@ -217,8 +217,6 @@ def planner_prompt_for(cfg) -> str:
     'misroute nguy hiểm' mù với đúng những tool gửi mail ra ngoài).
 
     Vai admin dùng nguyên bản gốc — không lọc gì."""
-    from .roles import OTHER_DEPT
-
     allowed = cfg.allowed_tools()
     if allowed is None:
         return WRITE_PLANNER_PROMPT
