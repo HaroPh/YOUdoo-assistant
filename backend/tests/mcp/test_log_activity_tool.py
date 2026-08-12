@@ -153,6 +153,28 @@ def test_loai_trung_ten_uu_tien_dung_khop_model(crm_mod, log_activity_fn, monkey
     assert created[0][2][0]["activity_type_id"] == 2
 
 
+def test_khong_doc_duoc_model_dich_thi_tu_choi_sach(crm_mod, log_activity_fn, monkeypatch):
+    """Lệnh search_read ĐẦU TIÊN trên model đích ném lỗi (mô phỏng vai không
+    có quyền đọc model đó trong Odoo thật, vd warehouse gọi trên crm.lead).
+    Phải trả về từ chối sạch — không lộ nguyên văn lỗi Odoo (không có tên
+    exception 'access-denied-detail' trong thông điệp) — và không tạo gì."""
+    calls = []
+
+    def odoo_loi(model, method, args, kw=None):
+        calls.append((model, method, args, kw))
+        if method == "search_read" and model == "crm.lead":
+            raise Exception("access-denied-detail: nhóm quyền XYZ")
+        raise AssertionError(f"không nên gọi tiếp sau khi search_read lỗi: {model}.{method}")
+
+    monkeypatch.setattr(crm_mod, "odoo", odoo_loi)
+    monkeypatch.setattr(crm_mod, "get_uid", lambda: 8)
+    out = json.loads(log_activity_fn("crm.lead", 42, "To-Do", "x"))
+    assert out["ok"] is False
+    assert "crm.lead" in out["display"]
+    assert "access-denied-detail" not in out["display"]
+    assert not [c for c in calls if c[1] == "create"]
+
+
 def test_ban_ghi_dich_khong_ton_tai(crm_mod, log_activity_fn, monkeypatch):
     calls = []
     monkeypatch.setattr(crm_mod, "odoo", _fake_odoo(calls, rec=False))

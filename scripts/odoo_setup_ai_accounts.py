@@ -1,5 +1,5 @@
 # scripts/odoo_setup_ai_accounts.py
-"""Tạo 4 tài khoản AI + 5 nhóm quyền tuỳ chỉnh cho kiến trúc phân vai.
+"""Tạo 4 tài khoản AI + 6 nhóm quyền tuỳ chỉnh cho kiến trúc phân vai.
 
 IDEMPOTENT: chạy lại không tạo trùng. KHÔNG sửa/xoá tài khoản có sẵn.
 Chạy: backend/.venv/Scripts/python.exe scripts/odoo_setup_ai_accounts.py

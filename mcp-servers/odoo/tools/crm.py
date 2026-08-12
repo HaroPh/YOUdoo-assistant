@@ -155,8 +155,22 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
         assignee: Người nhận — login hoặc tên. Bỏ trống = tài khoản đang gọi.
     """
     try:
-        recs = odoo(res_model, "search_read", [[["id", "=", res_id]]],
-                    {"fields": ["id", "name"], "limit": 1})
+        # Lệnh Odoo ĐẦU TIÊN trên model đích — bọc RIÊNG lệnh này. Lỗi ở đúng
+        # chỗ này chỉ có một nghĩa: vai hiện tại không đọc được loại chứng từ
+        # này (thiếu quyền) hoặc model không tồn tại — biết được từ VỊ TRÍ lỗi
+        # xảy ra, không cần đọc nội dung lỗi. KHÔNG dò chữ/mã lỗi Odoo (thông
+        # điệp Odoo trả về theo ngôn ngữ tài khoản, không ổn định giữa các
+        # bản cài đặt) và KHÔNG lộ nguyên văn lỗi hay tên nhóm quyền Odoo ra
+        # ngoài.
+        try:
+            recs = odoo(res_model, "search_read", [[["id", "=", res_id]]],
+                        {"fields": ["id", "name"], "limit": 1})
+        except Exception:  # noqa: BLE001 — chỉ bọc lệnh này, không đổi hành
+                            # vi các lệnh Odoo khác trong hàm
+            return envelope(False,
+                            f"Không đọc được dữ liệu '{res_model}' — model "
+                            f"này có thể không tồn tại hoặc tài khoản hiện "
+                            f"tại không có quyền truy cập.")
         if not recs:
             return envelope(False, f"Không tìm thấy bản ghi ID {res_id} "
                                    f"trong {res_model}.")
