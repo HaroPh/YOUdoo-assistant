@@ -1,5 +1,5 @@
 # scripts/odoo_setup_ai_accounts.py
-"""Tạo 4 tài khoản AI + 3 nhóm quyền tuỳ chỉnh cho kiến trúc phân vai.
+"""Tạo 4 tài khoản AI + 6 nhóm quyền tuỳ chỉnh cho kiến trúc phân vai.
 
 IDEMPOTENT: chạy lại không tạo trùng. KHÔNG sửa/xoá tài khoản có sẵn.
 Chạy: backend/.venv/Scripts/python.exe scripts/odoo_setup_ai_accounts.py
@@ -90,6 +90,15 @@ g_sinv = ensure_group("Youdoo AI / Sale Invoicing")
 ensure_access("youdoo_ai_sinv_wizard", g_sinv, "sale.advance.payment.inv",
               {"read": 1, "write": 1, "create": 1})
 
+# mail.activity create BẮT BUỘC res_model_id (id của ir.model, tra runtime —
+# truyền res_model dạng chuỗi bị Odoo từ chối, probe-verify 2026-07-19). Đo
+# 2026-08-12: cả ba tài khoản ghi CÓ mail.activity create, nhưng
+# ai-warehouse/ai-accounting KHÔNG có ir.model read. Thiếu quyền phụ này thì
+# log_activity gãy đúng kiểu coordinator mail đã gãy: quyền chính có, quyền
+# phụ không, và chỉ live-verify mới thấy.
+g_act = ensure_group("Youdoo AI / Activity")
+ensure_access("youdoo_ai_activity_ir_model", g_act, "ir.model", {"read": 1})
+
 # Backstop Odoo cho tầng mail (spec 2026-08-12 §5). Nhóm `Youdoo AI / Mail`
 # ở trên cấp mail.mail cho CẢ BA vai — cần thiết, nhưng vì thế Odoo không
 # phân biệt được vai nào gửi template nào. Hai nhóm dưới đây thêm luật ĐỌC
@@ -160,14 +169,14 @@ BASE_USER = call("ir.model.data", "search_read",
 
 PLAN = {
     "ai-readonly":   [BASE_USER, g_ro],
-    "ai-admin":      [BASE_USER, g_mail] + [gid_by_full_name(n) for n in (
+    "ai-admin":      [BASE_USER, g_mail, g_act] + [gid_by_full_name(n) for n in (
         "Inventory / Administrator", "Accounting / Administrator", "Sales / Administrator",
         "Purchase / Administrator", "Manufacturing / Administrator", "Contact / Creation",
         "Role / Administrator")],
-    "ai-warehouse":  [BASE_USER, g_mail] + ([g_mail_role["warehouse"]]
+    "ai-warehouse":  [BASE_USER, g_mail, g_act] + ([g_mail_role["warehouse"]]
                                             if "warehouse" in g_mail_role else []) + [
         gid_by_full_name(n) for n in ("Inventory / User", "Contact / Creation")],
-    "ai-accounting": [BASE_USER, g_mail, g_sinv] + ([g_mail_role["accounting"]]
+    "ai-accounting": [BASE_USER, g_mail, g_sinv, g_act] + ([g_mail_role["accounting"]]
                                                     if "accounting" in g_mail_role else []) + [
         gid_by_full_name(n) for n in ("Accounting / Invoicing", "Contact / Creation")],
 }

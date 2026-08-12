@@ -12,19 +12,9 @@ from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG)
-from .skill_gate import _fold
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import crm
-
-# Nhận cách gõ tự nhiên (đã _fold) — map tất định, sai thì liệt kê, không đoán
-# (pattern _TIER_ALIASES của discount_quote).
-_ACTIVITY_ALIASES = {
-    "call": "Call", "goi": "Call", "goi dien": "Call", "cuoc goi": "Call",
-    "dien thoai": "Call",
-    "meeting": "Meeting", "hop": "Meeting", "gap": "Meeting",
-    "gap mat": "Meeting", "cuoc hop": "Meeting",
-}
 
 
 def _finish(tool_name: str, result) -> dict:
@@ -42,10 +32,9 @@ def _finish(tool_name: str, result) -> dict:
 # substring match. Users commonly refer to a lead by "anh/chị + tên" even
 # though the stored title may not carry that honorific (e.g. create_lead's
 # LLM-extracted contact_name dropped "anh" while convert_lead/log_activity's
-# lead_ref kept it verbatim) — the query becomes a superset string that no
+# ref kept it verbatim) — the query becomes a superset string that no
 # longer substring-matches, so a lead that clearly exists resolves to "none".
-# Deterministic strip + retry once (pattern _ACTIVITY_ALIASES: tất định, không
-# đoán bằng LLM).
+# Deterministic strip + retry once — tất định, không đoán bằng LLM.
 _HONORIFIC_PREFIXES = ("anh ", "chị ", "ông ", "bà ", "em ", "cô ", "chú ", "bác ")
 
 
@@ -78,6 +67,44 @@ def _resolve_lead(lead_ref: str):
             return "msg", _msg("Đã hủy.")
         return "ok", lead
     return "ok", val
+
+
+# Model giải bằng tra `name =` chính xác: mã của chúng vốn là mã máy
+# (S00119, WH/OUT/00138, P00068) nên tìm mờ không thêm giá trị mà chỉ thêm
+# đường sai. crm.lead KHÔNG nằm đây — nó có _resolve_lead riêng với tìm mờ,
+# bỏ kính ngữ và hỏi lại khi trùng, và mất ba thứ đó là gỡ tính năng đang chạy.
+_EXACT_NAME_MODELS = ("sale.order", "purchase.order", "account.move",
+                      "stock.picking", "mrp.production")
+
+
+def _search_by_name(model, domain, fields, **kw):
+    """Tách ra thành hàm riêng để test monkeypatch được mà không cần Odoo."""
+    from ..erp_query.gateway import default_gateway
+    return default_gateway().search_read(model, domain, fields, **kw)
+
+
+def _resolve_doc(res_model: str, ref: str):
+    """→ ("ok", {"id","name"}) | ("msg", <dict trả ngay>).
+
+    Fail-closed: model chưa biết cách giải thì TỪ CHỐI, không đoán."""
+    if res_model == "crm.lead":
+        return _resolve_lead(ref)
+    if res_model not in _EXACT_NAME_MODELS:
+        supported = ", ".join(("crm.lead",) + _EXACT_NAME_MODELS)
+        return "msg", _msg(f"Chưa hỗ trợ gắn hoạt động vào '{res_model}'. "
+                           f"Hiện hỗ trợ: {supported}.")
+    rows = _search_by_name(res_model, [["name", "=", ref]], ["id", "name"],
+                           limit=2)
+    if not rows:
+        # Hoá đơn NHÁP có name=False (đo 2026-08-08) nên tra theo mã chỉ tìm
+        # được hoá đơn ĐÃ phát hành — nói rõ để người dùng không tưởng gõ sai.
+        extra_note = (" Lưu ý: hoá đơn nháp chưa có số nên chưa tra được theo mã."
+                if res_model == "account.move" else "")
+        return "msg", _msg(f"Không tìm thấy '{ref}' trong {res_model}.{extra_note}")
+    if len(rows) > 1:
+        return "msg", _msg(f"Có nhiều bản ghi tên '{ref}' trong {res_model}. "
+                           f"Vui lòng nêu rõ hơn.")
+    return "ok", rows[0]
 
 
 def make_create_lead_node(tools):
@@ -178,37 +205,35 @@ def make_log_activity_node(tools):
         if not write_gate.write_actions_enabled():
             return _msg(WRITE_DISABLED_MSG)
         args = (state.get("pending_action") or {}).get("args") or {}
-        lead_ref = str(args.get("lead_ref") or "").strip()
-        raw_type = str(args.get("activity_type") or "").strip()
+        res_model = str(args.get("res_model") or "").strip()
+        ref = str(args.get("ref") or "").strip()
+        activity_type = str(args.get("activity_type") or "").strip()
         summary = str(args.get("summary") or "").strip()
         deadline = str(args.get("date_deadline") or "").strip()
+        assignee = str(args.get("assignee") or "").strip()
 
-        canonical = _ACTIVITY_ALIASES.get(_fold(raw_type).strip()) if raw_type else None
-        if raw_type and canonical is None:
-            return _msg(f"Loại hoạt động '{raw_type}' không hợp lệ. "
-                        f"Chỉ nhận: Call (gọi điện) hoặc Meeting (họp/gặp mặt).")
-
-        # Slot-fill GỘP: liệt kê MỌI slot còn thiếu trong một câu (generalize
-        # pattern 1-field của inventory_write).
+        # Slot-fill GỘP: liệt kê MỌI slot còn thiếu trong một câu.
         missing = []
-        if not lead_ref:
-            missing.append("lead/cơ hội nào")
-        if canonical is None:
-            missing.append("loại hoạt động (Call hay Meeting)")
+        if not res_model or not ref:
+            missing.append("gắn vào chứng từ nào (loại và mã, vd đơn bán S00119)")
+        if not activity_type:
+            missing.append("loại hoạt động (vd To-Do, Call, Meeting)")
         if not summary:
             missing.append("nội dung ngắn gọn")
         if missing:
             return _msg("Vui lòng cho biết: " + "; ".join(missing) + ".")
 
-        kind, lead = _resolve_lead(lead_ref)
+        kind, doc = _resolve_doc(res_model, ref)
         if kind == "msg":
-            return lead
+            return doc
 
         deadline = deadline or date.today().isoformat()
+        assignee_note = f" — giao {assignee}" if assignee else ""
         confirmed = _interrupt({
             "kind": "confirm",
-            "question": (f"Lên lịch {canonical} cho '{lead['name']}': "
-                         f"{summary} — hạn {deadline}.\n" + WRITE_CONFIRM_SUFFIX),
+            "question": (f"Lên lịch {activity_type} cho '{doc['name']}': "
+                         f"{summary} — hạn {deadline}{assignee_note}.\n"
+                         + WRITE_CONFIRM_SUFFIX),
             "expires_at": _ttl_expiry()})
         if not confirmed:
             return _msg("Đã hủy lên lịch hoạt động.")
@@ -217,10 +242,12 @@ def make_log_activity_node(tools):
         if tool is None:
             return _msg("Công cụ lên lịch hoạt động không khả dụng.")
         try:
-            result = await tool.ainvoke({"lead_id": lead["id"],
-                                         "activity_type": canonical,
+            result = await tool.ainvoke({"res_model": res_model,
+                                         "res_id": doc["id"],
+                                         "activity_type": activity_type,
                                          "summary": summary,
-                                         "date_deadline": deadline})
+                                         "date_deadline": deadline,
+                                         "assignee": assignee})
         except Exception as e:  # noqa: BLE001
             return _msg(f"Lỗi khi lên lịch hoạt động: {e}")
         return _finish("log_activity", result)

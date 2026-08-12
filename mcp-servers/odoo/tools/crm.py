@@ -106,48 +106,138 @@ def convert_lead(lead_id: int, assignee_name: str = "") -> str:
         return envelope(False, f"Lỗi khi chuyển lead thành cơ hội: {e}")
 
 
+def _resolve_assignee(assignee: str):
+    """→ user_id (int) | câu từ chối (str).
+
+    Thứ tự: login chính xác → name chính xác → tìm gần đúng theo name.
+    Trùng nhiều ở bước cuối thì TỪ CHỐI và liệt kê, không tự chọn — fail-closed
+    giống mọi chỗ giải thực thể khác trong dự án.
+
+    Chỉ xét người dùng nội bộ (share=False): người dùng portal không nhận
+    việc được.
+    """
+    internal_only = [["share", "=", False]]
+    for domain in ([["login", "=", assignee]] + internal_only,
+                   [["name", "=", assignee]] + internal_only):
+        rows = odoo("res.users", "search_read", [domain],
+                    {"fields": ["id", "name", "login"], "limit": 2})
+        if len(rows) == 1:
+            return rows[0]["id"]
+    rows = odoo("res.users", "search_read",
+                [[["name", "ilike", assignee]] + internal_only],
+                {"fields": ["id", "name", "login"], "limit": 6})
+    if not rows:
+        return f"Không tìm thấy người dùng '{assignee}'."
+    if len(rows) > 1:
+        names = ", ".join(f"{r['name']} ({r['login']})" for r in rows)
+        return f"Có nhiều người khớp '{assignee}': {names}. Vui lòng nêu rõ hơn."
+    return rows[0]["id"]
+
+
 @mcp.tool()
-def log_activity(lead_id: int, activity_type: str, summary: str,
-                 date_deadline: str = "") -> str:
-    """Lên lịch hoạt động chăm sóc (Call | Meeting) trên một lead/cơ hội CRM.
-    activity_type nhận giá trị chuẩn "Call" hoặc "Meeting" (coordinator đã map
-    alias tiếng Việt). YÊU CẦU XÁC NHẬN từ người dùng trước khi gọi.
+def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
+                 date_deadline: str = "", assignee: str = "") -> str:
+    """Lên lịch một hoạt động (To-Do, Call, Meeting, Email, Document...) gắn
+    vào MỘT chứng từ bất kỳ trong Odoo. YÊU CẦU XÁC NHẬN từ người dùng trước
+    khi gọi.
+
+    Loại hợp lệ do chính Odoo quyết định: mail.activity.type có res_model
+    RỖNG dùng được cho mọi model, có giá trị thì chỉ model đó (vd
+    "Maintenance Request" chỉ gắn được vào maintenance.request). KHÔNG có
+    danh sách cấm viết tay ở đây.
 
     Args:
-        lead_id: ID lead/cơ hội.
-        activity_type: "Call" | "Meeting" (tên loại hoạt động trong Odoo).
+        res_model: Model của chứng từ, vd "sale.order".
+        res_id: ID chứng từ (coordinator đã giải từ mã người dùng gõ).
+        activity_type: Tên loại trong Odoo, vd "To-Do".
         summary: Nội dung ngắn gọn.
         date_deadline: Hạn (YYYY-MM-DD); bỏ trống = hôm nay.
+        assignee: Người nhận — login hoặc tên. Bỏ trống = tài khoản đang gọi.
     """
     try:
-        rows = odoo("crm.lead", "search_read", [[["id", "=", lead_id]]],
-                   {"fields": ["id", "name"], "limit": 1})
-        if not rows:
-            return envelope(False, f"Không tìm thấy lead/cơ hội ID {lead_id}.")
-        lead = rows[0]
+        # Lệnh Odoo ĐẦU TIÊN trên model đích — bọc RIÊNG lệnh này. Lỗi ở đúng
+        # chỗ này chỉ có một nghĩa: vai hiện tại không đọc được loại chứng từ
+        # này (thiếu quyền) hoặc model không tồn tại — biết được từ VỊ TRÍ lỗi
+        # xảy ra, không cần đọc nội dung lỗi. KHÔNG dò chữ/mã lỗi Odoo (thông
+        # điệp Odoo trả về theo ngôn ngữ tài khoản, không ổn định giữa các
+        # bản cài đặt) và KHÔNG lộ nguyên văn lỗi hay tên nhóm quyền Odoo ra
+        # ngoài.
+        try:
+            recs = odoo(res_model, "search_read", [[["id", "=", res_id]]],
+                        {"fields": ["id", "name"], "limit": 1})
+        except Exception:  # noqa: BLE001 — chỉ bọc lệnh này, không đổi hành
+                            # vi các lệnh Odoo khác trong hàm
+            return envelope(False,
+                            f"Không đọc được dữ liệu '{res_model}' — model "
+                            f"này có thể không tồn tại hoặc tài khoản hiện "
+                            f"tại không có quyền truy cập.")
+        if not recs:
+            return envelope(False, f"Không tìm thấy bản ghi ID {res_id} "
+                                   f"trong {res_model}.")
+        rec = recs[0]
+        ref = rec.get("name") or str(res_id)
 
+        # Lọc NGAY trong domain: tên khớp VÀ (dùng chung mọi model HOẶC đúng
+        # model này) (F4). Trước đây lấy 1 dòng theo tên rồi mới so model —
+        # nếu có hai loại trùng tên (một dùng chung, một buộc model khác) thì
+        # dòng có id nhỏ hơn thắng bất kể có khớp model hay không, khiến một
+        # yêu cầu hợp lệ bị từ chối oan.
         types = odoo("mail.activity.type", "search_read",
-                    [[["name", "=", activity_type]]],
-                    {"fields": ["id", "name"], "limit": 1})
+                     [[["name", "=", activity_type],
+                       "|", ["res_model", "=", False], ["res_model", "=", res_model]]],
+                     {"fields": ["id", "name", "res_model"], "limit": 1})
         if not types:
-            return envelope(False, f"Loại hoạt động '{activity_type}' không hợp "
-                                   f"lệ. Chỉ nhận: Call, Meeting.")
+            # Tên có tồn tại nhưng buộc vào model khác — tra riêng để GIỮ
+            # NGUYÊN thông điệp cũ, không gộp với nhánh "không tồn tại thật"
+            # bên dưới thành một câu mơ hồ (F4).
+            mismatched = odoo("mail.activity.type", "search_read",
+                              [[["name", "=", activity_type]]],
+                              {"fields": ["id", "name", "res_model"], "limit": 1})
+            if mismatched:
+                other = mismatched[0]
+                return envelope(False,
+                                f"Loại '{other['name']}' chỉ dùng được cho "
+                                f"{other['res_model']}, không phải {res_model}.")
+            # Tên không tồn tại thật — nêu các loại DÙNG ĐƯỢC cho model này,
+            # lấy trực tiếp từ Odoo, không từ danh sách viết tay (F3, spec
+            # §4: tập hợp lệ luôn đến từ mail.activity.type, không hard-code).
+            # Từ chối này xảy ra SAU cửa xác nhận (user đã đồng ý) — không
+            # nêu lựa chọn thì họ không có gì để sửa và thử lại.
+            usable = odoo("mail.activity.type", "search_read",
+                         [["|", ["res_model", "=", False], ["res_model", "=", res_model]]],
+                         {"fields": ["name"]})
+            names = ", ".join(sorted(t["name"] for t in usable))
+            hint = f" Loại hợp lệ cho {res_model}: {names}." if names else ""
+            return envelope(False, f"Loại hoạt động '{activity_type}' không có "
+                                   f"trong Odoo.{hint}")
+        atype = types[0]
 
-        # Probe-verified (2026-07-19): mail.activity create BẮT BUỘC res_model_id
-        # (ir.model id, tra runtime) — shape res_model (char) bị Odoo từ chối;
-        # date_deadline là field required duy nhất, luôn gửi.
-        model_ids = odoo("ir.model", "search",
-                        [[["model", "=", "crm.lead"]]], {"limit": 1})
+        user_id = get_uid()
+        if assignee:
+            user_id = _resolve_assignee(assignee)
+            if isinstance(user_id, str):        # chuỗi = câu từ chối
+                return envelope(False, user_id)
+
+        # Probe-verified (2026-07-19): mail.activity create BẮT BUỘC
+        # res_model_id (ir.model id, tra runtime) — shape res_model (char) bị
+        # Odoo từ chối. Hai vai non-admin KHÔNG có ir.model read theo mặc
+        # định; nhóm "Youdoo AI / Activity" cấp đúng quyền đó (spec §6).
+        model_ids = odoo("ir.model", "search", [[["model", "=", res_model]]],
+                         {"limit": 1})
+        if not model_ids:
+            return envelope(False, f"Model '{res_model}' không tồn tại trong Odoo.")
+
+        deadline = date_deadline or today_iso()
         act_id = odoo("mail.activity", "create",
-                     [{"res_model_id": model_ids[0], "res_id": lead_id,
-                      "activity_type_id": types[0]["id"],
-                      "summary": summary,
-                      "date_deadline": date_deadline or today_iso(),
-                      "user_id": get_uid()}])
+                      [{"res_model_id": model_ids[0], "res_id": res_id,
+                        "activity_type_id": atype["id"],
+                        "summary": summary,
+                        "date_deadline": deadline,
+                        "user_id": user_id}])
         return envelope(True,
-                        f"Đã lên lịch {types[0]['name']} cho '{lead['name']}': "
-                        f"{summary} — hạn {date_deadline or today_iso()}.",
-                        ref=lead["name"], model="mail.activity", res_id=act_id,
+                        f"Đã lên lịch {atype['name']} cho '{ref}': {summary} "
+                        f"— hạn {deadline}.",
+                        ref=ref, model="mail.activity", res_id=act_id,
                         state="planned")
     except Exception as e:  # noqa: BLE001
         return envelope(False, f"Lỗi khi lên lịch hoạt động: {e}")

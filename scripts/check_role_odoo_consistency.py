@@ -87,6 +87,14 @@ TOOL_ACCESS_MAP = {
                             ("mail.mail", "write"), ("mail.mail", "unlink")],
     "send_invoice_email":  [("mail.template", "read"), ("mail.mail", "create"),
                             ("mail.mail", "write"), ("mail.mail", "unlink")],
+    # ── Nghiệp vụ chung hai vai (crm.py) ──
+    # mail.activity create đã True cho cả ba tài khoản ghi TRƯỚC nhánh
+    # log_activity generalisation (đo spec §6) — không đo được cái nhánh đó
+    # thêm. Quyền THẬT nhánh này thêm là ir.model READ (res_model_id tra
+    # runtime, xem crm.py log_activity) qua nhóm "Youdoo AI / Activity" —
+    # thiếu dòng này thì script live-check báo OK bất kể nhóm có được áp hay
+    # không. Cùng kiểu gate-by-read hai dòng mail ở trên đã dùng.
+    "log_activity":            [("mail.activity", "create"), ("ir.model", "read")],  # crm.py log_activity
 }
 
 # Tool nêu trong roles.py nhưng KHÔNG map sạch vào MỘT cặp (model, operation)

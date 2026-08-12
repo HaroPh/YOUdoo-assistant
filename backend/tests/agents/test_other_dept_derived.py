@@ -18,23 +18,31 @@ THIEU_TRUOC_DAY = {
 }
 
 # Chốt không-hồi-quy cho ranh giới quyền Odoo: allowed_tools() = own ∪
-# needs_sign_off, và đợt này KHÔNG được đụng vào nó (spec §3.4).
+# needs_sign_off.
+#
+# CẬP NHẬT 2026-08-12 (log-activity-generalisation, Task 3): bảng này TỪNG
+# khoá "đợt này KHÔNG được đụng vào nó" (spec 2026-08-09 §3.4, đợt trước).
+# Đợt hiện tại CỐ Ý đảo ràng buộc đó — thêm log_activity vào own của cả hai
+# vai non-admin trên cả hai profile là thay đổi có chủ đích, không phải hồi
+# quy — nên set kỳ vọng cập nhật theo, KHÔNG nới lỏng phép so sánh
+# (set == vẫn đo chính xác, chỉ nội dung set đổi).
 ALLOWED_MONG_DOI = {
     ("small-business", "warehouse"): {
         "deliver_order", "receive_order", "validate_picking",
         "internal_transfer", "inventory_adjustment", "scrap_product",
-        "flag_order_for_review", "return_order", "send_delivery_email"},
+        "flag_order_for_review", "return_order", "send_delivery_email",
+        "log_activity"},
     ("small-business", "accounting"): {
         "create_credit_memo", "send_invoice_email",
         "create_invoice_from_order", "create_bill_from_po",
-        "post_invoice", "register_payment"},
+        "post_invoice", "register_payment", "log_activity"},
     ("enterprise", "warehouse"): {
         "deliver_order", "receive_order", "validate_picking",
-        "internal_transfer", "send_delivery_email"},
+        "internal_transfer", "send_delivery_email", "log_activity"},
     ("enterprise", "accounting"): {
         "create_credit_memo", "send_invoice_email",
         "create_invoice_from_order", "create_bill_from_po",
-        "post_invoice", "register_payment"},
+        "post_invoice", "register_payment", "log_activity"},
 }
 
 
@@ -83,9 +91,15 @@ def test_enterprise_cung_duoc_ba_tool_moi_suy_ra():
 
 @pytest.mark.parametrize("key,mong_doi", sorted(ALLOWED_MONG_DOI.items()))
 def test_allowed_tools_khong_doi(key, mong_doi):
-    """Đối chứng cho spec §3.4: đợt này chỉ đụng nội dung prompt, KHÔNG đụng
-    ranh giới quyền tài khoản Odoo. Nếu test này đỏ thì
-    scripts/odoo_setup_ai_accounts.py sẽ sinh ra bộ nhóm quyền khác trước."""
+    """Chốt tường minh ranh giới quyền tài khoản Odoo hiện tại.
+
+    Tên hàm giữ nguyên từ đợt trước (spec 2026-08-09 §3.4: 'KHÔNG đụng').
+    Đợt log-activity-generalisation (2026-08-12, Task 3) CỐ Ý phá invariant
+    đó — xem comment trên ALLOWED_MONG_DOI. Test vẫn đứng đây với vai trò
+    MỚI: chốt tường minh bộ allowed_tools() SAU thay đổi, để lần đổi kế tiếp
+    không âm thầm trôi thêm. Đỏ vẫn có cùng ý nghĩa như trước: nếu test này
+    đỏ thì scripts/odoo_setup_ai_accounts.py sẽ sinh ra bộ nhóm quyền khác
+    trước."""
     profile_name, role_name = key
     cfg = roles.PROFILES[profile_name][role_name]
     assert set(cfg.allowed_tools()) == mong_doi

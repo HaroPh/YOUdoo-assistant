@@ -233,46 +233,99 @@ async def test_log_activity_slot_ask_combined(monkeypatch):
     rec = {}
     graph = _graph(cw.make_log_activity_node([_fake_tool("log_activity", rec)]))
     cfg = {"configurable": {"thread_id": "a1"}}
-    res = await graph.ainvoke(_state("log_activity",
-                                     {"lead_ref": "Quan tâm lốp"}), cfg)
+    res = await graph.ainvoke(_state("log_activity", {}), cfg)
     assert "__interrupt__" not in res
     msg = res["messages"][-1].content.lower()
-    # hỏi GỘP cả 2 slot thiếu trong MỘT câu
-    assert "loại hoạt động" in msg and "nội dung" in msg
+    # hỏi GỘP cả 3 slot thiếu trong MỘT câu
+    assert "chứng từ" in msg and "loại hoạt động" in msg and "nội dung" in msg
     assert rec == {}
 
 
 @pytest.mark.asyncio
-async def test_log_activity_alias_goi_dien_maps_to_call(monkeypatch):
+async def test_log_activity_tren_sale_order_giai_theo_ma(monkeypatch):
+    """Model KHÁC crm.lead giải bằng tra `name =` chính xác — mã đơn vốn là mã
+    máy (S00119), không cần tìm mờ."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    monkeypatch.setattr(cw, "_search_by_name",
+                        lambda model, domain, fields, **kw: [{"id": 119, "name": "S00119"}])
+    rec = {}
+    graph = _graph(cw.make_log_activity_node([_fake_tool("log_activity", rec)]))
+    cfg = {"configurable": {"thread_id": "la1"}}
+    res = await graph.ainvoke(_state("log_activity",
+                                     {"res_model": "sale.order", "ref": "S00119",
+                                      "activity_type": "To-Do",
+                                      "summary": "Gọi lại khách"}), cfg)
+    assert res["__interrupt__"][0].value["kind"] == "confirm"
+    await graph.ainvoke(Command(resume=True), cfg)
+    assert rec["args"]["res_model"] == "sale.order"
+    assert rec["args"]["res_id"] == 119
+
+
+@pytest.mark.asyncio
+async def test_log_activity_model_khong_ho_tro_thi_tu_choi(monkeypatch):
+    """Fail-closed: model chưa biết cách giải thì từ chối, KHÔNG đoán."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    rec = {}
+    graph = _graph(cw.make_log_activity_node([_fake_tool("log_activity", rec)]))
+    cfg = {"configurable": {"thread_id": "la2"}}
+    res = await graph.ainvoke(_state("log_activity",
+                                     {"res_model": "res.partner", "ref": "Acme",
+                                      "activity_type": "To-Do", "summary": "x"}), cfg)
+    assert "__interrupt__" not in res
+    assert "res.partner" in res["messages"][-1].content
+    assert rec == {}
+
+
+@pytest.mark.asyncio
+async def test_log_activity_crm_lead_van_dung_resolve_lead(monkeypatch):
+    """_resolve_lead có tìm mờ + bỏ kính ngữ + hỏi lại khi trùng. Đường
+    crm.lead PHẢI còn đi qua nó, không rơi về tra `name =` chính xác."""
+    monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    monkeypatch.setattr(cw.crm, "find_lead", lambda *a, **k: _ok_resolve(
+        [{"id": 45, "name": "Cơ hội A", "score": 1}], False))
+    # Nếu đường crm.lead lỡ rơi vào _search_by_name thì test đỏ ngay.
+    monkeypatch.setattr(cw, "_search_by_name",
+                        lambda *a, **k: pytest.fail("crm.lead không được đi qua _search_by_name"))
+    rec = {}
+    graph = _graph(cw.make_log_activity_node([_fake_tool("log_activity", rec)]))
+    cfg = {"configurable": {"thread_id": "la3"}}
+    await graph.ainvoke(_state("log_activity",
+                               {"res_model": "crm.lead", "ref": "anh Nam",
+                                "activity_type": "Call", "summary": "x"}), cfg)
+    await graph.ainvoke(Command(resume=True), cfg)
+    assert rec["args"]["res_model"] == "crm.lead" and rec["args"]["res_id"] == 45
+
+
+@pytest.mark.asyncio
+async def test_log_activity_truyen_assignee_xuong_tool(monkeypatch):
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     monkeypatch.setattr(cw.crm, "find_lead", lambda *a, **k: _ok_resolve(
         [{"id": 45, "name": "Cơ hội A", "score": 1}], False))
     rec = {}
     graph = _graph(cw.make_log_activity_node([_fake_tool("log_activity", rec)]))
-    cfg = {"configurable": {"thread_id": "a2"}}
+    cfg = {"configurable": {"thread_id": "la4"}}
     res = await graph.ainvoke(_state("log_activity",
-                                     {"lead_ref": "Cơ hội A",
-                                      "activity_type": "gọi điện",
-                                      "summary": "Tư vấn thông số"}), cfg)
-    itr = res["__interrupt__"][0].value
-    assert itr["kind"] == "confirm" and "Call" in itr["question"]
+                                     {"res_model": "crm.lead", "ref": "Cơ hội A",
+                                      "activity_type": "Call", "summary": "x",
+                                      "assignee": "ai-accounting"}), cfg)
+    assert "ai-accounting" in res["__interrupt__"][0].value["question"]
     await graph.ainvoke(Command(resume=True), cfg)
-    assert rec["args"]["activity_type"] == "Call"
-    assert rec["args"]["date_deadline"]            # default hôm nay đã điền
+    assert rec["args"]["assignee"] == "ai-accounting"
 
 
 @pytest.mark.asyncio
-async def test_log_activity_invalid_type_lists_options(monkeypatch):
+async def test_log_activity_tu_choi_o_cong_xac_nhan_thi_khong_ghi(monkeypatch):
+    """Spec §9.1: huỷ ở cổng xác nhận KHÔNG được gọi tool."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
+    monkeypatch.setattr(cw.crm, "find_lead", lambda *a, **k: _ok_resolve(
+        [{"id": 45, "name": "Cơ hội A", "score": 1}], False))
     rec = {}
     graph = _graph(cw.make_log_activity_node([_fake_tool("log_activity", rec)]))
-    cfg = {"configurable": {"thread_id": "a3"}}
-    res = await graph.ainvoke(_state("log_activity",
-                                     {"lead_ref": "X", "activity_type": "karaoke",
-                                      "summary": "y"}), cfg)
-    assert "__interrupt__" not in res
-    msg = res["messages"][-1].content
-    assert "Call" in msg and "Meeting" in msg
+    cfg = {"configurable": {"thread_id": "la5"}}
+    await graph.ainvoke(_state("log_activity",
+                               {"res_model": "crm.lead", "ref": "Cơ hội A",
+                                "activity_type": "Call", "summary": "x"}), cfg)
+    await graph.ainvoke(Command(resume=False), cfg)
     assert rec == {}
 
 

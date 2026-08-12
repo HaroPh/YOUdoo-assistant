@@ -11,19 +11,21 @@ khai bộ phận là đỏ ngay.
 ĐIỂM MÙ: test_moi_tool_duoc_so_huu_deu_co_bo_phan chỉ duyệt tool đã được MỘT
 vai nào đó SỞ HỮU (own ∪ needs_sign_off), nên không thấy được chiều ngược lại
 — tool KHÔNG được vai nào sở hữu thì không nằm trong vòng lặp, dù DEPT_OF có
-thiếu nó hay không. Đo 2026-08-12: DEPT_OF chỉ phủ 18/34 write tool khai
-trong WRITE_PLANNER_PROMPT (19 key, nhưng flag_order_for_review là key thứ 19 —
-xuất xứ từ khai báo SOP skill, không phải prompt); 16 tool còn lại (gồm send_order_confirmation_email,
+thiếu nó hay không. Đo lại 2026-08-12 sau nhánh log-activity-generalisation
+(nhánh này cấp log_activity cho cả kho lẫn kế toán và thêm mục của nó vào
+DEPT_OF): DEPT_OF phủ 19/34 write tool khai trong WRITE_PLANNER_PROMPT (20
+key, nhưng flag_order_for_review là key thứ 20 — xuất xứ từ khai báo SOP
+skill, không phải prompt); 15 tool còn lại (gồm send_order_confirmation_email,
 send_quotation_email, send_rfq_email, create_lead, convert_lead,
 create_vendor, create_bom, create_bulk_rfq, update_quotation_lines,
-update_rfq_lines, update_bom_lines, update_vendor_pricing, log_activity,
+update_rfq_lines, update_bom_lines, update_vendor_pricing,
 create_manufacturing_order, confirm_manufacturing_order,
 complete_manufacturing_order) bị DENIED cho cả vai kho lẫn kế toán, nên cả
-hai lỗi mà nhánh này sửa (lời từ chối rơi về "bộ phận khác" thay vì nêu tên,
-và other_dept suy nhầm) vẫn còn sống nguyên cho 16 tool đó. Đây là khoảng
-trống ĐÃ BIẾT, để lại cho một đợt sau — không phải hồi quy của nhánh này,
-tình trạng giống hệt trước khi nhánh này chạm vào. KHÔNG thêm 16 tool đó vào
-DEPT_OF và KHÔNG mở rộng test ở đây để che điểm mù này."""
+hai lỗi mà nhánh trước đó sửa (lời từ chối rơi về "bộ phận khác" thay vì nêu
+tên, và other_dept suy nhầm) vẫn còn sống nguyên cho 15 tool đó. Đây là
+khoảng trống ĐÃ BIẾT, để lại cho một đợt sau — không phải hồi quy của nhánh
+nào đã chạm vào đây. KHÔNG thêm 15 tool đó vào DEPT_OF và KHÔNG mở rộng test
+ở đây để che điểm mù này."""
 from src.agents import roles
 from src.agents import prompts
 
