@@ -7,6 +7,7 @@ Chạy: backend/.venv/Scripts/python.exe scripts/odoo_setup_ai_accounts.py
 import os
 import sys
 import xmlrpc.client
+from pathlib import Path
 
 URL = os.environ["ODOO_URL"]; DB = os.environ["ODOO_DB"]
 ADMIN = os.environ["ODOO_USERNAME"]; PWD = os.environ["ODOO_PASSWORD"]
@@ -50,6 +51,28 @@ def ensure_access(name, gid, tech, perms):
     else:
         call("ir.model.access", "create", [vals]); print("    tạo:", name)
 
+def ensure_rule(name, gid, tech, domain):
+    """ir.rule ĐỌC theo nhóm. Idempotent theo `name`.
+
+    Chỉ đặt perm_read: perm_write/create/unlink trên mail.template đã có 2
+    luật gốc của Odoo quản (đo 2026-08-12, cả hai đều perm_read=False), thêm
+    luật ghi ở đây là giẫm lên chúng.
+
+    Ngữ nghĩa Odoo: luật THEO NHÓM chỉ áp lên thành viên của nhóm, và OR với
+    nhau. Tài khoản không thuộc nhóm nào có luật trên model này thì không bị
+    giới hạn — đó là lý do KHÔNG cần (và không nên) tạo nhóm cho admin.
+    """
+    vals = {"name": name, "model_id": model_id(tech), "domain_force": domain,
+            "groups": [(6, 0, [gid])],
+            "perm_read": True, "perm_write": False,
+            "perm_create": False, "perm_unlink": False}
+    ex = call("ir.rule", "search_read", [[["name", "=", name]]],
+              {"fields": ["id"], "limit": 1})
+    if ex:
+        call("ir.rule", "write", [[ex[0]["id"]], vals]); print("    cập nhật luật:", name)
+    else:
+        call("ir.rule", "create", [vals]); print("    tạo luật:", name)
+
 print("=== NHÓM QUYỀN TUỲ CHỈNH ===")
 g_mail = ensure_group("Youdoo AI / Mail")
 ensure_access("youdoo_ai_mail_mail_mail", g_mail, "mail.mail",
@@ -66,6 +89,46 @@ ensure_access("youdoo_ai_mail_config_param", g_mail, "ir.config_parameter", {"re
 g_sinv = ensure_group("Youdoo AI / Sale Invoicing")
 ensure_access("youdoo_ai_sinv_wizard", g_sinv, "sale.advance.payment.inv",
               {"read": 1, "write": 1, "create": 1})
+
+# Backstop Odoo cho tầng mail (spec 2026-08-12 §5). Nhóm `Youdoo AI / Mail`
+# ở trên cấp mail.mail cho CẢ BA vai — cần thiết, nhưng vì thế Odoo không
+# phân biệt được vai nào gửi template nào. Hai nhóm dưới đây thêm luật ĐỌC
+# trên mail.template, giới hạn đúng template của vai.
+#
+# Danh sách template SUY RA từ mail_write.templates_for_role — cùng nguồn mà
+# tiến trình MCP dùng. Viết tay ở đây là tạo danh sách song song thứ hai,
+# đúng hạng lỗi mà cả mạch phân quyền đang đi sửa.
+#
+# KHÔNG tạo nhóm cho admin: xem docstring ensure_rule.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+from src.agents import roles as _roles          # noqa: E402
+from src.agents import mail_write as _mw        # noqa: E402
+
+_PROFILE = _roles.load_profile()
+MAIL_ROLE_GROUPS = {"warehouse": "Youdoo AI / Mail Warehouse",
+                    "accounting": "Youdoo AI / Mail Accounting"}
+g_mail_role = {}
+for _role, _gname in MAIL_ROLE_GROUPS.items():
+    _tpls = _mw.templates_for_role(_PROFILE[_role])
+    if _tpls is None:
+        # None = vai không giới hạn (admin) — không tạo nhóm, xem docstring
+        # ensure_rule. Nhánh này không thật sự chạm tới vì MAIL_ROLE_GROUPS
+        # chỉ liệt kê vai không phải admin, nhưng giữ tường minh để không
+        # âm thầm coi "không giới hạn" và "giới hạn còn rỗng" là một.
+        print("  bỏ qua (vai không giới hạn):", _gname)
+        continue
+    _gid = ensure_group(_gname)
+    g_mail_role[_role] = _gid
+    if _tpls:
+        _domain = repr([("name", "in", sorted(_tpls))])
+    else:
+        # frozenset RỖNG (khác None): vai bị giới hạn nhưng không có
+        # coordinator mail nào được cấp. Fail-closed (xem docstring
+        # roles.py) — domain này KHÔNG khớp bản ghi nào, chặn toàn bộ
+        # mail.template thay vì bỏ qua và vô tình để ngỏ (fail-open).
+        print("  vai không có coordinator mail, chặn toàn bộ template:", _gname)
+        _domain = repr([("id", "=", 0)])
+    ensure_rule("youdoo_ai_mail_tpl_" + _role, _gid, "mail.template", _domain)
 
 g_ro = ensure_group("Youdoo AI / Read Only")
 for tech in READ_MODELS:
@@ -87,10 +150,12 @@ PLAN = {
         "Inventory / Administrator", "Accounting / Administrator", "Sales / Administrator",
         "Purchase / Administrator", "Manufacturing / Administrator", "Contact / Creation",
         "Role / Administrator")],
-    "ai-warehouse":  [BASE_USER, g_mail] + [gid_by_full_name(n) for n in (
-        "Inventory / User", "Contact / Creation")],
-    "ai-accounting": [BASE_USER, g_mail, g_sinv] + [gid_by_full_name(n) for n in (
-        "Accounting / Invoicing", "Contact / Creation")],
+    "ai-warehouse":  [BASE_USER, g_mail] + ([g_mail_role["warehouse"]]
+                                            if "warehouse" in g_mail_role else []) + [
+        gid_by_full_name(n) for n in ("Inventory / User", "Contact / Creation")],
+    "ai-accounting": [BASE_USER, g_mail, g_sinv] + ([g_mail_role["accounting"]]
+                                                    if "accounting" in g_mail_role else []) + [
+        gid_by_full_name(n) for n in ("Accounting / Invoicing", "Contact / Creation")],
 }
 
 for login, gids in PLAN.items():
