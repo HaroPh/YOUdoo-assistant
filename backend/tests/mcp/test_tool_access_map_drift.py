@@ -221,4 +221,4 @@ def test_helper_mot_cap_that_su_duoc_di_vao(funcs):
     assert node is not None, "không tìm thấy deliver_order"
     models = {m for m, _ in _odoo_calls(node, funcs)}
     assert "stock.picking" in models, (
-        "đi một cấp vào helper không hoạt động — hai test kia sẽ xanh giả")
+        "đi một cấp vào helper không hoạt động — test_model_bi_ghi_trong_nguon_deu_da_duoc_khai sẽ xanh giả")
