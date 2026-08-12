@@ -83,9 +83,33 @@ thô của Odoo, liệt kê cả tên nhóm quyền. Ba điểm đáng ghi:
 3. Nguyên nhân sâu là thứ spec §10 đã đo: Odoo gác `mail.activity` theo quyền
    đọc **tài liệu đính kèm**, không theo quyền trên `mail.activity`.
 
-Hai hướng sửa, chưa làm: lọc danh sách model theo vai trong prompt, hoặc bắt
-`AccessError` và trả câu tiếng Việt sạch. Cái đầu đúng gốc hơn nhưng đụng
-`roles.py` + `prompts.py`; cái sau rẻ nhưng chỉ che triệu chứng.
+### ĐÃ SỬA (commit `ef3c5ba`) và đo lại sống
+
+Chọn hướng bắt lỗi và trả câu sạch. Cách phát hiện **không** dựa vào chuỗi
+fault: thông điệp kia là tiếng Việt chỉ vì ngôn ngữ của tài khoản Odoo này, ở
+cài đặt khác nó là tiếng Anh và phép kiểm sẽ âm thầm ngừng hoạt động. Thay vào
+đó bọc riêng **lệnh `search_read` đầu tiên trên model đích** — lỗi ở đúng chỗ
+đó chỉ có một nghĩa cần nói với người dùng, và điều đó biết được từ **nơi** ném
+lỗi chứ không từ **nội dung** lỗi.
+
+Đo lại sau khi khởi động lại MCP:
+
+```
+I3a KHO -> crm.lead      -> ok=False
+    Không đọc được dữ liệu 'crm.lead' — model này có thể không tồn tại
+    hoặc tài khoản hiện tại không có quyền truy cập.
+I3b KHO -> account.move  -> ok=False   (cùng dạng)
+KB2 KHO -> stock.picking -> ok=True    (không chặn nhầm)
+```
+
+Câu chữ cố ý **không** khẳng định chắc chắn là lỗi quyền: cùng lệnh đó cũng
+hỏng khi model không tồn tại, nên nói "có thể không tồn tại hoặc không có
+quyền" là đúng mức thông tin thực có.
+
+**Chưa làm, còn trong backlog:** lọc danh sách model theo vai ngay trong prompt.
+Đó mới là gốc — `prompts.py` vẫn quảng cáo cả sáu model cho cả hai vai. Bản sửa
+này đóng phần lộ thông tin và làm thông điệp dùng được, không đóng phần quảng
+cáo thừa.
 
 ## 4. Script nhất quán quyền
 
@@ -110,10 +134,7 @@ xoá; đọc lại `sale.order` 119 và `stock.picking` 208 không còn activity
 
 ## 6. Còn lại, chưa sửa
 
-- **R1** — `scripts/odoo_setup_ai_accounts.py:2` docstring nói "5 nhóm quyền
-  tuỳ chỉnh"; đếm thật từ output khi chạy là **6** (Mail, Sale Invoicing,
-  Activity, Mail Warehouse, Mail Accounting, Read Only). Fix wave sửa đúng
-  hướng (3 → 5) nhưng sai số. Chỉ là tài liệu.
-- **I3** — §3 ở trên.
+- ~~R1~~ và ~~I3~~ — đã sửa trong `ef3c5ba`, xem §3.
+- **Lọc model theo vai trong prompt** — gốc thật của I3, chưa làm.
 - M1 (nhánh `if not model_ids` không chạm tới) và M2 (nhánh ghi chú hoá đơn
   nháp chưa có test tầng coordinator) — đã hoãn có ghi nhận.
