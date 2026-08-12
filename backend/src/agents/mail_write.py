@@ -302,3 +302,34 @@ def make_route_after_mail_preview(cfg: EmailCfg):
         return "write_continuation"
 
     return route_after_mail_preview
+
+
+def _cfgs_cho_vai(role_cfg):
+    """EmailCfg mà vai này được phép dùng. None = mọi cfg (admin)."""
+    cho_phep = role_cfg.allowed_tools()
+    if cho_phep is None:
+        return None
+    return [c for c in MAIL_COORDINATOR_CFGS if c.tool_name in cho_phep]
+
+
+def templates_for_role(role_cfg):
+    """Tên các mail.template vai này được phép dùng. None = không giới hạn.
+
+    SUY RA từ roles.py × EmailCfg, không khai lại: thêm coordinator mail mới
+    là allowlist tự đúng theo. Tiến trình MCP không import được backend nên
+    giá trị này phải đi qua env — xem scripts/export_role_templates.py."""
+    cfgs = _cfgs_cho_vai(role_cfg)
+    if cfgs is None:
+        return None
+    return frozenset(c.template_name for c in cfgs)
+
+
+def mail_models_for_role(role_cfg):
+    """Model nguồn vai này được phép gửi mail về. None = không giới hạn.
+
+    Dùng cho send_prepared_email, tool nhận mail_id chứ không nhận template
+    nên allowlist template không chạm tới được (spec 2026-08-12 §4.3)."""
+    cfgs = _cfgs_cho_vai(role_cfg)
+    if cfgs is None:
+        return None
+    return frozenset(c.res_model for c in cfgs)
