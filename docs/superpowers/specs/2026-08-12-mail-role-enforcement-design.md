@@ -202,7 +202,12 @@ toán). Ghi lại để lần sau thêm coordinator không tưởng nhầm nó m
 Hai nhóm mới trong `scripts/odoo_setup_ai_accounts.py`:
 `Youdoo AI / Mail Warehouse`, `Youdoo AI / Mail Accounting`. Mỗi nhóm một
 `ir.rule` trên `mail.template` với `perm_read=1`, `perm_write/create/unlink=0`,
-domain giới hạn đúng template của vai (tra theo `name`, không hardcode id).
+domain giới hạn theo **model nguồn** của template (`("model", "in",
+sorted(models))`, tra qua `mail_write.mail_models_for_role` — không hardcode
+tên model, không hardcode id).
+
+Domain ban đầu tra theo **tên** template (`("name", "in", sorted(tpls))`,
+qua `templates_for_role`) — xem §5.2 vì sao đổi.
 
 **Không** tạo nhóm hạn chế cho admin: `ir.rule` theo nhóm chỉ áp lên thành viên,
 nên admin không thuộc nhóm nào là tự do đọc — không cần luật "cho phép tất cả".
@@ -210,22 +215,51 @@ nên admin không thuộc nhóm nào là tự do đọc — không cần luật 
 Nhóm `Youdoo AI / Mail` hiện tại **giữ nguyên**: nó cấp `mail.mail` và
 `ir.config_parameter` mà cả ba vai đều cần.
 
-### 5.2 Vòng đo hồi quy — bắt buộc trước khi giữ
+### 5.2 Vòng đo hồi quy — kết quả thật, không phải nhị phân dự kiến
 
-Rủi ro của A không phải chặn sai, mà chặn **thừa**: một thao tác khác của vai có
-thể cần đọc template mà luật không cho (Odoo tự gửi mail khi validate phiếu
-chẳng hạn). Chỉ đo mới biết.
+§5.2 bản gốc của spec này đóng khung kết quả là nhị phân: **giữ** luật nếu
+không tool nào gãy, hoặc **gỡ** luật (quay về hai tầng agent+MCP) nếu gãy.
+Vòng đo thật (2026-08-12) ra một kết quả thứ ba mà bản gốc không lường tới:
+domain quá hẹp theo cách sửa được, không phải giữ nguyên hay gỡ bỏ.
 
-Sau khi áp luật, chạy qua cổng vào thật toàn bộ tool `own` của hai vai:
+**Thử domain theo tên template — gãy.** Áp luật với domain
+`("name", "in", sorted(tpls))`, gọi trực tiếp MCP tới đúng template
+trong-vai của `ai-warehouse`:
 
-- **kho:** `deliver_order`, `receive_order`, `validate_picking`,
-  `internal_transfer`, `inventory_adjustment`, `scrap_product`, `return_order`
-- **kế toán:** `post_invoice`, `register_payment`, `create_credit_memo`,
-  `create_invoice_from_order`, `create_bill_from_po`
+```
+Fault 4: AI Warehouse (id=9) không có quyền truy cập 'đọc' vào:
+- Mẫu email (mail.template)
+```
 
-**Tiêu chí giữ:** không tool nào gãy vì lý do liên quan `mail.template`.
-**Nếu gãy:** gỡ luật, giữ §4, ghi số đo và lý do vào báo cáo. Đây là kết quả
-hợp lệ, không phải thất bại — §4 vẫn đóng đường tấn công thật.
+Tức domain đúng vai vẫn chặn nhầm chính tool nó được sinh ra để bảo vệ.
+
+**Xác nhận nhân quả.** Vô hiệu hoá cả hai luật → cùng lệnh gọi `ok: true`.
+Bật lại → gãy lại. Vậy lỗi nằm ở chính domain theo tên, không phải nguyên
+nhân khác. Suy luận: `mail.template.send_mail` của Odoo đọc nhiều dòng
+`mail.template` hơn dòng đang gửi (có thể để dò template liên quan/kế thừa),
+nên domain hẹp theo đúng-một-tên chặn cả các dòng phụ đó.
+
+**Đổi sang domain theo model nguồn — đo lại.** Domain
+`("model", "in", sorted(models))`: kho → `stock.picking`, kế toán →
+`account.move`. Đo trực tiếp:
+
+- Cuộc gọi trong-vai của kho (template trên `stock.picking`): thành công.
+- Số template đọc được qua `search_count` trên tổng 29 bản ghi:
+  - `ai-warehouse`: 1/29 — không thấy `Invoice: Sending`.
+  - `ai-accounting`: 5/29, toàn bộ trên `account.move` — không thấy
+    `Shipping: Send by Email`.
+  - `ai-admin`: 29/29 — không thuộc nhóm nào, không giới hạn (đúng thiết kế
+    §5.1).
+
+Domain theo model vừa cho qua lượt đọc phụ mà `send_mail` cần (cùng model),
+vừa vẫn chặn chéo vai (khác model).
+
+**Phân công hai tầng, không phải ba.** Odoo (`ir.rule`, §5) chặn CHÉO MODEL:
+một vai không đọc được bất kỳ dòng `mail.template` nào ngoài model của mình.
+Tầng MCP `role_scope` (§4, đã có từ Task 4) chặn CHÉO TEMPLATE trong CÙNG
+model — cái mà Odoo, theo đo đạc trên, không chặn được nếu ép domain hẹp hơn
+mà không gãy tool. Hai tầng bù đắp cho nhau theo đúng trục khác nhau, không
+tầng nào một mình đủ.
 
 ## 6. MCP bind
 
@@ -275,8 +309,13 @@ này thì §4 chỉ được chứng minh gián tiếp.
 - **Kiểm `res_model` ở §4.3 không tách được hai vai cùng res_model** — hiện
   không xảy ra, nhưng sẽ âm thầm yếu đi nếu sau này thêm coordinator mail dùng
   chung model với vai khác.
-- **Nếu §5 phải gỡ**, tầng Odoo vẫn không có backstop cho mail; cưỡng chế nằm ở
-  agent + MCP. Hai lớp, không phải ba.
+- **Domain `ir.rule` (§5) phân biệt theo model, không theo template** — hai
+  coordinator mail cùng vai mà cùng `res_model` thì Odoo không tách được
+  chúng; đó là lý do §4/§5.2 gọi phần việc này là "chéo model" chứ không phải
+  "chéo template". Tầng phân biệt CHÉO TEMPLATE trong cùng model là MCP
+  `role_scope` (§4, Task 4) — nếu sau này một vai có hai coordinator mail
+  cùng trỏ một model, `ir.rule` xem chúng là một, và toàn bộ việc tách chúng
+  dồn hết vào MCP.
 - **`discard_prepared_email` không có guard `role_scope`** — người gọi thẳng
   cổng MCP có thể `unlink` bất kỳ bản ghi `mail.mail` nào, kể cả bản nháp
   đang chờ gửi của vai khác. Phá hoại nhưng không phải một lần gửi không thể
