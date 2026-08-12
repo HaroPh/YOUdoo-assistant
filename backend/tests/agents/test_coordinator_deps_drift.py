@@ -6,14 +6,31 @@ danh sách khai báo thiếu âm thầm. Lần gần nhất (2026-08-12) làm m�
 mail chết với vai non-admin trong khi 1254 test vẫn xanh.
 
 GIỚI HẠN CỐ Ý — nêu thẳng để người sau không tưởng test này phủ hết: nó chỉ
-thấy được literal chuỗi. Bốn chỗ tra bằng biến nằm NGOÀI tầm:
+thấy được literal chuỗi. NĂM chỗ tra bằng biến nằm NGOÀI tầm:
   - nodes.py `by_name.get(name)` — tên động, đúng thiết kế
   - edit_order.py `by_name.get(FLAG_TOOL)` — hằng module
   - edit_order.py / create_order.py `by_name.get(cfg.tool_name)` — trùng tên
     coordinator nên vô hại
+  - skill_loader.py:222 `by_name.get(wspec.name)` — tên tool ghi khai trong
+    SKILL.md của từng skill SOP, đọc động lúc build. KHÔNG phải hố hở: nếu
+    role filter cắt mất tool đó, `skill_role_gap()` (cùng file, khoảng dòng
+    302-308) phát hiện qua so sánh registry đã lọc với registry đầy đủ và bỏ
+    hẳn skill đó khỏi graph cho vai này — cơ chế độc lập, không dựa vào test
+    này.
 FLAG_TOOL hiện là 'flag_order_for_review', có trong _WH_OWN của roles.py, nên
 hôm nay không sao. Đổi nó thành một tool ngoài roles.py thì test này KHÔNG
-bắt được."""
+bắt được.
+
+GIỚI HẠN THỨ HAI — độ chính xác, không phải độ phủ: `cho_phep` là hợp TOÀN
+CỤC của mọi tên coordinator cộng mọi `Spec.deps`, KHÔNG gắn theo từng
+coordinator riêng. Vì vậy nếu dán nhầm `by_name.get("preview_template_email")`
+vào MỘT coordinator không liên quan (vd `create_lead` trong crm_write.py,
+vốn không khai dep nào) thì test này XANH GIẢ — vì tên đó đã được khai làm
+dep ở coordinator mail, dù coordinator kia không hề có quyền/lý do dùng nó.
+Đây là đánh đổi có chủ ý của kế hoạch (per-coordinator attribution sẽ giòn vì
+mail_write.py gộp 5 coordinator dùng chung 3 dep), không phải lỗi — nhưng
+người đọc cần biết: test này chỉ chặn "tool bị bộ lọc vai cắt mất mà quên
+khai ở BẤT KỲ ĐÂU", không chặn "tool khai nhầm chỗ do copy-paste"."""
 import pathlib
 import re
 
