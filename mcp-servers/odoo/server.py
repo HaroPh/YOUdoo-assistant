@@ -16,8 +16,13 @@ from mcp.server.fastmcp import FastMCP
 
 from security import forbid_extra_kwargs
 
-mcp = FastMCP("odoo-mcp", host="0.0.0.0",
-             port=int(os.environ.get("MCP_ODOO_PORT", "8003")))
+# Mặc định 127.0.0.1: mỗi tiến trình MCP nắm credential GHI của một vai và
+# cổng không có xác thực, nên bind 0.0.0.0 (mặc định cũ) là lộ quyền ghi Odoo
+# ra toàn mạng LAN. Đặt MCP_ODOO_HOST=0.0.0.0 khi chạy trong container, nơi
+# bind rộng là bắt buộc để container khác gọi tới.
+mcp = FastMCP("odoo-mcp",
+              host=os.environ.get("MCP_ODOO_HOST", "127.0.0.1"),
+              port=int(os.environ.get("MCP_ODOO_PORT", "8003")))
 
 # Bí danh module hiện tại thành "server" trong sys.modules TRƯỚC khi import
 # tools/* — bắt buộc khi tiến trình được khởi động bằng `python server.py`

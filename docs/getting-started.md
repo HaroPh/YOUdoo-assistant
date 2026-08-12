@@ -37,6 +37,15 @@ way out. What's needed beyond the single-role setup:
   `MCP_ODOO_URL_WAREHOUSE` (:8004), `MCP_ODOO_URL_ACCOUNTING` (:8005).
   `start-dev.ps1` starts all three automatically, each logged into Odoo as
   its own AI account — see "Every time you start" below.
+- **`MCP_ODOO_HOST`** — bind address of each mcp-odoo process; defaults to
+  `127.0.0.1`. Each process holds one role's **write** credential and the port
+  has no authentication, so binding wider exposes Odoo write access to the
+  whole LAN. Set it to `0.0.0.0` only when running mcp-odoo inside a container,
+  where a wide bind is required for other containers to reach it.
+- **`MCP_ALLOWED_TEMPLATES` / `MCP_ALLOWED_MAIL_MODELS`** — per-role mail scope,
+  newline-separated. Do **not** set these by hand: `start-dev.ps1` derives them
+  from `roles.py` × `EmailCfg` via `scripts/export_role_templates.py`. Empty or
+  unset means no restriction (that is what the admin process gets).
 - **`YOUDOO_POLICY_PROFILE`** — which role policy to use
   (`backend/src/agents/roles.py` `PROFILES`); leave unset for the default
   `small-business` profile.
@@ -173,8 +182,9 @@ cd mcp-servers\odoo
 .\.venv\Scripts\python.exe server.py
 ```
 
-Expect `Uvicorn running on http://0.0.0.0:8003`. Repeat in two more
-terminals with `MCP_ODOO_PORT=8004`/`ODOO_USERNAME=ai-warehouse` and
+Expect `Uvicorn running on http://127.0.0.1:8003` (see `MCP_ODOO_HOST` above —
+127.0.0.1 is the default; only set it to 0.0.0.0 in a container). Repeat in
+two more terminals with `MCP_ODOO_PORT=8004`/`ODOO_USERNAME=ai-warehouse` and
 `MCP_ODOO_PORT=8005`/`ODOO_USERNAME=ai-accounting` for the other two roles.
 
 **Terminal 4 — backend:**
