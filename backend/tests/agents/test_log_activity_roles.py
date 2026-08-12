@@ -29,12 +29,31 @@ def test_log_activity_co_trong_dept_of():
 
 
 def test_nhom_activity_duoc_tao_va_gan_cho_ba_tai_khoan_ghi():
-    """Đọc NGUỒN script, không chạy nó — chạy là chạm Odoo sống."""
+    """Đọc NGUỒN script, không chạy nó — chạy là chạm Odoo sống.
+
+    Bản cũ của test này chỉ đo "ir.model" in src và ba login xuất hiện trong
+    file — cả bốn đã ĐÚNG từ trước nhánh này (đo lại trên
+    dda37c4:scripts/odoo_setup_ai_accounts.py, commit gốc trước khi nhánh này
+    thêm log_activity: cả bốn assertion cũ đều pass). Nghĩa là xoá cả ba dòng
+    g_act khỏi PLAN thì test vẫn xanh — không khoá được gì. Viết lại để đo
+    đúng hai thứ nhánh này thêm: (1) tên ensure_access ir.model read mới,
+    (2) nhóm g_act có mặt ở CẢ BA tài khoản ghi và VẮNG MẶT ở ai-readonly."""
     src = SETUP.read_text(encoding="utf-8")
     assert "Youdoo AI / Activity" in src
-    assert "ir.model" in src
-    for login in ("ai-admin", "ai-warehouse", "ai-accounting"):
-        assert login in src
+    assert "youdoo_ai_activity_ir_model" in src
+
+    keys = ("ai-readonly", "ai-admin", "ai-warehouse", "ai-accounting")
+    starts = sorted(((k, src.index(f'"{k}":')) for k in keys), key=lambda kv: kv[1])
+    plan_end = src.index("\n}", starts[-1][1])
+    rows = {}
+    for i, (k, pos) in enumerate(starts):
+        end = starts[i + 1][1] if i + 1 < len(starts) else plan_end
+        rows[k] = src[pos:end]
+
+    assert "g_act" not in rows["ai-readonly"], (
+        "ai-readonly không được có g_act — vai này không tạo/ghi activity")
+    for k in ("ai-admin", "ai-warehouse", "ai-accounting"):
+        assert "g_act" in rows[k], f"dòng PLAN của {k} thiếu g_act"
 
 
 def test_bang_quyen_co_dong_cho_log_activity():

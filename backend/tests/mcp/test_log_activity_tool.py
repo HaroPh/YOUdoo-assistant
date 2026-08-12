@@ -37,15 +37,39 @@ def log_activity_fn():
     return server.mcp._tool_manager._tools["log_activity"].fn
 
 
+def _domain_khop(domain, rec):
+    """Đánh giá tối giản domain Odoo dùng trong test này — chỉ leaf
+    [field,'=',val] và toán tử '|' áp lên đúng hai leaf theo sau, đúng hình
+    dạng domain crm.py dùng cho mail.activity.type (F3/F4)."""
+    def leaf(term):
+        field, op, val = term
+        assert op == "="
+        return rec.get(field) == val
+
+    terms, i = [], 0
+    while i < len(domain):
+        if domain[i] == "|":
+            terms.append(leaf(domain[i + 1]) or leaf(domain[i + 2]))
+            i += 3
+        else:
+            terms.append(leaf(domain[i]))
+            i += 1
+    return all(terms)
+
+
 def _fake_odoo(calls, *, types=None, users=None, rec=True):
-    """types: [{'id','name','res_model'}]; users: [{'id','name','login'}]."""
+    """types: cả "hồ bơi" bản ghi mail.activity.type có thật trong Odoo giả
+    lập — mọi truy vấn lọc trên hồ bơi này theo domain thật (F3/F4 dựa vào
+    lọc domain đúng, không phải nhận nguyên cụm không điều kiện).
+    users: [{'id','name','login'}]."""
     types = [{"id": 7, "name": "To-Do", "res_model": False}] if types is None else types
     users = [] if users is None else users
 
     def odoo(model, method, args, kw=None):
         calls.append((model, method, args, kw))
         if model == "mail.activity.type":
-            return types
+            domain = args[0]
+            return [t for t in types if _domain_khop(domain, t)]
         if model == "res.users":
             return users
         if model == "ir.model":
@@ -93,6 +117,40 @@ def test_loai_khong_ton_tai(crm_mod, log_activity_fn, monkeypatch):
     out = json.loads(log_activity_fn("sale.order", 119, "Bịa Ra", "x"))
     assert out["ok"] is False
     assert not [c for c in calls if c[1] == "create"]
+
+
+def test_loai_khong_ton_tai_liet_ke_lua_chon_hop_le(crm_mod, log_activity_fn, monkeypatch):
+    """F3: từ chối SAU cửa xác nhận phải nêu lựa chọn — lấy TỪ Odoo, không
+    từ danh sách viết tay. Loại chỉ dùng cho model khác (Maintenance Request)
+    không được liệt kê vì không dùng được cho sale.order."""
+    calls = []
+    monkeypatch.setattr(crm_mod, "odoo", _fake_odoo(
+        calls, types=[{"id": 7, "name": "To-Do", "res_model": False},
+                      {"id": 8, "name": "Call", "res_model": False},
+                      {"id": 9, "name": "Maintenance Request",
+                       "res_model": "maintenance.request"}]))
+    monkeypatch.setattr(crm_mod, "get_uid", lambda: 8)
+    out = json.loads(log_activity_fn("sale.order", 119, "Bịa Ra", "x"))
+    assert out["ok"] is False
+    assert "To-Do" in out["display"] and "Call" in out["display"]
+    assert "Maintenance Request" not in out["display"]
+    assert not [c for c in calls if c[1] == "create"]
+
+
+def test_loai_trung_ten_uu_tien_dung_khop_model(crm_mod, log_activity_fn, monkeypatch):
+    """F4: hai loại trùng tên, một buộc model khác (id nhỏ hơn) và một khớp
+    đúng model đang gọi (id lớn hơn). Domain phải chọn được dòng khớp model
+    thay vì rơi vào "limit 1 không lọc" — trước fix, id nhỏ hơn thắng bất kể
+    đúng hay không, khiến yêu cầu hợp lệ này bị từ chối oan."""
+    calls = []
+    monkeypatch.setattr(crm_mod, "odoo", _fake_odoo(
+        calls, types=[{"id": 1, "name": "Dup", "res_model": "other.model"},
+                      {"id": 2, "name": "Dup", "res_model": "sale.order"}]))
+    monkeypatch.setattr(crm_mod, "get_uid", lambda: 8)
+    out = json.loads(log_activity_fn("sale.order", 119, "Dup", "x"))
+    assert out["ok"] is True
+    created = [c for c in calls if c[1] == "create" and c[0] == "mail.activity"]
+    assert created[0][2][0]["activity_type_id"] == 2
 
 
 def test_ban_ghi_dich_khong_ton_tai(crm_mod, log_activity_fn, monkeypatch):

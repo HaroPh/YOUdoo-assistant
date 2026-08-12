@@ -163,18 +163,40 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
         rec = recs[0]
         ref = rec.get("name") or str(res_id)
 
+        # Lọc NGAY trong domain: tên khớp VÀ (dùng chung mọi model HOẶC đúng
+        # model này) (F4). Trước đây lấy 1 dòng theo tên rồi mới so model —
+        # nếu có hai loại trùng tên (một dùng chung, một buộc model khác) thì
+        # dòng có id nhỏ hơn thắng bất kể có khớp model hay không, khiến một
+        # yêu cầu hợp lệ bị từ chối oan.
         types = odoo("mail.activity.type", "search_read",
-                     [[["name", "=", activity_type]]],
+                     [[["name", "=", activity_type],
+                       "|", ["res_model", "=", False], ["res_model", "=", res_model]]],
                      {"fields": ["id", "name", "res_model"], "limit": 1})
         if not types:
+            # Tên có tồn tại nhưng buộc vào model khác — tra riêng để GIỮ
+            # NGUYÊN thông điệp cũ, không gộp với nhánh "không tồn tại thật"
+            # bên dưới thành một câu mơ hồ (F4).
+            mismatched = odoo("mail.activity.type", "search_read",
+                              [[["name", "=", activity_type]]],
+                              {"fields": ["id", "name", "res_model"], "limit": 1})
+            if mismatched:
+                other = mismatched[0]
+                return envelope(False,
+                                f"Loại '{other['name']}' chỉ dùng được cho "
+                                f"{other['res_model']}, không phải {res_model}.")
+            # Tên không tồn tại thật — nêu các loại DÙNG ĐƯỢC cho model này,
+            # lấy trực tiếp từ Odoo, không từ danh sách viết tay (F3, spec
+            # §4: tập hợp lệ luôn đến từ mail.activity.type, không hard-code).
+            # Từ chối này xảy ra SAU cửa xác nhận (user đã đồng ý) — không
+            # nêu lựa chọn thì họ không có gì để sửa và thử lại.
+            usable = odoo("mail.activity.type", "search_read",
+                         [["|", ["res_model", "=", False], ["res_model", "=", res_model]]],
+                         {"fields": ["name"]})
+            names = ", ".join(sorted(t["name"] for t in usable))
+            hint = f" Loại hợp lệ cho {res_model}: {names}." if names else ""
             return envelope(False, f"Loại hoạt động '{activity_type}' không có "
-                                   f"trong Odoo.")
+                                   f"trong Odoo.{hint}")
         atype = types[0]
-        # res_model RỖNG = dùng cho mọi model. Có giá trị = chỉ model đó.
-        if atype.get("res_model") and atype["res_model"] != res_model:
-            return envelope(False,
-                            f"Loại '{atype['name']}' chỉ dùng được cho "
-                            f"{atype['res_model']}, không phải {res_model}.")
 
         user_id = get_uid()
         if assignee:

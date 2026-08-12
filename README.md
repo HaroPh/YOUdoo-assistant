@@ -404,9 +404,13 @@ against the real ERP actually surfaced.
   no Inbox" gap.
 - Cross-department handoff via Odoo activities rather than a dead-end
   refusal. Activities attach to the record, carry an owner and a due date,
-  and close; internal mail does none of that. Blocked on generalizing
-  `log_activity`, which is currently hardcoded to `crm.lead` and has no
-  recipient parameter.
+  and close; internal mail does none of that. `log_activity` is now general
+  (any model, any Odoo-declared type, any recipient) — that blocker is
+  closed. The remaining blocker is an intent-router defect: the accounting
+  role loads no SOP skill, so its worker block renders empty, and an empty
+  worker block makes the router classify write requests as `unknown` — the
+  planner never runs, so the deterministic guard has nothing to catch
+  (measured 2026-08-12).
 - An approval flow for the `needs_sign_off` state, which currently exists
   in the policy model but has no runtime behavior of its own.
 - Fix the production tool-description drift noted above
