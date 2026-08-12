@@ -10,7 +10,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py odoo_call.py config.py security.py rate_limit.py event_log.py audit_chain.py helpers.py ./
+COPY server.py odoo_call.py config.py security.py rate_limit.py event_log.py audit_chain.py helpers.py role_scope.py ./
 COPY tools/ ./tools/
 
 EXPOSE 8003

@@ -157,6 +157,15 @@ DELIVERY_EMAIL_CFG = EmailCfg(
 MAIL_COORDINATOR_CFGS = (ORDER_CONFIRMATION_CFG, QUOTATION_EMAIL_CFG,
                          RFQ_EMAIL_CFG, INVOICE_EMAIL_CFG, DELIVERY_EMAIL_CFG)
 
+# Ba tool MCP mà MỌI coordinator mail gọi nội bộ. Tên chúng KHÁC tên
+# coordinator, nên bộ lọc theo vai (chỉ giữ own ∪ needs_sign_off) cắt mất
+# chúng — đó chính là lỗi làm mọi tool mail chết với vai non-admin (đo sống
+# 2026-08-12). Khai ở đây để write_registry gắn vào Spec.deps; graph resolve
+# lại từ registry MCP đầy đủ. Mọi coordinator KHÁC tra đúng tool trùng tên
+# mình nên không cần khai gì.
+MAIL_DEPS = frozenset({"preview_template_email", "send_prepared_email",
+                       "discard_prepared_email"})
+
 
 def _finish(tool_name: str, result) -> dict:
     display, env = parse_write_result(result)
@@ -293,3 +302,34 @@ def make_route_after_mail_preview(cfg: EmailCfg):
         return "write_continuation"
 
     return route_after_mail_preview
+
+
+def _cfgs_for_role(role_cfg):
+    """EmailCfg mà vai này được phép dùng. None = mọi cfg (admin)."""
+    cho_phep = role_cfg.allowed_tools()
+    if cho_phep is None:
+        return None
+    return [c for c in MAIL_COORDINATOR_CFGS if c.tool_name in cho_phep]
+
+
+def templates_for_role(role_cfg):
+    """Tên các mail.template vai này được phép dùng. None = không giới hạn.
+
+    SUY RA từ roles.py × EmailCfg, không khai lại: thêm coordinator mail mới
+    là allowlist tự đúng theo. Tiến trình MCP không import được backend nên
+    giá trị này phải đi qua env — xem scripts/export_role_templates.py."""
+    cfgs = _cfgs_for_role(role_cfg)
+    if cfgs is None:
+        return None
+    return frozenset(c.template_name for c in cfgs)
+
+
+def mail_models_for_role(role_cfg):
+    """Model nguồn vai này được phép gửi mail về. None = không giới hạn.
+
+    Dùng cho send_prepared_email, tool nhận mail_id chứ không nhận template
+    nên allowlist template không chạm tới được (spec 2026-08-12 §4.3)."""
+    cfgs = _cfgs_for_role(role_cfg)
+    if cfgs is None:
+        return None
+    return frozenset(c.res_model for c in cfgs)

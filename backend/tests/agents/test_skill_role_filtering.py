@@ -32,7 +32,15 @@ def _full_mcp_registry():
     """4 tool ghi mà 3 skill THẬT (backend/skills/) khai báo — mô phỏng
     registry MCP đầy đủ TRƯỚC khi erp_agent._filter_tools_for_role lọc theo
     vai (cùng bộ tool + schema với test_skill_loader.py's
-    test_every_write_tool_in_a_skill_node_is_gated, tái dùng cho nhất quán)."""
+    test_every_write_tool_in_a_skill_node_is_gated, tái dùng cho nhất quán).
+
+    + 3 tool MAIL_DEPS (mail_write.py, Task 1 2026-08-12): registry MCP THẬT
+    (erp_agent.py truyền raw_tools — mọi tool trước lọc vai) luôn có
+    preview_template_email/send_prepared_email/discard_prepared_email, vì đó
+    là tiền đề của chính lỗi Task 1 sửa. Thiếu chúng ở đây khiến
+    tools_for_coordinator (write_registry.py) coi MỌI coordinator gửi mail —
+    của MỌI vai, kể cả admin — là "dep không tồn tại ở đâu cả" (lỗi cấu
+    hình thật) và raise, dù test file này không hề liên quan tới mail."""
     @lc_tool("deliver_order")
     async def deliver_order(order_ref: str) -> str:
         """fake"""
@@ -53,7 +61,23 @@ def _full_mcp_registry():
         """fake"""
         return "{}"
 
-    return [deliver_order, receive_order, flag_order_for_review, create_quotation]
+    @lc_tool("preview_template_email")
+    async def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
+        """fake"""
+        return "{}"
+
+    @lc_tool("send_prepared_email")
+    async def send_prepared_email(mail_id: int) -> str:
+        """fake"""
+        return "{}"
+
+    @lc_tool("discard_prepared_email")
+    async def discard_prepared_email(mail_id: int) -> str:
+        """fake"""
+        return "{}"
+
+    return [deliver_order, receive_order, flag_order_for_review, create_quotation,
+           preview_template_email, send_prepared_email, discard_prepared_email]
 
 
 def _graph_for_role(role_name, profile="small-business"):
