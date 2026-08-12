@@ -24,9 +24,9 @@ def parse(raw):
     return {d.strip() for d in raw.split("\n") if d.strip()}
 
 
-def allowed(gia_tri, raw):
-    """True nếu `gia_tri` được phép. Danh sách rỗng = không giới hạn."""
-    cho_phep = parse(raw)
-    if not cho_phep:
+def allowed(value, raw):
+    """True nếu `value` được phép. Danh sách rỗng = không giới hạn."""
+    allowed_set = parse(raw)
+    if not allowed_set:
         return True
-    return gia_tri in cho_phep
+    return value in allowed_set

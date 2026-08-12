@@ -142,13 +142,13 @@ def send_prepared_email(mail_id: int) -> str:
     # GIỚI HẠN ĐÃ BIẾT: hai vai cùng res_model thì kiểm này không tách được.
     # Hiện không xảy ra (stock.picking chỉ của kho, account.move chỉ của kế
     # toán) — đừng tưởng nó mạnh hơn thực tế.
-    pham_vi = os.environ.get(role_scope.ALLOWED_MAIL_MODELS_ENV)
-    if role_scope.parse(pham_vi):
+    allowed_models_raw = os.environ.get(role_scope.ALLOWED_MAIL_MODELS_ENV)
+    if role_scope.parse(allowed_models_raw):
         rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["model"]})
         if not rows:
             return envelope(False, f"Không tìm thấy mail nháp id={mail_id}.")
-        model_nguon = rows[0].get("model") or ""
-        if not role_scope.allowed(model_nguon, pham_vi):
+        source_model = rows[0].get("model") or ""
+        if not role_scope.allowed(source_model, allowed_models_raw):
             return envelope(False, "Mail này không thuộc phạm vi của vai hiện tại.")
 
     # Bắt buộc lật lại 'outgoing' TRƯỚC send() — thiếu bước này, send() nội
