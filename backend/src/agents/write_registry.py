@@ -14,7 +14,7 @@ from .bom_write import make_create_bom_node, make_update_bom_node
 from .returns_write import make_return_order_node, make_create_credit_memo_node
 from .invoice_write import make_post_invoice_node, make_register_payment_node
 from .mail_write import (make_send_template_email_preview_node,
-                         MAIL_COORDINATOR_CFGS)
+                         MAIL_COORDINATOR_CFGS, MAIL_DEPS)
 from .purchase_write import (make_create_vendor_node, make_update_vendor_pricing_node,
                              make_create_bulk_rfq_node)
 
@@ -23,6 +23,7 @@ from .purchase_write import (make_create_vendor_node, make_update_vendor_pricing
 class Spec:
     node: str                 # graph node name
     build: Callable           # (llm, tools) -> node
+    deps: frozenset = frozenset()   # tool MCP cần THÊM, ngoài tool trùng tên
 
 
 WRITE_COORDINATORS = {
@@ -57,7 +58,8 @@ WRITE_COORDINATORS = {
 for _cfg in MAIL_COORDINATOR_CFGS:
     WRITE_COORDINATORS[_cfg.tool_name] = Spec(
         _cfg.preview_node,
-        lambda llm, tools, c=_cfg: make_send_template_email_preview_node(tools, c))
+        lambda llm, tools, c=_cfg: make_send_template_email_preview_node(tools, c),
+        MAIL_DEPS)
 
 COORDINATED_TOOLS = frozenset(WRITE_COORDINATORS)
 
@@ -150,3 +152,37 @@ def expand_chain(first_tool, chain_until):
         return None
     except Exception:  # noqa: BLE001 — total function
         return None
+
+
+def tools_for_coordinator(spec, tools, mcp_all_tools=None):
+    """Danh sách tool cho hàm dựng node coordinator: `tools` ĐÃ LỌC theo vai,
+    cộng các dep của spec resolve từ registry MCP đầy đủ.
+
+    KHÔNG dùng cho planner / erp_write_executor / node SOP. Dep lọt vào danh
+    sách planner-visible là mở đúng lỗ hổng thiết kế này đi bịt: LLM sẽ gọi
+    thẳng preview_template_email với template bất kỳ, bỏ qua coordinator và
+    guard vai gác ở cửa vào nó (spec 2026-08-12 §3.2).
+
+    mcp_all_tools=None → trả `tools` nguyên vẹn. Đó là đường của vai admin
+    (danh sách vốn không lọc nên đã đủ dep) và của mọi test dựng graph không
+    truyền registry đầy đủ.
+    """
+    if not spec.deps or mcp_all_tools is None:
+        return tools
+    thieu = spec.deps - {t.name for t in tools}
+    if not thieu:
+        return tools
+    theo_ten = {t.name: t for t in mcp_all_tools}
+    them = []
+    for ten in sorted(thieu):
+        t = theo_ten.get(ten)
+        if t is None:
+            # Tool KHÔNG có ở đâu cả = lỗi cấu hình, khác hẳn "có nhưng vai
+            # không được cấp" (trường hợp bình thường, xử lý ở nhánh trên).
+            # Cùng cách phân biệt mà skill_loader.py dùng cho
+            # SkillManifestError.
+            raise ValueError(
+                f"coordinator {spec.node!r} khai dep {ten!r} nhưng tool này "
+                f"không có trong registry MCP — lỗi cấu hình, không phải vai")
+        them.append(t)
+    return list(tools) + them

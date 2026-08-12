@@ -15,7 +15,8 @@ from .nodes import (
 from .routing import make_intent_router_node, decide_route
 from .fanout import (make_fuse_answer_node, make_gather_docs_node,
                      make_gather_erp_node, make_mixed_node)
-from .write_registry import WRITE_COORDINATORS, COORDINATED_TOOLS, CONFIRM_IN_CHAIN
+from .write_registry import (WRITE_COORDINATORS, COORDINATED_TOOLS,
+                             CONFIRM_IN_CHAIN, tools_for_coordinator)
 from .continuation import make_write_continuation_node, _route_after_continuation
 from .mail_write import (MAIL_COORDINATOR_CFGS, make_send_template_email_node,
                          make_route_after_mail_preview)
@@ -88,7 +89,8 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
     g.add_node("fuse_answer", make_fuse_answer_node(llms["fusion"]))
     g.add_node("respond_unknown", make_respond_unknown_node(llms["chitchat"]))
     for spec in WRITE_COORDINATORS.values():
-        g.add_node(spec.node, spec.build(llms["planner"], tools))
+        g.add_node(spec.node, spec.build(
+            llms["planner"], tools_for_coordinator(spec, tools, mcp_all_tools)))
     g.add_node("write_continuation", make_write_continuation_node())
 
     for spec in skill_specs:
@@ -130,7 +132,9 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
     # trong WRITE_COORDINATORS — add tay ở đây, MỘT CẶP RIÊNG cho mỗi cfg
     # (không share node instance giữa các lối vào).
     for cfg in MAIL_COORDINATOR_CFGS:
-        g.add_node(cfg.send_node, make_send_template_email_node(tools, cfg))
+        _spec = WRITE_COORDINATORS[cfg.tool_name]
+        g.add_node(cfg.send_node, make_send_template_email_node(
+            tools_for_coordinator(_spec, tools, mcp_all_tools), cfg))
         g.add_conditional_edges(
             cfg.preview_node, make_route_after_mail_preview(cfg),
             {cfg.send_node: cfg.send_node,

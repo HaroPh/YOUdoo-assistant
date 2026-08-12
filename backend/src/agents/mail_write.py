@@ -157,6 +157,15 @@ DELIVERY_EMAIL_CFG = EmailCfg(
 MAIL_COORDINATOR_CFGS = (ORDER_CONFIRMATION_CFG, QUOTATION_EMAIL_CFG,
                          RFQ_EMAIL_CFG, INVOICE_EMAIL_CFG, DELIVERY_EMAIL_CFG)
 
+# Ba tool MCP mà MỌI coordinator mail gọi nội bộ. Tên chúng KHÁC tên
+# coordinator, nên bộ lọc theo vai (chỉ giữ own ∪ needs_sign_off) cắt mất
+# chúng — đó chính là lỗi làm mọi tool mail chết với vai non-admin (đo sống
+# 2026-08-12). Khai ở đây để write_registry gắn vào Spec.deps; graph resolve
+# lại từ registry MCP đầy đủ. Mọi coordinator KHÁC tra đúng tool trùng tên
+# mình nên không cần khai gì.
+MAIL_DEPS = frozenset({"preview_template_email", "send_prepared_email",
+                       "discard_prepared_email"})
+
 
 def _finish(tool_name: str, result) -> dict:
     display, env = parse_write_result(result)
