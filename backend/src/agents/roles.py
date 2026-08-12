@@ -23,6 +23,36 @@ NEEDS_SIGN_OFF = "needs_sign_off"
 OTHER_DEPT = "other_dept"
 DENIED = "denied"
 
+# Bộ phận phụ trách từng nghiệp vụ — NGUỒN SỰ THẬT DUY NHẤT cho "tool X thuộc
+# bộ phận nào", dùng cho câu từ chối tất định (nodes.py) và cho hint trong
+# prompt của planner (prompts.py).
+#
+# Chuyển từ prompts.py sang đây (spec 2026-08-12 §3.1): đây là dữ liệu phân
+# quyền chứ không phải dữ liệu prompt, và other_dept được SUY RA từ chính bảng
+# này nên nó phải sống cùng module với RoleCfg.
+#
+# Bảng CÓ những nghiệp vụ chưa vai AI nào sở hữu (Bán hàng, Mua hàng). Đó là
+# thông tin mà suy diễn từ own/needs_sign_off KHÔNG tạo ra được, và là lý do
+# bảng phải tồn tại thay vì bỏ hẳn.
+#
+# Ba mục cuối được bổ sung 2026-08-12: chúng vào roles.py ở các đợt sau mà
+# không ai cập nhật bảng, gây 5 khoảng trống trên 2 profile. tests/agents/
+# test_dept_of.py giờ khoá lại: sở hữu tool nào thì phải khai bộ phận tool đó.
+DEPT_OF = {
+    "post_invoice": "Kế toán", "register_payment": "Kế toán",
+    "create_credit_memo": "Kế toán", "create_invoice_from_order": "Kế toán",
+    "create_bill_from_po": "Kế toán",
+    "create_quotation": "Bán hàng", "confirm_sale_order": "Bán hàng",
+    "create_rfq": "Mua hàng", "confirm_purchase_order": "Mua hàng",
+    "deliver_order": "Kho", "receive_order": "Kho", "validate_picking": "Kho",
+    "internal_transfer": "Kho", "inventory_adjustment": "Kho",
+    "scrap_product": "Kho", "return_order": "Kho",
+    # bổ sung 2026-08-12 — xem comment trên
+    "send_delivery_email": "Kho",
+    "send_invoice_email": "Kế toán",
+    "flag_order_for_review": "Kho",
+}
+
 
 @dataclass(frozen=True)
 class RoleCfg:

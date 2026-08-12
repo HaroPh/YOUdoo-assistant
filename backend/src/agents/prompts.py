@@ -2,6 +2,7 @@
 from datetime import date
 
 from .working_context import ORDER_MODELS
+from .roles import DEPT_OF
 
 SYSTEM_PROMPT = f"""Bạn là trợ lý ERP nội bộ, trả lời bằng tiếng Việt.
 Hôm nay là {date.today().isoformat()}.
@@ -263,31 +264,17 @@ def planner_prompt_for(cfg) -> str:
         kept.append("# đây, cứ trả JSON như bình thường với ĐÚNG tên tool nêu ở")
         kept.append("# đây (KHÔNG bịa tên tool khác như \"other\"):")
         for t in other:
-            kept.append(f"#   - {t} → thuộc bộ phận {_DEPT_OF.get(t, 'khác')}")
+            kept.append(f"#   - {t} → thuộc bộ phận {DEPT_OF.get(t, 'khác')}")
     return "\n".join(kept)
 
 
 def dept_of(tool: str) -> str:
-    """Accessor cho _DEPT_OF — NGUỒN SỰ THẬT DUY NHẤT cho "tool X thuộc bộ
-    phận nào". Dùng bởi nodes.py (Task 8: cổng từ chối tất định trong
-    erp_write_planner) để không chép lại bảng _DEPT_OF lần hai — chép tay 2
-    nơi là đúng lớp lỗi gather_erp/GATHER_CASES đã gặp (một bảng trôi lệch
-    bảng kia). 'khác' = tool không nằm trong bảng (vd tên tool LLM bịa ra,
-    như 'other') — không có bộ phận cụ thể để chỉ sang."""
-    return _DEPT_OF.get(tool, "khác")
-
-
-# Bộ phận phụ trách từng nghiệp vụ — dùng để câu từ chối chỉ được sang đâu.
-_DEPT_OF = {
-    "post_invoice": "Kế toán", "register_payment": "Kế toán",
-    "create_credit_memo": "Kế toán", "create_invoice_from_order": "Kế toán",
-    "create_bill_from_po": "Kế toán",
-    "create_quotation": "Bán hàng", "confirm_sale_order": "Bán hàng",
-    "create_rfq": "Mua hàng", "confirm_purchase_order": "Mua hàng",
-    "deliver_order": "Kho", "receive_order": "Kho", "validate_picking": "Kho",
-    "internal_transfer": "Kho", "inventory_adjustment": "Kho",
-    "scrap_product": "Kho", "return_order": "Kho",
-}
+    """Accessor cho roles.DEPT_OF — nguồn sự thật duy nhất cho "tool X thuộc
+    bộ phận nào". Giữ ở đây để nodes.py không phải đổi import, nhưng bảng đã
+    chuyển sang roles.py (spec 2026-08-12 §3.1): nó là dữ liệu phân quyền, và
+    RoleCfg.other_dept được suy ra từ chính nó. 'khác' = tool không có trong
+    bảng (vd tên tool LLM bịa ra) — không có bộ phận cụ thể để chỉ sang."""
+    return DEPT_OF.get(tool, "khác")
 
 
 def render_working_context(wc: dict) -> str:
