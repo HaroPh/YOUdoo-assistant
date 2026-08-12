@@ -82,7 +82,7 @@ Available write tools — use the tool name and arg keys EXACTLY as written:
 - scrap_product(product_name: str, qty: float, location_name: str = null, reason: str = null)  # ghi nhận phế liệu/hàng hỏng cho 1 SP; location_name bỏ trống = kho chính; reason tùy chọn
 - create_lead(name: str, contact_name: str, partner_name: str, email: str, phone: str, description: str)  # tạo lead CRM mới khi có khách tiềm năng liên hệ; name = tiêu đề ngắn, các field khác điền được gì thì điền
 - convert_lead(lead_ref: str, assignee: str = null)  # chuyển lead thành cơ hội (opportunity); lead_ref = tên/từ khóa lead; assignee = tên nhân viên phụ trách (tùy chọn)
-- log_activity(lead_ref: str, activity_type: str, summary: str, date_deadline: str = null)  # lên lịch hoạt động chăm sóc (Call | Meeting) trên lead/cơ hội; date_deadline dạng YYYY-MM-DD, bỏ trống = hôm nay
+- log_activity(res_model: str, ref: str, activity_type: str, summary: str, date_deadline: str = null, assignee: str = null)  # gắn hoạt động (To-Do | Call | Meeting | Email | Document) vào một chứng từ; res_model là "crm.lead" | "sale.order" | "purchase.order" | "account.move" | "stock.picking" | "mrp.production"; ref là mã chứng từ; assignee là người nhận (login hoặc tên), bỏ trống = chính mình; date_deadline dạng YYYY-MM-DD, bỏ trống = hôm nay
 - create_manufacturing_order(product_name: str, qty: float, bom_code: str = null)  # tạo lệnh sản xuất (nháp) cho sản phẩm có định mức BoM; bom_code chỉ cần nêu khi sản phẩm có nhiều BoM
 - confirm_manufacturing_order(order_ref: str)  # xác nhận lệnh sản xuất nháp, vd "WH/MO/00007"
 - complete_manufacturing_order(order_ref: str)  # hoàn tất lệnh sản xuất ĐÃ XÁC NHẬN: tiêu hao nguyên liệu, nhập kho thành phẩm
