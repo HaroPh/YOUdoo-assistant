@@ -30,10 +30,12 @@ discard_prepared_email giờ chỉ còn là DỌN DẸP (xóa bản nháp bị t
 gọn CSDL), KHÔNG còn là cơ chế an toàn — bản nháp đã trơ tính sẵn kể từ lúc
 tạo nên thất bại của discard không còn kéo theo rủi ro gửi ngoài ý muốn."""
 import json
+import os
 
 from server import mcp
 from odoo_call import odoo
 from helpers import envelope
+import role_scope
 
 
 @mcp.tool()
@@ -52,6 +54,17 @@ def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
         res_model: Model của bản ghi nguồn, vd "sale.order".
         ref: Mã bản ghi (field 'name'), vd "S00166".
     """
+    # Cưỡng chế phạm vi vai TRONG tiến trình MCP — chặn cả đường gọi thẳng
+    # cổng này, thứ mà bộ lọc tool ở backend không với tới (spec 2026-08-12
+    # §4.2). KHÔNG nêu danh sách được phép trong câu từ chối: không rò cấu
+    # hình vai cho người gọi trực tiếp.
+    if not role_scope.allowed(template_name,
+                              os.environ.get(role_scope.ALLOWED_TEMPLATES_ENV)):
+        return json.dumps(
+            {"ok": False,
+             "display": f"Template '{template_name}' không thuộc phạm vi của vai này."},
+            ensure_ascii=False)
+
     tpls = odoo("mail.template", "search_read",
                [[["name", "=", template_name], ["model", "=", res_model]]],
                {"fields": ["id"], "limit": 2})
@@ -122,6 +135,22 @@ def send_prepared_email(mail_id: int) -> str:
     Args:
         mail_id: ID bản ghi mail.mail đã soạn (từ preview_template_email).
     """
+    # Cửa sau của §4.2: tool này chỉ nhận mail_id, nên ai gọi thẳng cổng MCP
+    # có thể lấy BẤT KỲ bản nháp mail.mail nào đang có và gửi đi. Đối chiếu
+    # model nguồn của bản ghi với phạm vi vai (spec 2026-08-12 §4.3).
+    #
+    # GIỚI HẠN ĐÃ BIẾT: hai vai cùng res_model thì kiểm này không tách được.
+    # Hiện không xảy ra (stock.picking chỉ của kho, account.move chỉ của kế
+    # toán) — đừng tưởng nó mạnh hơn thực tế.
+    pham_vi = os.environ.get(role_scope.ALLOWED_MAIL_MODELS_ENV)
+    if role_scope.parse(pham_vi):
+        rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["model"]})
+        if not rows:
+            return envelope(False, f"Không tìm thấy mail nháp id={mail_id}.")
+        model_nguon = rows[0].get("model") or ""
+        if not role_scope.allowed(model_nguon, pham_vi):
+            return envelope(False, "Mail này không thuộc phạm vi của vai hiện tại.")
+
     # Bắt buộc lật lại 'outgoing' TRƯỚC send() — thiếu bước này, send() nội
     # bộ của Odoo sẽ lặng lẽ bỏ qua bản ghi (state đang là 'cancel' từ
     # preview_template_email), không gửi, không báo lỗi. Xem spec 2026-08-08.
