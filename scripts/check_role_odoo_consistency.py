@@ -55,24 +55,38 @@ TOOL_ACCESS_MAP = {
     "deliver_order":        [("stock.picking", "write")],       # button_validate, qua _validate_order_pickings
     "receive_order":        [("stock.picking", "write")],       # button_validate, qua _validate_order_pickings
     "validate_picking":     [("stock.picking", "write")],       # button_validate trực tiếp
-    "internal_transfer":    [("stock.picking", "create")],      # tạo phiếu nội bộ mới
-    "inventory_adjustment": [("stock.quant", "write")],         # write (quant có sẵn) — nhánh create cùng gate quyền write bên dưới action_apply_inventory
-    "scrap_product":        [("stock.scrap", "create")],        # tạo bản ghi hủy
-    "return_order":         [("stock.return.picking", "write")],  # action_create_returns
+    "internal_transfer":    [("stock.picking", "create"),        # inventory.py:150 create
+                             ("stock.picking", "write")],        # :156-167 action_confirm/assign/button_validate
+    "inventory_adjustment": [("stock.quant", "write"),           # inventory.py:88 write quant có sẵn
+                             ("stock.quant", "create")],         # :91 nhánh chưa có quant — quyền RIÊNG, không dùng chung gate write
+    "scrap_product":        [("stock.scrap", "create"),          # inventory.py:209 create
+                             ("stock.scrap", "write")],          # :211 action_validate
+    "return_order":         [("stock.return.picking", "create"),      # inventory.py:243 create WIZARD (không phải write)
+                             ("stock.return.picking.line", "write"),  # :264-268
+                             ("stock.picking", "create")],            # :271 action_create_returns sinh phiếu trả mới
     # ── Kế toán (account.*) ──
     "post_invoice":            [("account.move", "write")],           # action_post
-    "register_payment":        [("account.move", "write")],           # action_register_payment
-    "create_credit_memo":      [("account.move.reversal", "create")], # wizard tạo hoàn tiền
-    "create_invoice_from_order": [("sale.advance.payment.inv", "create")],  # create_invoices
-    "create_bill_from_po":     [("purchase.order", "create")],        # action_create_invoice
+    "register_payment":        [("account.move", "write"),            # accounting.py:233 action_register_payment
+                                ("account.payment.register", "create")],  # :236 create wizard
+    "create_credit_memo":      [("account.move.reversal", "create"),  # accounting.py:289 create wizard
+                                ("account.move.reversal", "write")],  # :290 refund_moves
+    "create_invoice_from_order": [("sale.advance.payment.inv", "create")],  # accounting.py:122 create_invoices
+    "create_bill_from_po":     [("purchase.order", "write"),          # purchase.py:126 action_create_invoice trên PO CÓ SẴN
+                                ("account.move", "create"),           # bill sinh ra
+                                ("account.move", "write")],           # :136 đặt invoice_date
     # ── Bán/mua hàng (sale.order / purchase.order) ──
     "create_quotation":       [("sale.order", "create")],
     "create_rfq":              [("purchase.order", "create")],
     "confirm_sale_order":      [("sale.order", "write")],             # action_confirm
     "confirm_purchase_order":  [("purchase.order", "write")],         # button_confirm
     # ── Mail (2 coordinator gửi mail nêu trong roles.py) ──
-    "send_delivery_email": [("mail.template", "create"), ("mail.mail", "write")],
-    "send_invoice_email":  [("mail.template", "create"), ("mail.mail", "write")],
+    # mail.py:87 gọi send_mail trên mail.template CÓ SẴN (chỉ cần đọc template,
+    # không tạo template); bản ghi thật sinh ra và bị sửa/xoá là mail.mail
+    # (:87 create, :128 write, :163 unlink qua discard_prepared_email).
+    "send_delivery_email": [("mail.template", "read"), ("mail.mail", "create"),
+                            ("mail.mail", "write"), ("mail.mail", "unlink")],
+    "send_invoice_email":  [("mail.template", "read"), ("mail.mail", "create"),
+                            ("mail.mail", "write"), ("mail.mail", "unlink")],
 }
 
 # Tool nêu trong roles.py nhưng KHÔNG map sạch vào MỘT cặp (model, operation)
@@ -86,15 +100,27 @@ UNMAPPED_TOOLS = {
         "độ chính xác cao hơn."),
 }
 
-# ── 4 khoảng trống Odoo đã biết (đo thủ công 2026-08-09, xem docstring trên).
-# role, tool → giải thích. Script PASS (không coi là lỗi) khi thấy ĐÚNG những
-# GAP này; bất kỳ sai khác nào khác (kể cả GAP mới) đều được nêu riêng, nổi
-# bật, và làm script thoát mã khác 0 — đó là phần "drift-proof". ─────────────
+# ── 9 khoảng trống Odoo đã biết (đo 2026-08-11 bằng bảng map ĐÃ SỬA — xem
+# docstring trên). role, tool → giải thích. Script PASS (không coi là lỗi) khi
+# thấy ĐÚNG những GAP này; bất kỳ sai khác nào khác (kể cả GAP mới) đều được
+# nêu riêng, nổi bật, và làm script thoát mã khác 0 — phần "drift-proof".
+#
+# LỊCH SỬ: bảng này từng ghi 4. Con số đó sai vì 8/18 dòng TOOL_ACCESS_MAP
+# ánh xạ sai operation hoặc thiếu cặp (ví dụ create_bill_from_po khai
+# ("purchase.order","create") trong khi tool gọi action_create_invoice trên PO
+# CÓ SẴN — cần "write"). Sau khi sửa map và đo lại: 9 khoảng trống thật.
 KNOWN_ODOO_GAPS = {
-    ("accounting", "deliver_order"): "ai-accounting vẫn có write trên stock.picking (nhóm Odoo không tách theo picking_type).",
-    ("accounting", "validate_picking"): "ai-accounting vẫn có write trên stock.picking.",
-    ("accounting", "internal_transfer"): "ai-accounting vẫn có create trên stock.picking.",
+    # ── kho: tồn tại vì Odoo không có nhóm "chỉ xác nhận đơn" ──
     ("warehouse", "confirm_sale_order"): "ai-warehouse vẫn có write trên sale.order (không có nhóm Odoo tách riêng 'chỉ xác nhận').",
+    ("warehouse", "send_invoice_email"): "nhóm Youdoo AI / Mail cấp mail.mail cho MỌI vai; mail.template ai cũng đọc được. Tầng mail không có backstop Odoo.",
+    # ── kế toán: "Accounting / Invoicing" kéo theo cả cụm quyền kho ──
+    ("accounting", "deliver_order"): "ai-accounting vẫn có write trên stock.picking (nhóm Odoo không tách theo picking_type).",
+    ("accounting", "receive_order"): "ai-accounting vẫn có write trên stock.picking.",
+    ("accounting", "validate_picking"): "ai-accounting vẫn có write trên stock.picking.",
+    ("accounting", "internal_transfer"): "ai-accounting vẫn có create+write trên stock.picking.",
+    ("accounting", "confirm_sale_order"): "ai-accounting vẫn có write trên sale.order.",
+    ("accounting", "confirm_purchase_order"): "ai-accounting vẫn có write trên purchase.order (cần cho create_bill_from_po, không tách được).",
+    ("accounting", "send_delivery_email"): "cùng lý do như (warehouse, send_invoice_email) — nhóm Youdoo AI / Mail dùng chung.",
 }
 
 ROLE_LOGINS = {"warehouse": "ai-warehouse", "accounting": "ai-accounting"}
@@ -208,12 +234,13 @@ def main():
 
     if unexpected:
         print(f"\n*** {len(unexpected)} KẾT QUẢ NGOÀI DỰ KIẾN — cần xem lại roles.py "
-             f"hoặc quyền Odoo, KHÔNG nằm trong 4 gap đã biết: ***")
+             f"hoặc quyền Odoo, KHÔNG nằm trong {len(KNOWN_ODOO_GAPS)} gap đã biết: ***")
         for role_name, tool, _ in unexpected:
             print(f"  - {role_name}/{tool}")
         sys.exit(1)
 
-    print("\nKhông có sai khác ngoài dự kiến — đúng 4 gap đã biết, còn lại khớp roles.py.")
+    print(f"\nKhông có sai khác ngoài dự kiến — đúng {len(known_gaps_seen)}/"
+          f"{len(KNOWN_ODOO_GAPS)} gap đã biết, còn lại khớp roles.py.")
 
 
 if __name__ == "__main__":
