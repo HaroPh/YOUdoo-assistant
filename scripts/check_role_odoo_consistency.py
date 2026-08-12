@@ -87,6 +87,8 @@ TOOL_ACCESS_MAP = {
                             ("mail.mail", "write"), ("mail.mail", "unlink")],
     "send_invoice_email":  [("mail.template", "read"), ("mail.mail", "create"),
                             ("mail.mail", "write"), ("mail.mail", "unlink")],
+    # ── Nghiệp vụ chung hai vai (crm.py) ──
+    "log_activity":            [("mail.activity", "create")],  # crm.py log_activity
 }
 
 # Tool nêu trong roles.py nhưng KHÔNG map sạch vào MỘT cặp (model, operation)

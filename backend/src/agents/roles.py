@@ -51,6 +51,13 @@ DEPT_OF = {
     "send_delivery_email": "Kho",
     "send_invoice_email": "Kế toán",
     "flag_order_for_review": "Kho",
+    # Giá trị này KHÔNG ảnh hưởng hành vi hôm nay: cả hai vai non-admin đều
+    # `own` log_activity, mà other_dept trừ đi own — nên không vai nào cần chỉ
+    # sang đâu cho tool này. Chọn "Kho" là tuỳ tiện, và nó CHỈ bắt đầu có nghĩa
+    # nếu sau này có một vai KHÔNG sở hữu log_activity; lúc đó phải xem lại.
+    # Vẫn thêm mục thay vì nới test bao phủ DEPT_OF — nới test để lấy một ngoại
+    # lệ là làm yếu đúng cái lưới vừa dựng.
+    "log_activity": "Kho",
 }
 
 
@@ -122,12 +129,13 @@ class RoleCfg:
 _WH_OWN = frozenset({
     "deliver_order", "receive_order", "validate_picking", "internal_transfer",
     "inventory_adjustment", "scrap_product", "flag_order_for_review",
+    "log_activity",
 })
 _WH_SIGN_OFF = frozenset({"return_order", "send_delivery_email"})
 
 _ACC_OWN = frozenset({
     "create_credit_memo", "send_invoice_email", "create_invoice_from_order",
-    "create_bill_from_po",
+    "create_bill_from_po", "log_activity",
 })
 _ACC_SIGN_OFF = frozenset({"post_invoice", "register_payment"})
 
@@ -155,7 +163,7 @@ PROFILES = {
         "warehouse": RoleCfg(
             "warehouse", "Kho", MCP_WAREHOUSE,
             own=frozenset({"deliver_order", "receive_order", "validate_picking",
-                           "internal_transfer"}),
+                           "internal_transfer", "log_activity"}),
             needs_sign_off=frozenset({"send_delivery_email"}),
             other_dept_extra=frozenset({"inventory_adjustment",
                                         "scrap_product", "return_order"})),
