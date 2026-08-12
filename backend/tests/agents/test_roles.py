@@ -60,7 +60,7 @@ def test_tool_khong_khai_bao_thi_mac_dinh_bi_tu_choi():
     cho mọi vai — đúng lớp lỗi mà toàn bộ thiết kế này sinh ra để ngăn."""
     cfg = roles.RoleCfg(name="x", label="X", mcp_url="http://localhost:1",
                         own=frozenset({"a"}), needs_sign_off=frozenset(),
-                        other_dept=frozenset())
+                        other_dept_extra=frozenset())
     assert cfg.state_of("a") == roles.OWN
     assert cfg.state_of("tool_chua_ton_tai") == roles.DENIED
 
@@ -70,7 +70,7 @@ def test_allowed_tools_gom_own_va_needs_sign_off_khong_gom_other_dept():
     trong đó — đó chính là chỗ Odoo cưỡng chế."""
     cfg = roles.RoleCfg(name="x", label="X", mcp_url="http://localhost:1",
                         own=frozenset({"a"}), needs_sign_off=frozenset({"b"}),
-                        other_dept=frozenset({"c"}))
+                        other_dept_extra=frozenset({"c"}))
     assert cfg.allowed_tools() == frozenset({"a", "b"})
     assert cfg.state_of("c") == roles.OTHER_DEPT
 

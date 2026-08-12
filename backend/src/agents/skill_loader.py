@@ -256,7 +256,9 @@ def skill_role_gap(spec: SkillSpec, tools, all_tools, role_cfg) -> str | None:
           nghĩa là vai này không được cấp tool đó theo chính sách (roles.py).
           Đây là chỗ ĐÚNG để bỏ qua: một skill cần quyền vai không có thì
           không nên hiện ra cho vai đó (vd kho không được offer SOP báo giá
-          chiết khấu, xem roles._WH_OTHER chứa create_quotation).
+          chiết khấu, vì create_quotation không nằm trong
+          RoleCfg.allowed_tools() của vai kho — suy từ roles.DEPT_OF qua
+          RoleCfg.other_dept, xem roles.py).
       (b) tool đó KHÔNG có trong `all_tools` — nghĩa là SKILL.md khai một tool
           không tồn tại ở BẤT KỲ ĐÂU trong registry MCP: lỗi cấu hình thật.
           KHÔNG được nuốt ở đây — để build_skill_tools() ném SkillManifestError

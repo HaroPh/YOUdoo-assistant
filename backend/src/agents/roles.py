@@ -23,6 +23,36 @@ NEEDS_SIGN_OFF = "needs_sign_off"
 OTHER_DEPT = "other_dept"
 DENIED = "denied"
 
+# Bộ phận phụ trách từng nghiệp vụ — NGUỒN SỰ THẬT DUY NHẤT cho "tool X thuộc
+# bộ phận nào", dùng cho câu từ chối tất định (nodes.py) và cho hint trong
+# prompt của planner (prompts.py).
+#
+# Chuyển từ prompts.py sang đây (spec 2026-08-12 §3.1): đây là dữ liệu phân
+# quyền chứ không phải dữ liệu prompt, và other_dept được SUY RA từ chính bảng
+# này nên nó phải sống cùng module với RoleCfg.
+#
+# Bảng CÓ những nghiệp vụ chưa vai AI nào sở hữu (Bán hàng, Mua hàng). Đó là
+# thông tin mà suy diễn từ own/needs_sign_off KHÔNG tạo ra được, và là lý do
+# bảng phải tồn tại thay vì bỏ hẳn.
+#
+# Ba mục cuối được bổ sung 2026-08-12: chúng vào roles.py ở các đợt sau mà
+# không ai cập nhật bảng, gây 5 khoảng trống trên 2 profile. tests/agents/
+# test_dept_of.py giờ khoá lại: sở hữu tool nào thì phải khai bộ phận tool đó.
+DEPT_OF = {
+    "post_invoice": "Kế toán", "register_payment": "Kế toán",
+    "create_credit_memo": "Kế toán", "create_invoice_from_order": "Kế toán",
+    "create_bill_from_po": "Kế toán",
+    "create_quotation": "Bán hàng", "confirm_sale_order": "Bán hàng",
+    "create_rfq": "Mua hàng", "confirm_purchase_order": "Mua hàng",
+    "deliver_order": "Kho", "receive_order": "Kho", "validate_picking": "Kho",
+    "internal_transfer": "Kho", "inventory_adjustment": "Kho",
+    "scrap_product": "Kho", "return_order": "Kho",
+    # bổ sung 2026-08-12 — xem comment trên
+    "send_delivery_email": "Kho",
+    "send_invoice_email": "Kế toán",
+    "flag_order_for_review": "Kho",
+}
+
 
 @dataclass(frozen=True)
 class RoleCfg:
@@ -31,8 +61,31 @@ class RoleCfg:
     mcp_url: str
     own: frozenset = field(default_factory=frozenset)
     needs_sign_off: frozenset = field(default_factory=frozenset)
-    other_dept: frozenset = field(default_factory=frozenset)
+    # Chỉ dùng cho thứ SUY DIỄN KHÔNG DIỄN ĐẠT ĐƯỢC: nghiệp vụ thuộc bộ phận
+    # của CHÍNH vai này nhưng bị xếp ra ngoài vai AI (spec 2026-08-12 §3.3).
+    # Hiện chỉ hồ sơ 'enterprise' cần, đúng 3 mục. Nghiệp vụ của bộ phận KHÁC
+    # thì KHÔNG khai ở đây — other_dept tự suy ra từ DEPT_OF.
+    other_dept_extra: frozenset = field(default_factory=frozenset)
     unrestricted: bool = False        # chỉ vai admin
+
+    @property
+    def other_dept(self) -> frozenset:
+        """Nghiệp vụ vai này KHÔNG làm nhưng có bộ phận cụ thể để chỉ sang.
+
+        SUY RA từ DEPT_OF thay vì khai tay (spec 2026-08-12 §3.2): hai danh
+        sách cho cùng một sự thật đã trôi lệch nhau, gây 5 khoảng trống trên 2
+        hồ sơ. So sánh dựa trên `label`, vốn đã trùng đúng giá trị bộ phận
+        ("Kho", "Kế toán") — test_dept_of.py ghim ràng buộc đó lại.
+
+        Tác dụng thật: đây là HINT trong prompt của planner để nó trả về đúng
+        tên tool, nhờ đó guard tất định (nodes.py) mới có gì để bắt và câu từ
+        chối mới xảy ra. Guard xử lý OTHER_DEPT và DENIED y hệt nhau, nên tập
+        này KHÔNG đổi câu chữ — nó đổi việc câu đó có xuất hiện hay không.
+        """
+        if self.unrestricted:
+            return frozenset()
+        derived = frozenset(t for t, d in DEPT_OF.items() if d != self.label)
+        return (derived - self.own - self.needs_sign_off) | self.other_dept_extra
 
     def state_of(self, tool: str) -> str:
         if self.unrestricted:
@@ -58,28 +111,25 @@ class RoleCfg:
 # flag_order_for_review: câu 5 phiếu phỏng vấn (docs/role-permission-interview.md)
 # — "Khi hàng nhận về thiếu hoặc hỏng, anh/chị tự xử lý hay phải báo ai?" → Đ
 # (tự xử lý). Ghi chú bất thường lên đơn mua LÀ hành động "tự xử lý" đó, nên
-# thuộc own, không phải needs_sign_off/other_dept. Cả 2 profile dùng chung
-# _WH_OWN nên một dòng này áp cho cả small-business lẫn enterprise.
+# thuộc own, không phải needs_sign_off/other_dept — nhưng CHỈ đúng cho
+# small-business. _WH_OWN dưới đây chỉ được profile small-business dùng;
+# enterprise/warehouse khai own của riêng nó (xem PROFILES bên dưới) và
+# KHÔNG đưa flag_order_for_review vào own/needs_sign_off/other_dept_extra.
+# Hệ quả: đây là vai DUY NHẤT mà state_of("flag_order_for_review") rơi vào
+# DENIED, và vì allowed_tools() cũng thiếu nó nên
+# skill_loader.skill_role_gap() âm thầm loại skill SOP "nhap-kho" khỏi vai
+# enterprise/warehouse.
 _WH_OWN = frozenset({
     "deliver_order", "receive_order", "validate_picking", "internal_transfer",
     "inventory_adjustment", "scrap_product", "flag_order_for_review",
 })
 _WH_SIGN_OFF = frozenset({"return_order", "send_delivery_email"})
-_WH_OTHER = frozenset({
-    "create_quotation", "create_rfq", "post_invoice", "confirm_sale_order",
-    "register_payment", "create_credit_memo", "confirm_purchase_order",
-})
 
 _ACC_OWN = frozenset({
     "create_credit_memo", "send_invoice_email", "create_invoice_from_order",
     "create_bill_from_po",
 })
 _ACC_SIGN_OFF = frozenset({"post_invoice", "register_payment"})
-_ACC_OTHER = frozenset({
-    "deliver_order", "receive_order", "validate_picking", "internal_transfer",
-    "inventory_adjustment", "scrap_product", "return_order",
-    "create_quotation", "create_rfq",
-})
 
 MCP_ADMIN = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
 MCP_WAREHOUSE = os.environ.get("MCP_ODOO_URL_WAREHOUSE", "http://localhost:8004/sse")
@@ -89,15 +139,17 @@ PROFILES = {
     "small-business": {
         "admin": RoleCfg("admin", "Quản trị", MCP_ADMIN, unrestricted=True),
         "warehouse": RoleCfg("warehouse", "Kho", MCP_WAREHOUSE,
-                             own=_WH_OWN, needs_sign_off=_WH_SIGN_OFF,
-                             other_dept=_WH_OTHER),
+                             own=_WH_OWN, needs_sign_off=_WH_SIGN_OFF),
         "accounting": RoleCfg("accounting", "Kế toán", MCP_ACCOUNTING,
-                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF,
-                              other_dept=_ACC_OTHER),
+                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF),
     },
     # Doanh nghiệp lớn chia nhỏ trách nhiệm: 3 nghiệp vụ RỜI tập own∪sign_off
     # của vai kho ⇒ quyền bị gỡ khỏi tài khoản Odoo (khác với việc chỉ đổi
     # other_dept↔denied, vốn không đổi gì ở tầng Odoo).
+    #
+    # Ba nghiệp vụ đó vẫn thuộc bộ phận KHO, nên suy diễn (DEPT_OF[t] != label)
+    # không lấy chúng — phải khai qua other_dept_extra để planner vẫn được
+    # nhắc tên và lời từ chối vẫn xảy ra.
     "enterprise": {
         "admin": RoleCfg("admin", "Quản trị", MCP_ADMIN, unrestricted=True),
         "warehouse": RoleCfg(
@@ -105,11 +157,10 @@ PROFILES = {
             own=frozenset({"deliver_order", "receive_order", "validate_picking",
                            "internal_transfer"}),
             needs_sign_off=frozenset({"send_delivery_email"}),
-            other_dept=_WH_OTHER | frozenset({"inventory_adjustment",
-                                              "scrap_product", "return_order"})),
+            other_dept_extra=frozenset({"inventory_adjustment",
+                                        "scrap_product", "return_order"})),
         "accounting": RoleCfg("accounting", "Kế toán", MCP_ACCOUNTING,
-                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF,
-                              other_dept=_ACC_OTHER),
+                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF),
     },
 }
 
