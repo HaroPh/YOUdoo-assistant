@@ -104,21 +104,21 @@ foreach ($r in $mcpRoles) {
     # đây (spec 2026-08-12 §4.1). Vai admin nhận giá trị rỗng = không giới hạn.
     $env:MCP_ALLOWED_TEMPLATES = ""
     $env:MCP_ALLOWED_MAIL_MODELS = ""
-    $dongMail = & $backendPy (Join-Path $root "scripts\export_role_templates.py") $($r.Role)
+    $mailScopeLines = & $backendPy (Join-Path $root "scripts\export_role_templates.py") $($r.Role)
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [ERR] export_role_templates.py thất bại cho vai $($r.Role) (mã $LASTEXITCODE) — dừng lại, không khởi động MCP với phạm vi mail sai (rỗng = KHÔNG giới hạn)." -ForegroundColor Red
         exit 1
     }
-    foreach ($dong in $dongMail) {
-        $i = $dong.IndexOf("=")
+    foreach ($line in $mailScopeLines) {
+        $i = $line.IndexOf("=")
         if ($i -lt 1) { continue }
-        $ten = $dong.Substring(0, $i)
+        $key = $line.Substring(0, $i)
         # Un-escape '\n' (hai ký tự) thành newline THẬT — export_role_templates.py
         # in ra dạng escape để mỗi biến giữ đúng một dòng; role_scope.py phía MCP
         # tách theo newline THẬT và không tự unescape, nên phải làm ở đây.
-        $gt = $dong.Substring($i + 1).Replace("\n", "`n")
-        if ($ten -eq "MCP_ALLOWED_TEMPLATES")   { $env:MCP_ALLOWED_TEMPLATES = $gt }
-        if ($ten -eq "MCP_ALLOWED_MAIL_MODELS") { $env:MCP_ALLOWED_MAIL_MODELS = $gt }
+        $value = $line.Substring($i + 1).Replace("\n", "`n")
+        if ($key -eq "MCP_ALLOWED_TEMPLATES")   { $env:MCP_ALLOWED_TEMPLATES = $value }
+        if ($key -eq "MCP_ALLOWED_MAIL_MODELS") { $env:MCP_ALLOWED_MAIL_MODELS = $value }
     }
 
     $mcpErr = Join-Path $logDir "$($r.Log)_err.log"

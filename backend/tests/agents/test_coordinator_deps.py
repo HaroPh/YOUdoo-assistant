@@ -6,11 +6,17 @@ preview_template_email, nên send_delivery_email của chính vai kho trả
 "Công cụ soạn mail không khả dụng." — trong khi 1254 test vẫn xanh, vì
 test mail không biết đến vai và test vai không biết đến mail."""
 import json
+import pathlib
+import re
+
 import pytest
 from unittest.mock import MagicMock
 
 import src.agents.mail_write as mw
 from src.agents.write_registry import WRITE_COORDINATORS, tools_for_coordinator
+
+GRAPH_PY = (pathlib.Path(__file__).resolve().parents[3]
+            / "backend" / "src" / "agents" / "graph.py")
 
 
 def _fake_tool(name):
@@ -103,3 +109,41 @@ def test_dep_khong_lot_vao_danh_sach_planner_visible():
     full = da_loc + [_fake_tool(n) for n in sorted(mw.MAIL_DEPS)]
     tools_for_coordinator(spec, da_loc, full)
     assert [t.name for t in da_loc] == ["send_delivery_email"]
+
+
+def test_erp_write_executor_va_skill_node_khong_di_qua_tools_for_coordinator():
+    """Bất biến bảo mật (spec §3.2/§7.2), tầng NGOÀI test trên: chỉ node
+    coordinator (WRITE_COORDINATORS, dep khai tường minh) mới được gọi
+    tools_for_coordinator để lồng thêm deps mail. `erp_write_executor` và
+    node SOP/skill phải nhận đúng `tools` — danh sách đã lọc theo vai gốc,
+    KHÔNG lồng thêm deps — nếu không, LLM planner ở đó gọi thẳng được
+    preview_template_email/send_prepared_email/... với template/model bất
+    kỳ, vượt khỏi bộ lọc theo vai (đúng lỗ hổng "dep lọt vào danh sách
+    planner-visible" mà hai test phía trên bịt, nhưng chỉ bịt được ở tầng
+    tools_for_coordinator — nếu graph.py lỡ bọc tools_for_coordinator(...)
+    quanh erp_write_executor hoặc build_skill_node, không test nào ở trên
+    bắt được).
+
+    Test đọc NGUỒN graph.py (không import/dựng graph thật — dựng graph cần
+    role_cfg/mcp_all_tools đầy đủ, không cần thiết để pin bất biến CẤU TRÚC
+    này), theo đúng kỹ thuật ở test_odoo_setup_mail_groups.py."""
+    src = GRAPH_PY.read_text(encoding="utf-8")
+
+    m = re.search(
+        r'g\.add_node\("erp_write_executor",\s*'
+        r'make_erp_write_executor_node\((.*?)\)\)', src)
+    assert m, ("không tìm thấy dòng "
+               "add_node('erp_write_executor', make_erp_write_executor_node("
+               "...)) trong graph.py — file đã đổi cấu trúc?")
+    assert m.group(1).strip() == "tools", (
+        f"erp_write_executor phải nhận đúng biến `tools` (đã lọc theo vai), "
+        f"không phải {m.group(1)!r} — nếu đây là tools_for_coordinator(...), "
+        f"deps mail đã lọt vào planner/erp_write_executor")
+
+    m2 = re.search(r'build_skill_node\((.*?)\)', src)
+    assert m2, "không tìm thấy build_skill_node(...) trong graph.py"
+    args = [a.strip() for a in m2.group(1).split(",")]
+    assert args[-1] == "tools", (
+        f"build_skill_node phải nhận đúng `tools` làm tham số cuối, "
+        f"không phải {args[-1]!r} — nếu đây là tools_for_coordinator(...), "
+        f"deps mail đã lọt vào node SOP/skill")

@@ -277,3 +277,16 @@ này thì §4 chỉ được chứng minh gián tiếp.
   chung model với vai khác.
 - **Nếu §5 phải gỡ**, tầng Odoo vẫn không có backstop cho mail; cưỡng chế nằm ở
   agent + MCP. Hai lớp, không phải ba.
+- **`discard_prepared_email` không có guard `role_scope`** — người gọi thẳng
+  cổng MCP có thể `unlink` bất kỳ bản ghi `mail.mail` nào, kể cả bản nháp
+  đang chờ gửi của vai khác. Phá hoại nhưng không phải một lần gửi không thể
+  thu hồi, và người gọi kiểu này vốn đã cầm credential ghi đầy đủ của vai đó.
+- **Backstop `ir.rule` phía Odoo (§5) chỉ phủ ĐỌC `mail.template`** — chống
+  lưng cho `preview_template_email`, nhưng KHÔNG chống lưng cho đường
+  `send_prepared_email` ở §4.3 (đụng `mail.mail`, không bao giờ đọc
+  template). Người đọc §5 dễ hiểu nhầm rằng nó chống lưng cho toàn bộ mail.
+- **Hợp đồng env không có cách biểu diễn "giới hạn về 0"** — một thay đổi
+  chính sách hợp lệ (bỏ `send_delivery_email` khỏi `_WH_SIGN_OFF`) khiến
+  `scripts/export_role_templates.py` exit khác 0 và làm sập cả launcher.
+  Fail-loud có chủ đích, nhưng fix cuối cùng — một sentinel phân biệt "không
+  giới hạn" với "không được gì" — cần được đặt tên.

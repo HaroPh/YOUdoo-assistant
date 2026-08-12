@@ -103,9 +103,25 @@ def test_preview_cho_qua_template_trong_allowlist_cham_toi_odoo(
 
 def test_send_tu_choi_model_ngoai_allowlist_khong_ghi_khong_gui(
         send_fn, mail_module, monkeypatch):
+    """LƯU Ý mock: cùng một entry ("mail.mail", "read") trong `responses` bị
+    dùng lại cho CẢ HAI lệnh read khác nhau trong send_prepared_email — lệnh
+    đối chiếu model của guard (chỉ cần field "model") VÀ lệnh đọc trạng thái
+    sau send() (cần "state"/"failure_reason"/"subject", xem mail.py dòng
+    159). fake_odoo không lọc theo `fields` yêu cầu, chỉ trả nguyên response
+    đã đăng ký cho khóa (model, method) — nên phải có ĐỦ field cho CẢ hai
+    người gọi tiềm năng, không chỉ người gọi đầu tiên (guard).
+    Nếu thiếu "state": khi ai đó xóa guard (dòng 145-152), thân hàm sẽ chạy
+    tiếp xuống lệnh write()/send()/read() thật, và rows[0]["state"] ném
+    KeyError — test đỏ vì CRASH ngẫu nhiên của mock, không phải vì assertion
+    "result['ok'] is False" bên dưới. Có đủ field, guard bị xóa sẽ khiến
+    send "thành công" giả (state="sent" → ok=True) và chính assertion phát
+    hiện regression, đúng bằng chứng cần có."""
     monkeypatch.setenv(ENV_MODELS, "stock.picking")
     calls = []
-    responses = {("mail.mail", "read"): [{"model": "account.move"}]}
+    responses = {("mail.mail", "read"): [{"model": "account.move",
+                                          "state": "sent",
+                                          "failure_reason": None,
+                                          "subject": "x"}]}
     monkeypatch.setattr(mail_module, "odoo", fake_odoo(calls, responses))
 
     result = json.loads(send_fn(123))

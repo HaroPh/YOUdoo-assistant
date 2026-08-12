@@ -173,6 +173,23 @@ what it started this run (docker keeps running). Logs land in `logs/`
 when the script doesn't fit (e.g. you want each service in its own visible
 terminal window). Needs THREE mcp-odoo terminals, one per role:**
 
+**Mail scoping is OFF on this path.** The terminals below only set
+`MCP_ODOO_PORT` / `ODOO_USERNAME` / `ODOO_PASSWORD` — they never touch
+`MCP_ALLOWED_TEMPLATES` / `MCP_ALLOWED_MAIL_MODELS`. Under the "empty =
+unrestricted" contract (see "Role-based access" above), that means
+warehouse and accounting come up with per-role **mail** enforcement
+entirely off, silently — the same "unrestricted" state that's *correct*
+for admin but not for the other two. `start-dev.ps1` is the only thing
+that derives and sets these two variables (via
+`scripts/export_role_templates.py`, per role); this manual path does not
+reproduce that step. If you need mail scoping while testing manually,
+run `.\start-dev.ps1` instead of these terminals, or, before starting
+warehouse/accounting below, run
+`backend\.venv\Scripts\python.exe scripts\export_role_templates.py <role>`
+yourself and export its two `KEY=value` lines as env vars — un-escaping
+any `\n` in the value back to a real newline first (see that script's
+docstring; `start-dev.ps1` does this same un-escape before assigning).
+
 **Terminal 1 — mcp-odoo (admin):**
 
 ```powershell
