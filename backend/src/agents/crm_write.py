@@ -90,17 +90,17 @@ def _resolve_doc(res_model: str, ref: str):
     if res_model == "crm.lead":
         return _resolve_lead(ref)
     if res_model not in _EXACT_NAME_MODELS:
-        ho_tro = ", ".join(("crm.lead",) + _EXACT_NAME_MODELS)
+        supported = ", ".join(("crm.lead",) + _EXACT_NAME_MODELS)
         return "msg", _msg(f"Chưa hỗ trợ gắn hoạt động vào '{res_model}'. "
-                           f"Hiện hỗ trợ: {ho_tro}.")
+                           f"Hiện hỗ trợ: {supported}.")
     rows = _search_by_name(res_model, [["name", "=", ref]], ["id", "name"],
                            limit=2)
     if not rows:
         # Hoá đơn NHÁP có name=False (đo 2026-08-08) nên tra theo mã chỉ tìm
         # được hoá đơn ĐÃ phát hành — nói rõ để người dùng không tưởng gõ sai.
-        them = (" Lưu ý: hoá đơn nháp chưa có số nên chưa tra được theo mã."
+        extra_note = (" Lưu ý: hoá đơn nháp chưa có số nên chưa tra được theo mã."
                 if res_model == "account.move" else "")
-        return "msg", _msg(f"Không tìm thấy '{ref}' trong {res_model}.{them}")
+        return "msg", _msg(f"Không tìm thấy '{ref}' trong {res_model}.{extra_note}")
     if len(rows) > 1:
         return "msg", _msg(f"Có nhiều bản ghi tên '{ref}' trong {res_model}. "
                            f"Vui lòng nêu rõ hơn.")
@@ -228,11 +228,11 @@ def make_log_activity_node(tools):
             return doc
 
         deadline = deadline or date.today().isoformat()
-        nguoi = f" — giao {assignee}" if assignee else ""
+        assignee_note = f" — giao {assignee}" if assignee else ""
         confirmed = _interrupt({
             "kind": "confirm",
             "question": (f"Lên lịch {activity_type} cho '{doc['name']}': "
-                         f"{summary} — hạn {deadline}{nguoi}.\n"
+                         f"{summary} — hạn {deadline}{assignee_note}.\n"
                          + WRITE_CONFIRM_SUFFIX),
             "expires_at": _ttl_expiry()})
         if not confirmed:

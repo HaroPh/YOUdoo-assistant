@@ -184,7 +184,7 @@ PLANNER_CASES = [
     ("chuyển lead Modernize old offices thành cơ hội", "convert_lead",
      {"lead_ref": "Modernize old offices"}),
     ("lên lịch gọi cho lead Modernize old offices", "log_activity",
-     {"lead_ref": "Modernize old offices", "activity_type": "Call"}),
+     {"res_model": "crm.lead", "ref": "Modernize old offices", "activity_type": "Call"}),
     # sản xuất
     ("tạo lệnh sản xuất 10 Drawer", "create_manufacturing_order",
      {"product_name": "Drawer", "qty": 10}),
