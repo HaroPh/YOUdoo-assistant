@@ -10,7 +10,6 @@ Ba giới hạn cũ và vì sao chúng là lỗi:
 Test gọi thẳng hàm đã đăng ký trong registry FastMCP với odoo() bị
 monkeypatch — KHÔNG chạm Odoo thật (cùng khuôn
 tests/mcp/test_mail_role_scope_wiring.py)."""
-import importlib
 import json
 import pathlib
 import sys
@@ -65,9 +64,9 @@ def test_tao_duoc_tren_model_bat_ky(crm_mod, log_activity_fn, monkeypatch):
     monkeypatch.setattr(crm_mod, "get_uid", lambda: 8)
     out = json.loads(log_activity_fn("sale.order", 119, "To-Do", "Gọi lại khách"))
     assert out["ok"] is True
-    tao = [c for c in calls if c[1] == "create" and c[0] == "mail.activity"]
-    assert len(tao) == 1
-    vals = tao[0][2][0]
+    created = [c for c in calls if c[1] == "create" and c[0] == "mail.activity"]
+    assert len(created) == 1
+    vals = created[0][2][0]
     assert vals["res_id"] == 119
     assert vals["res_model_id"] == 3
     assert vals["user_id"] == 8          # bỏ trống assignee = tài khoản gọi

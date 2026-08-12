@@ -116,21 +116,21 @@ def _resolve_assignee(assignee: str):
     Chỉ xét người dùng nội bộ (share=False): người dùng portal không nhận
     việc được.
     """
-    noi_bo = [["share", "=", False]]
-    for domain in ([["login", "=", assignee]] + noi_bo,
-                   [["name", "=", assignee]] + noi_bo):
+    internal_only = [["share", "=", False]]
+    for domain in ([["login", "=", assignee]] + internal_only,
+                   [["name", "=", assignee]] + internal_only):
         rows = odoo("res.users", "search_read", [domain],
                     {"fields": ["id", "name", "login"], "limit": 2})
         if len(rows) == 1:
             return rows[0]["id"]
     rows = odoo("res.users", "search_read",
-                [[["name", "ilike", assignee]] + noi_bo],
+                [[["name", "ilike", assignee]] + internal_only],
                 {"fields": ["id", "name", "login"], "limit": 6})
     if not rows:
         return f"Không tìm thấy người dùng '{assignee}'."
     if len(rows) > 1:
-        ten = ", ".join(f"{r['name']} ({r['login']})" for r in rows)
-        return f"Có nhiều người khớp '{assignee}': {ten}. Vui lòng nêu rõ hơn."
+        names = ", ".join(f"{r['name']} ({r['login']})" for r in rows)
+        return f"Có nhiều người khớp '{assignee}': {names}. Vui lòng nêu rõ hơn."
     return rows[0]["id"]
 
 
@@ -191,16 +191,16 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
         if not model_ids:
             return envelope(False, f"Model '{res_model}' không tồn tại trong Odoo.")
 
-        han = date_deadline or today_iso()
+        deadline = date_deadline or today_iso()
         act_id = odoo("mail.activity", "create",
                       [{"res_model_id": model_ids[0], "res_id": res_id,
                         "activity_type_id": atype["id"],
                         "summary": summary,
-                        "date_deadline": han,
+                        "date_deadline": deadline,
                         "user_id": user_id}])
         return envelope(True,
                         f"Đã lên lịch {atype['name']} cho '{ref}': {summary} "
-                        f"— hạn {han}.",
+                        f"— hạn {deadline}.",
                         ref=ref, model="mail.activity", res_id=act_id,
                         state="planned")
     except Exception as e:  # noqa: BLE001
