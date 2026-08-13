@@ -1,7 +1,8 @@
 import pytest
 
 from src.agents.handoff import (HANDOFF_DOC_OF, NO_DOCUMENT_TOOLS,
-                                build_handoff, role_name_for_label)
+                                build_handoff, existing_handoff,
+                                role_name_for_label)
 from src.agents.roles import DEPT_OF, load_profile
 
 
@@ -88,3 +89,27 @@ def test_khong_bao_gio_ban_giao_chinh_log_activity():
     """log_activity LÀ kênh bàn giao, không bao giờ là đích của nó."""
     assert build_handoff(_vai("warehouse"), "log_activity",
                          {"ref": "S00012"}, "x") is None
+
+
+def test_tim_thay_viec_dang_mo_tren_cung_ban_ghi():
+    rows = [{"res_model": "sale.order", "res_name": "S00012",
+             "summary": "Kho đề nghị: phát hành hóa đơn",
+             "date_deadline": "2026-08-15"}]
+    got = existing_handoff(rows, "sale.order", "S00012")
+    assert got is not None
+    assert got["date_deadline"] == "2026-08-15"
+
+
+def test_khac_ban_ghi_thi_khong_tinh_la_trung():
+    rows = [{"res_model": "sale.order", "res_name": "S00099", "summary": "x"}]
+    assert existing_handoff(rows, "sale.order", "S00012") is None
+
+
+def test_khac_model_thi_khong_tinh_la_trung():
+    """Cùng mã nhưng khác model — vd S00012 không phải picking."""
+    rows = [{"res_model": "stock.picking", "res_name": "S00012", "summary": "x"}]
+    assert existing_handoff(rows, "sale.order", "S00012") is None
+
+
+def test_danh_sach_rong_thi_khong_trung():
+    assert existing_handoff([], "sale.order", "S00012") is None

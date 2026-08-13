@@ -14,9 +14,10 @@ from .state import ERPAgentState
 from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
-from .roles import OTHER_DEPT, DENIED
+from .roles import OTHER_DEPT, DENIED, DEPT_OF
 from .write_registry import COORDINATED_TOOLS, expand_chain
-from .handoff import build_handoff
+from .handoff import build_handoff, existing_handoff
+from ..erp_query import crm
 from ..rag.retrieve import retrieve
 from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
 from .erp_grounding import verify_erp_grounding
@@ -246,6 +247,26 @@ def _handoff_notice(role_cfg, tool: str) -> str:
             f"Tôi có thể chuyển cho bộ phận {dept_of(tool)} — bạn xác nhận nhé.")
 
 
+def _duplicate_handoff(handoff: dict) -> dict | None:
+    """Activity đang mở trên ĐÚNG chứng từ của `handoff`, hoặc None.
+
+    Chống spam (ADR-012 §5): hỏi lại ba lần thì bộ phận kia nhận ba việc
+    giống nhau. Tra TRƯỚC KHI ĐỀ XUẤT, không phải trước khi ghi — đề xuất
+    trùng đã là phiền rồi.
+
+    Tra hỏng KHÔNG được chặn bàn giao: bọc try/except, lỗi tra chỉ log
+    warning rồi coi như không có việc trùng — cùng lắm là một việc trùng,
+    còn hơn mất hẳn đường bàn giao."""
+    try:
+        env = crm.list_my_activities(handoff["args"]["assignee"])
+        return existing_handoff((env.get("data") or {}).get("rows"),
+                                handoff["args"]["res_model"],
+                                handoff["args"]["ref"])
+    except Exception:                                       # noqa: BLE001
+        logger.warning("không tra được activity trùng", exc_info=True)
+        return None
+
+
 def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
     async def erp_write_planner(state: ERPAgentState) -> dict:
         if not write_gate.write_actions_enabled():
@@ -302,6 +323,14 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
                     )], "pending_action": None, "auto_chain": None}
                 plan = handoff
                 handoff_note = _handoff_notice(role_cfg, tool_name)
+                duplicate = _duplicate_handoff(handoff)
+                if duplicate is not None:
+                    deadline = duplicate.get("date_deadline") or "chưa đặt"
+                    return {"messages": [AIMessage(
+                        content=(f"Việc này đã được chuyển cho bộ phận "
+                                 f"{DEPT_OF.get(tool_name, 'khác')} rồi "
+                                 f"(hạn {deadline}), chưa cần chuyển lại.")
+                    )], "pending_action": None, "auto_chain": None}
 
         # Chuỗi đa bước khai báo trước: validate tất định qua registry walk.
         # LLM bịa chain_until → None → single-step như cũ (fail-safe).
@@ -330,6 +359,14 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
                         )], "pending_action": None, "auto_chain": None}
                     plan = handoff
                     handoff_note = _handoff_notice(role_cfg, step_tool)
+                    duplicate = _duplicate_handoff(handoff)
+                    if duplicate is not None:
+                        deadline = duplicate.get("date_deadline") or "chưa đặt"
+                        return {"messages": [AIMessage(
+                            content=(f"Việc này đã được chuyển cho bộ phận "
+                                     f"{DEPT_OF.get(step_tool, 'khác')} rồi "
+                                     f"(hạn {deadline}), chưa cần chuyển lại.")
+                        )], "pending_action": None, "auto_chain": None}
                     # chain được tính từ plan CŨ — giữ lại sẽ quảng cáo những
                     # bước không còn liên quan trong lời xác nhận.
                     chain = []

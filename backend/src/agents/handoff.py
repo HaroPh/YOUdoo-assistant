@@ -108,3 +108,15 @@ def build_handoff(role_cfg, tool: str, args: dict,
         },
         "summary": f"Chuyển việc cho bộ phận {DEPT_OF[tool]}: {what}",
     }
+
+
+def existing_handoff(rows, res_model: str, ref: str) -> dict | None:
+    """Activity đang mở trên ĐÚNG bản ghi này, hoặc None.
+
+    Khớp theo CẢ res_model lẫn res_name: mã đơn có thể trùng nhau giữa các
+    model, khớp mỗi mã sẽ báo trùng nhầm."""
+    for r in rows or []:
+        if (r.get("res_model") == res_model
+                and str(r.get("res_name") or "") == str(ref)):
+            return r
+    return None
