@@ -68,12 +68,6 @@ CATALOG: dict[str, ModelSpec] = {
         quota_scope="model", rpm=30, tpm=16_000, rpd=14_400,
         token_multiplier=1.0, max_output_tokens=2048, timeout_s=60,
         supports_tools=True, emits_thought_tags=True),
-    "gemma-4-31b": ModelSpec(
-        alias="gemma-4-31b", provider="google",
-        model_id="gemma-4-31b-it", upstream="google",
-        quota_scope="model", rpm=30, tpm=16_000, rpd=14_400,
-        token_multiplier=1.0, max_output_tokens=2048, timeout_s=60,
-        supports_tools=True, emits_thought_tags=True),
 
     # Hai model chủ dự án cấp 2026-08-13. SỐ LIỆU DƯỚI ĐÂY LÀ ĐO THẬT, không
     # phỏng đoán: probe xác nhận model_id gọi được, supports_tools=True (gọi
@@ -94,15 +88,15 @@ CATALOG: dict[str, ModelSpec] = {
     # Hai model KHÁC chủ dự án nêu KHÔNG tồn tại, đã probe: "gemini-3-flash" trả
     # 404 NOT_FOUND, "gemini-2.5-flash" trả 404 "no longer available to new
     # users". Ghi lại để đời sau không thử lại.
+    #
+    # "gemini-3.6-flash" CÓ thật và đã được đo (bộ chitchat: violations=0, p50
+    # 5048ms nhưng một lượt 43.9s) — THUA gemini-3.5-flash nên không giữ entry.
+    # Số đo ở bảng trong chú thích chuỗi `chitchat` bên dưới. Muốn dùng lại thì
+    # thêm entry mới và đo lại với n lớn hơn 16 trước, vì p95 ở cỡ mẫu đó chỉ
+    # là ~1 mẫu.
     "gemini-3.5-flash": ModelSpec(
         alias="gemini-3.5-flash", provider="google",
         model_id="gemini-3.5-flash", upstream="google",
-        quota_scope="model", rpm=5, tpm=250_000, rpd=20,
-        token_multiplier=1.0, max_output_tokens=8192, timeout_s=60,
-        supports_tools=True, emits_thought_tags=False),
-    "gemini-3.6-flash": ModelSpec(
-        alias="gemini-3.6-flash", provider="google",
-        model_id="gemini-3.6-flash", upstream="google",
         quota_scope="model", rpm=5, tpm=250_000, rpd=20,
         token_multiplier=1.0, max_output_tokens=8192, timeout_s=60,
         supports_tools=True, emits_thought_tags=False),
@@ -197,7 +191,9 @@ CHAINS: dict[str, tuple[str, ...]] = {
     #
     # gemma-4-31b RỜI chuỗi, không xuống mắt xích 3: nó cùng upstream="google"
     # với 3.5-flash nên bất biến #1 cấm (xem chuỗi `router` phía trên, cùng lý
-    # do). Entry của nó ở lại CATALOG vì đã đo, không xoá.
+    # do). Entry của nó ĐÃ XOÁ khỏi CATALOG luôn — không chuỗi nào dùng nữa, và
+    # một entry chết là cấu hình chờ trôi lệch. Số đo của nó ở lại ngay bảng
+    # trên, đó mới là chỗ nó có ích.
     "chitchat":  ("gemini-3.5-flash", "groq-gpt-oss-20b"),
     # evaluator: ĐẢO thứ tự 2026-08-13. Trước: groq-gpt-oss-20b → gemma-4-26b.
     # Đo bộ `confirm` (n=24) trên CẢ HAI mắt xích, mỗi model ghim một lượt:
