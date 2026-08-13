@@ -1,0 +1,97 @@
+# backend/src/agents/handoff.py
+"""Dựng một BÀN GIAO từ một thao tác ghi bị guard vai từ chối.
+
+Thuần, KHÔNG I/O: chỉ quyết định "có dựng được không" và dựng plan. Việc tra
+chứng từ thật trong Odoo, kiểm loại activity, tra người nhận và cổng xác nhận
+đều do coordinator `log_activity` (agents/crm_write.py) lo — vì log_activity
+NẰM TRONG WRITE_COORDINATORS, planner trả sớm và coordinator chạy tiếp.
+
+SÀN (spec §3.3): trả None ở MỌI trường hợp không chắc. Caller rơi về đúng câu
+từ chối như trước. Bàn giao là nâng cấp ở nơi làm được, không bao giờ làm lời
+từ chối tệ đi.
+"""
+from .roles import DEPT_OF, load_profile
+
+# tool → (tên tham số mang mã chứng từ, res_model của chứng từ đó)
+#
+# Suy từ chữ ký thật trong WRITE_PLANNER_PROMPT (prompts.py). Bảng khai tay sẽ
+# trôi — test_handoff.py canh ba chiều: mọi khoá thuộc DEPT_OF, mọi tool trong
+# DEPT_OF đều được xếp loại, và NO_DOCUMENT_TOOLS không có mục chết.
+HANDOFF_DOC_OF: dict[str, tuple[str, str]] = {
+    "confirm_sale_order":        ("order_ref",   "sale.order"),
+    "deliver_order":             ("order_ref",   "sale.order"),
+    "create_invoice_from_order": ("order_ref",   "sale.order"),
+    "return_order":              ("order_ref",   "sale.order"),
+    "flag_order_for_review":     ("order_ref",   "purchase.order"),
+    "confirm_purchase_order":    ("order_ref",   "purchase.order"),
+    "receive_order":             ("order_ref",   "purchase.order"),
+    "create_bill_from_po":       ("order_ref",   "purchase.order"),
+    "create_credit_memo":        ("invoice_ref", "account.move"),
+    "send_invoice_email":        ("invoice_ref", "account.move"),
+    # register_payment: invoice_ref là TUỲ CHỌN (tool cũng nhận partner_name).
+    # Xếp vào đây có chủ đích: có invoice_ref thì bàn giao được, không có thì
+    # build_handoff trả None vì ref rỗng ⇒ rơi về sàn. Không cần nhánh riêng.
+    "register_payment":          ("invoice_ref", "account.move"),
+    "validate_picking":          ("picking_ref", "stock.picking"),
+    "send_delivery_email":       ("picking_ref", "stock.picking"),
+}
+
+# Tool KHÔNG trỏ vào một bản ghi có sẵn: chúng TẠO MỚI hoặc thao tác trên
+# vật/kho. Không có chứng từ để gắn activity ⇒ rơi về sàn.
+#
+# log_activity nằm đây vì lý do KHÁC: nó chính LÀ kênh bàn giao, nên không bao
+# giờ là đích của một cuộc bàn giao. Xếp vào đây để lưới đỡ chiều 2 không đỏ.
+NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
+    "post_invoice", "create_quotation", "create_rfq",
+    "inventory_adjustment", "internal_transfer", "scrap_product",
+    "log_activity",
+})
+
+ACTIVITY_TYPE = "To-Do"
+
+
+def role_name_for_label(label: str) -> str | None:
+    """Nhãn bộ phận ("Kế toán") → tên vai ("accounting"), hoặc None.
+
+    DEPT_OF trả NHÃN, còn login Odoo suy từ TÊN VAI, nên phải tra ngược. Trả
+    None cho "Bán hàng"/"Mua hàng" (có trong DEPT_OF nhưng không vai nào nhận)
+    và cho "khác" (dept_of trả khi tên tool không có trong bảng)."""
+    for name, cfg in load_profile().items():
+        if cfg.label == label:
+            return name
+    return None
+
+
+def build_handoff(role_cfg, tool: str, args: dict,
+                  summary: str | None) -> dict | None:
+    """Plan `log_activity` đã điền sẵn, hoặc None nếu không dựng được.
+
+    Trả None khi: tool không có chứng từ trong bảng; args thiếu giá trị; bộ
+    phận đích không có vai; hoặc đích trùng chính vai đang gọi."""
+    target = HANDOFF_DOC_OF.get(tool)
+    if target is None:
+        return None
+    arg_name, res_model = target
+
+    ref = str((args or {}).get(arg_name) or "").strip()
+    if not ref:
+        return None
+
+    role_name = role_name_for_label(DEPT_OF.get(tool, ""))
+    if role_name is None or role_name == role_cfg.name:
+        return None
+
+    what = (summary or "").strip() or tool
+    return {
+        "tool": "log_activity",
+        "args": {
+            "res_model": res_model,
+            "ref": ref,
+            "activity_type": ACTIVITY_TYPE,
+            # Nguồn gốc nằm ngay trong summary: bên nhận đọc activity phải
+            # biết AI đề nghị và vì sao, không phải đi hỏi lại.
+            "summary": f"{role_cfg.label} đề nghị: {what}",
+            "assignee": f"ai-{role_name}",
+        },
+        "summary": f"Chuyển việc cho bộ phận {DEPT_OF[tool]}: {what}",
+    }
