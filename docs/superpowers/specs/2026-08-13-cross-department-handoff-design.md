@@ -201,16 +201,36 @@ sai người — nếu tool lọc theo "người dùng hiện tại".
 minh** theo user của vai (`ai-<role_name>`), vẫn truy vấn bằng tài khoản đọc.
 `build_graph` đã nhận `role_cfg` sẵn, chỉ chưa chuyển xuống đường đọc.
 
-> **GIẢ ĐỊNH PHẢI KIỂM ĐẦU TIÊN TRONG PLAN:** `ai-readonly` đọc được
-> `mail.activity`, kể cả bản ghi giao cho tài khoản khác. **Chưa đo.**
+> **ĐÃ ĐO (2026-08-13), giả định XÁC NHẬN — plan KHÔNG cần task cấp quyền.**
 >
-> Nếu KHÔNG: cấp một nhóm Odoo hẹp chỉ `mail.activity` read cho `ai-readonly` —
-> đúng khuôn mẫu `Youdoo AI / Activity` đã dùng ở đợt `log_activity` (cấp đúng
-> `ir.model` read, không hơn). Đây là phương án dự phòng đã có tiền lệ, không
-> phải đường mới.
+> `ai-readonly` đọc được `mail.activity`: `search_count` = 31, thấy cả bản ghi
+> giao cho tài khoản khác (Mitchell Admin, Marc Demo), và lọc
+> `user_id = <uid ai-accounting>` chạy đúng (trả 0 vì chưa có bàn giao nào).
+> uid: `ai-readonly`=7, `ai-warehouse`=9, `ai-accounting`=10, `ai-admin`=8.
 >
 > Ghi chú Odoo đã biết: Odoo lọc **hiển thị** activity theo quyền đọc **chứng từ
 > đính kèm**, không theo quyền trên `mail.activity`.
+
+### 5.4 Phát hiện phụ: `ai-readonly` KHÔNG chỉ đọc
+
+Đo cùng lúc, `check_access_rights` của `ai-readonly` trên 14 model:
+
+| model | write / create / unlink |
+|---|---|
+| `account.move`, `account.payment`, `sale.order`, `purchase.order`, `stock.picking`, `stock.quant`, `mrp.production`, `res.partner`, `product.template`, `crm.lead`, `mail.mail`, `ir.config_parameter` | False |
+| **`mail.activity`** | **True** |
+| **`mail.template`** | **True** |
+
+`start-dev.ps1` tuyên bố: *"kể cả bị chiếm quyền hoàn toàn cũng không ghi được
+gì, vì tài khoản không có quyền"*. Tuyên bố đó **đúng 12/14, sai 2**.
+
+KHÔNG phải lỗi cấu hình của dự án: Odoo cấp hai model này cho `base.group_user`
+(mọi tài khoản nội bộ), không gỡ được mà không phá tài khoản. Việc đúng là
+**sửa lời tuyên bố cho khớp sự thật**, không phải cố vá Odoo. `mail.template`
+đáng chú ý hơn `mail.activity` — template là thứ gửi ra cho khách thật.
+
+**Ngoài phạm vi đợt này** (chỉ sửa một dòng chú thích), nhưng ghi lại vì nó là
+một tuyên bố an ninh trong tài liệu của chính dự án đang nói quá.
 
 ## 6. Ca lỗi và sàn
 
