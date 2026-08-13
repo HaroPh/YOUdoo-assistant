@@ -16,6 +16,7 @@ from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
 from .roles import OTHER_DEPT, DENIED
 from .write_registry import COORDINATED_TOOLS, expand_chain
+from .handoff import build_handoff
 from ..rag.retrieve import retrieve
 from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
 from .erp_grounding import verify_erp_grounding
@@ -273,9 +274,20 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         if role_cfg is not None:
             tool_name = plan.get("tool")
             if tool_name and role_cfg.state_of(tool_name) in (OTHER_DEPT, DENIED):
-                return {"messages": [AIMessage(
-                    content=_role_refusal_message(role_cfg, tool_name)
-                )], "pending_action": None, "auto_chain": None}
+                # Bàn giao (spec 2026-08-13): thay vì để việc bốc hơi, dựng một
+                # activity trên đúng chứng từ giao cho bộ phận có thẩm quyền.
+                # log_activity NẰM TRONG WRITE_COORDINATORS nên chỉ cần thay
+                # plan — coordinator lo tra chứng từ, kiểm loại, tra người nhận
+                # và cổng xác nhận. Không thêm cơ chế nào.
+                handoff = build_handoff(role_cfg, tool_name,
+                                        plan.get("args") or {},
+                                        plan.get("summary"))
+                if handoff is None:
+                    # SÀN: dựng không được thì giữ NGUYÊN hành vi cũ.
+                    return {"messages": [AIMessage(
+                        content=_role_refusal_message(role_cfg, tool_name)
+                    )], "pending_action": None, "auto_chain": None}
+                plan = handoff
 
         # Chuỗi đa bước khai báo trước: validate tất định qua registry walk.
         # LLM bịa chain_until → None → single-step như cũ (fail-safe).
@@ -295,9 +307,18 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         if role_cfg is not None and chain:
             for step_tool, _ in chain:
                 if role_cfg.state_of(step_tool) in (OTHER_DEPT, DENIED):
-                    return {"messages": [AIMessage(
-                        content=_role_refusal_message(role_cfg, step_tool)
-                    )], "pending_action": None, "auto_chain": None}
+                    handoff = build_handoff(role_cfg, step_tool,
+                                            plan.get("args") or {},
+                                            plan.get("summary"))
+                    if handoff is None:
+                        return {"messages": [AIMessage(
+                            content=_role_refusal_message(role_cfg, step_tool)
+                        )], "pending_action": None, "auto_chain": None}
+                    plan = handoff
+                    # chain được tính từ plan CŨ — giữ lại sẽ quảng cáo những
+                    # bước không còn liên quan trong lời xác nhận.
+                    chain = []
+                    break
 
         auto_chain = [t for t, _ in chain] if chain else None
         if chain:
