@@ -80,7 +80,7 @@ def test_khong_truyen_model_thi_dung_dau_chuoi_catalog(monkeypatch):
     _patch(monkeypatch)
     result = eval_gate.run(_args())
     assert result.detail["intent"]["model"] == "gemini-3.1-flash-lite"
-    assert result.detail["confirm"]["model"] == "groq-gpt-oss-20b"
+    assert result.detail["confirm"]["model"] == "gemma-4-26b"
 
 
 def test_model_override_applies_to_all_sets(monkeypatch):
@@ -98,7 +98,7 @@ def test_nhip_tu_dong_suy_tu_rpm_catalog(monkeypatch):
     eval_gate.run(_args())
     # gemini-3.1-flash-lite (router, dòng đầu) rpm=15 -> (60/15)*1.2 = 4.8
     assert fi.calls[0]["pace"] == pytest.approx(4.8)
-    # groq-gpt-oss-20b (evaluator, dòng đầu) rpm=30 -> cùng 2.4
+    # gemma-4-26b (evaluator, dòng đầu) rpm=30 -> cùng 2.4
     assert fc.calls[0]["pace"] == pytest.approx(2.4)
 
 
@@ -229,7 +229,7 @@ def test_chitchat_model_resolution_uses_chitchat_role(monkeypatch):
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
     monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
     result = eval_gate.run(_args(set_="chitchat"))
-    assert result.detail["chitchat"]["model"] == "gemma-4-31b"
+    assert result.detail["chitchat"]["model"] == "gemini-3.5-flash"
 
 
 def test_chitchat_registered_as_valid_set_choice():

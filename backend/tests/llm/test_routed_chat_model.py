@@ -94,7 +94,7 @@ def test_make_llms_nhan_ghim_theo_tung_vai(clock):
     llms["read"].invoke(MSGS)
     assert llms["read"].last_decision.spec.alias == "or-nemotron"
     llms["chitchat"].invoke(MSGS)
-    assert llms["chitchat"].last_decision.spec.alias == "gemma-4-31b"
+    assert llms["chitchat"].last_decision.spec.alias == "gemini-3.5-flash"
 
 
 def test_content_dang_list_duoc_gop_ve_string(clock):
@@ -132,7 +132,7 @@ def test_last_decision_khong_ro_ri_giua_hai_vai(clock):
     doc.invoke(MSGS)
     tan_gau.invoke(MSGS)
     assert doc.last_decision.spec.alias == "gemini-3.5-flash-lite"
-    assert tan_gau.last_decision.spec.alias == "gemma-4-31b"
+    assert tan_gau.last_decision.spec.alias == "gemini-3.5-flash"
 
 
 def test_last_decision_khong_ro_ri_giua_hai_request_dong_thoi(clock):
