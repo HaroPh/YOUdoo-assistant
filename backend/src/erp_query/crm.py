@@ -82,8 +82,8 @@ def list_my_activities(login, limit=20, *, gw=None):
         return err(f"Lỗi tra việc được giao: {e}")
     if not rows:
         return ok({"rows": []}, "Hiện không có việc nào được giao cho bạn.")
-    dong = [f"- {r.get('res_name') or r.get('res_model')}: "
+    lines = [f"- {r.get('res_name') or r.get('res_model')}: "
             f"{r.get('summary') or '(không có mô tả)'} "
             f"(hạn {r.get('date_deadline') or 'chưa đặt'})" for r in rows]
     return ok({"rows": rows},
-              f"{len(rows)} việc đang được giao cho bạn:\n" + "\n".join(dong))
+              f"{len(rows)} việc đang được giao cho bạn:\n" + "\n".join(lines))
