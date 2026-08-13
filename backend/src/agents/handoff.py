@@ -14,15 +14,19 @@ from .roles import DEPT_OF, load_profile
 
 # tool → (tên tham số mang mã chứng từ, res_model của chứng từ đó)
 #
-# Suy từ chữ ký thật trong WRITE_PLANNER_PROMPT (prompts.py). Bảng khai tay sẽ
-# trôi — test_handoff.py canh ba chiều: mọi khoá thuộc DEPT_OF, mọi tool trong
-# DEPT_OF đều được xếp loại, và NO_DOCUMENT_TOOLS không có mục chết.
+# Suy từ chữ ký thật trong WRITE_PLANNER_PROMPT (prompts.py) — CHỈ những tool
+# planner thật sự nêu được tên. Tool không có trong prompt đó thì guard vai
+# (soi plan["tool"]) không bao giờ thấy, nên không thuộc bảng này.
+#
+# Bảng khai tay sẽ trôi — test_handoff.py canh BA chiều: mọi khoá thuộc
+# DEPT_OF, mọi tool trong DEPT_OF đều được xếp loại, và NO_DOCUMENT_TOOLS
+# không có mục chết. LƯU Ý ba chiều đó KHÔNG canh được ánh xạ có ĐÚNG hay
+# không (tên tham số, res_model) — chỗ đó cần mắt người đọc chéo.
 HANDOFF_DOC_OF: dict[str, tuple[str, str]] = {
     "confirm_sale_order":        ("order_ref",   "sale.order"),
     "deliver_order":             ("order_ref",   "sale.order"),
     "create_invoice_from_order": ("order_ref",   "sale.order"),
     "return_order":              ("order_ref",   "sale.order"),
-    "flag_order_for_review":     ("order_ref",   "purchase.order"),
     "confirm_purchase_order":    ("order_ref",   "purchase.order"),
     "receive_order":             ("order_ref",   "purchase.order"),
     "create_bill_from_po":       ("order_ref",   "purchase.order"),
@@ -45,6 +49,15 @@ NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
     "post_invoice", "create_quotation", "create_rfq",
     "inventory_adjustment", "internal_transfer", "scrap_product",
     "log_activity",
+    # flag_order_for_review nằm đây vì HAI lý do, cả hai đều loại nó khỏi bảng
+    # trên (review Task 1 bắt được — bản plan đầu ép cứng "purchase.order"):
+    #   1. Nó KHÔNG có trong WRITE_PLANNER_PROMPT, nên planner không bao giờ
+    #      nêu được tên nó ⇒ guard vai (soi plan["tool"]) không bao giờ thấy.
+    #      Chỉ edit_order.py gọi nội bộ.
+    #   2. Model của nó LƯỠNG TÍNH: edit_order.py truyền model=cfg.model, mà
+    #      cfg là SALE_EDIT_CFG ("sale.order") HOẶC PURCHASE_EDIT_CFG
+    #      ("purchase.order"). Một tuple tĩnh không biểu diễn nổi.
+    "flag_order_for_review",
 })
 
 ACTIVITY_TYPE = "To-Do"
