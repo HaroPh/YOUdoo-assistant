@@ -77,6 +77,14 @@ async def test_warehouse_refused_post_invoice_no_pending_action(monkeypatch):
 #     thường nếu không bị chặn) — chứng minh cổng vai chặn CẢ HAI nhánh. ────
 
 @pytest.mark.asyncio
+def _khong_co_viec_trung(monkeypatch):
+    """Cô lập phép tra activity trùng khỏi Odoo THẬT — xem chú thích cùng tên
+    trong test_handoff_planner.py. Thiếu nó, hai test dưới đây sẽ ĐỎ ngay sau
+    lần nghiệm thu sống đầu tiên."""
+    import src.agents.nodes as nodes_mod
+    monkeypatch.setattr(nodes_mod, "_duplicate_handoff", lambda handoff: None)
+
+
 async def test_accounting_xin_deliver_order_thi_duoc_ban_giao_cho_kho(monkeypatch):
     """deliver_order thuộc other_dept của vai Kế toán (nghiệp vụ Kho).
 
@@ -89,6 +97,7 @@ async def test_accounting_xin_deliver_order_thi_duoc_ban_giao_cho_kho(monkeypatc
     im lặng — test này bắt được, nên đừng nới nó."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     _interrupt_must_not_fire(monkeypatch)
+    _khong_co_viec_trung(monkeypatch)
     llm = make_mock_llm(_plan_json("deliver_order", {"order_ref": "S00012"}))
     node = make_erp_write_planner_node(llm, role_cfg=ACCOUNTING)
 
@@ -142,6 +151,7 @@ async def test_admin_role_cfg_still_creates_pending_action(monkeypatch):
 async def test_unknown_tool_name_refused_not_confirmed(monkeypatch):
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     _interrupt_must_not_fire(monkeypatch)
+    _khong_co_viec_trung(monkeypatch)
     llm = make_mock_llm(_plan_json("other"))
     node = make_erp_write_planner_node(llm, role_cfg=WAREHOUSE)
 
@@ -173,6 +183,7 @@ async def test_warehouse_chain_deliver_then_invoice_refused_whole_chain(monkeypa
     CHUỖI trước khi chạy — không giao hàng rồi mới báo lỗi ở bước hai."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     _interrupt_must_not_fire(monkeypatch)
+    _khong_co_viec_trung(monkeypatch)
     plan = {"tool": "deliver_order", "args": {"order_ref": "S00012"},
             "summary": "Giao hàng và xuất hóa đơn",
             "chain_until": "create_invoice_from_order"}

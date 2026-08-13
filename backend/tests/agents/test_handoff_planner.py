@@ -20,6 +20,20 @@ class FakeLLM:
         return AIMessage(content=self._payload)
 
 
+def _khong_co_viec_trung(monkeypatch):
+    """Cô lập phép tra activity trùng khỏi Odoo THẬT.
+
+    `_duplicate_handoff` gọi `crm.list_my_activities` KHÔNG điều kiện, nên mọi
+    test dựng được bàn giao đều truy vấn Odoo thật. Đo được 2026-08-13: tạo một
+    activity trên sale.order S00012 giao cho ai-accounting làm
+    `test_dung_duoc_ban_giao_thi_thay_plan` chuyển từ PASS sang FAIL.
+
+    Ngòi nổ hẹn giờ: kịch bản nghiệm thu sống #2 TẠO ĐÚNG activity đó, nên sau
+    một lần nghiệm thu, bộ test sẽ đỏ và trông như hồi quy bí ẩn."""
+    import src.agents.nodes as nodes_mod
+    monkeypatch.setattr(nodes_mod, "_duplicate_handoff", lambda handoff: None)
+
+
 def _state(text="phát hành hóa đơn cho đơn S00012"):
     return {"messages": [HumanMessage(content=text)]}
 
@@ -30,6 +44,7 @@ async def test_dung_duoc_ban_giao_thi_thay_plan(monkeypatch):
     thay bằng log_activity, đi tiếp qua cổng xác nhận sẵn có."""
     monkeypatch.setattr("src.agents.write_gate.write_actions_enabled",
                         lambda: True)
+    _khong_co_viec_trung(monkeypatch)
     node = make_erp_write_planner_node(
         FakeLLM('{"tool": "create_invoice_from_order", '
                 '"args": {"order_ref": "S00012"}, '
@@ -90,3 +105,35 @@ async def test_vai_admin_khong_doi_gi(monkeypatch):
     out = await node(_state())
 
     assert out["pending_action"]["tool"] == "create_invoice_from_order"
+
+
+# ── _duplicate_handoff: hai nhánh, cô lập khỏi Odoo bằng fake ────────────────
+
+HANDOFF_MAU = {"tool": "log_activity",
+               "args": {"assignee": "ai-accounting", "res_model": "sale.order",
+                        "ref": "S00012"}}
+
+
+def test_tra_thay_viec_trung_thi_tra_ve_ban_ghi(monkeypatch):
+    import src.agents.nodes as nodes_mod
+    monkeypatch.setattr(nodes_mod.crm, "list_my_activities", lambda *a, **k: {
+        "status": "success",
+        "data": {"rows": [{"res_model": "sale.order", "res_name": "S00012",
+                           "date_deadline": "2026-08-20"}]}})
+
+    got = nodes_mod._duplicate_handoff(HANDOFF_MAU)
+
+    assert got is not None and got["date_deadline"] == "2026-08-20"
+
+
+def test_tra_hong_thi_KHONG_chan_ban_giao(monkeypatch):
+    """Fail-open có chủ đích: cùng lắm là một việc trùng, còn hơn mất hẳn
+    đường bàn giao vì một sự cố tạm thời của Odoo."""
+    import src.agents.nodes as nodes_mod
+
+    def no(*a, **k):
+        raise RuntimeError("Odoo sập")
+
+    monkeypatch.setattr(nodes_mod.crm, "list_my_activities", no)
+
+    assert nodes_mod._duplicate_handoff(HANDOFF_MAU) is None
