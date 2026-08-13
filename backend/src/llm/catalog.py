@@ -117,7 +117,34 @@ CATALOG: dict[str, ModelSpec] = {
 # ở 8K TPM chỉ chạy được ~2 request/phút với ngữ cảnh RAG, trong khi RPM 30
 # còn chưa dùng tới 1/15. Ai thiết kế theo RPM sẽ bị TPM đánh úp.
 CHAINS: dict[str, tuple[str, ...]] = {
-    "router":    ("gemma-4-26b", "groq-gpt-oss-20b", "or-ling"),
+    # router: gemini-3.1-flash-lite THAY gemma-4-26b ở mắt xích 1 (2026-08-13).
+    # Đo thật, n=54 bộ `intent` và n=17 bộ `sop_select`, mỗi model ghim một lượt:
+    #
+    #   model                   intent acc   intent p50   sop acc   hijack   sop p95
+    #   gemma-4-26b               0.9444       6103ms     0.9412      0      21031ms
+    #   gemini-3.1-flash-lite     0.9630       1008ms     0.9412      0       2861ms
+    #
+    # Chất lượng: 2 ca sai của gemini là TẬP CON THẬT SỰ của 3 ca sai gemma;
+    # cả hai sai đúng một ca giống nhau ở sop_select (ca "quy trình nhập kho cho
+    # đơn mua P00021" — chính ca mà lớp phủ quyết tất định tồn tại để bắt, xem
+    # agents/routing.py). hijack = 0 ở CẢ HAI: cổng an toàn không thụt.
+    #
+    # Vì sao đáng đổi: router chạy trên MỌI tin nhắn trước khi bất cứ việc gì
+    # khác bắt đầu, và gemma trả "thuế suy luận" 300-2045 token cho một việc
+    # phân loại ra đúng MỘT TỪ. gemini-*-flash-lite có emits_thought_tags=False
+    # và max_output_tokens=8192 nên không trả thuế đó.
+    #
+    # gemma-4-26b RỜI HẲN chuỗi này, KHÔNG xuống làm mắt xích 2. Bản nháp đầu
+    # định giữ nó ở vị trí 2 (ví rpd=14_400 làm lưới đỡ khi flash-lite cạn
+    # rpd=500) — SAI, và test_khong_hai_mat_xich_nao_trong_mot_chuoi_chung_upstream
+    # bắt được: cả hai đều upstream="google", nên rơi từ cái này xuống cái kia
+    # là rơi vào lại chính miền lỗi vừa ngã. Bất biến #1 thắng lý lẽ hạn mức.
+    # gemma-4-26b vẫn phục vụ vai `evaluator` (mắt xích 2).
+    #
+    # Chọn 3.1-flash-lite chứ không phải 3.5: 3.5 ĐÃ gánh planner+read, còn 3.1
+    # chỉ gánh fusion+synthesis (hai vai chỉ chạy ở nhánh mixed, thưa hơn) —
+    # chia tải qua hai ví thay vì chất đống lên một.
+    "router":    ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"),
     "chitchat":  ("gemma-4-31b", "groq-gpt-oss-20b"),
     "evaluator": ("groq-gpt-oss-20b", "gemma-4-26b"),
     "planner":   ("gemini-3.5-flash-lite", "groq-gpt-oss-120b", "or-nemotron"),
