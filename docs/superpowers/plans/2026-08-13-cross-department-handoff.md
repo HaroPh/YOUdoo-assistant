@@ -206,7 +206,6 @@ HANDOFF_DOC_OF: dict[str, tuple[str, str]] = {
     "deliver_order":             ("order_ref",   "sale.order"),
     "create_invoice_from_order": ("order_ref",   "sale.order"),
     "return_order":              ("order_ref",   "sale.order"),
-    "flag_order_for_review":     ("order_ref",   "purchase.order"),
     "confirm_purchase_order":    ("order_ref",   "purchase.order"),
     "receive_order":             ("order_ref",   "purchase.order"),
     "create_bill_from_po":       ("order_ref",   "purchase.order"),
@@ -229,6 +228,14 @@ NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
     "post_invoice", "create_quotation", "create_rfq",
     "inventory_adjustment", "internal_transfer", "scrap_product",
     "log_activity",
+    # flag_order_for_review nằm đây vì HAI lý do (review Task 1 bắt được):
+    #   1. KHÔNG có trong WRITE_PLANNER_PROMPT ⇒ planner không nêu được tên nó
+    #      ⇒ guard vai (soi plan["tool"]) không bao giờ thấy. Chỉ edit_order.py
+    #      gọi nội bộ.
+    #   2. Model LƯỠNG TÍNH: edit_order.py truyền model=cfg.model, mà cfg là
+    #      SALE_EDIT_CFG ("sale.order") HOẶC PURCHASE_EDIT_CFG
+    #      ("purchase.order"). Một tuple tĩnh không biểu diễn nổi.
+    "flag_order_for_review",
 })
 
 ACTIVITY_TYPE = "To-Do"
