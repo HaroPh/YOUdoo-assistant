@@ -452,3 +452,44 @@ async def test_ainvoke_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_n
     got = await r.ainvoke("fusion", MSGS)
 
     assert got.message.content == ""    # KHÔNG ném
+
+
+def test_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
+    """Đối chứng ÂM cho C1: bản vá bọc resolve() trong try/except, nhưng nó
+    CHỈ được nuốt lỗi khi đang cầm một kết quả rỗng. Cạn chuỗi ngay vòng lặp
+    ĐẦU (chưa gọi model lần nào) phải ném ra ngoài y như trước bản vá.
+
+    PHẢI kiểm nội dung `skipped`, không chỉ kiểm loại exception: gỡ nhánh
+    `if last_empty is None: raise` đi thì luồng rơi xuống `raise` ở CUỐI hàm
+    và vẫn ném ĐÚNG loại ChainExhausted — chỉ khác là `skipped` rỗng vì
+    `attempts` rỗng. Một test chỉ dùng pytest.raises(ChainExhausted) sẽ XANH
+    với cả hai bản, tức không đo gì (đã thử phá và xác nhận)."""
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
+    r = Router(ledger, client_factory=lambda spec: khong_duoc_cham)
+    for alias in ("gemma-4-26b", "groq-gpt-oss-20b", "or-ling"):
+        ledger.cooldown(spec_for(alias), 60.0)
+
+    with pytest.raises(ChainExhausted) as exc:
+        r.invoke("router", MSGS)
+
+    # Lỗi phải là lỗi THẬT từ resolve(), mang đủ 3 mắt xích và lý do —
+    # không phải cái vỏ rỗng sinh ra ở cuối hàm.
+    assert [s.alias for s in exc.value.skipped] == [
+        "gemma-4-26b", "groq-gpt-oss-20b", "or-ling"]
+    assert len(khong_duoc_cham.calls) == 0
+
+
+async def test_ainvoke_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
+    r = Router(ledger, client_factory=lambda spec: khong_duoc_cham)
+    for alias in ("gemma-4-26b", "groq-gpt-oss-20b", "or-ling"):
+        ledger.cooldown(spec_for(alias), 60.0)
+
+    with pytest.raises(ChainExhausted) as exc:
+        await r.ainvoke("router", MSGS)
+
+    assert [s.alias for s in exc.value.skipped] == [
+        "gemma-4-26b", "groq-gpt-oss-20b", "or-ling"]
+    assert len(khong_duoc_cham.calls) == 0
