@@ -105,6 +105,36 @@ def fake_ai_google(content="xong", *, prompt=10, completion=20, total=30,
                      usage_metadata=meta)
 
 
+def fake_ai_rong(*, prompt=361, completion=2045, total=2406,
+                 finish_reason="MAX_TOKENS"):
+    """Phản hồi RỖNG mà production thật sự nhận được.
+
+    Số liệu chép từ phép đo sống 2026-08-13 với gemma-4-26b ở vai router:
+    toàn bộ 2045 token đầu ra là reasoning, content rỗng, finish_reason
+    MAX_TOKENS. Đây là hình dạng đã làm intent router phân loại nhầm thành
+    'unknown'."""
+    return AIMessage(
+        content="",
+        response_metadata={"finish_reason": finish_reason},
+        usage_metadata={"input_tokens": prompt, "output_tokens": completion,
+                        "total_tokens": total,
+                        "output_token_details": {"reasoning": completion}})
+
+
+def fake_ai_tool_call(name="get_stock", *, prompt=10, completion=20, total=30):
+    """Lượt gọi tool THÀNH CÔNG — content RỖNG, có tool_calls.
+
+    Đo 2026-08-13: cả gemini-3.5-flash-lite lẫn gemma-4-26b đều trả đúng hình
+    dạng này (content='', 1 tool_call, finish_reason=STOP) cho câu hỏi tồn
+    kho. Đây là ca dễ bị bản sửa phá nhất."""
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": {}, "id": "call_1"}],
+        response_metadata={"token_usage": {
+            "prompt_tokens": prompt, "completion_tokens": completion,
+            "total_tokens": total}})
+
+
 class FakeRateLimit(Exception):
     status_code = 429
 

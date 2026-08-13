@@ -19,6 +19,10 @@ class Verdict(str, Enum):
     TPM = "tpm_exhausted"
     RPD = "rpd_exhausted"
     COOLDOWN = "cooldown"
+    # Mắt xích đã trả phản hồi rỗng TRONG CHÍNH lượt gọi này. Khác COOLDOWN ở
+    # chỗ: không có tác dụng phụ sang request sau — model không ốm, nó chỉ
+    # không trả lời nổi prompt này.
+    EMPTY = "empty_response"
 
 
 def _utcnow() -> datetime:

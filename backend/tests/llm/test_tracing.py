@@ -84,6 +84,34 @@ def test_annotate_span_gan_dung_field_qua_fake_span():
     assert captured["actual_tokens"] == 30
 
 
+def test_annotate_span_tach_empty_skip_khoi_budget_verdict():
+    """M2: decision.skipped có thể trộn cả phán quyết ngân sách thật
+    (rpm/tpm/rpd/cooldown) LẪN mắt xích bị bỏ vì phản hồi rỗng
+    (Verdict.EMPTY) — từ khi có nhánh router-empty-response-fallthrough.
+    budget_verdict chỉ được giữ cái đầu; ai truy vấn khoá này để đếm cạn hạn
+    mức mà đếm luôn cả EMPTY thì đếm dư. EMPTY phải sang khoá riêng
+    empty_skips, phân biệt bằng Verdict.EMPTY chứ không so chuỗi."""
+    captured = {}
+
+    class _FakeSpan:
+        def update(self, *, metadata):
+            captured.update(metadata)
+
+    decision = RouteDecision(
+        role="router", spec=spec_for("groq-gpt-oss-20b"), fallback_depth=2,
+        skipped=(SkippedLink("gemma-4-26b", Verdict.EMPTY),
+                 SkippedLink("gemini-3.5-flash-lite", Verdict.COOLDOWN)),
+        base_tokens=123)
+    result = InvokeResult(
+        message=AIMessage(content="ok"), decision=decision,
+        prompt_tokens=10, completion_tokens=20, total_tokens=30, attempts=())
+
+    tracing.annotate_span(_FakeSpan(), decision, result)
+
+    assert captured["budget_verdict"] == [("gemini-3.5-flash-lite", "cooldown")]
+    assert captured["empty_skips"] == ["gemma-4-26b"]
+
+
 def test_routed_span_gan_dung_span_lam_cha_qua_otel_that(monkeypatch):
     """Bài test QUAN TRỌNG NHẤT của task này: dựng một Langfuse client với
     TracerProvider/InMemorySpanExporter THẬT (opentelemetry-sdk, không cần
