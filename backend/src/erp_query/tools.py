@@ -60,7 +60,7 @@ def _forbid_extra_kwargs(t) -> None:
     t.args_schema.model_rebuild(force=True)
 
 
-def build_erp_query_tools() -> list:
+def build_erp_query_tools(role_cfg=None) -> list:
     @tool
     def find_customer(name: str) -> str:
         """Tìm khách hàng theo tên/email/điện thoại; trả về các ứng viên + ID."""
@@ -218,6 +218,17 @@ def build_erp_query_tools() -> list:
         khách) và phải trả (nếu là NCC)."""
         return _json(accounting.get_partner_balance(name))
 
+    @tool
+    def list_my_activities(limit: int = 20) -> str:
+        """Việc (activity) đang được giao cho bộ phận của bạn, hạn gần nhất trước.
+
+        Dùng khi người dùng hỏi kiểu "có việc gì chuyển cho tôi không?",
+        "việc của tôi", "tôi cần làm gì".
+        """
+        if role_cfg is None:
+            return _json(crm.list_my_activities("", limit=limit))
+        return _json(crm.list_my_activities(f"ai-{role_cfg.name}", limit=limit))
+
     tools = [find_customer, find_supplier, find_product, list_sale_orders,
              get_sale_order_detail, get_product_price, sales_summary, top_products,
              get_stock, get_lots, list_purchase_orders, get_purchase_order_detail,
@@ -225,7 +236,7 @@ def build_erp_query_tools() -> list:
              get_customer_detail, list_crm_leads, list_invoices, get_overdue_invoices,
              list_reorder_needed, get_bom_detail, list_manufacturing_orders,
              list_late_deliveries, check_po_matching, list_po_mismatches,
-             get_partner_balance]
+             get_partner_balance, list_my_activities]
     for t in tools:
         _forbid_extra_kwargs(t)
         _reject_ref_shaped_partner_names(t)
