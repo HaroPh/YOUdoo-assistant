@@ -125,6 +125,31 @@ def _gop_content(content) -> str:
     return str(content)
 
 
+EMPTY_RESPONSE_REASON = "phản hồi rỗng (không content, không tool_calls)"
+
+
+def _usable(message) -> bool:
+    """Phản hồi này có dùng được không.
+
+    Luật CẤU TRÚC, cố ý KHÔNG so chuỗi `finish_reason`: Google trả
+    "MAX_TOKENS", Groq trả "length", hoa/thường khác nhau — bắt theo chuỗi của
+    nhà cung cấp là đúng lớp lỗi đã có tiền lệ trong repo (bài học đợt
+    log_activity: phát hiện theo NƠI, không theo NỘI DUNG). "Rỗng và không gọi
+    tool" là tính chất cấu trúc, không phụ thuộc nhà cung cấp.
+
+    tool_calls PHẢI được tính là dùng được. Đo 2026-08-13: một lượt gọi tool
+    THÀNH CÔNG cũng có content rỗng — cả gemini-3.5-flash-lite lẫn gemma-4-26b
+    trả content='' + 1 tool_call, finish_reason=STOP. Bỏ vế này sẽ làm hỏng
+    erp_read, gather_erp, erp_write_planner và mọi node SOP.
+
+    Gọi hàm này TRÊN MESSAGE ĐÃ QUA _finish(): lúc đó content chắc chắn là str
+    (đã qua _gop_content) và đã gỡ khối thought.
+    """
+    if getattr(message, "tool_calls", None):
+        return True
+    return bool((getattr(message, "content", "") or "").strip())
+
+
 class Router:
     def __init__(self, ledger: BudgetLedger, client_factory=client_for) -> None:
         self._ledger = ledger
@@ -135,7 +160,8 @@ class Router:
         self._clients: dict[str, object] = {}
 
     def resolve(self, role: str, base_tokens: int,
-                pin: str | None = None) -> RouteDecision:
+                pin: str | None = None,
+                skip: frozenset[str] = frozenset()) -> RouteDecision:
         """Mắt xích đầu tiên còn đủ ngân sách và không bị cooldown.
 
         pin: bỏ qua toàn bộ chuỗi, ép đúng một model. Chế độ này TỒN TẠI VÌ
@@ -144,6 +170,11 @@ class Router:
         phải đo MỘT MODEL chứ không phải một trạng thái ngân sách. Ghim là
         ghim — ngân sách cạn cũng không tụt, vì tụt lặng lẽ sẽ làm hỏng phép đo
         mà không báo gì.
+
+        skip: alias đã hỏng TRONG CHÍNH lượt gọi này (vd đã trả phản hồi
+        rỗng). Cục bộ trong một lượt — khác cooldown, không có tác dụng phụ
+        sang request sau. Không có nó, resolve() sẽ trả lại đúng mắt xích vừa
+        rỗng và vòng lặp fallback thành vô nghĩa.
         """
         if pin is not None:
             return RouteDecision(role=role, spec=spec_for(pin),
@@ -152,6 +183,10 @@ class Router:
 
         skipped: list[SkippedLink] = []
         for depth, spec in enumerate(chain_for(role)):
+            if spec.alias in skip:
+                skipped.append(SkippedLink(alias=spec.alias,
+                                           verdict=Verdict.EMPTY))
+                continue
             verdict = self._ledger.can_afford(spec, base_tokens)
             if verdict is Verdict.OK:
                 if skipped:
