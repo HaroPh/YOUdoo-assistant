@@ -363,3 +363,92 @@ async def test_ainvoke_phan_hoi_rong_co_tool_call_thi_KHONG_tut(clock):
 
     assert got.decision.spec.alias == "gemini-3.5-flash-lite"
     assert len(khong_duoc_cham.calls) == 0
+
+
+async def test_ainvoke_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem(clock):
+    """Bản ainvoke của test_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem
+    — spec §4.1 hứa bảng ca áp cho CẢ invoke LẪN ainvoke, nhưng ainvoke mới là
+    đường production thật (routing.py/confirmation.py/erp_agent.py đều
+    `await llm.ainvoke`)."""
+    rong = FakeChatClient([fake_ai_rong()])
+    r = _router(clock, {"gemini-3.1-flash-lite": rong,
+                        "groq-llama-3.3-70b": rong})
+
+    got = await r.ainvoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
+
+    assert got.message.content == ""
+    assert len(got.attempts) == 2
+    assert all(a.error == EMPTY_RESPONSE_REASON for a in got.attempts)
+
+
+async def test_ainvoke_ghim_gap_phan_hoi_rong_thi_goi_dung_mot_lan(clock):
+    """Bản ainvoke của test_ghim_gap_phan_hoi_rong_thi_goi_dung_mot_lan."""
+    rong = FakeChatClient([fake_ai_rong()])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: rong)
+
+    got = await r.ainvoke("router", MSGS, pin="gemma-4-26b")
+
+    assert got.message.content == ""
+    assert got.decision.spec.alias == "gemma-4-26b"
+    assert len(rong.calls) == 1
+
+
+async def test_ainvoke_luot_bi_bo_van_duoc_ghi_so_ngan_sach(clock):
+    """Bản ainvoke của test_luot_bi_bo_van_duoc_ghi_so_ngan_sach."""
+    store = InMemoryUsageStore()
+    ledger = BudgetLedger(store, clock=clock)
+    rong = FakeChatClient([fake_ai_rong(total=2406)])
+    tot = FakeChatClient([fake_ai("ok", total=800)])
+    r = Router(ledger, client_factory=lambda spec: {
+        "gemma-4-26b": rong, "groq-gpt-oss-20b": tot}[spec.alias])
+
+    await r.ainvoke("router", MSGS)
+
+    assert store.usage_since(since=clock(),
+                             alias="gemma-4-26b").total_tokens == 2406
+    assert store.usage_since(since=clock(),
+                             alias="groq-gpt-oss-20b").total_tokens == 800
+
+
+async def test_ainvoke_phan_hoi_rong_KHONG_dat_cooldown(clock):
+    """Bản ainvoke của test_phan_hoi_rong_KHONG_dat_cooldown."""
+    rong = FakeChatClient([fake_ai_rong(), fake_ai("intent: erp_read")])
+    tot = FakeChatClient([fake_ai("intent: erp_write")])
+    r = _router(clock, {"gemma-4-26b": rong, "groq-gpt-oss-20b": tot})
+
+    await r.ainvoke("router", MSGS)          # lượt 1: rỗng → tụt
+    got = await r.ainvoke("router", MSGS)    # lượt 2: mắt xích 1 PHẢI được thử lại
+
+    assert len(rong.calls) == 2
+    assert got.decision.spec.alias == "gemma-4-26b"
+    assert got.message.content == "intent: erp_read"
+
+
+def test_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_nem(clock):
+    """C1: self.resolve(...) nằm NGOÀI try/except. Mắt xích 1 (rỗng) đã bị
+    thêm vào skip cho lượt kế; nếu mắt xích 2 đang cooldown thì resolve() gọi
+    lại sẽ cạn TOÀN BỘ chuỗi 2 mắt xích của vai fusion và ném ChainExhausted
+    NGAY ĐẦU vòng lặp — TRƯỚC khi chạm nhánh `if last_empty is not None`.
+    Kết quả rỗng đang cầm trong tay bị vứt, hàm ném ra ngoài thay vì trả về."""
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    rong = FakeChatClient([fake_ai_rong()])
+    r = Router(ledger, client_factory=lambda spec: rong)
+    ledger.cooldown(spec_for("groq-llama-3.3-70b"), 60.0)
+
+    got = r.invoke("fusion", MSGS)      # chuỗi fusion: gemini-3.1-flash-lite, groq-llama-3.3-70b
+
+    assert got.message.content == ""    # KHÔNG ném
+
+
+async def test_ainvoke_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_nem(clock):
+    """Bản async của test C1 ngay trên — invoke()/ainvoke() là hai thân hàm
+    riêng, phải chứng minh cả hai cùng bị bug và cùng được sửa."""
+    ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
+    rong = FakeChatClient([fake_ai_rong()])
+    r = Router(ledger, client_factory=lambda spec: rong)
+    ledger.cooldown(spec_for("groq-llama-3.3-70b"), 60.0)
+
+    got = await r.ainvoke("fusion", MSGS)
+
+    assert got.message.content == ""    # KHÔNG ném

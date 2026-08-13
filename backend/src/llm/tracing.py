@@ -51,6 +51,8 @@ from contextlib import contextmanager
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 
+from .budget import Verdict
+
 logger = logging.getLogger(__name__)
 _warned_once = False
 
@@ -71,7 +73,15 @@ def get_handler() -> "CallbackHandler | None":
 def _metadata(decision, result) -> dict:
     """decision: RouteDecision (router.py). result: InvokeResult (router.py)
     — result.total_tokens là con số có thẩm quyền, KHÔNG cộng
-    prompt_tokens+completion_tokens (bất biến toàn dự án)."""
+    prompt_tokens+completion_tokens (bất biến toàn dự án).
+
+    budget_verdict CHỈ giữ phán quyết NGÂN SÁCH thật (rpm/tpm/rpd/cooldown).
+    Từ khi có nhánh phản hồi-rỗng, decision.skipped còn chứa cả mắt xích bị
+    bỏ vì Verdict.EMPTY (model không ốm, không cạn hạn mức — nó chỉ không trả
+    lời nổi prompt này trong CHÍNH lượt gọi này). Gộp chung vào
+    budget_verdict sẽ làm ai đó truy vấn khoá này để đếm số lần cạn hạn mức
+    đếm dư. Tách sang khoá riêng empty_skips (danh sách alias), phân biệt
+    bằng Verdict.EMPTY chứ không so chuỗi."""
     return {
         "role": decision.role,
         "alias": decision.spec.alias,
@@ -79,7 +89,10 @@ def _metadata(decision, result) -> dict:
         "upstream": decision.spec.upstream,
         "fallback_depth": decision.fallback_depth,
         "budget_verdict": [(s.alias, s.verdict.value)
-                           for s in decision.skipped],
+                           for s in decision.skipped
+                           if s.verdict is not Verdict.EMPTY],
+        "empty_skips": [s.alias for s in decision.skipped
+                        if s.verdict is Verdict.EMPTY],
         "est_tokens": decision.base_tokens,
         "actual_tokens": result.total_tokens,
     }

@@ -303,8 +303,17 @@ class Router:
         empty_aliases: set[str] = set()
         last_empty: InvokeResult | None = None
         for _ in range(self._max_attempts(role, pin)):
-            decision = self.resolve(role, base, pin=pin,
-                                    skip=frozenset(empty_aliases))
+            try:
+                decision = self.resolve(role, base, pin=pin,
+                                        skip=frozenset(empty_aliases))
+            except ChainExhausted:
+                # Cạn chuỗi TRONG lúc đang cầm một kết quả rỗng: vẫn phải trả
+                # kết quả đó, không được ném. Hành vi trước bản sửa là SÀN —
+                # bản sửa chỉ được cải thiện, không được đẻ ra đường hỏng mới.
+                # Chưa cầm gì thì để lỗi bay ra như cũ.
+                if last_empty is None:
+                    raise
+                break
             try:
                 response = self._client(decision.spec, tools, tool_kwargs).invoke(
                     messages, config=config, **kwargs)
@@ -346,9 +355,18 @@ class Router:
         empty_aliases: set[str] = set()
         last_empty: InvokeResult | None = None
         for _ in range(self._max_attempts(role, pin)):
-            decision = await asyncio.to_thread(
-                self.resolve, role, base, pin=pin,
-                skip=frozenset(empty_aliases))
+            try:
+                decision = await asyncio.to_thread(
+                    self.resolve, role, base, pin=pin,
+                    skip=frozenset(empty_aliases))
+            except ChainExhausted:
+                # Cạn chuỗi TRONG lúc đang cầm một kết quả rỗng: vẫn phải trả
+                # kết quả đó, không được ném. Hành vi trước bản sửa là SÀN —
+                # bản sửa chỉ được cải thiện, không được đẻ ra đường hỏng mới.
+                # Chưa cầm gì thì để lỗi bay ra như cũ.
+                if last_empty is None:
+                    raise
+                break
             try:
                 response = await self._client(
                     decision.spec, tools, tool_kwargs).ainvoke(
