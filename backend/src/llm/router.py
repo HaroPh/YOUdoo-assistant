@@ -4,6 +4,7 @@ resolve() CHỈ chọn, không gọi — gọi thật nằm ở Router.invoke() 
 vậy để toàn bộ logic chọn test được bằng sổ ngân sách giả, không cần client.
 """
 import asyncio
+import dataclasses
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -223,6 +224,18 @@ class Router:
         self._ledger.cooldown(spec, seconds)
         logger.warning("%s hỏng (%s) — nghỉ %.0fs", spec.alias, exc, seconds)
 
+    def _log_empty(self, decision: RouteDecision, response) -> None:
+        """Ghi lại một lượt bị bỏ vì rỗng.
+
+        finish_reason CHỈ dùng để ghi log, KHÔNG dùng để quyết định (xem
+        _usable). Đây là cách duy nhất để về sau biết tần suất thật trên lưu
+        lượng thật, thay vì suy từ 36 lượt đo lúc chẩn đoán."""
+        meta = getattr(response, "response_metadata", None) or {}
+        logger.warning(
+            "vai %s: %s trả phản hồi rỗng (finish_reason=%s) — bỏ lượt, "
+            "thử mắt xích sau", decision.role, decision.spec.alias,
+            meta.get("finish_reason"))
+
     @staticmethod
     def _usage(response) -> tuple[int, int, int]:
         """Rút (prompt, completion, total) — LẤY total THÔ CỦA PROVIDER, không
@@ -287,8 +300,11 @@ class Router:
                tool_kwargs: dict | None = None, **kwargs) -> InvokeResult:
         base = estimate_base_tokens(messages, tools)
         attempts: list[AttemptError] = []
+        empty_aliases: set[str] = set()
+        last_empty: InvokeResult | None = None
         for _ in range(self._max_attempts(role, pin)):
-            decision = self.resolve(role, base, pin=pin)
+            decision = self.resolve(role, base, pin=pin,
+                                    skip=frozenset(empty_aliases))
             try:
                 response = self._client(decision.spec, tools, tool_kwargs).invoke(
                     messages, config=config, **kwargs)
@@ -296,7 +312,21 @@ class Router:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
                 continue
-            return self._finish(decision, response, attempts)
+            # _finish ghi sổ ngân sách — phải chạy KỂ CẢ khi lượt này bị bỏ,
+            # vì token đã tiêu thật.
+            result = self._finish(decision, response, attempts)
+            if _usable(result.message):
+                return result
+            self._log_empty(decision, response)
+            attempts.append(AttemptError(decision.spec.alias,
+                                         EMPTY_RESPONSE_REASON))
+            empty_aliases.add(decision.spec.alias)
+            last_empty = result
+        if last_empty is not None:
+            # Cạn chuỗi vì rỗng → trả kết quả cuối, KHÔNG ném. Giữ hành vi
+            # trước bản sửa làm sàn: không caller nào bắt ChainExhausted, nên
+            # ném ở đây sẽ biến câu trả lời kém thành lỗi 500.
+            return dataclasses.replace(last_empty, attempts=tuple(attempts))
         raise ChainExhausted(role, tuple(
             SkippedLink(a.alias, Verdict.COOLDOWN) for a in attempts))
 
@@ -313,8 +343,12 @@ class Router:
         # của chúng còn nguyên giá trị. Đường invoke() đồng bộ không đổi.
         base = estimate_base_tokens(messages, tools)
         attempts: list[AttemptError] = []
+        empty_aliases: set[str] = set()
+        last_empty: InvokeResult | None = None
         for _ in range(self._max_attempts(role, pin)):
-            decision = await asyncio.to_thread(self.resolve, role, base, pin=pin)
+            decision = await asyncio.to_thread(
+                self.resolve, role, base, pin=pin,
+                skip=frozenset(empty_aliases))
             try:
                 response = await self._client(
                     decision.spec, tools, tool_kwargs).ainvoke(
@@ -323,7 +357,17 @@ class Router:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
                 continue
-            return await asyncio.to_thread(self._finish, decision, response, attempts)
+            result = await asyncio.to_thread(self._finish, decision, response,
+                                             attempts)
+            if _usable(result.message):
+                return result
+            self._log_empty(decision, response)
+            attempts.append(AttemptError(decision.spec.alias,
+                                         EMPTY_RESPONSE_REASON))
+            empty_aliases.add(decision.spec.alias)
+            last_empty = result
+        if last_empty is not None:
+            return dataclasses.replace(last_empty, attempts=tuple(attempts))
         raise ChainExhausted(role, tuple(
             SkippedLink(a.alias, Verdict.COOLDOWN) for a in attempts))
 

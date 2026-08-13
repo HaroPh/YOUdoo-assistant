@@ -3,11 +3,12 @@ from langchain_core.messages import HumanMessage
 
 from src.llm.budget import BudgetLedger
 from src.llm.catalog import spec_for
-from src.llm.router import (COOLDOWN_RATE_LIMIT_S, ChainExhausted,
-                            RoutedChatModel, Router)
+from src.llm.router import (COOLDOWN_RATE_LIMIT_S, EMPTY_RESPONSE_REASON,
+                            ChainExhausted, RoutedChatModel, Router)
 from src.llm.store import InMemoryUsageStore
 from tests.llm.conftest import (FakeChatClient, FakeRateLimit, FakeServerError,
-                                fake_ai, fake_ai_google)
+                                fake_ai, fake_ai_google, fake_ai_rong,
+                                fake_ai_tool_call)
 
 MSGS = [HumanMessage("Tồn kho ABC?")]
 
@@ -244,3 +245,121 @@ def test_invoke_dung_routed_span_va_annotate_span(clock, monkeypatch):
     assert span == "FAKE_SPAN"
     assert decision is result.decision
     assert result.total_tokens == 30
+
+
+def test_phan_hoi_rong_thi_tut_mat_xich(clock):
+    """Lỗi sống 2026-08-13: gemma-4-26b đốt hết 2045/2048 token vào suy luận
+    nội bộ, phát ra 0 token hiển thị, HTTP 200. Trước bản sửa, chuỗi fallback
+    không bao giờ chạy vì nó chỉ chạy khi có exception."""
+    rong = FakeChatClient([fake_ai_rong()])
+    tot = FakeChatClient([fake_ai("intent: erp_write")])
+    r = _router(clock, {"gemma-4-26b": rong, "groq-gpt-oss-20b": tot})
+
+    got = r.invoke("router", MSGS)
+
+    assert got.message.content == "intent: erp_write"
+    assert got.decision.spec.alias == "groq-gpt-oss-20b"
+    assert len(rong.calls) == 1        # gọi ĐÚNG một lần, không lặp lại
+    assert len(tot.calls) == 1
+
+
+def test_phan_hoi_rong_NHUNG_co_tool_call_thi_KHONG_tut(clock):
+    """Ca dễ phá nhất: một lượt gọi tool THÀNH CÔNG cũng có content rỗng.
+    Luật thiếu vế tool_calls sẽ làm hỏng erp_read, gather_erp,
+    erp_write_planner và mọi node SOP."""
+    goi_tool = FakeChatClient([fake_ai_tool_call()])
+    khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi tới đây")])
+    r = _router(clock, {"gemini-3.5-flash-lite": goi_tool,
+                        "groq-llama-3.3-70b": khong_duoc_cham})
+
+    got = r.invoke("read", MSGS)
+
+    assert got.decision.spec.alias == "gemini-3.5-flash-lite"
+    assert got.message.tool_calls[0]["name"] == "get_stock"
+    assert len(khong_duoc_cham.calls) == 0
+
+
+def test_luot_bi_bo_van_duoc_ghi_so_ngan_sach(clock):
+    """Token đã tiêu THẬT. Không ghi sổ thì sổ đếm thiếu và làm hỏng chính
+    cơ chế chọn model."""
+    store = InMemoryUsageStore()
+    ledger = BudgetLedger(store, clock=clock)
+    rong = FakeChatClient([fake_ai_rong(total=2406)])
+    tot = FakeChatClient([fake_ai("ok", total=800)])
+    r = Router(ledger, client_factory=lambda spec: {
+        "gemma-4-26b": rong, "groq-gpt-oss-20b": tot}[spec.alias])
+
+    r.invoke("router", MSGS)
+
+    assert store.usage_since(since=clock(),
+                             alias="gemma-4-26b").total_tokens == 2406
+    assert store.usage_since(since=clock(),
+                             alias="groq-gpt-oss-20b").total_tokens == 800
+
+
+def test_phan_hoi_rong_KHONG_dat_cooldown(clock):
+    """Đây không phải 429 và model không ốm — nó chỉ không trả lời nổi prompt
+    này. Lượt sau vẫn phải thử lại mắt xích 1."""
+    rong = FakeChatClient([fake_ai_rong(), fake_ai("intent: erp_read")])
+    tot = FakeChatClient([fake_ai("intent: erp_write")])
+    r = _router(clock, {"gemma-4-26b": rong, "groq-gpt-oss-20b": tot})
+
+    r.invoke("router", MSGS)          # lượt 1: rỗng → tụt
+    got = r.invoke("router", MSGS)    # lượt 2: mắt xích 1 PHẢI được thử lại
+
+    assert len(rong.calls) == 2
+    assert got.decision.spec.alias == "gemma-4-26b"
+    assert got.message.content == "intent: erp_read"
+
+
+def test_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem(clock):
+    """Giữ hành vi hôm nay làm SÀN: bản sửa chỉ được cải thiện, không được đẻ
+    ra đường crash mới. Không caller nào trong repo bắt ChainExhausted."""
+    rong = FakeChatClient([fake_ai_rong()])
+    r = _router(clock, {"gemini-3.1-flash-lite": rong,
+                        "groq-llama-3.3-70b": rong})
+
+    got = r.invoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
+
+    assert got.message.content == ""
+    assert len(got.attempts) == 2
+    assert all(a.error == EMPTY_RESPONSE_REASON for a in got.attempts)
+
+
+def test_ghim_gap_phan_hoi_rong_thi_goi_dung_mot_lan(clock):
+    """Ghim là ghim. Toàn bộ eval dựa vào điều này — tụt lặng lẽ sẽ làm eval
+    đo một model khác model được ghim."""
+    rong = FakeChatClient([fake_ai_rong()])
+    r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
+               client_factory=lambda spec: rong)
+
+    got = r.invoke("router", MSGS, pin="gemma-4-26b")
+
+    assert got.message.content == ""
+    assert got.decision.spec.alias == "gemma-4-26b"
+    assert len(rong.calls) == 1
+
+
+async def test_ainvoke_cung_tut_khi_phan_hoi_rong(clock):
+    """invoke và ainvoke là HAI thân hàm riêng — sửa một quên một là lỗi rất
+    dễ xảy ra ở file này."""
+    rong = FakeChatClient([fake_ai_rong()])
+    tot = FakeChatClient([fake_ai("intent: erp_write")])
+    r = _router(clock, {"gemma-4-26b": rong, "groq-gpt-oss-20b": tot})
+
+    got = await r.ainvoke("router", MSGS)
+
+    assert got.decision.spec.alias == "groq-gpt-oss-20b"
+    assert got.message.content == "intent: erp_write"
+
+
+async def test_ainvoke_phan_hoi_rong_co_tool_call_thi_KHONG_tut(clock):
+    goi_tool = FakeChatClient([fake_ai_tool_call()])
+    khong_duoc_cham = FakeChatClient([fake_ai("SAI")])
+    r = _router(clock, {"gemini-3.5-flash-lite": goi_tool,
+                        "groq-llama-3.3-70b": khong_duoc_cham})
+
+    got = await r.ainvoke("read", MSGS)
+
+    assert got.decision.spec.alias == "gemini-3.5-flash-lite"
+    assert len(khong_duoc_cham.calls) == 0
