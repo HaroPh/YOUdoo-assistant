@@ -234,6 +234,18 @@ def _role_refusal_message(role_cfg, tool: str) -> str:
             f"Vui lòng liên hệ bộ phận {dept} để thực hiện.")
 
 
+def _handoff_notice(role_cfg, tool: str) -> str:
+    """Câu giải thích ĐI KÈM đề xuất bàn giao.
+
+    Không được bỏ. Bản đầu của Task 2 chỉ thay `plan` rồi im lặng: người dùng
+    thấy một đề nghị tạo activity mà không hiểu vì sao việc mình xin lại thành
+    ra thế. Test có sẵn `test_accounting_refused_deliver_order_no_pending_action`
+    canh đúng điều này và đã ĐỎ — nó bảo vệ LỜI GIẢI THÍCH, không chỉ bảo vệ
+    `pending_action is None`."""
+    return (f"Việc này không thuộc quyền hạn của bộ phận {role_cfg.label}. "
+            f"Tôi có thể chuyển cho bộ phận {dept_of(tool)} — bạn xác nhận nhé.")
+
+
 def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
     async def erp_write_planner(state: ERPAgentState) -> dict:
         if not write_gate.write_actions_enabled():
@@ -271,6 +283,7 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         # prompt (đúng nguyên tắc §3 spec role-based-access — LLM không bao
         # giờ là nơi giữ ranh giới duy nhất). role_cfg=None (mọi caller cũ,
         # test, vai admin) → nhánh này không chạy, hành vi giữ y nguyên.
+        handoff_note = None
         if role_cfg is not None:
             tool_name = plan.get("tool")
             if tool_name and role_cfg.state_of(tool_name) in (OTHER_DEPT, DENIED):
@@ -288,6 +301,7 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
                         content=_role_refusal_message(role_cfg, tool_name)
                     )], "pending_action": None, "auto_chain": None}
                 plan = handoff
+                handoff_note = _handoff_notice(role_cfg, tool_name)
 
         # Chuỗi đa bước khai báo trước: validate tất định qua registry walk.
         # LLM bịa chain_until → None → single-step như cũ (fail-safe).
@@ -315,6 +329,7 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
                             content=_role_refusal_message(role_cfg, step_tool)
                         )], "pending_action": None, "auto_chain": None}
                     plan = handoff
+                    handoff_note = _handoff_notice(role_cfg, step_tool)
                     # chain được tính từ plan CŨ — giữ lại sẽ quảng cáo những
                     # bước không còn liên quan trong lời xác nhận.
                     chain = []
@@ -327,7 +342,10 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
 
         # Coordinated writes own their own resolution + confirm; don't interrupt here.
         if plan.get("tool") in COORDINATED_TOOLS:
-            return {"pending_action": plan, "auto_chain": auto_chain}
+            out = {"pending_action": plan, "auto_chain": auto_chain}
+            if handoff_note:
+                out["messages"] = [AIMessage(content=handoff_note)]
+            return out
 
         summary = plan.get("summary") or plan.get("tool") or "thao tác"
         # Invariant C tầng 3: hiện tool+args TẤT ĐỊNH — user luôn thấy ref thật
