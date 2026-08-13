@@ -79,7 +79,7 @@ def test_khong_truyen_model_thi_dung_dau_chuoi_catalog(monkeypatch):
     từ catalog tĩnh — không đọc biến môi trường nào."""
     _patch(monkeypatch)
     result = eval_gate.run(_args())
-    assert result.detail["intent"]["model"] == "gemma-4-26b"
+    assert result.detail["intent"]["model"] == "gemini-3.1-flash-lite"
     assert result.detail["confirm"]["model"] == "groq-gpt-oss-20b"
 
 
@@ -96,8 +96,8 @@ def test_nhip_tu_dong_suy_tu_rpm_catalog(monkeypatch):
     MỚI: pace luôn = (60/rpm)*1.2, không có nhánh đặc biệt nào."""
     fi, fc = _patch(monkeypatch)
     eval_gate.run(_args())
-    # gemma-4-26b (router, dòng đầu) rpm=30 -> (60/30)*1.2 = 2.4
-    assert fi.calls[0]["pace"] == pytest.approx(2.4)
+    # gemini-3.1-flash-lite (router, dòng đầu) rpm=15 -> (60/15)*1.2 = 4.8
+    assert fi.calls[0]["pace"] == pytest.approx(4.8)
     # groq-gpt-oss-20b (evaluator, dòng đầu) rpm=30 -> cùng 2.4
     assert fc.calls[0]["pace"] == pytest.approx(2.4)
 

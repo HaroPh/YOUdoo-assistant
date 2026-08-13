@@ -119,24 +119,25 @@ def test_resolve_bo_qua_mat_xich_trong_skip(clock):
     """skip là cục bộ trong MỘT lượt gọi — không phải cooldown, không có tác
     dụng phụ sang request sau."""
     got = _router(clock).resolve("router", base_tokens=100,
-                                 skip=frozenset({"gemma-4-26b"}))
+                                 skip=frozenset({"gemini-3.1-flash-lite"}))
 
     assert got.spec.alias == "groq-gpt-oss-20b"
     assert got.fallback_depth == 1
     assert [(s.alias, s.verdict) for s in got.skipped] == [
-        ("gemma-4-26b", Verdict.EMPTY)]
+        ("gemini-3.1-flash-lite", Verdict.EMPTY)]
 
 
 def test_resolve_khong_truyen_skip_thi_khong_doi_gi(clock):
     assert _router(clock).resolve(
-        "router", base_tokens=100).spec.alias == "gemma-4-26b"
+        "router", base_tokens=100).spec.alias == "gemini-3.1-flash-lite"
 
 
 def test_resolve_skip_het_chuoi_thi_nem_ChainExhausted(clock):
     with pytest.raises(ChainExhausted):
         _router(clock).resolve(
             "router", base_tokens=100,
-            skip=frozenset({"gemma-4-26b", "groq-gpt-oss-20b", "or-ling"}))
+            skip=frozenset({"gemini-3.1-flash-lite", "groq-gpt-oss-20b",
+                            "or-ling"}))
 
 
 def test_usable_content_co_chu_thi_dung_duoc():
