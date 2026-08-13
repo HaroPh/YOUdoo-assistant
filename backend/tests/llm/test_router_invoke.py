@@ -30,18 +30,21 @@ def test_goi_thanh_cong_tra_ve_message_va_quyet_dinh(clock):
 
 
 def test_ghi_so_ngan_sach_bang_total_tokens_khong_phai_p_cong_c(clock):
-    """Gemma: p=11, c=36, total=337. Cộng p+c đếm thiếu 7 lần."""
+    """Gemma: p=11, c=36, total=337. Cộng p+c đếm thiếu 7 lần.
+
+    Dùng vai `evaluator` (mắt xích 1 = gemma-4-26b) — trước 2026-08-13 là vai
+    `chitchat`, vai đó nay không còn chạy gemma."""
     store = InMemoryUsageStore()
     ledger = BudgetLedger(store, clock=clock)
     client = FakeChatClient([fake_ai("ok", prompt=11, completion=36, total=337)])
     r = Router(ledger, client_factory=lambda spec: client)
-    r.invoke("chitchat", MSGS)
-    got = store.usage_since(since=clock(), alias="gemma-4-31b")
+    r.invoke("evaluator", MSGS)
+    got = store.usage_since(since=clock(), alias="gemma-4-26b")
     assert got.total_tokens == 337
 
 
 def test_usage_metadata_cua_google_duoc_doc_dung_khong_qua_response_metadata(clock):
-    """chitchat chạy gemma-4-31b, provider="google" → client thật là
+    """evaluator chạy gemma-4-26b, provider="google" → client thật là
     ChatGoogleGenerativeAI, KHÔNG BAO GIỜ set response_metadata["token_usage"].
     _usage() phải rơi xuống nhánh usage_metadata và lấy total_tokens THÔ của
     API (337), không phải p+c tính lại (11+36=47) — cùng phép đo Gemma ở test
@@ -52,8 +55,8 @@ def test_usage_metadata_cua_google_duoc_doc_dung_khong_qua_response_metadata(clo
     client = FakeChatClient([fake_ai_google("ok", prompt=11, completion=36,
                                             total=337, reasoning=290)])
     r = Router(ledger, client_factory=lambda spec: client)
-    r.invoke("chitchat", MSGS)
-    got = store.usage_since(since=clock(), alias="gemma-4-31b")
+    r.invoke("evaluator", MSGS)
+    got = store.usage_since(since=clock(), alias="gemma-4-26b")
     assert got.total_tokens == 337
 
 
@@ -102,11 +105,16 @@ def test_moi_mat_xich_deu_hong_thi_nem_ChainExhausted(clock):
 
 
 def test_go_thought_cho_model_gemma(clock):
-    """chitchat chạy gemma-4-31b (emits_thought_tags=True)."""
+    """evaluator chạy gemma-4-26b ở mắt xích 1 (emits_thought_tags=True).
+
+    Trước 2026-08-13 test này dùng vai `chitchat`; vai đó nay chạy
+    gemini-3.5-flash (emits_thought_tags=False). Đổi sang `evaluator` chứ
+    KHÔNG sửa kỳ vọng — sửa kỳ vọng sẽ xoá âm thầm phần phủ của strip_thought,
+    trong khi hành vi đó vẫn sống ở production."""
     client = FakeChatClient([fake_ai("<thought>nghĩ ngợi</thought>Chào bạn!")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                client_factory=lambda spec: client)
-    assert r.invoke("chitchat", MSGS).message.content == "Chào bạn!"
+    assert r.invoke("evaluator", MSGS).message.content == "Chào bạn!"
 
 
 def test_khong_go_gi_voi_model_khong_nha_thought(clock):

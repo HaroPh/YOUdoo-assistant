@@ -75,6 +75,38 @@ CATALOG: dict[str, ModelSpec] = {
         token_multiplier=1.0, max_output_tokens=2048, timeout_s=60,
         supports_tools=True, emits_thought_tags=True),
 
+    # Hai model chủ dự án cấp 2026-08-13. SỐ LIỆU DƯỚI ĐÂY LÀ ĐO THẬT, không
+    # phỏng đoán: probe xác nhận model_id gọi được, supports_tools=True (gọi
+    # thật get_stock, trả 1 tool_call), và text KHÔNG chứa thẻ <thought> inline
+    # nên emits_thought_tags=False (khác gemma — client native tách reasoning ra
+    # usage_metadata thay vì nối vào content).
+    #
+    # Chúng VẪN đốt token suy luận (đo: 183 và 152 token cho một việc phân loại
+    # một từ) — ít hơn gemma (300-2045) rất nhiều nhưng KHÔNG bằng không như
+    # flash-lite. Bề mặt lỗi "cạn ngân sách suy luận" vẫn tồn tại, chỉ là biên
+    # rộng hơn; max_output_tokens=8192 để biên đó thật sự rộng.
+    #
+    # rpd=20 LÀ RÀNG BUỘC CHÍNH: nhỏ hơn n=24 của bộ eval `confirm`, nên KHÔNG
+    # đo trọn được bộ đó trong một ngày ⇒ không đủ điều kiện gate ADR-009 M3 cho
+    # vai `evaluator`. Bộ `chitchat` (n=16) thì vừa. Đây là lý do chúng chỉ được
+    # cân nhắc cho `chitchat`, không cho cổng xác nhận ghi.
+    #
+    # Hai model KHÁC chủ dự án nêu KHÔNG tồn tại, đã probe: "gemini-3-flash" trả
+    # 404 NOT_FOUND, "gemini-2.5-flash" trả 404 "no longer available to new
+    # users". Ghi lại để đời sau không thử lại.
+    "gemini-3.5-flash": ModelSpec(
+        alias="gemini-3.5-flash", provider="google",
+        model_id="gemini-3.5-flash", upstream="google",
+        quota_scope="model", rpm=5, tpm=250_000, rpd=20,
+        token_multiplier=1.0, max_output_tokens=8192, timeout_s=60,
+        supports_tools=True, emits_thought_tags=False),
+    "gemini-3.6-flash": ModelSpec(
+        alias="gemini-3.6-flash", provider="google",
+        model_id="gemini-3.6-flash", upstream="google",
+        quota_scope="model", rpm=5, tpm=250_000, rpd=20,
+        token_multiplier=1.0, max_output_tokens=8192, timeout_s=60,
+        supports_tools=True, emits_thought_tags=False),
+
     # ─── Groq ───────────────────────────────────────────────────────────────
     # token_multiplier=2.3: đo được Groq tính 133 prompt_tokens cho payload mà
     # Google tính 57. Với trần 8K TPM, ước lượng lệch 2.3× là gọi thẳng vào 429.
@@ -145,8 +177,52 @@ CHAINS: dict[str, tuple[str, ...]] = {
     # chỉ gánh fusion+synthesis (hai vai chỉ chạy ở nhánh mixed, thưa hơn) —
     # chia tải qua hai ví thay vì chất đống lên một.
     "router":    ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"),
-    "chitchat":  ("gemma-4-31b", "groq-gpt-oss-20b"),
-    "evaluator": ("groq-gpt-oss-20b", "gemma-4-26b"),
+    # chitchat: gemini-3.5-flash THAY gemma-4-31b ở mắt xích 1 (2026-08-13).
+    # Đo bộ `chitchat` (n=16), mỗi model ghim một lượt:
+    #
+    #   model               violations   p50        p95
+    #   gemma-4-31b              0     13103ms    21090ms
+    #   gemini-3.5-flash         0      3271ms     3940ms
+    #   gemini-3.6-flash         0      5048ms    43891ms
+    #
+    # Gate của bộ này là `violations` (tuyệt đối, không so baseline) — CẢ BA
+    # đều 0, tức chất lượng hoà. Khác biệt duy nhất là độ trễ, và 3.5-flash
+    # thắng cả về p50 lẫn độ ỔN ĐỊNH (p95 gần p50). Không chọn 3.6-flash vì
+    # một lượt 43.9s; ở n=16 thì p95 chỉ ~1 mẫu nên không đọc quá nặng, nhưng
+    # lượt đó có thật.
+    #
+    # rpd=20 chấp nhận được ở ĐÂY (khác router): chitchat chỉ chạy khi intent =
+    # `unknown` — chào hỏi, tán gẫu, rất thưa. Cạn hạn mức thì tụt xuống
+    # groq-gpt-oss-20b, suy giảm chấp nhận được.
+    #
+    # gemma-4-31b RỜI chuỗi, không xuống mắt xích 3: nó cùng upstream="google"
+    # với 3.5-flash nên bất biến #1 cấm (xem chuỗi `router` phía trên, cùng lý
+    # do). Entry của nó ở lại CATALOG vì đã đo, không xoá.
+    "chitchat":  ("gemini-3.5-flash", "groq-gpt-oss-20b"),
+    # evaluator: ĐẢO thứ tự 2026-08-13. Trước: groq-gpt-oss-20b → gemma-4-26b.
+    # Đo bộ `confirm` (n=24) trên CẢ HAI mắt xích, mỗi model ghim một lượt:
+    #
+    #   model               acc      false_confirm   p50
+    #   groq-gpt-oss-20b    0.6250        0          577ms
+    #   gemma-4-26b         0.7917        0         6075ms
+    #   (baseline qwen3-8b  0.6250        0         4048ms)
+    #
+    # Mắt xích 2 TỐT HƠN mắt xích 1 rõ rệt (19/24 so với 15/24), và 5 ca sai của
+    # gemma là TẬP CON THẬT SỰ của 9 ca sai groq. Cụ thể groq không hiểu "chốt
+    # đơn giùm mình" / "lên đơn đi bạn" là đồng ý; gemma hiểu.
+    #
+    # false_confirm = 0 ở CẢ HAI — mọi ca sai đều theo hướng AN TOÀN (đáng lẽ
+    # confirm/cancel thì trả unclear, tức HỎI LẠI chứ không thực thi). Đây là
+    # điều kiện gate tuyệt đối của bộ confirm, và đảo thứ tự không đụng tới nó.
+    #
+    # Giá phải trả: p50 577ms → 6075ms. Chấp nhận được vì đường LLM của cổng này
+    # HIẾM khi chạy — classify_keyword đã nuốt hết "có"/"không"/"ok"/"huỷ", LLM
+    # chỉ vào cuộc với câu mơ hồ kiểu "chắc để lúc khác đi".
+    #
+    # gemma-4-26b có bề mặt "cạn ngân sách token suy luận" (xem chú thích khối
+    # Gemma bên trên). Nếu nó trả rỗng, Router nay TỤT xuống groq-gpt-oss-20b —
+    # đúng lưới đỡ dựng ở đợt router-empty-response (2026-08-13).
+    "evaluator": ("gemma-4-26b", "groq-gpt-oss-20b"),
     "planner":   ("gemini-3.5-flash-lite", "groq-gpt-oss-120b", "or-nemotron"),
     "read":      ("gemini-3.5-flash-lite", "groq-llama-3.3-70b", "or-nemotron"),
     # SP-2b (2026-08-01): node `fusion` trong graph đã bị XOÁ (thay bằng fan-out
