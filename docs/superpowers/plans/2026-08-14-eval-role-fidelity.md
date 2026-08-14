@@ -835,6 +835,22 @@ def _baseline_for(set_name: str, model: str, role: str):
     return run_eval.baseline_path(model, set_name, role)
 ```
 
+> ⚠️ **SỬA SAU KHI THỰC THI (2026-08-14).** Step 4 dưới đây, như viết ban đầu,
+> **SAI** — và nó đã được sửa trong `8a04244` + `d6501ae`. Ghi lại ở đây để ai
+> đọc riêng plan này không dựng lại đúng bản hỏng:
+>
+> - Brief bảo truyền **model đang ĐO** vào `_baseline_for`. Nhưng 6 file
+>   baseline neo cố định ở `qwen3-8b` — một model không còn trong chuỗi nào
+>   (hôm nay đo bằng `gemini-3.1-flash-lite`). Làm literal ⇒ `FileNotFoundError`.
+>   Đúng: một hằng `BASELINE_MODEL = "qwen3-8b"` (model của BỘ BASELINE, tách
+>   khỏi model đang đo).
+> - Và điều đó làm lộ một chỗ hở nữa: cổng đọc theo neo, còn `--save-baseline`
+>   ghi theo model đang đo ⇒ baseline của một vai MỚI sẽ không bao giờ được cổng
+>   tìm thấy. Đúng: thêm cờ `--baseline-model`, mặc định `BASELINE_MODEL`.
+> - Bài học: `_args()` trong `tests/jobs/test_eval_gate.py` dựng `Namespace`
+>   bằng TAY, nên **mỗi cờ mới phải được thêm vào đó**, nếu không 30 test đỏ
+>   cùng lúc vì `AttributeError`.
+
 - [ ] **Step 4: Dùng chúng trong `run`**
 
 Trong `jobs/eval_gate.py::run`, thay khối đọc baseline:
