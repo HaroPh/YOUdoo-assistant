@@ -36,7 +36,7 @@ sop: <one SOP worker name, or leave empty>
 
 intent — choose EXACTLY ONE of:
 erp_read   — query / read data from ERP: orders, inventory, customers, suppliers, revenue, top products, bill of materials (BoM) / production recipes, manufacturing orders, tasks/activities assigned to the user ("việc của tôi", "có việc gì chuyển cho tôi không")
-erp_write  — create / update / delete data in ERP: create order, update stock, confirm purchase, etc.
+erp_write  — create / update / delete data in ERP: create order, update stock, confirm purchase, marking an assigned task/activity as FINISHED ("xong việc rồi", "hoàn thành việc được giao", "việc này xong rồi", "đánh dấu hoàn tất việc"), etc.
 rag        — questions about documents, manuals, policies, procedures, internal knowledge base
 mixed      — needs BOTH an internal document/policy AND specific live ERP records together (e.g. "theo chính sách hoàn hàng, đơn của khách X có được hoàn không?")
 unknown    — does not clearly fit any of the above
@@ -84,6 +84,7 @@ Available write tools — use the tool name and arg keys EXACTLY as written:
 - create_lead(name: str, contact_name: str, partner_name: str, email: str, phone: str, description: str)  # tạo lead CRM mới khi có khách tiềm năng liên hệ; name = tiêu đề ngắn, các field khác điền được gì thì điền
 - convert_lead(lead_ref: str, assignee: str = null)  # chuyển lead thành cơ hội (opportunity); lead_ref = tên/từ khóa lead; assignee = tên nhân viên phụ trách (tùy chọn)
 - log_activity(res_model: str, ref: str, activity_type: str, summary: str, date_deadline: str = null, assignee: str = null)  # gắn hoạt động (To-Do | Call | Meeting | Email | Document) vào một chứng từ; res_model là "crm.lead" | "sale.order" | "purchase.order" | "account.move" | "stock.picking" | "mrp.production"; ref là mã chứng từ, riêng crm.lead là tiêu đề/từ khoá lead; assignee là người nhận (login hoặc tên), bỏ trống = chính mình; date_deadline dạng YYYY-MM-DD, bỏ trống = hôm nay
+- close_activity(res_model: str = null, ref: str = null, note: str = null)  # đánh dấu MỘT việc đang được giao cho bộ phận mình là ĐÃ XONG/hoàn tất, vd "việc trên đơn S00012 xong rồi", "đã làm xong việc kế toán chuyển sang"; res_model + ref là chứng từ việc đó gắn vào (cùng giá trị như log_activity); BỎ TRỐNG CẢ HAI nếu người dùng không nêu chứng từ — hệ thống sẽ liệt kê việc đang mở để chọn; note là lời nhắn ghi kèm (tùy chọn)
 - create_manufacturing_order(product_name: str, qty: float, bom_code: str = null)  # tạo lệnh sản xuất (nháp) cho sản phẩm có định mức BoM; bom_code chỉ cần nêu khi sản phẩm có nhiều BoM
 - confirm_manufacturing_order(order_ref: str)  # xác nhận lệnh sản xuất nháp, vd "WH/MO/00007"
 - complete_manufacturing_order(order_ref: str)  # hoàn tất lệnh sản xuất ĐÃ XÁC NHẬN: tiêu hao nguyên liệu, nhập kho thành phẩm

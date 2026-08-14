@@ -216,6 +216,7 @@ WRITE_TOOL_NAMES = frozenset({
     "create_quotation", "create_rfq", "update_quotation_lines",
     "update_rfq_lines", "inventory_adjustment", "internal_transfer",
     "scrap_product", "create_lead", "convert_lead", "log_activity",
+    "close_activity",
     "create_manufacturing_order", "confirm_manufacturing_order",
     "complete_manufacturing_order", "create_bom", "update_bom_lines",
     "return_order", "create_credit_memo", "create_vendor",

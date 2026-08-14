@@ -4,6 +4,8 @@ Mọi đường ra Odoo đi qua odoo_call.odoo() (log_activity dùng thêm get_u
 để gán người phụ trách hoạt động — cùng module odoo_call, không phải đường
 tắt ra Odoo riêng).
 """
+import json
+
 from server import mcp
 from odoo_call import odoo, get_uid
 from helpers import envelope, today_iso, resolve_unique
@@ -241,3 +243,94 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
                         state="planned")
     except Exception as e:  # noqa: BLE001
         return envelope(False, f"Lỗi khi lên lịch hoạt động: {e}")
+
+
+@mcp.tool()
+def close_activity(activity_id: int, note: str = "") -> str:
+    """Đánh dấu MỘT việc (hoạt động/activity) đang được giao cho tài khoản hiện
+    tại là ĐÃ HOÀN TẤT. YÊU CẦU XÁC NHẬN từ người dùng trước khi gọi.
+
+    Chỉ đóng được việc giao cho CHÍNH tài khoản đang gọi. Đo trên Odoo thật
+    2026-08-14: Odoo KHÔNG chặn một tài khoản đóng việc của người khác
+    (ai-warehouse đóng trót lọt việc của ai-accounting), nên bộ lọc user_id
+    dưới đây là lớp cưỡng chế DUY NHẤT — không được bỏ.
+
+    Đóng việc KHÔNG xoá bản ghi: Odoo đặt active=False, state='done',
+    date_done=<hôm nay>, và ghi một tin vào chatter của chứng từ kèm nguyên văn
+    `note`. Thao tác hoàn tác được và có dấu vết.
+
+    Args:
+        activity_id: ID việc cần đóng (coordinator đã giải từ chứng từ).
+        note: Lời nhắn ghi kèm, vào chatter chứng từ. Bỏ trống cũng được.
+    """
+    try:
+        # Lệnh Odoo ĐẦU TIÊN trên model đích — bọc RIÊNG lệnh này. Lỗi ở đúng
+        # chỗ này chỉ có một nghĩa: vai hiện tại không đọc được mail.activity
+        # (thiếu quyền) — biết được từ VỊ TRÍ lỗi xảy ra, không cần đọc nội
+        # dung lỗi. KHÔNG lộ nguyên văn lỗi hay tên nhóm quyền Odoo ra ngoài.
+        try:
+            rows = odoo("mail.activity", "search_read",
+                        [[["id", "=", activity_id], ["user_id", "=", get_uid()]]],
+                        {"fields": ["id", "summary", "res_name"], "limit": 1})
+        except Exception:  # noqa: BLE001 — chỉ bọc lệnh này, không đổi hành vi các lệnh Odoo khác
+            return envelope(False,
+                            "Không đọc được dữ liệu việc — tài khoản hiện tại có thể "
+                            "không có quyền truy cập.")
+        if not rows:
+            # MỘT câu cho cả hai nguyên nhân (việc của người khác / đã đóng
+            # rồi) — tách ra là để lộ việc của bộ phận khác có tồn tại không.
+            return envelope(False, "Việc này không được giao cho bộ phận của "
+                                   "bạn, hoặc đã đóng rồi.")
+        act = rows[0]
+        odoo("mail.activity", "action_feedback", [[activity_id]],
+             {"feedback": note or "Đã hoàn tất."})
+        what = act.get("summary") or f"việc #{activity_id}"
+        where = act.get("res_name") or ""
+        where_part = f" trên '{where}'" if where else ""
+        return envelope(True, f"Đã đóng {what}{where_part}.",
+                        ref=where or what, model="mail.activity",
+                        res_id=activity_id, state="done")
+    except Exception:  # noqa: BLE001 — never raise through the MCP tool
+        # action_feedback là lệnh GHI trên quyền MỚI nhánh này khai — không
+        # lộ nguyên văn lỗi Odoo (có thể mang tên nhóm quyền). Chi tiết vẫn
+        # còn dấu vết: odoo_call.odoo() đã log_mcp_event("error", ...,
+        # error_message=str(e)) cho mọi lỗi trước khi ném lại.
+        return envelope(False, "Lỗi khi đóng việc. Vui lòng thử lại.")
+
+
+@mcp.tool()
+def find_my_activities(res_model: str = "", res_id: int = 0,
+                       limit: int = 20) -> str:
+    """Các việc (hoạt động/activity) ĐANG MỞ được giao cho tài khoản hiện tại,
+    hạn gần nhất trước. Bỏ trống res_model/res_id = mọi chứng từ.
+
+    Tool này phục vụ coordinator đóng việc (nó cần danh sách ứng viên trước khi
+    hỏi người dùng chọn). Đường tra cứu của NGƯỜI DÙNG là list_my_activities ở
+    tầng backend, không phải tool này.
+
+    Lọc theo get_uid() — tài khoản Odoo đã xác thực của vai — chứ không theo
+    một chuỗi login suy ra từ tên vai.
+
+    "Đang mở" = active=True; Odoo lọc như vậy theo mặc định nên domain không
+    cần điều kiện gì thêm. KHÔNG truyền active_test=False: đo 2026-08-14 cho
+    thấy việc đã đóng vẫn CÒN bản ghi (active=False, state='done'), nên bật
+    active_test=False sẽ cho phép đóng lại một việc đã xong.
+
+    Args:
+        res_model: Lọc theo model chứng từ, vd "sale.order". Bỏ trống = mọi model.
+        res_id: Lọc theo ID chứng từ. Bỏ trống/0 = mọi chứng từ.
+        limit: Số dòng tối đa.
+    """
+    try:
+        domain = [["user_id", "=", get_uid()]]
+        if str(res_model or "").strip():
+            domain.append(["res_model", "=", res_model])
+        if res_id:
+            domain.append(["res_id", "=", res_id])
+        rows = odoo("mail.activity", "search_read", [domain],
+                    {"fields": ["id", "summary", "res_model", "res_id",
+                                "res_name", "date_deadline"],
+                     "order": "date_deadline asc", "limit": limit})
+        return json.dumps({"ok": True, "rows": rows}, ensure_ascii=False)
+    except Exception:  # noqa: BLE001 — never raise through the MCP tool
+        return json.dumps({"ok": False, "rows": []}, ensure_ascii=False)

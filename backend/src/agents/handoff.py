@@ -49,6 +49,11 @@ NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
     "post_invoice", "create_quotation", "create_rfq",
     "inventory_adjustment", "internal_transfer", "scrap_product",
     "log_activity",
+    # close_activity tác động lên MỘT activity, không lên một chứng từ có sẵn
+    # — và cả hai vai non-admin đều `own` nó (roles.py) nên other_dept không
+    # bao giờ chỉ sang bộ phận khác cho tool này ⇒ không bao giờ phát sinh
+    # bàn giao. Không xếp vào HANDOFF_DOC_OF.
+    "close_activity",
     # flag_order_for_review nằm đây vì HAI lý do, cả hai đều loại nó khỏi bảng
     # trên (review Task 1 bắt được — bản plan đầu ép cứng "purchase.order"):
     #   1. Nó KHÔNG có trong WRITE_PLANNER_PROMPT, nên planner không bao giờ
