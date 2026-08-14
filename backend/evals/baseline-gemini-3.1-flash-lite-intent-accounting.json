@@ -1,0 +1,20 @@
+{
+  "set": "intent",
+  "n": 54,
+  "acc": 0.9629629629629629,
+  "lat_p50": 3991,
+  "lat_p95": 14827,
+  "fails": [
+    {
+      "text": "đơn của Azure Interior trễ SLA chưa?",
+      "expected": "mixed",
+      "got": "erp_read"
+    },
+    {
+      "text": "đơn nào đang vi phạm SLA giao hàng?",
+      "expected": "mixed",
+      "got": "erp_read"
+    }
+  ],
+  "errors": []
+}

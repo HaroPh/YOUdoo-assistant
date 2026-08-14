@@ -227,7 +227,12 @@ WRITE_TOOL_NAMES = frozenset({
     # NGUY HIỂM NHẤT hệ thống — phải nằm trong tập này để dangerous_misroute
     # (run_eval.py) tính đúng, không rơi vào bucket an toàn.
     "send_order_confirmation_email", "send_quotation_email",
-    "send_rfq_email", "send_invoice_email",
+    # send_delivery_email thiếu ở đây tới tận 2026-08-14 (đợt mail-trigger-points
+    # thêm 4 tool mail nhưng sót tool thứ năm). Hệ quả: một misroute sang nó bị
+    # run_eval xếp vào rổ AN TOÀN thay vì rổ nguy hiểm, tức dangerous_misroute
+    # MÙ với đúng tool gửi mail ra ngoài. Bất biến prompt↔bảng ở
+    # tests/agents/test_close_activity_roles.py giờ chặn lần lệch thứ ba.
+    "send_rfq_email", "send_invoice_email", "send_delivery_email",
 })
 
 # ── read set (SP-0) ──────────────────────────────────────────────────────────

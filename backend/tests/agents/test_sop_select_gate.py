@@ -1,12 +1,12 @@
 """Kiểm tra đăng ký + công thức gate của set sop_select — KHÔNG gọi LLM."""
 from evals.cases import SOP_SELECT_CASES
-from jobs.eval_gate import BASELINES, EVAL_FN, ROLE_FOR_SET, _gate
+from jobs.eval_gate import BASELINE_SETS, EVAL_FN, ROLE_FOR_SET, _gate
 
 
 def test_set_registered_everywhere():
     assert ROLE_FOR_SET["sop_select"] == "router"
     assert "sop_select" in EVAL_FN
-    assert "sop_select" not in BASELINES      # gate tuyệt đối, không baseline
+    assert "sop_select" not in BASELINE_SETS  # gate tuyệt đối, không baseline
 
 
 def test_gate_requires_perfect_score_and_zero_hijack():

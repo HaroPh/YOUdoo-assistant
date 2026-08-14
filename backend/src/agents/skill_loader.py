@@ -324,3 +324,27 @@ def build_skill_node(spec: SkillSpec, llm, mcp_tools):
     agent = create_agent(llm, build_skill_tools(spec, mcp_tools),
                          system_prompt=spec.prose)
     return agent.with_config({"recursion_limit": spec.max_steps})
+
+
+def specs_for_role(specs, tools, all_tools, role_cfg, logger=None) -> list:
+    """Các skill được nạp cho vai hiện tại — GIỮ NGUYÊN thứ tự của `specs`.
+
+    Trích từ vòng lặp vốn nằm trong graph.py để bộ đo eval gọi được ĐÚNG phép
+    lọc mà production dùng. Viết lại phép lọc ở nơi thứ hai là cách nó trôi
+    lệch: một phép tái lập bằng tay (write_tools ⊆ allowed_tools) đã cho 1/3
+    skill trong khi hàm thật cho 0/3, vì nhánh declares_tools không được tái
+    lập.
+
+    Thứ tự có ý nghĩa: nó quyết định thứ tự dòng trong render_worker_block,
+    mà khối đó đi thẳng vào prompt router.
+    """
+    kept = []
+    for spec in specs:
+        reason = skill_role_gap(spec, tools, all_tools, role_cfg)
+        if reason:
+            if logger is not None:
+                logger.info("skill %r bỏ qua cho vai %r: %s", spec.name,
+                            getattr(role_cfg, "name", None), reason)
+            continue
+        kept.append(spec)
+    return kept

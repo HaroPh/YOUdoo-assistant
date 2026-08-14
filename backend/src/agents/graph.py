@@ -22,7 +22,7 @@ from .mail_write import (MAIL_COORDINATOR_CFGS, make_send_template_email_node,
                          make_route_after_mail_preview)
 from .models import llms_from_single
 from .skill_loader import (build_skill_node, load_skill_specs,
-                           render_worker_block, skill_role_gap)
+                           render_worker_block, specs_for_role)
 from .agentic_context_sync import make_agentic_context_sync_node
 
 logger = logging.getLogger(__name__)
@@ -58,14 +58,8 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
     # node, không route — thay vì crash: vai admin (role_cfg=None hoặc
     # unrestricted) và mọi test không truyền role_cfg/mcp_all_tools không đổi
     # gì (skill_role_gap luôn trả None trong hai trường hợp đó).
-    skill_specs = []
-    for spec in load_skill_specs():
-        reason = skill_role_gap(spec, tools, mcp_all_tools, role_cfg)
-        if reason:
-            logger.info("skill %r bỏ qua cho vai %r: %s", spec.name,
-                       getattr(role_cfg, "name", None), reason)
-            continue
-        skill_specs.append(spec)
+    skill_specs = specs_for_role(load_skill_specs(), tools, mcp_all_tools,
+                                 role_cfg, logger=logger)
 
     g.add_node("intent_router", make_intent_router_node(
         llms["router"], render_worker_block(skill_specs),

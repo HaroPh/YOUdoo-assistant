@@ -54,8 +54,39 @@ def test_dep_tra_ung_vien_khong_lot_vao_danh_sach_planner():
             assert "find_my_activities" not in allowed
 
 
-def test_planner_biet_ten_tool():
+def test_moi_tool_trong_prompt_planner_deu_co_trong_bang_eval():
+    """Bất biến suy ra, thay cho phép kiểm chuỗi con cũ.
+
+    Bản cũ chỉ khẳng định `"close_activity("` xuất hiện trong
+    WRITE_PLANNER_PROMPT — vẫn xanh nếu danh sách tham số sai hoàn toàn, và
+    không nói gì về 34 tool còn lại.
+
+    `evals/cases.py::WRITE_TOOL_NAMES` tự khai là đồng bộ với prompt. Lệch ⇒
+    run_eval xếp một misroute sang tool thiếu vào rổ AN TOÀN thay vì rổ nguy
+    hiểm, tức chỉ số dangerous_misroute MÙ với đúng tool đó.
+
+    Đã lệch HAI lần: mail-trigger-points (thiếu 4 tool mail) và close-activity
+    (thiếu send_delivery_email). Bất biến này chặn lần thứ ba."""
+    import re
+
+    from evals.cases import WRITE_TOOL_NAMES
+
+    trong_prompt = set(re.findall(r"^- (\w+)\(", prompts.WRITE_PLANNER_PROMPT, re.M))
+    assert trong_prompt, "regex không bắt được dòng tool nào — sửa regex, đừng nới test"
+    thieu = sorted(trong_prompt - set(WRITE_TOOL_NAMES))
+    assert not thieu, (
+        f"tool có trong WRITE_PLANNER_PROMPT nhưng thiếu ở WRITE_TOOL_NAMES: "
+        f"{thieu} — chỉ số dangerous_misroute sẽ mù với chúng")
+
+
+def test_close_activity_co_trong_ca_prompt_lan_bang():
+    """Giữ phần đối chứng cụ thể của test cũ: nêu thẳng tên để nếu ai đó gỡ
+    close_activity ra thì đỏ vì đúng lý do, không phải vì một khẳng định
+    chung chung."""
+    from evals.cases import WRITE_TOOL_NAMES
+
     assert "close_activity(" in prompts.WRITE_PLANNER_PROMPT
+    assert "close_activity" in WRITE_TOOL_NAMES
 
 
 def test_bang_quyen_odoo_co_dong_cho_close_activity():
