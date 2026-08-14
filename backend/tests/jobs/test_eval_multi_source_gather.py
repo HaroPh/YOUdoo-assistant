@@ -132,7 +132,7 @@ def test_no_baseline_and_gate_always_passes():
     """Chưa có baseline (set ra đời 2026-08-04, không model cũ nào từng đo)
     — GÁC NHẸ y như `gather`: chỉ ghi nhận."""
     from jobs import eval_gate
-    assert "multi_source_gather" not in eval_gate.BASELINES
+    assert "multi_source_gather" not in eval_gate.BASELINE_SETS
     assert eval_gate._gate("multi_source_gather",
                            {"both_source_coverage": 0.0,
                             "citation_validity": 0.0,

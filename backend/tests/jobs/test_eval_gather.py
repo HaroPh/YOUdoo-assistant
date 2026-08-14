@@ -217,7 +217,7 @@ def test_gather_excluded_from_baselines():
     """Không có baseline model cũ — node gather_erp không tồn tại trước
     SP-2b."""
     from jobs import eval_gate
-    assert "gather" not in eval_gate.BASELINES
+    assert "gather" not in eval_gate.BASELINE_SETS
 
 
 def test_gather_gate_returns_true_unconditionally():

@@ -13,26 +13,39 @@ S2: mỗi case retry bounded (resilience.py); case lỗi sau retry → INFRA_ERR
 """
 import asyncio
 import json
-from pathlib import Path
 
-from evals import run_eval
+from evals import role_config, run_eval
 from jobs import registry
 from jobs.registry import (GATE_FAIL, INFRA_ERROR, PASS, Job, JobResult,
                            register)
+from src.agents import roles
 from src.llm.catalog import chain_for
 
-EVALS_DIR = Path(run_eval.__file__).resolve().parent
+# Bộ nào so với baseline (khác cổng TUYỆT ĐỐI). chitchat và sop_select KHÔNG
+# có mặt: chúng là cổng tuyệt đối (violations==0 / hijack==0), không phải phép
+# đo tương đối — thêm baseline cho chúng là đổi ngữ nghĩa cổng.
+BASELINE_SETS = frozenset({"intent", "confirm", "planner", "read",
+                           "synthesis", "multi_source"})
 
-BASELINES = {
-    "intent": EVALS_DIR / "baseline-qwen3-8b-intent.json",
-    "confirm": EVALS_DIR / "baseline-qwen3-8b-confirm.json",
-    "planner": EVALS_DIR / "baseline-qwen3-8b-planner.json",
-    "read": EVALS_DIR / "baseline-qwen3-8b-read.json",
-    "synthesis": EVALS_DIR / "baseline-qwen3-8b-synthesis.json",
-    "multi_source": EVALS_DIR / "baseline-qwen3-8b-multi_source.json",
-    # "chitchat": KHÔNG có entry — gate tuyệt đối (violations==0), không
-    # baseline-relative (không có "câu trả lời đúng" cho chit-chat tự do).
-}
+# Model NEO của baseline — cố định, KHÔNG đổi theo model đang được ĐO (model
+# catalog hiện hành hoặc --model candidate). "So ứng viên với chuẩn đã ghim"
+# (xem docstring module) nghĩa là chuẩn phải đứng yên; 6 file baseline hiện có
+# đều mang tên "qwen3-8b" dù catalog đã đổi model sống nhiều lần từ đó tới
+# nay — đổi neo này sẽ làm hỏng mọi tham chiếu đang dùng (baseline chỉ đổi khi
+# ai đó chủ động `run_eval.py --save-baseline` lại).
+BASELINE_MODEL = "qwen3-8b"
+
+
+def _baseline_for(set_name: str, model: str, role: str):
+    """Đường dẫn baseline, hoặc None nếu bộ này là cổng tuyệt đối.
+
+    Dùng LẠI run_eval.baseline_path — quy ước tên chỉ được sống ở một chỗ.
+    """
+    if set_name not in BASELINE_SETS:
+        return None
+    return run_eval.baseline_path(model, set_name, role)
+
+
 ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitchat",
                 "planner": "planner", "read": "read", "synthesis": "synthesis",
                 # role thật vẫn tên "fusion" trong catalog.py (CHAINS) —
@@ -139,12 +152,17 @@ def run(args) -> JobResult:
             # từ rpm catalog) — baseline thiếu/hỏng thì fail nhanh, không đốt
             # call vô ích. chitchat KHÔNG có baseline (base ở lại None).
             base = None
-            if set_name in BASELINES:
-                base = json.loads(BASELINES[set_name].read_text(encoding="utf-8"))
+            bpath = _baseline_for(set_name, BASELINE_MODEL, args.role)
+            if bpath is not None:
+                with open(bpath, encoding="utf-8") as f:
+                    base = json.load(f)
             checkpoint = registry.LOGS_DIR / f"_checkpoint-eval-gate-{set_name}.json"
             try:
+                kwargs = {"pace": pace, "checkpoint_path": checkpoint}
+                if set_name in role_config.ROLE_SENSITIVE_SETS:
+                    kwargs["role"] = args.role
                 result = asyncio.run(EVAL_FN[set_name](
-                    run_eval._llm(model, role=role), pace=pace, checkpoint_path=checkpoint))
+                    run_eval._llm(model, role=role), **kwargs))
             finally:
                 # Mỗi set chạy trong MỘT asyncio.run() riêng → một event loop
                 # MỚI mỗi lần qua vòng lặp này. run_eval._router (và bên trong
@@ -250,6 +268,10 @@ def add_args(p):
                    default="both")
     p.add_argument("--pace", type=float, default=None,
                    help="giây/call (mặc định auto: (60/rpm)*1.2 suy từ catalog)")
+    p.add_argument("--role", default="admin",
+                   choices=sorted(roles.load_profile()),
+                   help="vai để dựng prompt (chỉ có tác dụng với "
+                        "intent/sop_select/planner)")
 
 
 register(Job("eval-gate", run,
