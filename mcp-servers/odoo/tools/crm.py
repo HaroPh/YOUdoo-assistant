@@ -328,7 +328,5 @@ def find_my_activities(res_model: str = "", res_id: int = 0,
                                 "res_name", "date_deadline"],
                      "order": "date_deadline asc", "limit": limit})
         return json.dumps({"ok": True, "rows": rows}, ensure_ascii=False)
-    except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
-        return json.dumps({"ok": False, "rows": [],
-                           "display": f"Lỗi khi tra việc được giao: {e}"},
-                          ensure_ascii=False)
+    except Exception:  # noqa: BLE001 — never raise through the MCP tool
+        return json.dumps({"ok": False, "rows": []}, ensure_ascii=False)

@@ -108,7 +108,7 @@ def test_sap_theo_han_gan_nhat_truoc(crm_mod, find_fn, monkeypatch):
     monkeypatch.setattr(crm_mod, "get_uid", lambda: 10)
     find_fn()
 
-    assert "date_deadline" in (calls[0][3] or {}).get("order", "")
+    assert (calls[0][3] or {}).get("order") == "date_deadline asc"
 
 
 def test_odoo_hong_thi_tra_ok_false_khong_vo(crm_mod, find_fn, monkeypatch):
@@ -119,3 +119,14 @@ def test_odoo_hong_thi_tra_ok_false_khong_vo(crm_mod, find_fn, monkeypatch):
     monkeypatch.setattr(crm_mod, "get_uid", lambda: 10)
     out = json.loads(find_fn())
     assert out["ok"] is False and out["rows"] == []
+
+
+def test_loi_tra_ve_dung_hop_dong_khong_thua_khoa(crm_mod, find_fn, monkeypatch):
+    """Lỗi trả về ĐÚNG hợp đồng: chỉ hai khoá {"ok", "rows"}, không thua khoá nào."""
+    def odoo_error(*a, **k):
+        raise Exception("Odoo sập")
+
+    monkeypatch.setattr(crm_mod, "odoo", odoo_error)
+    monkeypatch.setattr(crm_mod, "get_uid", lambda: 10)
+    out = json.loads(find_fn())
+    assert set(out) == {"ok", "rows"}
