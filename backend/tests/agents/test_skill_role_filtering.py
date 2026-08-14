@@ -359,3 +359,41 @@ def test_skill_manifest_error_still_raises_via_monkeypatched_spec(monkeypatch):
     with pytest.raises(SkillManifestError, match="tool_hoan_toan_bia"):
         build_graph(MagicMock(), tools, checkpointer=None, role_cfg=cfg,
                    mcp_all_tools=raw)
+
+
+# ── specs_for_role: một nguồn sự thật cho phép lọc skill ───────────────────
+
+from src.agents.skill_loader import load_skill_specs, specs_for_role  # noqa: E402
+
+
+def _specs_kept(role_name, profile="small-business"):
+    """Tên skill còn lại sau khi lọc theo vai, dùng ĐÚNG đường production đi."""
+    cfg = roles.PROFILES[profile][role_name]
+    raw = _full_mcp_registry()
+    tools = _filter_tools_for_role(raw, cfg)
+    return [s.name for s in specs_for_role(load_skill_specs(), tools, raw, cfg)]
+
+
+def test_specs_for_role_khop_so_do_that():
+    """Đo 2026-08-14 bằng chính skill_role_gap. Nêu SỐ và TÊN cụ thể để nếu ai
+    đó đổi chính sách vai, test đỏ vì đúng lý do — không phải vì một khẳng định
+    chung chung."""
+    assert _specs_kept("admin") == ["bao-gia-chiet-khau", "giao-hang", "nhap-kho"]
+    assert _specs_kept("warehouse") == ["giao-hang", "nhap-kho"]
+    assert _specs_kept("accounting") == []
+    assert _specs_kept("warehouse", "enterprise") == ["giao-hang"]
+    assert _specs_kept("accounting", "enterprise") == []
+
+
+def test_specs_for_role_giu_nguyen_thu_tu():
+    """Thứ tự quyết định thứ tự dòng trong worker block, mà worker block đi
+    thẳng vào prompt — đảo thứ tự là đổi prompt."""
+    goc = [s.name for s in load_skill_specs()]
+    giu = _specs_kept("admin")
+    assert giu == [n for n in goc if n in giu]
+
+
+def test_specs_for_role_vai_admin_khong_lo_gi():
+    """Bất biến của cả đợt: vai admin KHÔNG đổi hành vi, nếu không 5 baseline
+    hiện có mất nghĩa."""
+    assert _specs_kept("admin") == [s.name for s in load_skill_specs()]
