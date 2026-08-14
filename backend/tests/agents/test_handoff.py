@@ -1,6 +1,7 @@
 import pytest
 
-from src.agents.handoff import (HANDOFF_DOC_OF, NO_DOCUMENT_TOOLS,
+from src.agents.handoff import (ACTIVITY_MODELS_OF, HANDOFF_DOC_OF,
+                                NO_DOCUMENT_TOOLS,
                                 build_handoff, existing_handoff,
                                 role_name_for_label)
 from src.agents.roles import DEPT_OF, load_profile
@@ -145,3 +146,47 @@ def test_khu_hoi_build_handoff_roi_existing_handoff_phai_nhan_ra():
     got = existing_handoff([row], handoff["args"]["res_model"],
                            handoff["args"]["ref"])
     assert got is row
+
+
+# ── I3: vai nguồn phải gắn NỔI activity lên model đích ──────────────────────
+
+def test_kho_khong_ban_giao_duoc_len_account_move():
+    """ĐO THẬT 2026-08-14: ai-warehouse KHÔNG tạo nổi mail.activity trên
+    account.move — Odoo chặn ở tầng bảo mật, không phải ở phép đọc của tool.
+
+    Nghiệm thu sống bắt được: kho xin credit memo ⇒ bàn giao dựng được, cổng
+    xác nhận hiện ra, user bấm đồng ý, RỒI mới nhận "Không đọc được dữ liệu
+    'account.move'". Đề xuất một việc chắc chắn hỏng còn tệ hơn từ chối thẳng."""
+    assert build_handoff(_vai("warehouse"), "create_credit_memo",
+                         {"invoice_ref": "INV/2026/00030"}, "x") is None
+
+
+def test_kho_khong_ban_giao_duoc_len_purchase_order():
+    assert build_handoff(_vai("warehouse"), "create_bill_from_po",
+                         {"order_ref": "P00068"}, "x") is None
+
+
+def test_kho_VAN_ban_giao_duoc_len_sale_order():
+    """Đối chứng dương: chặn phải HẸP, không được nuốt cả hướng đang chạy."""
+    got = build_handoff(_vai("warehouse"), "create_invoice_from_order",
+                        {"order_ref": "S00012"}, "x")
+    assert got is not None and got["args"]["res_model"] == "sale.order"
+
+
+def test_ke_toan_ban_giao_duoc_len_stock_picking():
+    """Đối chứng dương hướng ngược: kế toán → kho, đã chạy thật ở nghiệm thu."""
+    got = build_handoff(_vai("accounting"), "validate_picking",
+                        {"picking_ref": "WH/OUT/00138"}, "x")
+    assert got is not None and got["args"]["assignee"] == "ai-warehouse"
+
+
+def test_moi_model_dich_trong_bang_deu_duoc_khai_o_it_nhat_mot_vai():
+    """Lưới đỡ trôi: thêm một model đích mới vào HANDOFF_DOC_OF mà quên khai
+    vai nào gắn nổi activity lên đó ⇒ mọi bàn giao tới model ấy im lặng rơi về
+    sàn, không ai biết. Test này đỏ trước khi điều đó xảy ra."""
+    dich = {res_model for _, res_model in HANDOFF_DOC_OF.values()}
+    khai = set().union(*ACTIVITY_MODELS_OF.values())
+    thieu = dich - khai
+    assert not thieu, (
+        f"model đích chưa vai nào khai gắn nổi activity: {sorted(thieu)} — "
+        "đo thật rồi thêm vào ACTIVITY_MODELS_OF")

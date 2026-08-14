@@ -62,6 +62,34 @@ NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
 
 ACTIVITY_TYPE = "To-Do"
 
+# Model mà TÀI KHOẢN CỦA TỪNG VAI gắn được activity lên.
+#
+# ĐO THẬT 2026-08-14, bằng đúng phép toán mà bàn giao thực hiện
+# (`mail.activity.create` qua XML-RPC dưới tài khoản của vai), KHÔNG suy từ
+# quyền đọc — đã chứng minh hai thứ đó không trùng nhau:
+#
+#   vai nguồn      sale.order  purchase.order  account.move  stock.picking
+#   ai-warehouse      ✅           bị chặn        bị chặn         ✅
+#   ai-accounting     ✅             ✅             ✅            ✅
+#
+# VÌ SAO CẦN: tool `log_activity` chạy bằng tài khoản của vai NGUỒN (cô lập
+# theo tiến trình MCP). Nghiệm thu sống 2026-08-14 bắt được: kho xin credit
+# memo ⇒ bàn giao dựng được, cổng xác nhận hiện ra, user bấm đồng ý, RỒI mới
+# nhận "Không đọc được dữ liệu 'account.move'". Đề xuất một việc chắc chắn
+# hỏng còn tệ hơn từ chối thẳng.
+#
+# Đây là ranh giới quyền CỨNG của Odoo, không phải phép kiểm của tool: đo
+# được `ai-warehouse` không tạo nổi `mail.activity` trên `account.move` kể cả
+# khi bỏ qua mọi phép đọc — Odoo chặn ở tầng bảo mật ("Loại tài liệu:
+# Activity, Thao tác: create").
+#
+# Vai không có tên trong bảng (vd admin) KHÔNG bị chặn — xem build_handoff.
+ACTIVITY_MODELS_OF: dict[str, frozenset[str]] = {
+    "warehouse": frozenset({"sale.order", "stock.picking"}),
+    "accounting": frozenset({"sale.order", "purchase.order",
+                             "account.move", "stock.picking"}),
+}
+
 # Đánh dấu một activity LÀ bàn giao (không phải activity thường có sẵn trên
 # chứng từ). existing_handoff() dùng để lọc — thiếu điều kiện này, MỌI
 # activity mở trên đúng bản ghi (kể cả activity không liên quan gì tới bàn
@@ -105,6 +133,14 @@ def build_handoff(role_cfg, tool: str, args: dict,
 
     role_name = role_name_for_label(DEPT_OF.get(tool, ""))
     if role_name is None or role_name == role_cfg.name:
+        return None
+
+    # Vai NGUỒN có gắn nổi activity lên model này không? Tool log_activity chạy
+    # bằng tài khoản của vai nguồn, nên nếu Odoo chặn thì bàn giao sẽ hỏng SAU
+    # khi người dùng đã bấm xác nhận. Thà rơi về sàn (câu từ chối như cũ).
+    # Vai không khai trong bảng (admin) không bị chặn.
+    attachable = ACTIVITY_MODELS_OF.get(role_cfg.name)
+    if attachable is not None and res_model not in attachable:
         return None
 
     what = (summary or "").strip() or tool
