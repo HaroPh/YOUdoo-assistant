@@ -241,3 +241,43 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
                         state="planned")
     except Exception as e:  # noqa: BLE001
         return envelope(False, f"Lỗi khi lên lịch hoạt động: {e}")
+
+
+@mcp.tool()
+def close_activity(activity_id: int, note: str = "") -> str:
+    """Đánh dấu MỘT việc (hoạt động/activity) đang được giao cho tài khoản hiện
+    tại là ĐÃ HOÀN TẤT. YÊU CẦU XÁC NHẬN từ người dùng trước khi gọi.
+
+    Chỉ đóng được việc giao cho CHÍNH tài khoản đang gọi. Đo trên Odoo thật
+    2026-08-14: Odoo KHÔNG chặn một tài khoản đóng việc của người khác
+    (ai-warehouse đóng trót lọt việc của ai-accounting), nên bộ lọc user_id
+    dưới đây là lớp cưỡng chế DUY NHẤT — không được bỏ.
+
+    Đóng việc KHÔNG xoá bản ghi: Odoo đặt active=False, state='done',
+    date_done=<hôm nay>, và ghi một tin vào chatter của chứng từ kèm nguyên văn
+    `note`. Thao tác hoàn tác được và có dấu vết.
+
+    Args:
+        activity_id: ID việc cần đóng (coordinator đã giải từ chứng từ).
+        note: Lời nhắn ghi kèm, vào chatter chứng từ. Bỏ trống cũng được.
+    """
+    try:
+        rows = odoo("mail.activity", "search_read",
+                    [[["id", "=", activity_id], ["user_id", "=", get_uid()]]],
+                    {"fields": ["id", "summary", "res_name"], "limit": 1})
+        if not rows:
+            # MỘT câu cho cả hai nguyên nhân (việc của người khác / đã đóng
+            # rồi) — tách ra là để lộ việc của bộ phận khác có tồn tại không.
+            return envelope(False, "Việc này không được giao cho bộ phận của "
+                                   "bạn, hoặc đã đóng rồi.")
+        act = rows[0]
+        odoo("mail.activity", "action_feedback", [[activity_id]],
+             {"feedback": note or "Đã hoàn tất."})
+        what = act.get("summary") or f"việc #{activity_id}"
+        where = act.get("res_name") or ""
+        where_part = f" trên '{where}'" if where else ""
+        return envelope(True, f"Đã đóng {what}{where_part}.",
+                        ref=where or what, model="mail.activity",
+                        res_id=activity_id, state="done")
+    except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
+        return envelope(False, f"Lỗi khi đóng việc: {e}")

@@ -28,6 +28,11 @@ ODOO_METHOD_OPERATION_MAP = {
     "send": "write",         # mail.mail.send — gửi thật (hoặc set state=exception)
     "action_create_payments": "write",
     "convert_opportunity": "write",
+    # mail.activity.action_feedback — đánh dấu việc hoàn tất. Đo 2026-08-14:
+    # KHÔNG xoá bản ghi mà đặt active=False, state='done', date_done=<hôm nay>,
+    # và ghi một tin vào chatter chứng từ. Nên đây là "write", không phải
+    # "unlink".
+    "action_feedback": "write",
     "button_mark_done": "write",
     "action_assign": "write",
     "action_create_returns": "write",
