@@ -70,7 +70,8 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
     g.add_node("intent_router", make_intent_router_node(
         llms["router"], render_worker_block(skill_specs),
         frozenset(s.name for s in skill_specs)))
-    g.add_node("erp_read", make_erp_read_node(llms["read"], build_erp_query_tools()))
+    g.add_node("erp_read", make_erp_read_node(
+        llms["read"], build_erp_query_tools(role_cfg)))
     from .prompts import planner_prompt_for
     g.add_node("erp_write_planner", make_erp_write_planner_node(
         llms["planner"],
@@ -85,7 +86,7 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
     g.add_node("mixed", make_mixed_node())
     g.add_node("gather_docs", make_gather_docs_node())
     g.add_node("gather_erp", make_gather_erp_node(
-        llms["fusion"], build_erp_query_tools()))
+        llms["fusion"], build_erp_query_tools(role_cfg)))
     g.add_node("fuse_answer", make_fuse_answer_node(llms["fusion"]))
     g.add_node("respond_unknown", make_respond_unknown_node(llms["chitchat"]))
     for spec in WRITE_COORDINATORS.values():

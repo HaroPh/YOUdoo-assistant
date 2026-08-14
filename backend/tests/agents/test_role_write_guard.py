@@ -76,17 +76,36 @@ async def test_warehouse_refused_post_invoice_no_pending_action(monkeypatch):
 # ── (2) Cùng yêu cầu, nhánh KHÔNG coordinated (đi qua _interrupt() bình
 #     thường nếu không bị chặn) — chứng minh cổng vai chặn CẢ HAI nhánh. ────
 
+def _khong_co_viec_trung(monkeypatch):
+    """Cô lập phép tra activity trùng khỏi Odoo THẬT — xem chú thích cùng tên
+    trong test_handoff_planner.py. Thiếu nó, hai test dưới đây sẽ ĐỎ ngay sau
+    lần nghiệm thu sống đầu tiên."""
+    import src.agents.nodes as nodes_mod
+    monkeypatch.setattr(nodes_mod, "_duplicate_handoff", lambda handoff: None)
+
+
 @pytest.mark.asyncio
-async def test_accounting_refused_deliver_order_no_pending_action(monkeypatch):
-    """deliver_order thuộc other_dept của vai Kế toán (nghiệp vụ Kho)."""
+async def test_accounting_xin_deliver_order_thi_duoc_ban_giao_cho_kho(monkeypatch):
+    """deliver_order thuộc other_dept của vai Kế toán (nghiệp vụ Kho).
+
+    ĐỔI TÊN 2026-08-13 (trước: ..._no_pending_action). Bàn giao chéo bộ phận
+    làm `pending_action` KHÔNG còn None — nó là plan log_activity. Nhưng hai
+    tính chất test này bảo vệ thì KHÔNG đổi, và vẫn được assert dưới đây:
+      1. deliver_order KHÔNG được thực thi;
+      2. người dùng VẪN được cho biết việc thuộc bộ phận nào.
+    Tính chất (2) chính là thứ đã ĐỎ khi bản đầu của bàn giao thay plan rồi
+    im lặng — test này bắt được, nên đừng nới nó."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     _interrupt_must_not_fire(monkeypatch)
+    _khong_co_viec_trung(monkeypatch)
     llm = make_mock_llm(_plan_json("deliver_order", {"order_ref": "S00012"}))
     node = make_erp_write_planner_node(llm, role_cfg=ACCOUNTING)
 
     result = await node(_write_state("giao hàng cho đơn S00012"))
 
-    assert result["pending_action"] is None
+    assert result["pending_action"]["tool"] == "log_activity", \
+        "deliver_order KHÔNG được thực thi — phải bị thay bằng bàn giao"
+    assert result["pending_action"]["args"]["assignee"] == "ai-warehouse"
     assert result["auto_chain"] is None
     assert "Kho" in result["messages"][0].content
 
@@ -132,6 +151,7 @@ async def test_admin_role_cfg_still_creates_pending_action(monkeypatch):
 async def test_unknown_tool_name_refused_not_confirmed(monkeypatch):
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     _interrupt_must_not_fire(monkeypatch)
+    _khong_co_viec_trung(monkeypatch)
     llm = make_mock_llm(_plan_json("other"))
     node = make_erp_write_planner_node(llm, role_cfg=WAREHOUSE)
 
@@ -163,6 +183,7 @@ async def test_warehouse_chain_deliver_then_invoice_refused_whole_chain(monkeypa
     CHUỖI trước khi chạy — không giao hàng rồi mới báo lỗi ở bước hai."""
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     _interrupt_must_not_fire(monkeypatch)
+    _khong_co_viec_trung(monkeypatch)
     plan = {"tool": "deliver_order", "args": {"order_ref": "S00012"},
             "summary": "Giao hàng và xuất hóa đơn",
             "chain_until": "create_invoice_from_order"}

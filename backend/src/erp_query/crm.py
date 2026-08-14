@@ -52,3 +52,38 @@ def list_crm_leads(kind=None, stage=None, limit=50, *, gw=None):
              f"| {(r['user_id'] or [0, '—'])[1]}" for r in rows]
     return ok({"rows": rows, "count": len(rows)},
               f"{len(rows)} lead/cơ hội:\n" + "\n".join(lines))
+
+
+ACTIVITY_FIELDS = ["summary", "user_id", "res_model", "res_id", "res_name",
+                   "date_deadline", "activity_type_id"]
+
+
+def list_my_activities(login, limit=20, *, gw=None):
+    """Activity đang mở giao cho `login`, hạn gần nhất trước.
+
+    LỌC TƯỜNG MINH theo login truyền vào, KHÔNG theo "người dùng hiện tại":
+    đường đọc chạy bằng ai-readonly còn đường ghi chạy bằng tài khoản của vai,
+    nên "người dùng hiện tại" ở đây luôn là ai-readonly — sai người.
+
+    Đường chấm `user_id.login` đi qua được dù res.users nằm trong
+    MODEL_DENYLIST: denylist chỉ chặn model ở cấp cao nhất (gateway._check_model).
+
+    mail.activity bản chất là việc CHƯA xong — Odoo unlink bản ghi khi đánh dấu
+    hoàn tất — nên không cần điều kiện "đang mở" nào thêm."""
+    login = str(login or "").strip()
+    if not login:
+        return ok({"rows": []}, "Không xác định được tài khoản để tra việc.")
+    gw = gw or default_gateway()
+    try:
+        rows = gw.search_read("mail.activity", [["user_id.login", "=", login]],
+                              ACTIVITY_FIELDS, order="date_deadline asc",
+                              limit=limit)
+    except Exception as e:                                  # noqa: BLE001
+        return err(f"Lỗi tra việc được giao: {e}")
+    if not rows:
+        return ok({"rows": []}, "Hiện không có việc nào được giao cho bạn.")
+    lines = [f"- {r.get('res_name') or r.get('res_model')}: "
+            f"{r.get('summary') or '(không có mô tả)'} "
+            f"(hạn {r.get('date_deadline') or 'chưa đặt'})" for r in rows]
+    return ok({"rows": rows},
+              f"{len(rows)} việc đang được giao cho bạn:\n" + "\n".join(lines))

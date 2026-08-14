@@ -14,8 +14,10 @@ from .state import ERPAgentState
 from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
-from .roles import OTHER_DEPT, DENIED
+from .roles import OTHER_DEPT, DENIED, DEPT_OF
 from .write_registry import COORDINATED_TOOLS, expand_chain
+from .handoff import build_handoff, existing_handoff
+from ..erp_query import crm
 from ..rag.retrieve import retrieve
 from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
 from .erp_grounding import verify_erp_grounding
@@ -233,6 +235,43 @@ def _role_refusal_message(role_cfg, tool: str) -> str:
             f"Vui lòng liên hệ bộ phận {dept} để thực hiện.")
 
 
+def _handoff_notice(role_cfg, tool: str) -> str:
+    """Câu giải thích ĐI KÈM đề xuất bàn giao.
+
+    Không được bỏ. Bản đầu của Task 2 chỉ thay `plan` rồi im lặng: người dùng
+    thấy một đề nghị tạo activity mà không hiểu vì sao việc mình xin lại thành
+    ra thế. Test có sẵn `test_accounting_refused_deliver_order_no_pending_action`
+    canh đúng điều này và đã ĐỎ — nó bảo vệ LỜI GIẢI THÍCH, không chỉ bảo vệ
+    `pending_action is None`."""
+    return (f"Việc này không thuộc quyền hạn của bộ phận {role_cfg.label}. "
+            f"Tôi có thể chuyển cho bộ phận {dept_of(tool)} — bạn xác nhận nhé.")
+
+
+def _duplicate_handoff(handoff: dict) -> dict | None:
+    """Activity đang mở trên ĐÚNG chứng từ của `handoff`, hoặc None.
+
+    Chống spam (ADR-012 §5): hỏi lại ba lần thì bộ phận kia nhận ba việc
+    giống nhau. Tra TRƯỚC KHI ĐỀ XUẤT, không phải trước khi ghi — đề xuất
+    trùng đã là phiền rồi.
+
+    Tra hỏng KHÔNG được chặn bàn giao: bọc try/except, lỗi tra chỉ log
+    warning rồi coi như không có việc trùng — cùng lắm là một việc trùng,
+    còn hơn mất hẳn đường bàn giao."""
+    try:
+        # limit=100 (final-review I5), không phải mặc định 20: gateway sắp
+        # theo date_deadline asc, vai đích có thể đã có nhiều việc quá hạn
+        # cũ chiếm hết 20 dòng đầu, đẩy dòng trùng thật ra ngoài cửa sổ —
+        # khiến _duplicate_handoff báo "không trùng" SAI. 100 là MAX_LIMIT
+        # của gateway (đủ lớn, không phải không giới hạn).
+        env = crm.list_my_activities(handoff["args"]["assignee"], limit=100)
+        return existing_handoff((env.get("data") or {}).get("rows"),
+                                handoff["args"]["res_model"],
+                                handoff["args"]["ref"])
+    except Exception:                                       # noqa: BLE001
+        logger.warning("không tra được activity trùng", exc_info=True)
+        return None
+
+
 def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
     async def erp_write_planner(state: ERPAgentState) -> dict:
         if not write_gate.write_actions_enabled():
@@ -270,12 +309,33 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         # prompt (đúng nguyên tắc §3 spec role-based-access — LLM không bao
         # giờ là nơi giữ ranh giới duy nhất). role_cfg=None (mọi caller cũ,
         # test, vai admin) → nhánh này không chạy, hành vi giữ y nguyên.
+        handoff_note = None
         if role_cfg is not None:
             tool_name = plan.get("tool")
             if tool_name and role_cfg.state_of(tool_name) in (OTHER_DEPT, DENIED):
-                return {"messages": [AIMessage(
-                    content=_role_refusal_message(role_cfg, tool_name)
-                )], "pending_action": None, "auto_chain": None}
+                # Bàn giao (spec 2026-08-13): thay vì để việc bốc hơi, dựng một
+                # activity trên đúng chứng từ giao cho bộ phận có thẩm quyền.
+                # log_activity NẰM TRONG WRITE_COORDINATORS nên chỉ cần thay
+                # plan — coordinator lo tra chứng từ, kiểm loại, tra người nhận
+                # và cổng xác nhận. Không thêm cơ chế nào.
+                handoff = build_handoff(role_cfg, tool_name,
+                                        plan.get("args") or {},
+                                        plan.get("summary"))
+                if handoff is None:
+                    # SÀN: dựng không được thì giữ NGUYÊN hành vi cũ.
+                    return {"messages": [AIMessage(
+                        content=_role_refusal_message(role_cfg, tool_name)
+                    )], "pending_action": None, "auto_chain": None}
+                plan = handoff
+                handoff_note = _handoff_notice(role_cfg, tool_name)
+                duplicate = _duplicate_handoff(handoff)
+                if duplicate is not None:
+                    deadline = duplicate.get("date_deadline") or "chưa đặt"
+                    return {"messages": [AIMessage(
+                        content=(f"Việc này đã được chuyển cho bộ phận "
+                                 f"{DEPT_OF.get(tool_name, 'khác')} rồi "
+                                 f"(hạn {deadline}), chưa cần chuyển lại.")
+                    )], "pending_action": None, "auto_chain": None}
 
         # Chuỗi đa bước khai báo trước: validate tất định qua registry walk.
         # LLM bịa chain_until → None → single-step như cũ (fail-safe).
@@ -292,6 +352,15 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         # gì chạy; nếu có bước cấm, từ chối CẢ CHUỖI (không âm thầm cắt bớt —
         # người dùng hỏi 2 việc mà chỉ được 1 việc, không báo, còn tệ hơn bị
         # từ chối thẳng cả 2).
+        # KHÔNG bàn giao ở nhánh này (final-review I4, 2026-08-14): một chuỗi
+        # trộn bước được phép (vd deliver_order, own của vai kho) với bước
+        # cấm (vd create_invoice_from_order, Kế toán) không rút gọn được
+        # thành MỘT activity mà không nói dối — hoặc nội dung activity chỉ
+        # nêu bước cấm (bên nhận không biết còn có bước own đi kèm mà chính
+        # người dùng đã xin), hoặc giao luôn cả bước own cho bộ phận khác
+        # (kế toán bị nhờ đi giao hàng — việc CỦA KHO, không phải của họ).
+        # Nhánh tool ĐƠN ở trên không gặp vấn đề này vì chỉ có một tool, một
+        # sự thật để nói. Từ chối cả chuỗi, y như trước khi có bàn giao.
         if role_cfg is not None and chain:
             for step_tool, _ in chain:
                 if role_cfg.state_of(step_tool) in (OTHER_DEPT, DENIED):
@@ -306,7 +375,10 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
 
         # Coordinated writes own their own resolution + confirm; don't interrupt here.
         if plan.get("tool") in COORDINATED_TOOLS:
-            return {"pending_action": plan, "auto_chain": auto_chain}
+            out = {"pending_action": plan, "auto_chain": auto_chain}
+            if handoff_note:
+                out["messages"] = [AIMessage(content=handoff_note)]
+            return out
 
         summary = plan.get("summary") or plan.get("tool") or "thao tác"
         # Invariant C tầng 3: hiện tool+args TẤT ĐỊNH — user luôn thấy ref thật
