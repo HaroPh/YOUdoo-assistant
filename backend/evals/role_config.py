@@ -5,13 +5,16 @@ planner_prompt_for), còn bộ đo trước đây luôn dựng từ tập ĐẦY
 2026-08-14: vai kế toán chạy worker block RỖNG (0/3 skill) trong khi bộ đo đo
 3/3 — nên mọi kết luận "cấu hình còn khoẻ" chỉ đúng cho vai admin.
 
-skill_role_gap cần ĐỐI TƯỢNG tool, mà bộ đo không có kết nối MCP. Giải: lấy
-TÊN tool thật bằng cách import module server của mcp-servers/odoo (đã kiểm:
-cho ra đủ 35 tên, không cần MCP sống, không chạm Odoo — get_uid() là lười),
-rồi dựng tool giả mang đúng tên đó. Giả định duy nhất — bộ lọc chỉ quan tâm
-TÊN — được khoá bằng test, không để là niềm tin.
+skill_role_gap cần ĐỐI TƯỢNG tool, mà bộ đo không có kết nối MCP. Giải: import
+module server của mcp-servers/odoo (đã kiểm: cho ra đủ 35 tool, không cần MCP
+sống, không chạm Odoo — get_uid() là lười) rồi dựng tool giả mang đúng TÊN và
+đúng CHỮ KÝ của tool thật. Chỉ thân hàm là giả, nên registry này dựng được cả
+build_graph() thật — đó là điều kiện để lưới đỡ trong
+tests/jobs/test_eval_role_config.py so được prompt bộ đo với prompt production
+thật sự dựng, thay vì so với một bản chép tay.
 """
 import functools
+import inspect
 import pathlib
 import sys
 
@@ -33,8 +36,13 @@ _MCP_DIR = (pathlib.Path(__file__).resolve().parents[2]
 
 
 @functools.lru_cache(maxsize=1)
-def _mcp_tool_names() -> tuple[str, ...]:
-    """Tên mọi tool MCP đã đăng ký, lấy từ chính module server.
+def _mcp_tool_fns() -> tuple[tuple[str, object], ...]:
+    """(tên, hàm) của mọi tool MCP đã đăng ký, lấy từ chính module server.
+
+    Lấy cả HÀM chứ không chỉ tên vì tool giả phải mang đúng CHỮ KÝ thật: bộ
+    lọc theo vai chỉ cần tên, nhưng build_skill_tools (skill_loader) đối chiếu
+    các trường nội suy trong `confirm` với tham số thật của tool, nên tool giả
+    mang chữ ký sai làm build_graph() ném SkillManifestError.
 
     Fail-closed: thiếu thư mục MCP thì BÁO LỖI, không rơi về một danh sách
     đoán — đo sai im lặng chính là con bọ module này đi đóng.
@@ -46,7 +54,8 @@ def _mcp_tool_names() -> tuple[str, ...]:
     sys.path.insert(0, str(_MCP_DIR))
     try:
         import server
-        return tuple(sorted(server.mcp._tool_manager._tools))
+        return tuple((name, t.fn) for name, t
+                     in sorted(server.mcp._tool_manager._tools.items()))
     except Exception as e:  # noqa: BLE001 — gói MỌI nguyên nhân vào một lỗi nói rõ
         # Nguyên nhân hay gặp nhất KHÔNG phải thiếu thư mục (đã chặn ở trên) mà
         # là thiếu biến môi trường: mcp-servers/odoo/config.py dùng
@@ -63,16 +72,21 @@ def _mcp_tool_names() -> tuple[str, ...]:
 
 @functools.lru_cache(maxsize=1)
 def _fake_registry():
-    """Tool giả mang ĐÚNG tên tool MCP thật.
+    """Tool giả mang ĐÚNG tên VÀ ĐÚNG chữ ký của tool MCP thật.
 
-    Bộ lọc theo vai chỉ so tên (erp_agent._filter_tools_for_role) và
-    skill_role_gap chỉ cần tên để quyết định, nên thân hàm không bao giờ chạy.
+    Chỉ thân hàm là giả — nó ném nếu bị gọi, vì bộ đo không có kết nối MCP.
+    Chữ ký chép từ hàm thật (`__signature__`) nên args_schema langchain suy ra
+    trùng khít tool thật, đủ để dựng được build_graph() thật. Trước đây stub là
+    `def _stub(**kwargs)` nên mọi tool chỉ có tham số 'kwargs', và bất kỳ ai
+    dựng graph thật với registry này đều ăn SkillManifestError.
     """
     out = []
-    for name in _mcp_tool_names():
-        def _stub(**kwargs):
-            """tool giả — chỉ mang tên, không bao giờ được gọi"""
+    for name, real_fn in _mcp_tool_fns():
+        def _stub(*args, **kwargs):
+            """tool giả — chỉ mang tên và chữ ký, không bao giờ được gọi"""
             raise AssertionError("tool giả của bộ đo không được phép chạy")
+        _stub.__signature__ = inspect.signature(real_fn)
+        _stub.__annotations__ = dict(getattr(real_fn, "__annotations__", {}))
         out.append(lc_tool(name)(_stub))
     return tuple(out)
 
