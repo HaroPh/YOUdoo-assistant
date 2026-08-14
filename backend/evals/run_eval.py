@@ -23,9 +23,9 @@ from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
 from evals import fixtures
+from src.agents import roles
 from src.agents.prompts import CHITCHAT_PROMPT
 from src.agents.confirmation import _LLM_PROMPT
-from src.agents.prompts import WRITE_PLANNER_PROMPT
 from src.agents.prompts import SYSTEM_PROMPT
 from src.agents.prompts import RAG_SYNTHESIS_PROMPT
 from src.agents.prompts import FUSE_PROMPT
@@ -33,14 +33,13 @@ from src.agents.fanout import render_fuse_input
 from src.agents.prompts import GATHER_ERP_PROMPT
 from src.agents.fanout import make_gather_erp_node, _create_agent
 from src.agents.erp_grounding import verify_erp_grounding
-from src.agents.prompts import render_intent_router_prompt
 from src.agents.synthesis import (SENTINEL, _format_context, _MARKER_RE,
                                   extract_write_suggestion)
 from src.agents.nodes import _parse_plan_tiered
 from src.agents.routing import parse_proposal, decide_route
-from src.agents.skill_loader import load_skill_specs, render_worker_block
 from src.erp_query.tools import build_erp_query_tools
 from jobs.resilience import run_resilient
+from evals import role_config
 
 
 # Router dựng LƯỜI, dùng CHUNG cho mọi lượt gọi eval trong một tiến trình —
@@ -67,6 +66,21 @@ def _llm(alias: str, role: str) -> "RoutedChatModel":
     trả sớm trước khi đụng tới role)."""
     from src.llm.router import RoutedChatModel
     return RoutedChatModel(_get_router(), role, pin=alias)
+
+
+def baseline_path(model: str, set_name: str, role: str = "admin") -> str:
+    """Đường dẫn file baseline. MỘT nguồn sự thật cho quy ước tên — eval_gate
+    import lại hàm này thay vì tự ghép chuỗi.
+
+    Vai admin KHÔNG có hậu tố: 5 file baseline đang có mang đúng tên đó, và đổi
+    tên chúng là làm hỏng mọi lệnh lẫn mọi tham chiếu đang dùng. Nói cách khác:
+    không hậu tố NGHĨA LÀ admin.
+    """
+    here = os.path.dirname(__file__)
+    stem = f"baseline-{model.replace(':', '-')}-{set_name}"
+    if role != "admin":
+        stem = f"{stem}-{role}"
+    return os.path.join(here, f"{stem}.json")
 
 
 def _percentiles(samples: list[float]) -> tuple[int, int]:
@@ -280,17 +294,21 @@ async def eval_gather(llm, pace: float = 0.0, checkpoint_path=None, branch: str 
             "fails": fails, "errors": errors}
 
 
-async def eval_planner(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_planner(llm, pace: float = 0.0, checkpoint_path=None,
+                       role: str = "admin"):
     """Đo QUYẾT ĐỊNH của write-planner bằng MỘT lời gọi (spec §4.0a).
     Dùng _parse_plan_tiered (thuần) — KHÔNG dùng _plan_json vì nó ghi
     friction log production. Không corrective-retry: đo chất lượng lần đầu;
     lần parse thất bại được ghi riêng vào parse_fail."""
+    # Prompt phải là prompt VAI NÀY thật sự chạy — dựng MỘT LẦN trước vòng
+    # lặp (gọi role_config.planner_prompt 25 lần cho 25 ca là lãng phí).
+    prompt = role_config.planner_prompt(role)
     lat: list[float] = []
 
     async def call(case):
         text, exp_tool, exp_args = case
         resp, ms = await _timed(llm.ainvoke(
-            [SystemMessage(content=WRITE_PLANNER_PROMPT),
+            [SystemMessage(content=prompt),
              HumanMessage(content=text)]))
         lat.append(ms)
         plan, _tier = _parse_plan_tiered(resp.content)
@@ -374,7 +392,8 @@ async def eval_read(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
-async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None,
+                      role: str = "admin"):
     """Đo trên ĐÚNG hợp đồng router thật (SP-2a Task 8): INTENT_ROUTER_PROMPT
     giờ đòi 2 dòng "intent:"/"sop:", không còn 1 từ trần — parse bằng
     parse_proposal CHUNG với node thật (routing.py) và eval_sop_select,
@@ -398,10 +417,13 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
     duy nhất, không tự viết lại. Trước fix này, điều kiện "bộ intent cũ
     không được thụt" (spec §5.3 điều kiện 2) đo trên một cấu hình prompt
     KHÔNG PHẢI production thật (ngắn hơn, thiếu phần mô tả SOP có thể ảnh
-    hưởng phân loại)."""
-    specs = load_skill_specs()
-    prompt = render_intent_router_prompt(render_worker_block(specs))
-    valid_sops = frozenset(s.name for s in specs)
+    hưởng phân loại).
+
+    role (2026-08-14): Prompt phải là prompt VAI NÀY thật sự chạy, không phải
+    tập skill đầy đủ. Đo 2026-08-14: vai kế toán chạy worker block RỖNG (0/3
+    skill) trong khi bộ đo cũ luôn đo 3/3 — nên số cũ chỉ nói về vai admin."""
+    prompt = role_config.intent_prompt(role)
+    valid_sops = role_config.valid_sops(role)
     lat: list[float] = []
 
     async def call(case):
@@ -424,7 +446,8 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
-async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None,
+                          role: str = "admin"):
     """Đo việc CHỌN SOP end-to-end: gọi router thật với prompt thật (đã nối
     khối mô tả worker), parse bằng chính parse_proposal của node, rồi áp
     chính decide_route của routing. Đo cả chuỗi vì lớp phủ quyết tất định LÀ
@@ -434,10 +457,12 @@ async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None):
     Gate TUYỆT ĐỐI (giống chitchat, không baseline-relative): đây là hàng rào
     an toàn định tuyến, không phải phép đo chất lượng tương đối. Hướng nguy
     hiểm được đếm riêng: `hijack` = ca kỳ vọng KHÔNG phải SOP mà lại rơi vào
-    SOP — đúng lỗi đã xảy ra thật."""
-    specs = load_skill_specs()
-    prompt = render_intent_router_prompt(render_worker_block(specs))
-    valid_sops = frozenset(s.name for s in specs)
+    SOP — đúng lỗi đã xảy ra thật.
+
+    role (2026-08-14): prompt VAI NÀY thật sự chạy — cùng nguồn dựng với
+    eval_intent (role_config), không tự dựng lại."""
+    prompt = role_config.intent_prompt(role)
+    valid_sops = role_config.valid_sops(role)
     lat: list[float] = []
 
     async def call(case):
@@ -766,6 +791,10 @@ async def main(argv=None):
                              "synthesis", "multi_source", "sop_select"],
                     required=True)
     ap.add_argument("--model", required=True)
+    ap.add_argument("--role", default="admin",
+                    choices=sorted(roles.load_profile()),
+                    help="vai để dựng prompt (chỉ có tác dụng với "
+                         "intent/sop_select/planner; các bộ khác bỏ qua)")
     ap.add_argument("--save-baseline", action="store_true")
     ap.add_argument("--baseline")
     ap.add_argument("--pace", type=float, default=0.0,
@@ -778,7 +807,10 @@ async def main(argv=None):
                "chitchat": eval_chitchat, "planner": eval_planner,
                "read": eval_read, "synthesis": eval_synthesis,
                "multi_source": eval_multi_source, "sop_select": eval_sop_select}
-        result = await _FN[args.set](_llm(args.model, role=args.set), pace=args.pace)
+        kwargs = {"pace": args.pace}
+        if args.set in role_config.ROLE_SENSITIVE_SETS:
+            kwargs["role"] = args.role
+        result = await _FN[args.set](_llm(args.model, role=args.set), **kwargs)
     except Exception as e:   # noqa: BLE001 — hạ tầng LLM sập (key/model/router hỏng)
         print(f"INFRA ERROR: {e}"); sys.exit(2)
 
@@ -791,9 +823,8 @@ async def main(argv=None):
               "không đủ điều kiện gate/baseline")
         sys.exit(2)
 
-    here = os.path.dirname(__file__)
     if args.save_baseline:
-        path = os.path.join(here, f"baseline-{args.model.replace(':','-')}-{args.set}.json")
+        path = baseline_path(args.model, args.set, args.role)
         json.dump(result, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
         print(f"baseline saved: {path}"); sys.exit(0)
 
