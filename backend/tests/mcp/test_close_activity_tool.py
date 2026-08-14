@@ -128,10 +128,20 @@ def test_note_rong_van_dong_duoc(crm_mod, close_fn, monkeypatch):
 
 
 def test_odoo_hong_thi_tra_loi_khong_vo(crm_mod, close_fn, monkeypatch):
+    """Search_read đầu tiên bị AccessError — lớp bảo vệ bọc riêng nó, không lộ
+    chi tiết lỗi Odoo hay tên nhóm quyền. Khẳng định trên DOMAIN + message."""
+    calls = []
     def odoo_error(model, method, args, kw=None):
+        calls.append((model, method, args, kw))
         raise Exception("access-denied-detail: nhóm quyền XYZ")
 
     monkeypatch.setattr(crm_mod, "odoo", odoo_error)
     monkeypatch.setattr(crm_mod, "get_uid", lambda: 10)
     out = json.loads(close_fn(55))
+
     assert out["ok"] is False
+    # Không lộ nguyên văn lỗi Odoo trong display
+    assert "access-denied-detail" not in out["display"]
+    assert "nhóm quyền" not in out["display"]
+    # Không chạy action_feedback vì search_read đã hỏng
+    assert not [c for c in calls if c[1] == "action_feedback"]

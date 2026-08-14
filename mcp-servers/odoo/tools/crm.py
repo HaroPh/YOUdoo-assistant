@@ -262,9 +262,18 @@ def close_activity(activity_id: int, note: str = "") -> str:
         note: Lời nhắn ghi kèm, vào chatter chứng từ. Bỏ trống cũng được.
     """
     try:
-        rows = odoo("mail.activity", "search_read",
-                    [[["id", "=", activity_id], ["user_id", "=", get_uid()]]],
-                    {"fields": ["id", "summary", "res_name"], "limit": 1})
+        # Lệnh Odoo ĐẦU TIÊN trên model đích — bọc RIÊNG lệnh này. Lỗi ở đúng
+        # chỗ này chỉ có một nghĩa: vai hiện tại không đọc được mail.activity
+        # (thiếu quyền) — biết được từ VỊ TRÍ lỗi xảy ra, không cần đọc nội
+        # dung lỗi. KHÔNG lộ nguyên văn lỗi hay tên nhóm quyền Odoo ra ngoài.
+        try:
+            rows = odoo("mail.activity", "search_read",
+                        [[["id", "=", activity_id], ["user_id", "=", get_uid()]]],
+                        {"fields": ["id", "summary", "res_name"], "limit": 1})
+        except Exception:  # noqa: BLE001 — chỉ bọc lệnh này, không đổi hành vi các lệnh Odoo khác
+            return envelope(False,
+                            "Không đọc được dữ liệu việc — tài khoản hiện tại có thể "
+                            "không có quyền truy cập.")
         if not rows:
             # MỘT câu cho cả hai nguyên nhân (việc của người khác / đã đóng
             # rồi) — tách ra là để lộ việc của bộ phận khác có tồn tại không.
