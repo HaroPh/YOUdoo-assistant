@@ -4,6 +4,8 @@ Mọi đường ra Odoo đi qua odoo_call.odoo() (log_activity dùng thêm get_u
 để gán người phụ trách hoạt động — cùng module odoo_call, không phải đường
 tắt ra Odoo riêng).
 """
+import json
+
 from server import mcp
 from odoo_call import odoo, get_uid
 from helpers import envelope, today_iso, resolve_unique
@@ -290,3 +292,43 @@ def close_activity(activity_id: int, note: str = "") -> str:
                         res_id=activity_id, state="done")
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
         return envelope(False, f"Lỗi khi đóng việc: {e}")
+
+
+@mcp.tool()
+def find_my_activities(res_model: str = "", res_id: int = 0,
+                       limit: int = 20) -> str:
+    """Các việc (hoạt động/activity) ĐANG MỞ được giao cho tài khoản hiện tại,
+    hạn gần nhất trước. Bỏ trống res_model/res_id = mọi chứng từ.
+
+    Tool này phục vụ coordinator đóng việc (nó cần danh sách ứng viên trước khi
+    hỏi người dùng chọn). Đường tra cứu của NGƯỜI DÙNG là list_my_activities ở
+    tầng backend, không phải tool này.
+
+    Lọc theo get_uid() — tài khoản Odoo đã xác thực của vai — chứ không theo
+    một chuỗi login suy ra từ tên vai.
+
+    "Đang mở" = active=True; Odoo lọc như vậy theo mặc định nên domain không
+    cần điều kiện gì thêm. KHÔNG truyền active_test=False: đo 2026-08-14 cho
+    thấy việc đã đóng vẫn CÒN bản ghi (active=False, state='done'), nên bật
+    active_test=False sẽ cho phép đóng lại một việc đã xong.
+
+    Args:
+        res_model: Lọc theo model chứng từ, vd "sale.order". Bỏ trống = mọi model.
+        res_id: Lọc theo ID chứng từ. Bỏ trống/0 = mọi chứng từ.
+        limit: Số dòng tối đa.
+    """
+    try:
+        domain = [["user_id", "=", get_uid()]]
+        if str(res_model or "").strip():
+            domain.append(["res_model", "=", res_model])
+        if res_id:
+            domain.append(["res_id", "=", res_id])
+        rows = odoo("mail.activity", "search_read", [domain],
+                    {"fields": ["id", "summary", "res_model", "res_id",
+                                "res_name", "date_deadline"],
+                     "order": "date_deadline asc", "limit": limit})
+        return json.dumps({"ok": True, "rows": rows}, ensure_ascii=False)
+    except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
+        return json.dumps({"ok": False, "rows": [],
+                           "display": f"Lỗi khi tra việc được giao: {e}"},
+                          ensure_ascii=False)
