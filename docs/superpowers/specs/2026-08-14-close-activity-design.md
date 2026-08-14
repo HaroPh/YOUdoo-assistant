@@ -155,6 +155,12 @@ riêng việc bàn giao là ranh giới nhân tạo, không phản ánh cách ng
 
 Ba mảnh, mỗi mảnh một trách nhiệm, khớp đúng khuôn đã có của `log_activity`.
 
+Đồng thời phải mở allowlist: `mcp-servers/odoo/security.py` là bảng
+**deny-by-default**, và `action_feedback` **không có trong đó** — tool sẽ bị
+chính lớp bảo mật của dự án từ chối trước khi chạm Odoo. Phép đo ở §1 không thấy
+được điều này vì nó đi thẳng XML-RPC, vòng qua lớp này. Thêm
+`"action_feedback": "write"` (là *write*, không phải *unlink* — §1.1).
+
 ### 3.1 Tool MCP — `mcp-servers/odoo/tools/crm.py`
 
 ```python
@@ -174,12 +180,16 @@ Bước 1 là **lưới đỡ thứ hai**, không thừa: coordinator đã lọc
 nhưng cái lọc ở đây là cái duy nhất chạy **bằng chính tài khoản sẽ thực hiện
 thao tác**. Đó là chỗ §1.3 nói không có lưới nào của Odoo.
 
-### 3.2 Đường tra ứng viên — `backend/src/erp_query/crm.py`
+### 3.2 Đường tra ứng viên — tool MCP thứ hai, KHÔNG phải `erp_query`
 
-Một hàm mới cạnh `list_my_activities`, **cùng khuôn**: login truyền tường minh
-(không phải "người dùng hiện tại" — đường đọc chạy bằng `ai-readonly`), `gw=`
-tiêm được cho test, trả envelope. Nhiệm vụ: tra activity đang mở của `login`
-**trên một chứng từ cụ thể** (`res_model` + `res_id`).
+```python
+find_my_activities(res_model: str = "", res_id: int = 0, limit: int = 20) -> str
+```
+
+Trả `{"ok": bool, "rows": [...]}` (shape riêng — `helpers.envelope` không chở
+được danh sách dòng). Lọc `user_id = get_uid()`, cộng `res_model`/`res_id` khi
+được nêu. Vào graph qua `Spec.deps` (khuôn `MAIL_DEPS`) nên **planner không nhìn
+thấy nó** — nếu thấy, LLM sẽ gọi thẳng và bỏ qua cổng xác nhận.
 
 **"Đang mở" nghĩa là `active=True`**, và điều đó có sẵn: Odoo lọc `active=True`
 theo mặc định (§1.1), nên domain **không** cần điều kiện nào cho việc này —
@@ -188,22 +198,42 @@ nhưng cũng **không được** truyền `active_test=False`, vì làm thế s�
 
 `list_my_activities` giữ nguyên, không sửa hành vi.
 
+**Sửa so với bản duyệt đầu (2026-08-14, phát hiện khi viết plan).** Bản đầu đặt
+hàm tra ở `backend/src/erp_query/crm.py`, lọc theo `f"ai-{role_cfg.name}"`. Hai
+vấn đề chỉ lộ ra khi dò mã nguồn:
+
+1. **Coordinator KHÔNG nhận được `role_cfg`.** `Spec.build` là
+   `(llm, tools) -> node` cho toàn bộ 24 coordinator, và `WRITE_COORDINATORS`
+   được dựng ở cấp module lúc import — nơi chưa biết vai. Muốn có `role_cfg`
+   phải đổi hợp đồng đó và sửa cả 24 dòng. Bán kính ảnh hưởng quá lớn cho một
+   tính năng.
+2. **Lọc theo chuỗi login là bằng chứng yếu hơn.** `f"ai-{role_cfg.name}"` là
+   một chuỗi **suy ra từ tên vai**; `get_uid()` là **tài khoản Odoo đã xác
+   thực** đang thực hiện thao tác. Với đúng cái ràng buộc mà §1.3 nói không có
+   lưới đỡ nào của Odoo, bằng chứng mạnh hơn là thứ phải chọn.
+
+Đổi sang tool MCP đóng luôn cả hai: không chạm hợp đồng `Spec.build`, và **cùng
+một cơ chế danh tính** (`get_uid()`) cho cả tra lẫn đóng, ở cùng một phía của
+ranh giới tin cậy.
+
 ### 3.3 Coordinator — `backend/src/agents/crm_write.py`
 
 Args từ planner: `res_model`, `ref`, `note` (lời nhắn, tuỳ chọn).
 
 | tình huống | xử lý |
 |---|---|
-| `role_cfg is None` | từ chối — không xác định được tài khoản (cùng lối `list_my_activities` đã chọn cho đường eval) |
-| thiếu `res_model`/`ref` | **dùng lại `list_my_activities(f"ai-{role_cfg.name}")`** để liệt kê việc đang mở của vai → interrupt hỏi chọn. Không viết đường tra thứ hai cho cùng một câu hỏi |
+| thiếu tool `find_my_activities` hoặc `close_activity` | từ chối — công cụ không khả dụng |
+| thiếu `res_model`/`ref` | `find_my_activities()` không tham số → liệt kê việc đang mở của vai → interrupt hỏi chọn. **Cùng một tool** cho cả hai nhánh, không viết đường tra thứ hai |
+| tra ứng viên hỏng (`ok=False`) | từ chối riêng — **KHÔNG** gộp vào "không có việc nào", vì đó là hai sự thật khác nhau |
 | có, chứng từ không tra được | dùng lại `_resolve_doc` nguyên vẹn — mọi câu từ chối của nó giữ nguyên |
 | 0 việc trên chứng từ | *"Không có việc nào của bộ phận &lt;label&gt; đang mở trên '&lt;ref&gt;'."* |
 | đúng 1 việc | hỏi xác nhận → gọi tool |
 | nhiều việc | interrupt hỏi chọn, liệt kê theo nội dung việc |
 
-Vai `admin` đi cùng đường: `role_cfg.name == "admin"` → tra việc giao cho
-`ai-admin`. Không có nhánh riêng, và `unrestricted=True` không nới quy tắc §2.2 —
-admin cũng chỉ đóng được việc của chính tài khoản mình.
+Vai `admin` đi cùng đường mà không cần nhánh riêng: tiến trình MCP của nó xác
+thực bằng `ai-admin`, nên `get_uid()` trả đúng tài khoản đó. `unrestricted=True`
+**không** nới quy tắc §2.2 — admin cũng chỉ đóng được việc của chính tài khoản
+mình, vì lớp lọc nằm ở tầng MCP chứ không ở bảng phân vai.
 
 Câu xác nhận nêu **nội dung việc, chứng từ và hạn** — người dùng phải thấy đủ để
 biết mình đang đóng đúng việc:
