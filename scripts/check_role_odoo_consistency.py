@@ -95,6 +95,9 @@ TOOL_ACCESS_MAP = {
     # thiếu dòng này thì script live-check báo OK bất kể nhóm có được áp hay
     # không. Cùng kiểu gate-by-read hai dòng mail ở trên đã dùng.
     "log_activity":            [("mail.activity", "create"), ("ir.model", "read")],  # crm.py log_activity
+    # action_feedback đặt active=False + state='done' trên chính bản ghi
+    # mail.activity (đo 2026-08-14) — là "write", không phải "unlink".
+    "close_activity":          [("mail.activity", "write")],  # crm.py close_activity
 }
 
 # Tool nêu trong roles.py nhưng KHÔNG map sạch vào MỘT cặp (model, operation)

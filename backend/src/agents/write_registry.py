@@ -8,7 +8,8 @@ from typing import Callable
 from .create_order import make_order_node, SALE_CFG, PURCHASE_CFG
 from .edit_order import make_edit_order_node, SALE_EDIT_CFG, PURCHASE_EDIT_CFG
 from .inventory_write import make_inventory_node, make_internal_transfer_node, make_scrap_product_node
-from .crm_write import make_create_lead_node, make_convert_lead_node, make_log_activity_node
+from .crm_write import (make_create_lead_node, make_convert_lead_node,
+                        make_log_activity_node, make_close_activity_node)
 from .mrp_write import make_create_mo_node
 from .bom_write import make_create_bom_node, make_update_bom_node
 from .returns_write import make_return_order_node, make_create_credit_memo_node
@@ -37,6 +38,12 @@ WRITE_COORDINATORS = {
     "create_lead":  Spec("crm_create_lead",  lambda llm, tools: make_create_lead_node(tools)),
     "convert_lead": Spec("crm_convert_lead", lambda llm, tools: make_convert_lead_node(tools)),
     "log_activity": Spec("crm_log_activity", lambda llm, tools: make_log_activity_node(tools)),
+    # deps: coordinator cần tool tra ứng viên, nhưng tool đó KHÔNG được vào
+    # danh sách planner nhìn thấy (khuôn MAIL_DEPS) — nếu không, LLM sẽ gọi
+    # thẳng nó và bỏ qua cổng xác nhận.
+    "close_activity": Spec("crm_close_activity",
+                           lambda llm, tools: make_close_activity_node(tools),
+                           frozenset({"find_my_activities"})),
     "create_manufacturing_order": Spec("create_mo", lambda llm, tools: make_create_mo_node(tools)),
     "create_bom":       Spec("create_bom", lambda llm, tools: make_create_bom_node(tools)),
     "update_bom_lines": Spec("update_bom", lambda llm, tools: make_update_bom_node(tools)),

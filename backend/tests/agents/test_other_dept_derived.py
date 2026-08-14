@@ -26,23 +26,27 @@ THIEU_TRUOC_DAY = {
 # vai non-admin trên cả hai profile là thay đổi có chủ đích, không phải hồi
 # quy — nên set kỳ vọng cập nhật theo, KHÔNG nới lỏng phép so sánh
 # (set == vẫn đo chính xác, chỉ nội dung set đổi).
+#
+# CẬP NHẬT 2026-08-14 (close-activity, Task 4): cùng lý do trên, lần này
+# thêm close_activity vào own của cả hai vai non-admin trên cả hai profile.
 ALLOWED_MONG_DOI = {
     ("small-business", "warehouse"): {
         "deliver_order", "receive_order", "validate_picking",
         "internal_transfer", "inventory_adjustment", "scrap_product",
         "flag_order_for_review", "return_order", "send_delivery_email",
-        "log_activity"},
+        "log_activity", "close_activity"},
     ("small-business", "accounting"): {
         "create_credit_memo", "send_invoice_email",
         "create_invoice_from_order", "create_bill_from_po",
-        "post_invoice", "register_payment", "log_activity"},
+        "post_invoice", "register_payment", "log_activity", "close_activity"},
     ("enterprise", "warehouse"): {
         "deliver_order", "receive_order", "validate_picking",
-        "internal_transfer", "send_delivery_email", "log_activity"},
+        "internal_transfer", "send_delivery_email", "log_activity",
+        "close_activity"},
     ("enterprise", "accounting"): {
         "create_credit_memo", "send_invoice_email",
         "create_invoice_from_order", "create_bill_from_po",
-        "post_invoice", "register_payment", "log_activity"},
+        "post_invoice", "register_payment", "log_activity", "close_activity"},
 }
 
 

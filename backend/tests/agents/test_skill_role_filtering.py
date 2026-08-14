@@ -40,7 +40,14 @@ def _full_mcp_registry():
     là tiền đề của chính lỗi Task 1 sửa. Thiếu chúng ở đây khiến
     tools_for_coordinator (write_registry.py) coi MỌI coordinator gửi mail —
     của MỌI vai, kể cả admin — là "dep không tồn tại ở đâu cả" (lỗi cấu
-    hình thật) và raise, dù test file này không hề liên quan tới mail."""
+    hình thật) và raise, dù test file này không hề liên quan tới mail.
+
+    + 1 tool find_my_activities (close-activity, Task 4 2026-08-14): CÙNG lý
+    do trên — build_graph() (graph.py:92) lặp KHÔNG ĐIỀU KIỆN trên MỌI spec
+    trong WRITE_COORDINATORS, kể cả close_activity, bất kể vai đang build có
+    được cấp tool đó hay không. spec.deps={"find_my_activities"} mà thiếu ở
+    registry đầy đủ này thì tools_for_coordinator coi là lỗi cấu hình thật và
+    raise cho MỌI graph, dù test file này không hề liên quan tới close_activity."""
     @lc_tool("deliver_order")
     async def deliver_order(order_ref: str) -> str:
         """fake"""
@@ -76,8 +83,14 @@ def _full_mcp_registry():
         """fake"""
         return "{}"
 
+    @lc_tool("find_my_activities")
+    async def find_my_activities() -> str:
+        """fake"""
+        return "{}"
+
     return [deliver_order, receive_order, flag_order_for_review, create_quotation,
-           preview_template_email, send_prepared_email, discard_prepared_email]
+           preview_template_email, send_prepared_email, discard_prepared_email,
+           find_my_activities]
 
 
 def _graph_for_role(role_name, profile="small-business"):
