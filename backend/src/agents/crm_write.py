@@ -1,16 +1,17 @@
 # backend/src/agents/crm_write.py
 """Deterministic CRM coordinators (tier-1): create_lead / convert_lead /
-log_activity. Slot-filling qua _msg (KHÔNG interrupt — lượt sau planner đọc
-lại full history tự dựng args đầy đủ hơn, pattern inventory_write); resolve
-qua erp_query.crm; disambiguation + confirm qua interrupt; rồi gọi MCP tool
-phẳng. Không LLM. Xem docs/superpowers/specs/2026-07-18-crm-lead-activity-design.md."""
+log_activity / close_activity. Slot-filling qua _msg (KHÔNG interrupt — lượt
+sau planner đọc lại full history tự dựng args đầy đủ hơn, pattern
+inventory_write); resolve qua erp_query.crm; disambiguation + confirm qua
+interrupt; rồi gọi MCP tool phẳng. Không LLM. Xem
+docs/superpowers/specs/2026-07-18-crm-lead-activity-design.md."""
 import json
 from datetime import date
 
 from langgraph.types import interrupt as _interrupt
 
 from .state import ERPAgentState
-from .tool_result import parse_write_result
+from .tool_result import parse_write_result, _tool_result_text
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG)
 from . import write_gate
@@ -215,7 +216,14 @@ async def _my_open_activities(finder, res_model: str, res_id: int):
     """
     try:
         raw = await finder.ainvoke({"res_model": res_model, "res_id": res_id})
-        data = json.loads(raw)
+        # langchain-mcp-adapters 0.3.0 dựng tool với
+        # response_format="content_and_artifact" → .ainvoke() trả về MỘT
+        # DANH SÁCH content-block ([{"type": "text", "text": "..."}]), không
+        # phải chuỗi. json.loads(raw) thẳng luôn ném TypeError → rơi vào
+        # except → coordinator luôn báo "tra hỏng" dù tool chạy đúng (đo
+        # trực tiếp 2026-08-14). _tool_result_text gộp text trước khi parse —
+        # cùng khuôn với 12 chỗ gọi tool khác trong backend.
+        data = json.loads(_tool_result_text(raw))
     except Exception:  # noqa: BLE001 — never crash the graph
         return None
     if not data.get("ok"):
@@ -327,7 +335,7 @@ def make_close_activity_node(tools):
             chosen = _interrupt({"kind": "disambiguation",
                                  "question": _disambig_q("việc đang mở", options),
                                  "options": options, "expires_at": _ttl_expiry()})
-            act = next((r for r in rows if r["id"] == chosen), None)
+            act = _by_id(rows, chosen)
             if act is None:
                 return _msg("Đã hủy.")
 
@@ -339,7 +347,17 @@ def make_close_activity_node(tools):
                          f"(hạn {act.get('date_deadline') or 'chưa đặt'}).\n"
                          + WRITE_CONFIRM_SUFFIX),
             "expires_at": _ttl_expiry()})
-        if not confirmed:
+        # is not True (KHÔNG "not confirmed"), cố ý: LangGraph khớp giá trị
+        # resume THEO CHỈ SỐ lời gọi interrupt(), và node chạy lại TỪ ĐẦU mỗi
+        # lần resume (rows được tra LẠI). Nếu một việc bị đóng ở nơi khác
+        # giữa lúc hiện menu hỏi-chọn và lúc người dùng trả lời, lượt chạy
+        # lại có thể thấy len(rows) == 1 và bỏ qua interrupt hỏi-chọn — làm
+        # interrupt xác nhận này thành interrupt số 0, nhận nhầm giá trị
+        # resume của lần hỏi-chọn trước đó (một id việc, vd 56 — truthy).
+        # "if not confirmed" sẽ coi giá trị đó là đồng ý và đóng thẳng việc
+        # người dùng KHÔNG chọn. Mọi đường resume cho kind="confirm" đều trả
+        # bool, nên so is not True vẫn fail-closed đúng ở đường hợp lệ.
+        if confirmed is not True:
             return _msg("Đã hủy đóng việc.")
 
         try:

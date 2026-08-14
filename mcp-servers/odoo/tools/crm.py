@@ -290,8 +290,12 @@ def close_activity(activity_id: int, note: str = "") -> str:
         return envelope(True, f"Đã đóng {what}{where_part}.",
                         ref=where or what, model="mail.activity",
                         res_id=activity_id, state="done")
-    except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
-        return envelope(False, f"Lỗi khi đóng việc: {e}")
+    except Exception:  # noqa: BLE001 — never raise through the MCP tool
+        # action_feedback là lệnh GHI trên quyền MỚI nhánh này khai — không
+        # lộ nguyên văn lỗi Odoo (có thể mang tên nhóm quyền). Chi tiết vẫn
+        # còn dấu vết: odoo_call.odoo() đã log_mcp_event("error", ...,
+        # error_message=str(e)) cho mọi lỗi trước khi ném lại.
+        return envelope(False, "Lỗi khi đóng việc. Vui lòng thử lại.")
 
 
 @mcp.tool()

@@ -24,19 +24,34 @@ ROW_B = {"id": 56, "summary": "Kho đề nghị: ghi nhận thanh toán",
          "date_deadline": "2026-08-21"}
 
 
+def _content_blocks(payload: dict) -> list[dict]:
+    """Shape THẬT mà langchain-mcp-adapters 0.3.0 trả về cho tool MCP dựng với
+    response_format="content_and_artifact": MỘT DANH SÁCH content-block, không
+    phải chuỗi. C1: _my_open_activities từng json.loads(raw) thẳng vào shape
+    này và luôn ném TypeError → tính năng chết 100% trong production dù mọi
+    test trước đó xanh, vì fake khi ấy trả chuỗi thuần — shape production
+    không bao giờ tạo ra. Đa số fixture ở đây dùng shape THẬT này để phép thử
+    phá C1 (hoàn nguyên code về json.loads(raw)) có đường để bắt được."""
+    return [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}]
+
+
 def _finder(rows, recorder):
     t = MagicMock()
     t.name = "find_my_activities"
 
     async def ainvoke(args):
         recorder.setdefault("find", []).append(args)
-        return json.dumps({"ok": True, "rows": list(rows)}, ensure_ascii=False)
+        return _content_blocks({"ok": True, "rows": list(rows)})
 
     t.ainvoke = ainvoke
     return t
 
 
 def _broken_finder():
+    """Cố ý giữ shape CHUỖI THUẦN (khác _finder) — kiểm cả hai shape mà
+    _tool_result_text phải xử lý được: content-block-list (thật, _finder) và
+    chuỗi thuần (fallback cũ, vẫn hợp lệ theo tool_result._tool_result_text).
+    Không phải quán tính — cố ý dùng để phủ nhánh isinstance(result, str)."""
     t = MagicMock()
     t.name = "find_my_activities"
 
@@ -151,6 +166,25 @@ async def test_nhieu_viec_thi_hoi_chon_truoc_khi_xac_nhan():
 
     await graph.ainvoke(Command(resume=True), cfg)
     assert rec["close"]["activity_id"] == 56
+
+
+@pytest.mark.asyncio
+async def test_huy_o_cong_hoi_chon_thi_khong_goi_tool():
+    """I1: nhánh act is None (chosen không khớp id nào trong rows) có đường
+    tới THẬT — không chỉ lý thuyết. Resume cổng hỏi-chọn bằng một id KHÔNG có
+    trong rows phải fail-closed thành "Đã hủy.", không gọi tool đóng."""
+    rec = {}
+    graph = _graph(_node([ROW_A, ROW_B], rec))
+    cfg = {"configurable": {"thread_id": "ca4b"}}
+    res = await graph.ainvoke(
+        _state({"res_model": "sale.order", "ref": "S00012"}), cfg)
+
+    assert res["__interrupt__"][0].value["kind"] == "disambiguation"
+    res = await graph.ainvoke(Command(resume=999), cfg)
+
+    assert "__interrupt__" not in res
+    assert "close" not in rec
+    assert "hủy" in res["messages"][-1].content.lower()
 
 
 @pytest.mark.asyncio
