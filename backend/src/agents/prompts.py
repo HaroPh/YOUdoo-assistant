@@ -36,7 +36,7 @@ sop: <one SOP worker name, or leave empty>
 
 intent — choose EXACTLY ONE of:
 erp_read   — query / read data from ERP: orders, inventory, customers, suppliers, revenue, top products, bill of materials (BoM) / production recipes, manufacturing orders, tasks/activities assigned to the user ("việc của tôi", "có việc gì chuyển cho tôi không")
-erp_write  — create / update / delete data in ERP: create order, update stock, confirm purchase, etc.
+erp_write  — create / update / delete data in ERP: create order, update stock, confirm purchase, marking an assigned task/activity as FINISHED ("xong việc rồi", "hoàn thành việc được giao", "việc này xong rồi", "đánh dấu hoàn tất việc"), etc.
 rag        — questions about documents, manuals, policies, procedures, internal knowledge base
 mixed      — needs BOTH an internal document/policy AND specific live ERP records together (e.g. "theo chính sách hoàn hàng, đơn của khách X có được hoàn không?")
 unknown    — does not clearly fit any of the above
