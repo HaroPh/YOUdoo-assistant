@@ -4,6 +4,7 @@ log_activity. Slot-filling qua _msg (KHÔNG interrupt — lượt sau planner đ
 lại full history tự dựng args đầy đủ hơn, pattern inventory_write); resolve
 qua erp_query.crm; disambiguation + confirm qua interrupt; rồi gọi MCP tool
 phẳng. Không LLM. Xem docs/superpowers/specs/2026-07-18-crm-lead-activity-design.md."""
+import json
 from datetime import date
 
 from langgraph.types import interrupt as _interrupt
@@ -198,6 +199,30 @@ def make_convert_lead_node(tools):
     return convert_lead_node
 
 
+def _activity_label(row) -> str:
+    """Một dòng cho menu hỏi lại — đủ để phân biệt hai việc trên CÙNG chứng từ,
+    nên nội dung việc phải có mặt, không chỉ mã chứng từ."""
+    where = row.get("res_name") or row.get("res_model") or "—"
+    what = row.get("summary") or "(không có mô tả)"
+    return f"{where}: {what} (hạn {row.get('date_deadline') or 'chưa đặt'})"
+
+
+async def _my_open_activities(finder, res_model: str, res_id: int):
+    """Ứng viên đóng việc → list[row], hoặc None khi TRA HỎNG.
+
+    None và [] KHÔNG được gộp: "tra hỏng" và "không có việc nào" là hai sự thật
+    khác nhau, và nói nhầm cái sau khi gặp cái trước là báo sai cho người dùng.
+    """
+    try:
+        raw = await finder.ainvoke({"res_model": res_model, "res_id": res_id})
+        data = json.loads(raw)
+    except Exception:  # noqa: BLE001 — never crash the graph
+        return None
+    if not data.get("ok"):
+        return None
+    return data.get("rows") or []
+
+
 def make_log_activity_node(tools):
     by_name = {t.name: t for t in tools}
 
@@ -253,3 +278,74 @@ def make_log_activity_node(tools):
         return _finish("log_activity", result)
 
     return log_activity_node
+
+
+def make_close_activity_node(tools):
+    """Đóng MỘT việc được giao cho bộ phận đang gọi.
+
+    Danh tính KHÔNG được cưỡng chế ở đây: cả hai tool MCP lọc theo get_uid(),
+    tài khoản Odoo đã xác thực của vai. Đó là lý do node này không cần role_cfg,
+    và cũng là lý do KHÔNG được thêm một đường tra Odoo thứ hai ở tầng backend
+    (nó sẽ lọc theo một chuỗi login suy diễn, yếu hơn hẳn).
+    """
+    by_name = {t.name: t for t in tools}
+
+    async def close_activity_node(state: ERPAgentState) -> dict:
+        if not write_gate.write_actions_enabled():
+            return _msg(WRITE_DISABLED_MSG)
+        args = (state.get("pending_action") or {}).get("args") or {}
+        res_model = str(args.get("res_model") or "").strip()
+        ref = str(args.get("ref") or "").strip()
+        note = str(args.get("note") or "").strip()
+
+        finder = by_name.get("find_my_activities")
+        closer = by_name.get("close_activity")
+        if finder is None or closer is None:
+            return _msg("Công cụ đóng việc không khả dụng.")
+
+        if res_model and ref:
+            kind, doc = _resolve_doc(res_model, ref)
+            if kind == "msg":
+                return doc
+            rows = await _my_open_activities(finder, res_model, doc["id"])
+            empty_msg = (f"Không có việc nào của bộ phận bạn đang mở trên "
+                         f"'{doc['name']}'.")
+        else:
+            rows = await _my_open_activities(finder, "", 0)
+            empty_msg = "Hiện không có việc nào được giao cho bạn."
+
+        if rows is None:
+            return _msg("Không tra được danh sách việc được giao. "
+                        "Vui lòng thử lại.")
+        if not rows:
+            return _msg(empty_msg)
+
+        if len(rows) == 1:
+            act = rows[0]
+        else:
+            options = [{"id": r["id"], "name": _activity_label(r)} for r in rows]
+            chosen = _interrupt({"kind": "disambiguation",
+                                 "question": _disambig_q("việc đang mở", options),
+                                 "options": options, "expires_at": _ttl_expiry()})
+            act = next((r for r in rows if r["id"] == chosen), None)
+            if act is None:
+                return _msg("Đã hủy.")
+
+        confirmed = _interrupt({
+            "kind": "confirm",
+            "question": (f"Đánh dấu hoàn tất việc "
+                         f"'{act.get('summary') or '(không có mô tả)'}' trên "
+                         f"'{act.get('res_name') or '—'}' "
+                         f"(hạn {act.get('date_deadline') or 'chưa đặt'}).\n"
+                         + WRITE_CONFIRM_SUFFIX),
+            "expires_at": _ttl_expiry()})
+        if not confirmed:
+            return _msg("Đã hủy đóng việc.")
+
+        try:
+            result = await closer.ainvoke({"activity_id": act["id"], "note": note})
+        except Exception as e:  # noqa: BLE001
+            return _msg(f"Lỗi khi đóng việc: {e}")
+        return _finish("close_activity", result)
+
+    return close_activity_node
