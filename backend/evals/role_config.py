@@ -47,6 +47,16 @@ def _mcp_tool_names() -> tuple[str, ...]:
     try:
         import server
         return tuple(sorted(server.mcp._tool_manager._tools))
+    except Exception as e:  # noqa: BLE001 — gói MỌI nguyên nhân vào một lỗi nói rõ
+        # Nguyên nhân hay gặp nhất KHÔNG phải thiếu thư mục (đã chặn ở trên) mà
+        # là thiếu biến môi trường: mcp-servers/odoo/config.py dùng
+        # os.environ[...] nên bật ra KeyError('ODOO_URL') trần, không nói gì về
+        # việc bộ đo đang cần gì. `.env` bị gitignore nên worktree/CI sạch là
+        # đúng trường hợp đó.
+        raise RuntimeError(
+            f"không nạp được registry tool MCP từ {_MCP_DIR} ({type(e).__name__}: "
+            f"{e}) — bộ đo cần ODOO_URL/ODOO_DB/ODOO_USERNAME/ODOO_PASSWORD "
+            f"trong môi trường để import được, dù nó KHÔNG gọi Odoo") from e
     finally:
         sys.path.remove(str(_MCP_DIR))
 
@@ -78,9 +88,18 @@ def _specs(role_name: str):
     # sẽ ghim kết quả của hồ sơ đầu tiên cho mọi hồ sơ sau — đúng là hạng lỗi
     # test đổi hồ sơ (test_intent_prompt_khop_cach_production_dung) canh.
     cfg = role_cfg(role_name)
+    specs = load_skill_specs()
+    # Vai không lọc (admin) TRẢ SỚM, KHÔNG đụng registry MCP: skill_role_gap
+    # trả None vô điều kiện khi allowed_tools() is None, nên registry hoàn toàn
+    # không được dùng ở đường này. Dựng nó vẫn kéo theo `import server`, tức
+    # đường admin — đường đang chạy tốt và có 6 baseline — sẽ CHẾT nếu tiến
+    # trình eval thiếu ODOO_* trong môi trường hoặc thiếu cây mcp-servers/.
+    # Trước đợt này eval_intent không có phụ thuộc nào như vậy; đừng thêm nó
+    # cho một đường không cần tới.
+    if cfg.allowed_tools() is None:
+        return list(specs)
     raw = list(_fake_registry())
-    return specs_for_role(load_skill_specs(),
-                          _filter_tools_for_role(raw, cfg), raw, cfg)
+    return specs_for_role(specs, _filter_tools_for_role(raw, cfg), raw, cfg)
 
 
 def intent_prompt(role_name: str) -> str:

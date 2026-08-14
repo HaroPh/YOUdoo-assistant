@@ -72,10 +72,23 @@ def baseline_path(model: str, set_name: str, role: str = "admin") -> str:
     """Đường dẫn file baseline. MỘT nguồn sự thật cho quy ước tên — eval_gate
     import lại hàm này thay vì tự ghép chuỗi.
 
-    Vai admin KHÔNG có hậu tố: 5 file baseline đang có mang đúng tên đó, và đổi
+    Vai admin KHÔNG có hậu tố: 6 file baseline đang có mang đúng tên đó, và đổi
     tên chúng là làm hỏng mọi lệnh lẫn mọi tham chiếu đang dùng. Nói cách khác:
     không hậu tố NGHĨA LÀ admin.
+
+    Và hậu tố vai CHỈ tồn tại với bộ nhạy vai. Bộ như `confirm`/`read`/
+    `synthesis`/`multi_source` không nhận tham số `role` (hàm đo của chúng
+    không có tham số đó), nên đo chúng ở vai kế toán cho ra kết quả y hệt vai
+    admin — một file `baseline-…-confirm-accounting.json` sẽ chỉ là bản sao
+    mang tên gây hiểu nhầm, và KHÔNG AI TỪNG GHI nó ra. Không chuẩn hoá ở đây
+    thì `--set both` (mặc định của job) với bất kỳ vai non-admin nào là hỏng
+    vĩnh viễn: cổng đi tìm bốn file không tồn tại → INFRA_ERROR.
+
+    Chuẩn hoá đặt ở ĐÂY chứ không ở hai chỗ gọi, vì đây là nơi giữ quy ước tên —
+    để hai nơi tự nhớ "nhớ hạ role về admin" là đúng cách nó trôi lệch.
     """
+    if set_name not in role_config.ROLE_SENSITIVE_SETS:
+        role = "admin"
     here = os.path.dirname(__file__)
     stem = f"baseline-{model.replace(':', '-')}-{set_name}"
     if role != "admin":

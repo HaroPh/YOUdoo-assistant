@@ -103,3 +103,28 @@ def test_vai_khong_ton_tai_thi_tu_choi():
     """Fail-closed: rơi âm thầm về admin chính là con bọ đợt này đi đóng."""
     with pytest.raises(KeyError):
         role_config.role_cfg("bia-ra")
+
+
+def test_vai_admin_khong_can_registry_mcp(monkeypatch):
+    """Đường admin KHÔNG được phụ thuộc vào việc import được module server.
+
+    `skill_role_gap` trả None vô điều kiện khi `allowed_tools() is None`, nên
+    registry hoàn toàn không được dùng ở đường này. Nếu `_specs` vẫn dựng nó,
+    đường admin — đường đang chạy tốt và có 6 baseline — sẽ CHẾT khi tiến trình
+    eval thiếu ODOO_* hoặc thiếu cây mcp-servers/ (`.env` bị gitignore, nên
+    worktree/CI sạch là đúng trường hợp đó). Trước đợt này `eval_intent` không
+    có phụ thuộc nào như vậy (final review I3).
+
+    Phép thử phá cho chính bản sửa: gỡ nhánh trả sớm ⇒ test này ĐỎ."""
+    def no_registry():
+        raise RuntimeError("registry MCP không nạp được")
+
+    monkeypatch.setattr(role_config, "_fake_registry", no_registry)
+    assert role_config.intent_prompt("admin")          # không được ném
+    assert role_config.valid_sops("admin") == {
+        "bao-gia-chiet-khau", "giao-hang", "nhap-kho"}
+
+    # Đối chứng: vai CÓ lọc thì vẫn cần registry — nếu không, bản sửa đã lặng
+    # lẽ tắt phép lọc cho mọi vai.
+    with pytest.raises(RuntimeError):
+        role_config.intent_prompt("accounting")

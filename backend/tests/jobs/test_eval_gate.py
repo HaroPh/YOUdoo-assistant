@@ -36,10 +36,13 @@ def _patch_baseline(monkeypatch, set_name, path):
 
 
 def _fake_eval(set_name, acc, false_confirm=0, n=40):
-    async def fn(llm, pace=0.0, checkpoint_path=None, role=None):
-        # intent nằm trong ROLE_SENSITIVE_SETS nên run() truyền kwarg role=
-        # xuống — fake phải nhận (dù bỏ qua) để không TypeError.
-        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
+    async def fn(llm, pace=0.0, checkpoint_path=None, **kw):
+        # Bắt kwarg thừa bằng **kw thay vì khai `role=None`: chỉ như vậy mới
+        # phân biệt được "run() CÓ truyền role" với "run() KHÔNG truyền". Bản
+        # cũ khai role=None rồi VỨT ĐI, nên gỡ hẳn dây --role khỏi run() vẫn
+        # xanh — dây đó không ai canh (final review I4).
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path,
+                         "kw": kw})
         d = {"set": set_name, "n": n, "acc": acc, "fails": [], "errors": []}
         if set_name == "confirm":
             d["false_confirm"] = false_confirm
@@ -695,3 +698,40 @@ def test_run_thuc_su_doc_co_baseline_model(monkeypatch, tmp_path):
     assert thay == ["mot-model-khac"], (
         "run bỏ qua args.baseline_model — cổng sẽ luôn đọc neo cố định và "
         "không bao giờ tìm thấy baseline của một vai mới")
+
+
+def test_run_truyen_role_xuong_dung_bo_nhay_vai(monkeypatch):
+    """Dây --role: `run` phải truyền `role` xuống BA bộ nhạy vai và KHÔNG
+    truyền xuống bộ khác.
+
+    Trước test này, gỡ hẳn hai dòng `if set_name in ROLE_SENSITIVE_SETS:
+    kwargs["role"] = args.role` khỏi run() thì toàn bộ suite VẪN XANH — và cả
+    ba bộ nhạy vai lặng lẽ đo cấu hình admin, đúng thất bại mà cả đợt này tồn
+    tại để chặn (final review I4)."""
+    fi, fc = _patch(monkeypatch)
+    # Vai kế toán CHƯA có file baseline (nó được tạo ở bước đo bằng LLM thật),
+    # nên phải giả một cái — nếu không `run` ném FileNotFoundError TRƯỚC khi
+    # gọi hàm đo và test đo nhầm chuyện khác.
+    _patch_baseline(monkeypatch, "intent",
+                    run_eval.baseline_path("qwen3-8b", "intent", "admin"))
+    eval_gate.run(_args(role="accounting"))
+    assert fi.calls[0]["kw"] == {"role": "accounting"}, "intent phải nhận role"
+    assert "role" not in fc.calls[0]["kw"], "confirm KHÔNG nhạy vai, không được nhận role"
+
+
+def test_bo_khong_nhay_vai_doc_baseline_CUA_ADMIN(monkeypatch):
+    """`confirm/read/synthesis/multi_source` không nhận `role`, nên đo chúng ở
+    vai kế toán cho kết quả y hệt admin — một file `…-confirm-accounting.json`
+    sẽ KHÔNG AI TỪNG GHI ra.
+
+    Không chuẩn hoá thì `--set both` (MẶC ĐỊNH của job) với bất kỳ vai
+    non-admin nào là hỏng vĩnh viễn: cổng đi tìm file không tồn tại →
+    INFRA_ERROR (final review I1)."""
+    import os
+    for s in ("confirm", "read", "synthesis", "multi_source"):
+        p = eval_gate._baseline_for(s, "qwen3-8b", "accounting")
+        assert os.path.basename(p) == f"baseline-qwen3-8b-{s}.json", s
+        assert os.path.exists(p), f"{s}: cổng trỏ vào file không tồn tại"
+    # đối chứng: bộ NHẠY vai vẫn có hậu tố
+    assert eval_gate._baseline_for("intent", "qwen3-8b", "accounting").endswith(
+        "baseline-qwen3-8b-intent-accounting.json")
