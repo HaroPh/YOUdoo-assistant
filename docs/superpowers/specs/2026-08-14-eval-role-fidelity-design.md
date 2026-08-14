@@ -22,10 +22,33 @@ chỉ định, và cho cổng chạy hai cấu hình: `admin` (rộng nhất) v�
 
 Đo trên `main` sau `d28e180`, ngày 2026-08-14:
 
-| prompt | eval đang đo | kho (small-business) | kho (enterprise) | kế toán |
+Worker block — đo bằng **chính `skill_role_gap` của production**, cấp cho nó
+registry tool giả mang đúng 35 tên tool MCP thật:
+
+| hồ sơ | vai | tool sau lọc | skill giữ | worker block |
+|---|---|---|---|---|
+| — | **eval đang đo** | (không lọc) | **3/3** | **10 dòng** |
+| small-business | admin | 35 | 3/3 | 10 dòng |
+| small-business | kho | 10 | 2/3 | 7 dòng |
+| small-business | **kế toán** | 7 | **0/3** | **RỖNG** |
+| enterprise | kho | 6 | 1/3 | 4 dòng |
+| enterprise | **kế toán** | 7 | **0/3** | **RỖNG** |
+
+Prompt planner — đo bằng chính `planner_prompt_for(cfg)`:
+
+| | eval đang đo | kho (sb) | kho (ent) | kế toán |
 |---|---|---|---|---|
 | `WRITE_PLANNER_PROMPT` | **35 tool** | 10 | 7 | **8** |
-| worker block | **3 skill / 10 dòng** | 3 / 10 | 2 / 7 | **1 / 4** |
+
+⚠️ **Sửa so với bản duyệt đầu (2026-08-14, phát hiện khi viết plan).** Bản đầu
+ghi vai kế toán giữ "1/3 skill, 4 dòng". Con số đó đến từ một **proxy so tên**
+(`write_tools ⊆ allowed_tools`) do controller tự viết, KHÔNG phải từ hàm thật.
+Đo lại bằng `skill_role_gap`: **0/3**. Chênh lệch vì `bao-gia-chiet-khau` có
+`declares_tools=('create_discount_quote',)` và `entry='logic.py'`, nên nó đi vào
+nhánh `build_skill_tools` chứ không phải nhánh so tên — và nhánh đó loại nó.
+
+Bài học tự nó chứng minh nguyên tắc §2: **một phép tái lập viết tay đã lệch khỏi
+hàm thật ngay trong chính tài liệu đi sửa lỗi lệch.**
 
 Cổng `planner` chấm điểm chọn-đúng-tool trên thực đơn 35 mục, trong khi mọi vai
 non-admin nhìn thấy 7–10 mục. Độ chính xác trên hai bài toán đó không so được
@@ -40,6 +63,12 @@ Khối worker **rỗng** khiến router phân loại lệnh ghi thành `unknown`
 vai kế toán — vai đó không bao giờ tới được planner của nó. Nghiệm thu sống bắt
 được; eval **về mặt cấu trúc không thể** bắt, vì nó chưa bao giờ dựng cấu hình
 đó.
+
+Và §1 vừa cho thấy khối worker rỗng **không phải giả định** — nó là cấu hình
+production **hiện tại** của vai kế toán, trên **cả hai** hồ sơ. `render_intent_
+router_prompt("")` trả về đúng `INTENT_ROUTER_PROMPT` trần, nên với vai kế toán,
+**prompt trần CHÍNH LÀ production** — đúng cấu hình mà §1.2 dưới đây ghi là
+"KHÔNG PHẢI production thật".
 
 ### 1.2 Đây là cùng một lỗi, sâu hơn một lớp
 
@@ -136,7 +165,7 @@ một bộ thứ tư trở thành nhạy-vai mà quên khai, test đỏ.
 | cấu hình | vì sao |
 |---|---|
 | `admin` | rộng nhất; giữ baseline hiện có còn ý nghĩa; là cấu hình demo hay dùng |
-| `accounting` | **hẹp nhất** (8 tool / 1 skill) — đúng chỗ con bọ §1.1 đã thoát sống |
+| `accounting` | **hẹp nhất: worker block RỖNG (0/3 skill), 8 tool trong prompt planner** — đúng cấu hình con bọ §1.1 đã sống trong đó |
 
 Vai kho nằm giữa hai đầu phổ, nên không đo trong đợt này. Đây là **đánh đổi có
 chủ ý**, ghi ra để người sau biết nó là lựa chọn chứ không phải sơ suất: nếu
