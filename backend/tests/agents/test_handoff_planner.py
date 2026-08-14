@@ -62,6 +62,31 @@ async def test_dung_duoc_ban_giao_thi_thay_plan(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_da_co_ban_giao_trung_thi_khong_de_xuat_lai(monkeypatch):
+    """final-review I2: nhánh tool ĐƠN gọi _duplicate_handoff() trước khi đề
+    xuất — trước fix, không test nào canh nhánh này (xoá cả khối vẫn XANH).
+    _duplicate_handoff trả một bản ghi có sẵn ⇒ không tạo pending_action
+    mới, báo đúng đã chuyển từ khi nào."""
+    monkeypatch.setattr("src.agents.write_gate.write_actions_enabled",
+                        lambda: True)
+    import src.agents.nodes as nodes_mod
+    monkeypatch.setattr(nodes_mod, "_duplicate_handoff",
+                        lambda handoff: {"date_deadline": "2026-08-20"})
+    node = make_erp_write_planner_node(
+        FakeLLM('{"tool": "create_invoice_from_order", '
+                '"args": {"order_ref": "S00012"}, '
+                '"summary": "Phát hành hóa đơn cho đơn S00012"}'),
+        role_cfg=_vai("warehouse"))
+
+    out = await node(_state())
+
+    assert out["pending_action"] is None
+    noi_dung = out["messages"][0].content
+    assert "đã được chuyển" in noi_dung
+    assert "2026-08-20" in noi_dung
+
+
+@pytest.mark.asyncio
 async def test_khong_dung_duoc_thi_giu_nguyen_loi_tu_choi(monkeypatch):
     """SÀN: tool không có chứng từ ⇒ đúng câu từ chối cũ, pending_action None."""
     monkeypatch.setattr("src.agents.write_gate.write_actions_enabled",
@@ -119,6 +144,7 @@ def test_tra_thay_viec_trung_thi_tra_ve_ban_ghi(monkeypatch):
     monkeypatch.setattr(nodes_mod.crm, "list_my_activities", lambda *a, **k: {
         "status": "success",
         "data": {"rows": [{"res_model": "sale.order", "res_name": "S00012",
+                           "summary": "Kho đề nghị: phát hành hóa đơn",
                            "date_deadline": "2026-08-20"}]}})
 
     got = nodes_mod._duplicate_handoff(HANDOFF_MAU)

@@ -258,7 +258,12 @@ def _duplicate_handoff(handoff: dict) -> dict | None:
     warning rồi coi như không có việc trùng — cùng lắm là một việc trùng,
     còn hơn mất hẳn đường bàn giao."""
     try:
-        env = crm.list_my_activities(handoff["args"]["assignee"])
+        # limit=100 (final-review I5), không phải mặc định 20: gateway sắp
+        # theo date_deadline asc, vai đích có thể đã có nhiều việc quá hạn
+        # cũ chiếm hết 20 dòng đầu, đẩy dòng trùng thật ra ngoài cửa sổ —
+        # khiến _duplicate_handoff báo "không trùng" SAI. 100 là MAX_LIMIT
+        # của gateway (đủ lớn, không phải không giới hạn).
+        env = crm.list_my_activities(handoff["args"]["assignee"], limit=100)
         return existing_handoff((env.get("data") or {}).get("rows"),
                                 handoff["args"]["res_model"],
                                 handoff["args"]["ref"])
@@ -347,30 +352,21 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         # gì chạy; nếu có bước cấm, từ chối CẢ CHUỖI (không âm thầm cắt bớt —
         # người dùng hỏi 2 việc mà chỉ được 1 việc, không báo, còn tệ hơn bị
         # từ chối thẳng cả 2).
+        # KHÔNG bàn giao ở nhánh này (final-review I4, 2026-08-14): một chuỗi
+        # trộn bước được phép (vd deliver_order, own của vai kho) với bước
+        # cấm (vd create_invoice_from_order, Kế toán) không rút gọn được
+        # thành MỘT activity mà không nói dối — hoặc nội dung activity chỉ
+        # nêu bước cấm (bên nhận không biết còn có bước own đi kèm mà chính
+        # người dùng đã xin), hoặc giao luôn cả bước own cho bộ phận khác
+        # (kế toán bị nhờ đi giao hàng — việc CỦA KHO, không phải của họ).
+        # Nhánh tool ĐƠN ở trên không gặp vấn đề này vì chỉ có một tool, một
+        # sự thật để nói. Từ chối cả chuỗi, y như trước khi có bàn giao.
         if role_cfg is not None and chain:
             for step_tool, _ in chain:
                 if role_cfg.state_of(step_tool) in (OTHER_DEPT, DENIED):
-                    handoff = build_handoff(role_cfg, step_tool,
-                                            plan.get("args") or {},
-                                            plan.get("summary"))
-                    if handoff is None:
-                        return {"messages": [AIMessage(
-                            content=_role_refusal_message(role_cfg, step_tool)
-                        )], "pending_action": None, "auto_chain": None}
-                    plan = handoff
-                    handoff_note = _handoff_notice(role_cfg, step_tool)
-                    duplicate = _duplicate_handoff(handoff)
-                    if duplicate is not None:
-                        deadline = duplicate.get("date_deadline") or "chưa đặt"
-                        return {"messages": [AIMessage(
-                            content=(f"Việc này đã được chuyển cho bộ phận "
-                                     f"{DEPT_OF.get(step_tool, 'khác')} rồi "
-                                     f"(hạn {deadline}), chưa cần chuyển lại.")
-                        )], "pending_action": None, "auto_chain": None}
-                    # chain được tính từ plan CŨ — giữ lại sẽ quảng cáo những
-                    # bước không còn liên quan trong lời xác nhận.
-                    chain = []
-                    break
+                    return {"messages": [AIMessage(
+                        content=_role_refusal_message(role_cfg, step_tool)
+                    )], "pending_action": None, "auto_chain": None}
 
         auto_chain = [t for t, _ in chain] if chain else None
         if chain:

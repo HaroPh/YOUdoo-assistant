@@ -76,7 +76,6 @@ async def test_warehouse_refused_post_invoice_no_pending_action(monkeypatch):
 # ── (2) Cùng yêu cầu, nhánh KHÔNG coordinated (đi qua _interrupt() bình
 #     thường nếu không bị chặn) — chứng minh cổng vai chặn CẢ HAI nhánh. ────
 
-@pytest.mark.asyncio
 def _khong_co_viec_trung(monkeypatch):
     """Cô lập phép tra activity trùng khỏi Odoo THẬT — xem chú thích cùng tên
     trong test_handoff_planner.py. Thiếu nó, hai test dưới đây sẽ ĐỎ ngay sau
@@ -85,6 +84,7 @@ def _khong_co_viec_trung(monkeypatch):
     monkeypatch.setattr(nodes_mod, "_duplicate_handoff", lambda handoff: None)
 
 
+@pytest.mark.asyncio
 async def test_accounting_xin_deliver_order_thi_duoc_ban_giao_cho_kho(monkeypatch):
     """deliver_order thuộc other_dept của vai Kế toán (nghiệp vụ Kho).
 
@@ -192,10 +192,7 @@ async def test_warehouse_chain_deliver_then_invoice_refused_whole_chain(monkeypa
 
     result = await node(_write_state("giao hàng đơn S00012 rồi xuất hóa đơn luôn"))
 
-    # Bàn giao (2026-08-13): pending_action nay là plan log_activity,
-    # KHÔNG còn None. Tính chất AN TOÀN thì y nguyên và vẫn được assert:
-    # deliver_order không chạy, cả chuỗi bị chặn trước khi bất cứ gì thực thi.
-    assert result["pending_action"]["tool"] == "log_activity", \
+    assert result["pending_action"] is None, \
         "giao hàng KHÔNG được thực thi — cả chuỗi phải bị chặn trước khi chạy"
     assert result["auto_chain"] is None
     assert len(result["messages"]) == 1

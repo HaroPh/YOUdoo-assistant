@@ -62,6 +62,12 @@ NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
 
 ACTIVITY_TYPE = "To-Do"
 
+# Đánh dấu một activity LÀ bàn giao (không phải activity thường có sẵn trên
+# chứng từ). existing_handoff() dùng để lọc — thiếu điều kiện này, MỌI
+# activity mở trên đúng bản ghi (kể cả activity không liên quan gì tới bàn
+# giao) đều bị tính là "đã chuyển rồi", báo sai sự thật (final-review I5).
+HANDOFF_MARKER = "đề nghị:"
+
 
 def role_name_for_label(label: str) -> str | None:
     """Nhãn bộ phận ("Kế toán") → tên vai ("accounting"), hoặc None.
@@ -79,14 +85,21 @@ def build_handoff(role_cfg, tool: str, args: dict,
                   summary: str | None) -> dict | None:
     """Plan `log_activity` đã điền sẵn, hoặc None nếu không dựng được.
 
-    Trả None khi: tool không có chứng từ trong bảng; args thiếu giá trị; bộ
-    phận đích không có vai; hoặc đích trùng chính vai đang gọi."""
+    Trả None khi: tool không có chứng từ trong bảng; args không phải dict
+    hoặc thiếu giá trị; bộ phận đích không có vai; hoặc đích trùng chính vai
+    đang gọi."""
     target = HANDOFF_DOC_OF.get(tool)
     if target is None:
         return None
     arg_name, res_model = target
 
-    ref = str((args or {}).get(arg_name) or "").strip()
+    # SÀN (spec §3.3): planner có thể trả args không phải dict (vd list) khi
+    # LLM bịa hình dạng — .get() trên đó ném AttributeError không ai bắt, vỡ
+    # cả lượt chat (final-review M1). Mọi trường hợp không chắc ⇒ None.
+    if not isinstance(args, dict):
+        return None
+
+    ref = str(args.get(arg_name) or "").strip()
     if not ref:
         return None
 
@@ -103,7 +116,7 @@ def build_handoff(role_cfg, tool: str, args: dict,
             "activity_type": ACTIVITY_TYPE,
             # Nguồn gốc nằm ngay trong summary: bên nhận đọc activity phải
             # biết AI đề nghị và vì sao, không phải đi hỏi lại.
-            "summary": f"{role_cfg.label} đề nghị: {what}",
+            "summary": f"{role_cfg.label} {HANDOFF_MARKER} {what}",
             "assignee": f"ai-{role_name}",
         },
         "summary": f"Chuyển việc cho bộ phận {DEPT_OF[tool]}: {what}",
@@ -111,12 +124,18 @@ def build_handoff(role_cfg, tool: str, args: dict,
 
 
 def existing_handoff(rows, res_model: str, ref: str) -> dict | None:
-    """Activity đang mở trên ĐÚNG bản ghi này, hoặc None.
+    """Activity đang mở trên ĐÚNG bản ghi này VÀ LÀ một bàn giao, hoặc None.
 
     Khớp theo CẢ res_model lẫn res_name: mã đơn có thể trùng nhau giữa các
-    model, khớp mỗi mã sẽ báo trùng nhầm."""
+    model, khớp mỗi mã sẽ báo trùng nhầm.
+
+    Khớp thêm HANDOFF_MARKER trong summary (final-review I5): thiếu điều
+    kiện này, một activity BẤT KỲ đang mở trên đúng chứng từ — không liên
+    quan gì tới bàn giao (dữ liệu demo có sẵn hàng chục cái) — cũng bị tính
+    là "đã chuyển rồi", báo sai sự thật cho người dùng."""
     for r in rows or []:
         if (r.get("res_model") == res_model
-                and str(r.get("res_name") or "") == str(ref)):
+                and str(r.get("res_name") or "") == str(ref)
+                and HANDOFF_MARKER in str(r.get("summary") or "")):
             return r
     return None

@@ -91,6 +91,14 @@ def test_khong_bao_gio_ban_giao_chinh_log_activity():
                          {"ref": "S00012"}, "x") is None
 
 
+def test_args_khong_phai_dict_thi_tra_None():
+    """final-review M1: planner có thể trả args không phải dict (vd list)
+    khi LLM bịa hình dạng — .get() trên đó từng ném AttributeError không ai
+    bắt, vỡ cả lượt chat. SÀN: mọi trường hợp không chắc ⇒ None."""
+    assert build_handoff(_vai("warehouse"), "create_invoice_from_order",
+                         ["S00012"], "x") is None
+
+
 def test_tim_thay_viec_dang_mo_tren_cung_ban_ghi():
     rows = [{"res_model": "sale.order", "res_name": "S00012",
              "summary": "Kho đề nghị: phát hành hóa đơn",
@@ -113,3 +121,27 @@ def test_khac_model_thi_khong_tinh_la_trung():
 
 def test_danh_sach_rong_thi_khong_trung():
     assert existing_handoff([], "sale.order", "S00012") is None
+
+
+def test_activity_khong_phai_ban_giao_thi_khong_tinh_la_trung():
+    """final-review I5: activity mở sẵn trên ĐÚNG chứng từ nhưng KHÔNG phải
+    một bàn giao (summary không có HANDOFF_MARKER — vd dữ liệu demo có sẵn)
+    không được tính là "đã chuyển rồi". Thiếu điều kiện này, hệ báo sai sự
+    thật và yêu cầu thật bốc hơi."""
+    rows = [{"res_model": "sale.order", "res_name": "S00012",
+             "summary": "Gọi khách xác nhận địa chỉ giao hàng"}]
+    assert existing_handoff(rows, "sale.order", "S00012") is None
+
+
+def test_khu_hoi_build_handoff_roi_existing_handoff_phai_nhan_ra():
+    """Chống trôi giữa build_handoff và existing_handoff: nếu ai đổi cách
+    build_handoff đánh dấu summary (HANDOFF_MARKER) mà quên đổi existing_
+    handoff cho khớp — hoặc ngược lại — test này phải ĐỎ."""
+    handoff = build_handoff(_vai("warehouse"), "create_invoice_from_order",
+                            {"order_ref": "S00012"}, "Phát hành hóa đơn")
+    row = {"res_model": handoff["args"]["res_model"],
+           "res_name": handoff["args"]["ref"],
+           "summary": handoff["args"]["summary"]}
+    got = existing_handoff([row], handoff["args"]["res_model"],
+                           handoff["args"]["ref"])
+    assert got is row
