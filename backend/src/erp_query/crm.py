@@ -68,8 +68,18 @@ def list_my_activities(login, limit=20, *, gw=None):
     Đường chấm `user_id.login` đi qua được dù res.users nằm trong
     MODEL_DENYLIST: denylist chỉ chặn model ở cấp cao nhất (gateway._check_model).
 
-    mail.activity bản chất là việc CHƯA xong — Odoo unlink bản ghi khi đánh dấu
-    hoàn tất — nên không cần điều kiện "đang mở" nào thêm."""
+    Không cần điều kiện "đang mở" nào thêm, nhưng KHÔNG phải vì lý do trước đây
+    ghi ở đây. Đo trên Odoo 19 thật (2026-08-14): đánh dấu hoàn tất KHÔNG unlink
+    bản ghi — nó đặt active=False, state='done', date_done=<hôm nay>, và bản ghi
+    vẫn đọc lại được qua context={"active_test": False}. Lý do thật là Odoo tự
+    lọc active=True theo mặc định.
+
+    Hệ quả cho người đọc sau: việc đã đóng là dữ liệu CÒN, hoàn tác được và tra
+    lại được — đừng suy ra rằng đóng việc là mất dữ liệu.
+
+    Cách phân biệt khi đo lại: mail.activity CÓ field active, nên một bản ghi bị
+    lưu trữ biến mất khỏi search mặc định y hệt một bản ghi bị xoá. Phải đo với
+    active_test=False mới tách được hai trường hợp."""
     login = str(login or "").strip()
     if not login:
         return ok({"rows": []}, "Không xác định được tài khoản để tra việc.")
