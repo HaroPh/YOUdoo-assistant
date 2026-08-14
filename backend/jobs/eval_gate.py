@@ -152,7 +152,7 @@ def run(args) -> JobResult:
             # từ rpm catalog) — baseline thiếu/hỏng thì fail nhanh, không đốt
             # call vô ích. chitchat KHÔNG có baseline (base ở lại None).
             base = None
-            bpath = _baseline_for(set_name, BASELINE_MODEL, args.role)
+            bpath = _baseline_for(set_name, args.baseline_model, args.role)
             if bpath is not None:
                 with open(bpath, encoding="utf-8") as f:
                     base = json.load(f)
@@ -272,6 +272,19 @@ def add_args(p):
                    choices=sorted(roles.load_profile()),
                    help="vai để dựng prompt (chỉ có tác dụng với "
                         "intent/sop_select/planner)")
+    # Model của BỘ BASELINE, KHÔNG phải model đang đo. Hai thứ đó tách rời:
+    # `--model` chọn ứng viên để đo, cờ này chọn cái chuẩn để so.
+    #
+    # Vì sao cần cờ: `run_eval --save-baseline` đặt tên file theo model ĐÃ ĐO
+    # (`baseline-{model}-{set}[-{role}].json`), còn cổng đọc theo neo cố định.
+    # Với vai admin hai bên trùng nhau vì 6 file hiện có đều mang neo. Nhưng
+    # baseline của một vai MỚI được đo hôm nay sẽ mang tên model hôm nay, và
+    # không có cờ này thì cổng không bao giờ tìm thấy nó — một đường chấm cổng
+    # hỏng câm. Không đổi tên file thành neo được: nội dung baseline KHÔNG ghi
+    # model bên trong, nên tên file là nơi DUY NHẤT mang provenance.
+    p.add_argument("--baseline-model", default=BASELINE_MODEL,
+                   help=f"model của BỘ BASELINE để so (mặc định "
+                        f"{BASELINE_MODEL!r}); khác với --model là model đang đo")
 
 
 register(Job("eval-gate", run,

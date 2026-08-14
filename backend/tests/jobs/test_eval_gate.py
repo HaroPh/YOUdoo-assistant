@@ -9,8 +9,16 @@ from jobs import eval_gate
 from jobs.registry import GATE_FAIL, INFRA_ERROR, PASS
 
 
-def _args(model=None, set_="both", pace=None, role="admin"):
-    return argparse.Namespace(model=model, set=set_, pace=pace, role=role)
+def _args(model=None, set_="both", pace=None, role="admin",
+          baseline_model=eval_gate.BASELINE_MODEL):
+    """Namespace dựng TAY, không qua argparse — nên mỗi cờ mới của add_args
+    phải được thêm vào đây, nếu không `run` ném AttributeError và mọi test
+    trong file này đỏ cùng lúc (đã xảy ra khi thêm --baseline-model).
+
+    Mặc định lấy TỪ eval_gate.BASELINE_MODEL chứ không viết lại chuỗi
+    "qwen3-8b": hai nơi khai cùng một hằng là cách nó trôi lệch."""
+    return argparse.Namespace(model=model, set=set_, pace=pace, role=role,
+                              baseline_model=baseline_model)
 
 
 def _patch_baseline(monkeypatch, set_name, path):
@@ -624,3 +632,66 @@ def test_duong_dan_baseline_theo_vai():
         eval_gate._baseline_for("intent", "qwen3-8b", "accounting")) \
         == "baseline-qwen3-8b-intent-accounting.json"
     assert eval_gate._baseline_for("chitchat", "qwen3-8b", "admin") is None
+
+
+# ── --baseline-model: model của BỘ BASELINE, tách khỏi model đang đo ────────
+
+def test_baseline_model_mac_dinh_giu_nguyen_hanh_vi_hom_nay():
+    """Job chạy không cờ phải hoạt động y hệt trước đợt này — đó là điều kiện
+    để 6 file baseline hiện có còn dùng được."""
+    import argparse
+    from jobs import eval_gate
+    p = argparse.ArgumentParser()
+    eval_gate.add_args(p)
+    assert p.parse_args([]).baseline_model == eval_gate.BASELINE_MODEL
+
+
+def test_truyen_baseline_model_thi_doi_duong_dan():
+    """Không có cờ này thì baseline của một vai MỚI (đo hôm nay, mang tên model
+    hôm nay) sẽ không bao giờ được cổng tìm thấy."""
+    import argparse
+    import os
+    from jobs import eval_gate
+    p = argparse.ArgumentParser()
+    eval_gate.add_args(p)
+    args = p.parse_args(["--baseline-model", "gemini-3.1-flash-lite"])
+    got = eval_gate._baseline_for("intent", args.baseline_model, "accounting")
+    assert os.path.basename(got) == \
+        "baseline-gemini-3.1-flash-lite-intent-accounting.json"
+
+
+def test_duong_cong_doc_va_duong_save_hoi_tu_khi_cung_model():
+    """Bất biến vừa hở: với CÙNG (model, set, role), đường dẫn cổng ĐỌC phải
+    trùng đường dẫn `run_eval --save-baseline` GHI. Lệch là ship một đường chấm
+    cổng hỏng câm — cổng đi tìm một file mà không ai từng ghi ra."""
+    from evals import run_eval
+    from jobs import eval_gate
+    for role in ("admin", "accounting", "warehouse"):
+        for model in ("qwen3-8b", "gemini-3.1-flash-lite"):
+            doc = eval_gate._baseline_for("intent", model, role)
+            ghi = run_eval.baseline_path(model, "intent", role)
+            assert doc == ghi, (role, model)
+
+
+def test_run_thuc_su_doc_co_baseline_model(monkeypatch, tmp_path):
+    """Ba test trên đo `add_args` và `_baseline_for` — KHÔNG cái nào đo chỗ
+    `run` thật sự đọc `args.baseline_model`. Hoàn nguyên `run` về hằng cứng
+    thì cả ba vẫn xanh, tức dây nối không ai canh. Test này canh đúng dây đó.
+    """
+    _patch(monkeypatch)
+    thay = []
+    orig = eval_gate._baseline_for
+
+    def ghi_lai(name, model, role):
+        thay.append(model)
+        return orig(name, model, role)
+
+    monkeypatch.setattr(eval_gate, "_baseline_for", ghi_lai)
+    eval_gate.run(_args(set_="intent", baseline_model="qwen3-8b"))
+    assert thay == ["qwen3-8b"]
+
+    thay.clear()
+    eval_gate.run(_args(set_="intent", baseline_model="mot-model-khac"))
+    assert thay == ["mot-model-khac"], (
+        "run bỏ qua args.baseline_model — cổng sẽ luôn đọc neo cố định và "
+        "không bao giờ tìm thấy baseline của một vai mới")
