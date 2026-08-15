@@ -26,63 +26,72 @@ def post_invoice(partner_name: str = "", amount: float | None = None,
         invoice_date: Ngày hóa đơn (YYYY-MM-DD) — dùng để phân biệt.
         invoice_id: ID hóa đơn đã biết (ưu tiên hơn partner_name — đường nội bộ).
     """
-    if invoice_id:
-        rows = odoo("account.move", "search_read",
-                    [[["id", "=", invoice_id],
-                      ["move_type", "in", ["out_invoice", "in_invoice",
-                                           "out_refund", "in_refund"]]]],
-                    {"fields": ["id", "name", "state", "partner_id"], "limit": 1})
-        if not rows:
-            return envelope(False, f"Không tìm thấy hóa đơn ID {invoice_id}.")
-        mv = rows[0]
-        if mv["state"] == "posted":
-            return envelope(False, f"Hóa đơn {mv['name']} đã phát hành rồi.")
-        if mv["state"] != "draft":
+    try:
+        if invoice_id:
+            rows = odoo("account.move", "search_read",
+                        [[["id", "=", invoice_id],
+                          ["move_type", "in", ["out_invoice", "in_invoice",
+                                               "out_refund", "in_refund"]]]],
+                        {"fields": ["id", "name", "state", "partner_id"], "limit": 1})
+            if not rows:
+                return envelope(False, f"Không tìm thấy hóa đơn ID {invoice_id}.")
+            mv = rows[0]
+            if mv["state"] == "posted":
+                return envelope(False, f"Hóa đơn {mv['name']} đã phát hành rồi.")
+            if mv["state"] != "draft":
+                return envelope(False,
+                                f"Hóa đơn ID {invoice_id} không ở trạng thái nháp.")
+            odoo("account.move", "action_post", [[invoice_id]])
+            posted = odoo("account.move", "read", [[invoice_id]],
+                          {"fields": ["name", "partner_id"]})
+            name = posted[0]["name"] if posted else "?"
+            partner = (posted[0]["partner_id"][1]
+                       if posted and posted[0].get("partner_id") else "?")
+            return envelope(True, f"Đã phát hành hóa đơn {name} cho {partner}.",
+                            ref=name, model="account.move", res_id=invoice_id,
+                            state="posted")
+
+        if not partner_name:
             return envelope(False,
-                            f"Hóa đơn ID {invoice_id} không ở trạng thái nháp.")
-        odoo("account.move", "action_post", [[invoice_id]])
-        posted = odoo("account.move", "read", [[invoice_id]],
-                      {"fields": ["name", "partner_id"]})
+                            "Vui lòng cho biết khách hàng (hoặc ID) của hóa đơn nháp.")
+
+        domain = [["move_type", "in", ["out_invoice", "in_invoice",
+                                       "out_refund", "in_refund"]],
+                  ["state", "=", "draft"],
+                  ["partner_id.name", "ilike", partner_name]]
+        if amount is not None:
+            domain.append(["amount_total", "=", amount])
+        if invoice_date:
+            domain.append(["invoice_date", "=", invoice_date])
+
+        rows = odoo("account.move", "search_read", [domain],
+                    {"fields": ["id", "partner_id", "amount_total", "invoice_date",
+                                "move_type"], "limit": 6})
+
+        row, msg = resolve_unique(
+            rows, "hóa đơn nháp",
+            describe=lambda r: (f"{r['partner_id'][1] if r['partner_id'] else '?'} "
+                                f"— {(r.get('amount_total') or 0):,.0f}đ "
+                                f"— {r.get('invoice_date') or '—'}"),
+            hint="Vui lòng nêu rõ số tiền hoặc ngày.")
+        if msg:
+            return envelope(False, msg)
+
+        partner = row["partner_id"][1] if row["partner_id"] else partner_name
+        odoo("account.move", "action_post", [[row["id"]]])
+        posted = odoo("account.move", "read", [[row["id"]]], {"fields": ["name"]})
         name = posted[0]["name"] if posted else "?"
-        partner = (posted[0]["partner_id"][1]
-                   if posted and posted[0].get("partner_id") else "?")
         return envelope(True, f"Đã phát hành hóa đơn {name} cho {partner}.",
-                        ref=name, model="account.move", res_id=invoice_id,
+                        ref=name, model="account.move", res_id=row["id"],
                         state="posted")
-
-    if not partner_name:
-        return envelope(False,
-                        "Vui lòng cho biết khách hàng (hoặc ID) của hóa đơn nháp.")
-
-    domain = [["move_type", "in", ["out_invoice", "in_invoice",
-                                   "out_refund", "in_refund"]],
-              ["state", "=", "draft"],
-              ["partner_id.name", "ilike", partner_name]]
-    if amount is not None:
-        domain.append(["amount_total", "=", amount])
-    if invoice_date:
-        domain.append(["invoice_date", "=", invoice_date])
-
-    rows = odoo("account.move", "search_read", [domain],
-                {"fields": ["id", "partner_id", "amount_total", "invoice_date",
-                            "move_type"], "limit": 6})
-
-    row, msg = resolve_unique(
-        rows, "hóa đơn nháp",
-        describe=lambda r: (f"{r['partner_id'][1] if r['partner_id'] else '?'} "
-                            f"— {(r.get('amount_total') or 0):,.0f}đ "
-                            f"— {r.get('invoice_date') or '—'}"),
-        hint="Vui lòng nêu rõ số tiền hoặc ngày.")
-    if msg:
-        return envelope(False, msg)
-
-    partner = row["partner_id"][1] if row["partner_id"] else partner_name
-    odoo("account.move", "action_post", [[row["id"]]])
-    posted = odoo("account.move", "read", [[row["id"]]], {"fields": ["name"]})
-    name = posted[0]["name"] if posted else "?"
-    return envelope(True, f"Đã phát hành hóa đơn {name} cho {partner}.",
-                    ref=name, model="account.move", res_id=row["id"],
-                    state="posted")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # partner_name có thể rỗng (mọi tham số của tool này đều optional) —
+        # không in "của " với tên rỗng hoặc chữ None.
+        prefix = (f"Lỗi khi phát hành hóa đơn của {partner_name}"
+                  if partner_name else "Lỗi khi phát hành hóa đơn")
+        return fail("post_invoice",
+                    f"{prefix} — thao tác có thể chưa hoàn tất. Nếu lặp "
+                    f"lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

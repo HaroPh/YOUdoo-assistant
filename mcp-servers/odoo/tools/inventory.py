@@ -21,31 +21,36 @@ def validate_picking(picking_ref: str) -> str:
     Args:
         picking_ref: Mã phiếu, ví dụ "WH/OUT/00001" hoặc "WH/IN/00005".
     """
-    rows = odoo("stock.picking", "search_read",
-                [[["name", "=", picking_ref]]],
-                {"fields": ["id", "name", "state"], "limit": 2})
-    if not rows:
-        return f"Không tìm thấy phiếu '{picking_ref}'."
-    if len(rows) > 1:
-        return f"Có nhiều phiếu tên '{picking_ref}'. Vui lòng nêu rõ hơn."
+    try:
+        rows = odoo("stock.picking", "search_read",
+                    [[["name", "=", picking_ref]]],
+                    {"fields": ["id", "name", "state"], "limit": 2})
+        if not rows:
+            return f"Không tìm thấy phiếu '{picking_ref}'."
+        if len(rows) > 1:
+            return f"Có nhiều phiếu tên '{picking_ref}'. Vui lòng nêu rõ hơn."
 
-    pick = rows[0]
-    name, state = pick["name"], pick["state"]
-    if state == "done":
-        return f"Phiếu {name} đã được xác nhận rồi."
-    if state == "cancel":
-        return f"Phiếu {name} đã bị hủy."
-    if state != "assigned":
-        return (f"Phiếu {name} chưa sẵn sàng (trạng thái: {state}). "
-                f"Cần reserve đủ hàng trước khi xác nhận.")
+        pick = rows[0]
+        name, state = pick["name"], pick["state"]
+        if state == "done":
+            return f"Phiếu {name} đã được xác nhận rồi."
+        if state == "cancel":
+            return f"Phiếu {name} đã bị hủy."
+        if state != "assigned":
+            return (f"Phiếu {name} chưa sẵn sàng (trạng thái: {state}). "
+                    f"Cần reserve đủ hàng trước khi xác nhận.")
 
-    # Odoo 19: an 'assigned' picking already has done-qty = reserved on every
-    # move, so button_validate completes directly (no immediate-transfer wizard).
-    result = odoo("stock.picking", "button_validate", [[pick["id"]]])
-    if isinstance(result, dict):
-        return (f"Phiếu {name} cần thao tác bổ sung trên Odoo "
-                f"(wizard không hỗ trợ qua API). Vui lòng xử lý trực tiếp.")
-    return f"Đã xác nhận phiếu {name}."
+        # Odoo 19: an 'assigned' picking already has done-qty = reserved on every
+        # move, so button_validate completes directly (no immediate-transfer wizard).
+        result = odoo("stock.picking", "button_validate", [[pick["id"]]])
+        if isinstance(result, dict):
+            return (f"Phiếu {name} cần thao tác bổ sung trên Odoo "
+                    f"(wizard không hỗ trợ qua API). Vui lòng xử lý trực tiếp.")
+        return f"Đã xác nhận phiếu {name}."
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("validate_picking",
+                    f"Lỗi khi xác nhận phiếu {picking_ref} — thao tác có "
+                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -61,46 +66,51 @@ def inventory_adjustment(new_qty: float, product_name: str = "",
         new_qty: Tồn kho kết quả mong muốn (>= 0).
         location_name: Tên vị trí kho (tùy chọn; bỏ trống = kho chính).
     """
-    if new_qty < 0:
-        return "Số lượng tồn kho không hợp lệ (không âm)."
+    try:
+        if new_qty < 0:
+            return "Số lượng tồn kho không hợp lệ (không âm)."
 
-    if product_id:
-        prows = odoo("product.product", "read", [[product_id]], {"fields": ["id", "name"]})
-        if not prows:
-            return f"Không tìm thấy sản phẩm ID {product_id}."
-        prod = prows[0]
-    else:
-        prod, msg = _resolve_product(product_name, "is_storable")
-        if msg:
-            return msg
+        if product_id:
+            prows = odoo("product.product", "read", [[product_id]], {"fields": ["id", "name"]})
+            if not prows:
+                return f"Không tìm thấy sản phẩm ID {product_id}."
+            prod = prows[0]
+        else:
+            prod, msg = _resolve_product(product_name, "is_storable")
+            if msg:
+                return msg
 
-    loc, lmsg = _resolve_location(location_name)
-    if lmsg:
-        return lmsg
+        loc, lmsg = _resolve_location(location_name)
+        if lmsg:
+            return lmsg
 
-    quants = odoo("stock.quant", "search_read",
-                  [[["product_id", "=", prod["id"]],
-                    ["location_id", "=", loc["id"]]]],
-                  {"fields": ["id", "quantity"], "limit": 1})
-    if quants:
-        qid = quants[0]["id"]
-        old = quants[0]["quantity"]
-        odoo("stock.quant", "write", [[qid], {"inventory_quantity": new_qty}])
-    else:
-        old = 0.0
-        qid = odoo("stock.quant", "create",
-                   [{"product_id": prod["id"], "location_id": loc["id"],
-                     "inventory_quantity": new_qty}])
+        quants = odoo("stock.quant", "search_read",
+                      [[["product_id", "=", prod["id"]],
+                        ["location_id", "=", loc["id"]]]],
+                      {"fields": ["id", "quantity"], "limit": 1})
+        if quants:
+            qid = quants[0]["id"]
+            old = quants[0]["quantity"]
+            odoo("stock.quant", "write", [[qid], {"inventory_quantity": new_qty}])
+        else:
+            old = 0.0
+            qid = odoo("stock.quant", "create",
+                       [{"product_id": prod["id"], "location_id": loc["id"],
+                         "inventory_quantity": new_qty}])
 
-    res = odoo("stock.quant", "action_apply_inventory", [[qid]])
-    if isinstance(res, dict):
-        return (f"Tồn kho {prod['name']} cần xử lý xung đột kiểm kê trên Odoo "
-                f"(sản phẩm theo lô/sê-ri). Vui lòng xử lý trực tiếp.")
+        res = odoo("stock.quant", "action_apply_inventory", [[qid]])
+        if isinstance(res, dict):
+            return (f"Tồn kho {prod['name']} cần xử lý xung đột kiểm kê trên Odoo "
+                    f"(sản phẩm theo lô/sê-ri). Vui lòng xử lý trực tiếp.")
 
-    q = odoo("stock.quant", "read", [[qid]], {"fields": ["quantity"]})
-    now = q[0]["quantity"] if q else new_qty
-    return (f"Đã điều chỉnh tồn kho {prod['name']} tại {loc['complete_name']}: "
-            f"{old:g} → {now:g}.")
+        q = odoo("stock.quant", "read", [[qid]], {"fields": ["quantity"]})
+        now = q[0]["quantity"] if q else new_qty
+        return (f"Đã điều chỉnh tồn kho {prod['name']} tại {loc['complete_name']}: "
+                f"{old:g} → {now:g}.")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("inventory_adjustment",
+                    f"Lỗi khi điều chỉnh tồn kho {product_name} — thao tác "
+                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -117,59 +127,64 @@ def internal_transfer(product_name: str = "", qty: float = 0.0,
         from_location: Tên vị trí nguồn.
         to_location: Tên vị trí đích.
     """
-    if qty <= 0:
-        return "Số lượng cần chuyển không hợp lệ (phải lớn hơn 0)."
-    if not from_location or not to_location:
-        return "Cần nêu rõ cả vị trí nguồn và vị trí đích."
+    try:
+        if qty <= 0:
+            return "Số lượng cần chuyển không hợp lệ (phải lớn hơn 0)."
+        if not from_location or not to_location:
+            return "Cần nêu rõ cả vị trí nguồn và vị trí đích."
 
-    if product_id:
-        prows = odoo("product.product", "read", [[product_id]], {"fields": ["id", "name"]})
-        if not prows:
-            return f"Không tìm thấy sản phẩm ID {product_id}."
-        prod = prows[0]
-    else:
-        prod, msg = _resolve_product(product_name, "is_storable")
+        if product_id:
+            prows = odoo("product.product", "read", [[product_id]], {"fields": ["id", "name"]})
+            if not prows:
+                return f"Không tìm thấy sản phẩm ID {product_id}."
+            prod = prows[0]
+        else:
+            prod, msg = _resolve_product(product_name, "is_storable")
+            if msg:
+                return msg
+
+        src, msg = _resolve_location(from_location)
         if msg:
             return msg
+        dst, msg = _resolve_location(to_location)
+        if msg:
+            return msg
+        if src["id"] == dst["id"]:
+            return "Vị trí nguồn và đích không được trùng nhau."
 
-    src, msg = _resolve_location(from_location)
-    if msg:
-        return msg
-    dst, msg = _resolve_location(to_location)
-    if msg:
-        return msg
-    if src["id"] == dst["id"]:
-        return "Vị trí nguồn và đích không được trùng nhau."
+        wh = odoo("stock.warehouse", "search_read", [[]],
+                 {"fields": ["int_type_id"], "limit": 1})
+        if not wh or not wh[0].get("int_type_id"):
+            return "Không tìm thấy loại phiếu chuyển kho nội bộ."
+        picking_type_id = wh[0]["int_type_id"][0]
 
-    wh = odoo("stock.warehouse", "search_read", [[]],
-             {"fields": ["int_type_id"], "limit": 1})
-    if not wh or not wh[0].get("int_type_id"):
-        return "Không tìm thấy loại phiếu chuyển kho nội bộ."
-    picking_type_id = wh[0]["int_type_id"][0]
+        picking_id = odoo("stock.picking", "create", [{
+            "picking_type_id": picking_type_id,
+            "location_id": src["id"],
+            "location_dest_id": dst["id"],
+            "move_ids": [(0, 0, {"product_id": prod["id"], "product_uom_qty": qty})],
+        }])
+        odoo("stock.picking", "action_confirm", [[picking_id]])
+        odoo("stock.picking", "action_assign", [[picking_id]])
+        rows = odoo("stock.picking", "read", [[picking_id]], {"fields": ["name", "state"]})
+        pick = rows[0]
+        if pick["state"] != "assigned":
+            return (f"Phiếu {pick['name']} chưa sẵn sàng (trạng thái: {pick['state']}). "
+                    f"Có thể không đủ tồn kho tại {src['complete_name']}.")
 
-    picking_id = odoo("stock.picking", "create", [{
-        "picking_type_id": picking_type_id,
-        "location_id": src["id"],
-        "location_dest_id": dst["id"],
-        "move_ids": [(0, 0, {"product_id": prod["id"], "product_uom_qty": qty})],
-    }])
-    odoo("stock.picking", "action_confirm", [[picking_id]])
-    odoo("stock.picking", "action_assign", [[picking_id]])
-    rows = odoo("stock.picking", "read", [[picking_id]], {"fields": ["name", "state"]})
-    pick = rows[0]
-    if pick["state"] != "assigned":
-        return (f"Phiếu {pick['name']} chưa sẵn sàng (trạng thái: {pick['state']}). "
-                f"Có thể không đủ tồn kho tại {src['complete_name']}.")
-
-    # Odoo 19: an 'assigned' picking already has done-qty = reserved on every
-    # move, so button_validate completes directly (no immediate-transfer
-    # wizard) — same behavior validate_picking already relies on.
-    result = odoo("stock.picking", "button_validate", [[picking_id]])
-    if isinstance(result, dict):
-        return (f"Phiếu {pick['name']} cần thao tác bổ sung trên Odoo "
-                f"(wizard không hỗ trợ qua API). Vui lòng xử lý trực tiếp.")
-    return (f"Đã chuyển {qty:g} {prod['name']} từ {src['complete_name']} "
-            f"sang {dst['complete_name']} (phiếu {pick['name']}).")
+        # Odoo 19: an 'assigned' picking already has done-qty = reserved on every
+        # move, so button_validate completes directly (no immediate-transfer
+        # wizard) — same behavior validate_picking already relies on.
+        result = odoo("stock.picking", "button_validate", [[picking_id]])
+        if isinstance(result, dict):
+            return (f"Phiếu {pick['name']} cần thao tác bổ sung trên Odoo "
+                    f"(wizard không hỗ trợ qua API). Vui lòng xử lý trực tiếp.")
+        return (f"Đã chuyển {qty:g} {prod['name']} từ {src['complete_name']} "
+                f"sang {dst['complete_name']} (phiếu {pick['name']}).")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("internal_transfer",
+                    f"Lỗi khi chuyển kho {product_name} — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -186,33 +201,38 @@ def scrap_product(product_name: str = "", qty: float = 0.0,
         location_name: Tên vị trí nguồn (tùy chọn; bỏ trống = kho chính).
         reason: Lý do phế liệu (tùy chọn, ghi vào Source Document).
     """
-    if qty <= 0:
-        return "Số lượng phế liệu không hợp lệ (phải lớn hơn 0)."
+    try:
+        if qty <= 0:
+            return "Số lượng phế liệu không hợp lệ (phải lớn hơn 0)."
 
-    if product_id:
-        prows = odoo("product.product", "read", [[product_id]], {"fields": ["id", "name"]})
-        if not prows:
-            return f"Không tìm thấy sản phẩm ID {product_id}."
-        prod = prows[0]
-    else:
-        prod, msg = _resolve_product(product_name, "is_storable")
+        if product_id:
+            prows = odoo("product.product", "read", [[product_id]], {"fields": ["id", "name"]})
+            if not prows:
+                return f"Không tìm thấy sản phẩm ID {product_id}."
+            prod = prows[0]
+        else:
+            prod, msg = _resolve_product(product_name, "is_storable")
+            if msg:
+                return msg
+
+        loc, msg = _resolve_location(location_name)
         if msg:
             return msg
 
-    loc, msg = _resolve_location(location_name)
-    if msg:
-        return msg
+        vals = {"product_id": prod["id"], "scrap_qty": qty, "location_id": loc["id"]}
+        if reason:
+            vals["origin"] = reason
+        scrap_id = odoo("stock.scrap", "create", [vals])
 
-    vals = {"product_id": prod["id"], "scrap_qty": qty, "location_id": loc["id"]}
-    if reason:
-        vals["origin"] = reason
-    scrap_id = odoo("stock.scrap", "create", [vals])
-
-    result = odoo("stock.scrap", "action_validate", [[scrap_id]])
-    if isinstance(result, dict):
-        return (f"Không đủ tồn kho {prod['name']} tại {loc['complete_name']} để "
-                f"ghi nhận phế liệu. Vui lòng xử lý trực tiếp trên Odoo.")
-    return f"Đã ghi nhận phế liệu {qty:g} {prod['name']} tại {loc['complete_name']}."
+        result = odoo("stock.scrap", "action_validate", [[scrap_id]])
+        if isinstance(result, dict):
+            return (f"Không đủ tồn kho {prod['name']} tại {loc['complete_name']} để "
+                    f"ghi nhận phế liệu. Vui lòng xử lý trực tiếp trên Odoo.")
+        return f"Đã ghi nhận phế liệu {qty:g} {prod['name']} tại {loc['complete_name']}."
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("scrap_product",
+                    f"Lỗi khi ghi nhận phế liệu {product_name} — thao tác "
+                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

@@ -34,7 +34,7 @@ import os
 
 from server import mcp
 from odoo_call import odoo
-from helpers import envelope
+from helpers import envelope, fail
 import role_scope
 
 
@@ -54,74 +54,80 @@ def preview_template_email(template_name: str, res_model: str, ref: str) -> str:
         res_model: Model của bản ghi nguồn, vd "sale.order".
         ref: Mã bản ghi (field 'name'), vd "S00166".
     """
-    # Cưỡng chế phạm vi vai TRONG tiến trình MCP — chặn cả đường gọi thẳng
-    # cổng này, thứ mà bộ lọc tool ở backend không với tới (spec 2026-08-12
-    # §4.2). KHÔNG nêu danh sách được phép trong câu từ chối: không rò cấu
-    # hình vai cho người gọi trực tiếp.
-    if not role_scope.allowed(template_name,
-                              os.environ.get(role_scope.ALLOWED_TEMPLATES_ENV)):
-        return json.dumps(
-            {"ok": False,
-             "display": f"Template '{template_name}' không thuộc phạm vi của vai này."},
-            ensure_ascii=False)
+    try:
+        # Cưỡng chế phạm vi vai TRONG tiến trình MCP — chặn cả đường gọi thẳng
+        # cổng này, thứ mà bộ lọc tool ở backend không với tới (spec 2026-08-12
+        # §4.2). KHÔNG nêu danh sách được phép trong câu từ chối: không rò cấu
+        # hình vai cho người gọi trực tiếp.
+        if not role_scope.allowed(template_name,
+                                  os.environ.get(role_scope.ALLOWED_TEMPLATES_ENV)):
+            return json.dumps(
+                {"ok": False,
+                 "display": f"Template '{template_name}' không thuộc phạm vi của vai này."},
+                ensure_ascii=False)
 
-    tpls = odoo("mail.template", "search_read",
-               [[["name", "=", template_name], ["model", "=", res_model]]],
-               {"fields": ["id"], "limit": 2})
-    if not tpls:
-        return json.dumps({"ok": False,
-                           "display": f"Không tìm thấy template '{template_name}' cho model '{res_model}'."},
+        tpls = odoo("mail.template", "search_read",
+                   [[["name", "=", template_name], ["model", "=", res_model]]],
+                   {"fields": ["id"], "limit": 2})
+        if not tpls:
+            return json.dumps({"ok": False,
+                               "display": f"Không tìm thấy template '{template_name}' cho model '{res_model}'."},
+                              ensure_ascii=False)
+
+        recs = odoo(res_model, "search_read", [[["name", "=", ref]]], {"fields": ["id"], "limit": 2})
+        if not recs:
+            return json.dumps({"ok": False, "display": f"Không tìm thấy bản ghi '{ref}' trong {res_model}."},
+                              ensure_ascii=False)
+        if len(recs) > 1:
+            return json.dumps({"ok": False, "display": f"Có nhiều bản ghi '{ref}'. Vui lòng nêu rõ hơn."},
+                              ensure_ascii=False)
+
+        # Bản nháp trơ tính (spec 2026-08-08, sửa sau final review — tạo TRỰC
+        # TIẾP ở state='cancel' qua email_values, KHÔNG phải create rồi write()
+        # riêng): send_mail's email_values được merge thẳng vào create() values
+        # của mail.mail (xác minh qua mã nguồn Odoo mail_template.py + probe
+        # thật: gọi send_mail với email_values={"state": "cancel"} tạo ra bản
+        # ghi đã ở state='cancel' ngay từ create, đọc lại xác nhận). Một lệnh
+        # gọi Odoo DUY NHẤT, không còn khoảng hở giữa tạo và chuyển state — nếu
+        # lệnh write() riêng (thiết kế cũ) thất bại giữa 2 bước, bản nháp sẽ mồ
+        # côi ở state mặc định 'outgoing', đúng lỗi mà toàn bộ nhánh này tồn tại
+        # để ngăn. 'cancel' là giá trị Selection hợp lệ thật trong Odoo (không
+        # phải hack) — cron "Mail: Email Queue Manager" lọc cứng theo
+        # state='outgoing', và mail.mail._send() nội bộ có
+        # "if mail.state != 'outgoing': continue" — bỏ qua LẶNG LẼ mọi state
+        # khác, không lỗi. Bản nháp chưa xác nhận vì vậy không bao giờ ở trạng
+        # thái mà cron/send() nhìn thấy, cho tới khi send_prepared_email chủ
+        # động lật lại 'outgoing'.
+        mail_id = odoo("mail.template", "send_mail", [tpls[0]["id"], recs[0]["id"]],
+                       {"force_send": False, "email_values": {"state": "cancel"}})
+        rows = odoo("mail.mail", "read", [[mail_id]],
+                   {"fields": ["subject", "recipient_ids", "email_to"]})
+        m = rows[0]
+
+        # Finding 4 (final review 2026-08-07): trả DANH SÁCH người nhận thật, không
+        # phải mỗi số lượng — người dùng phải nhìn thấy AI gửi cho ai để cổng xác
+        # nhận còn bắt được sai người nhận. recipient_ids là many2many res.partner
+        # (cần "read" thêm để lấy name/email — "read" đã whitelist toàn cục theo
+        # method, không theo model, nên không cần thêm gì vào security whitelist);
+        # email_to là field địa chỉ thô song song, template có thể populate CÁI
+        # NÀY thay vì recipient_ids — bỏ sót nó thì đếm ra 0 dù mail VẪN sẽ gửi.
+        recipients = []
+        partner_ids = m["recipient_ids"] or []
+        if partner_ids:
+            partners = odoo("res.partner", "read", [partner_ids], {"fields": ["name", "email"]})
+            recipients.extend(f"{p['name']} <{p['email'] or '?'}>" for p in partners)
+        if m.get("email_to"):
+            recipients.append(m["email_to"])
+
+        return json.dumps({"ok": True, "display": f"Đã soạn mail '{m['subject']}', chờ xác nhận gửi.",
+                           "mail_id": mail_id, "subject": m["subject"],
+                           "recipients": recipients},
                           ensure_ascii=False)
-
-    recs = odoo(res_model, "search_read", [[["name", "=", ref]]], {"fields": ["id"], "limit": 2})
-    if not recs:
-        return json.dumps({"ok": False, "display": f"Không tìm thấy bản ghi '{ref}' trong {res_model}."},
-                          ensure_ascii=False)
-    if len(recs) > 1:
-        return json.dumps({"ok": False, "display": f"Có nhiều bản ghi '{ref}'. Vui lòng nêu rõ hơn."},
-                          ensure_ascii=False)
-
-    # Bản nháp trơ tính (spec 2026-08-08, sửa sau final review — tạo TRỰC
-    # TIẾP ở state='cancel' qua email_values, KHÔNG phải create rồi write()
-    # riêng): send_mail's email_values được merge thẳng vào create() values
-    # của mail.mail (xác minh qua mã nguồn Odoo mail_template.py + probe
-    # thật: gọi send_mail với email_values={"state": "cancel"} tạo ra bản
-    # ghi đã ở state='cancel' ngay từ create, đọc lại xác nhận). Một lệnh
-    # gọi Odoo DUY NHẤT, không còn khoảng hở giữa tạo và chuyển state — nếu
-    # lệnh write() riêng (thiết kế cũ) thất bại giữa 2 bước, bản nháp sẽ mồ
-    # côi ở state mặc định 'outgoing', đúng lỗi mà toàn bộ nhánh này tồn tại
-    # để ngăn. 'cancel' là giá trị Selection hợp lệ thật trong Odoo (không
-    # phải hack) — cron "Mail: Email Queue Manager" lọc cứng theo
-    # state='outgoing', và mail.mail._send() nội bộ có
-    # "if mail.state != 'outgoing': continue" — bỏ qua LẶNG LẼ mọi state
-    # khác, không lỗi. Bản nháp chưa xác nhận vì vậy không bao giờ ở trạng
-    # thái mà cron/send() nhìn thấy, cho tới khi send_prepared_email chủ
-    # động lật lại 'outgoing'.
-    mail_id = odoo("mail.template", "send_mail", [tpls[0]["id"], recs[0]["id"]],
-                   {"force_send": False, "email_values": {"state": "cancel"}})
-    rows = odoo("mail.mail", "read", [[mail_id]],
-               {"fields": ["subject", "recipient_ids", "email_to"]})
-    m = rows[0]
-
-    # Finding 4 (final review 2026-08-07): trả DANH SÁCH người nhận thật, không
-    # phải mỗi số lượng — người dùng phải nhìn thấy AI gửi cho ai để cổng xác
-    # nhận còn bắt được sai người nhận. recipient_ids là many2many res.partner
-    # (cần "read" thêm để lấy name/email — "read" đã whitelist toàn cục theo
-    # method, không theo model, nên không cần thêm gì vào security whitelist);
-    # email_to là field địa chỉ thô song song, template có thể populate CÁI
-    # NÀY thay vì recipient_ids — bỏ sót nó thì đếm ra 0 dù mail VẪN sẽ gửi.
-    recipients = []
-    partner_ids = m["recipient_ids"] or []
-    if partner_ids:
-        partners = odoo("res.partner", "read", [partner_ids], {"fields": ["name", "email"]})
-        recipients.extend(f"{p['name']} <{p['email'] or '?'}>" for p in partners)
-    if m.get("email_to"):
-        recipients.append(m["email_to"])
-
-    return json.dumps({"ok": True, "display": f"Đã soạn mail '{m['subject']}', chờ xác nhận gửi.",
-                       "mail_id": mail_id, "subject": m["subject"],
-                       "recipients": recipients},
-                      ensure_ascii=False)
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("preview_template_email",
+                    f"Lỗi khi soạn mail từ template {template_name} — thao "
+                    f"tác có thể chưa hoàn tất. Nếu lặp lại, báo quản trị "
+                    f"viên.", e)
 
 
 @mcp.tool()
@@ -135,45 +141,53 @@ def send_prepared_email(mail_id: int) -> str:
     Args:
         mail_id: ID bản ghi mail.mail đã soạn (từ preview_template_email).
     """
-    # Cửa sau của §4.2: tool này chỉ nhận mail_id, nên ai gọi thẳng cổng MCP
-    # có thể lấy BẤT KỲ bản nháp mail.mail nào đang có và gửi đi. Đối chiếu
-    # model nguồn của bản ghi với phạm vi vai (spec 2026-08-12 §4.3).
-    #
-    # GIỚI HẠN ĐÃ BIẾT: hai vai cùng res_model thì kiểm này không tách được.
-    # Hiện không xảy ra (stock.picking chỉ của kho, account.move chỉ của kế
-    # toán) — đừng tưởng nó mạnh hơn thực tế.
-    allowed_models_raw = os.environ.get(role_scope.ALLOWED_MAIL_MODELS_ENV)
-    if role_scope.parse(allowed_models_raw):
-        rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["model"]})
-        if not rows:
-            return envelope(False, f"Không tìm thấy mail nháp id={mail_id}.")
-        source_model = rows[0].get("model") or ""
-        if not role_scope.allowed(source_model, allowed_models_raw):
-            return envelope(False, "Mail này không thuộc phạm vi của vai hiện tại.")
+    try:
+        # Cửa sau của §4.2: tool này chỉ nhận mail_id, nên ai gọi thẳng cổng MCP
+        # có thể lấy BẤT KỲ bản nháp mail.mail nào đang có và gửi đi. Đối chiếu
+        # model nguồn của bản ghi với phạm vi vai (spec 2026-08-12 §4.3).
+        #
+        # GIỚI HẠN ĐÃ BIẾT: hai vai cùng res_model thì kiểm này không tách được.
+        # Hiện không xảy ra (stock.picking chỉ của kho, account.move chỉ của kế
+        # toán) — đừng tưởng nó mạnh hơn thực tế.
+        allowed_models_raw = os.environ.get(role_scope.ALLOWED_MAIL_MODELS_ENV)
+        if role_scope.parse(allowed_models_raw):
+            rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["model"]})
+            if not rows:
+                return envelope(False, f"Không tìm thấy mail nháp id={mail_id}.")
+            source_model = rows[0].get("model") or ""
+            if not role_scope.allowed(source_model, allowed_models_raw):
+                return envelope(False, "Mail này không thuộc phạm vi của vai hiện tại.")
 
-    # Bắt buộc lật lại 'outgoing' TRƯỚC send() — thiếu bước này, send() nội
-    # bộ của Odoo sẽ lặng lẽ bỏ qua bản ghi (state đang là 'cancel' từ
-    # preview_template_email), không gửi, không báo lỗi. Xem spec 2026-08-08.
-    odoo("mail.mail", "write", [[mail_id], {"state": "outgoing"}], {})
-    odoo("mail.mail", "send", [[mail_id]], {})
-    rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["state", "failure_reason", "subject"]})
-    if not rows:
-        # Đo thật 2026-08-08 (live-verify trước merge): template "Sales:
-        # Order Confirmation" có auto_delete=True — Odoo TỰ XÓA bản ghi
-        # mail.mail ngay sau khi gửi THÀNH CÔNG (hành vi mặc định của Odoo
-        # cho mail.mail.auto_delete, không phải lỗi). Không còn bản ghi để
-        # đọc lại là DẤU HIỆU GỬI THÀNH CÔNG, không phải trường hợp lỗi —
-        # gửi thất bại (SMTP lỗi) thì Odoo GIỮ LẠI bản ghi ở state='exception'
-        # (đã kiểm chứng thật trước khi có SMTP: state='exception' vẫn đọc
-        # được), auto_delete chỉ áp dụng cho nhánh thành công.
-        return envelope(True, "Đã gửi mail.", ref=str(mail_id), model="mail.mail",
-                        res_id=mail_id, state="sent")
-    m = rows[0]
-    if m["state"] == "exception":
-        return envelope(False, f"Gửi thất bại: {m['failure_reason'] or 'không rõ lý do'}.",
-                        ref=m["subject"], model="mail.mail", res_id=mail_id, state=m["state"])
-    return envelope(True, "Đã gửi mail.", ref=m["subject"], model="mail.mail",
-                    res_id=mail_id, state=m["state"])
+        # Bắt buộc lật lại 'outgoing' TRƯỚC send() — thiếu bước này, send() nội
+        # bộ của Odoo sẽ lặng lẽ bỏ qua bản ghi (state đang là 'cancel' từ
+        # preview_template_email), không gửi, không báo lỗi. Xem spec 2026-08-08.
+        odoo("mail.mail", "write", [[mail_id], {"state": "outgoing"}], {})
+        odoo("mail.mail", "send", [[mail_id]], {})
+        rows = odoo("mail.mail", "read", [[mail_id]], {"fields": ["state", "failure_reason", "subject"]})
+        if not rows:
+            # Đo thật 2026-08-08 (live-verify trước merge): template "Sales:
+            # Order Confirmation" có auto_delete=True — Odoo TỰ XÓA bản ghi
+            # mail.mail ngay sau khi gửi THÀNH CÔNG (hành vi mặc định của Odoo
+            # cho mail.mail.auto_delete, không phải lỗi). Không còn bản ghi để
+            # đọc lại là DẤU HIỆU GỬI THÀNH CÔNG, không phải trường hợp lỗi —
+            # gửi thất bại (SMTP lỗi) thì Odoo GIỮ LẠI bản ghi ở state='exception'
+            # (đã kiểm chứng thật trước khi có SMTP: state='exception' vẫn đọc
+            # được), auto_delete chỉ áp dụng cho nhánh thành công.
+            return envelope(True, "Đã gửi mail.", ref=str(mail_id), model="mail.mail",
+                            res_id=mail_id, state="sent")
+        m = rows[0]
+        if m["state"] == "exception":
+            return envelope(False, f"Gửi thất bại: {m['failure_reason'] or 'không rõ lý do'}.",
+                            ref=m["subject"], model="mail.mail", res_id=mail_id, state=m["state"])
+        return envelope(True, "Đã gửi mail.", ref=m["subject"], model="mail.mail",
+                        res_id=mail_id, state=m["state"])
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # send() có thể đã gửi thật TRƯỚC khi một lệnh Odoo sau đó (đọc lại
+        # trạng thái) mới thất bại — KHÔNG khẳng định "chưa gửi" (xem
+        # docstring module: đây là ca rõ nhất, mail có thể đã đi rồi).
+        return fail("send_prepared_email",
+                    f"Lỗi khi gửi mail đã soạn (mail {mail_id}) — thao tác "
+                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -189,6 +203,11 @@ def discard_prepared_email(mail_id: int) -> str:
     Args:
         mail_id: ID bản ghi mail.mail cần hủy (từ preview_template_email).
     """
-    odoo("mail.mail", "unlink", [[mail_id]], {})
-    return envelope(True, "Đã hủy mail nháp.", ref=str(mail_id), model="mail.mail",
-                    res_id=mail_id, state="deleted")
+    try:
+        odoo("mail.mail", "unlink", [[mail_id]], {})
+        return envelope(True, "Đã hủy mail nháp.", ref=str(mail_id), model="mail.mail",
+                        res_id=mail_id, state="deleted")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("discard_prepared_email",
+                    f"Lỗi khi hủy mail đã soạn (mail {mail_id}) — thao tác "
+                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)

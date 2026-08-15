@@ -19,26 +19,31 @@ def confirm_purchase_order(order_ref: str) -> str:
     Args:
         order_ref: Mã đơn mua, ví dụ "P00003".
     """
-    rows = odoo("purchase.order", "search_read",
-                [[["name", "=", order_ref]]],
-                {"fields": ["id", "name", "state"], "limit": 2})
-    if not rows:
-        return envelope(False, f"Không tìm thấy đơn mua '{order_ref}'.")
-    if len(rows) > 1:
-        return envelope(False,
-                        f"Có nhiều đơn mua tên '{order_ref}'. Vui lòng nêu rõ hơn.")
+    try:
+        rows = odoo("purchase.order", "search_read",
+                    [[["name", "=", order_ref]]],
+                    {"fields": ["id", "name", "state"], "limit": 2})
+        if not rows:
+            return envelope(False, f"Không tìm thấy đơn mua '{order_ref}'.")
+        if len(rows) > 1:
+            return envelope(False,
+                            f"Có nhiều đơn mua tên '{order_ref}'. Vui lòng nêu rõ hơn.")
 
-    order = rows[0]
-    name, state = order["name"], order["state"]
-    if state in ("purchase", "done"):
-        return envelope(False, f"Đơn mua {name} đã được xác nhận rồi.")
-    if state == "cancel":
-        return envelope(False, f"Đơn mua {name} đã bị hủy, không thể xác nhận.")
+        order = rows[0]
+        name, state = order["name"], order["state"]
+        if state in ("purchase", "done"):
+            return envelope(False, f"Đơn mua {name} đã được xác nhận rồi.")
+        if state == "cancel":
+            return envelope(False, f"Đơn mua {name} đã bị hủy, không thể xác nhận.")
 
-    odoo("purchase.order", "button_confirm", [[order["id"]]])
-    return envelope(True, f"Đã xác nhận đơn mua {name}.",
-                    ref=name, model="purchase.order", res_id=order["id"],
-                    state="purchase")
+        odoo("purchase.order", "button_confirm", [[order["id"]]])
+        return envelope(True, f"Đã xác nhận đơn mua {name}.",
+                        ref=name, model="purchase.order", res_id=order["id"],
+                        state="purchase")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("confirm_purchase_order",
+                    f"Lỗi khi xác nhận đơn mua {order_ref} — thao tác có "
+                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -160,40 +165,45 @@ def create_rfq(supplier_name: str = "", lines: list | None = None,
         partner_id: ID nhà cung cấp đã resolve (ưu tiên hơn supplier_name).
     """
     lines = lines or []
-    if not lines:
-        return envelope(False, "Vui lòng cho biết sản phẩm và số lượng cần đặt mua.")
+    try:
+        if not lines:
+            return envelope(False, "Vui lòng cho biết sản phẩm và số lượng cần đặt mua.")
 
-    if partner_id:
-        vrows = odoo("res.partner", "read", [[partner_id]], {"fields": ["id", "name"]})
-        if not vrows:
-            return envelope(False, f"Không tìm thấy nhà cung cấp ID {partner_id}.")
-        vendor = vrows[0]
-    else:
-        vendor, msg = _resolve_partner(supplier_name, "nhà cung cấp",
-                                       "Vui lòng nêu rõ tên nhà cung cấp.")
-        if msg:
-            return envelope(False, msg)
+        if partner_id:
+            vrows = odoo("res.partner", "read", [[partner_id]], {"fields": ["id", "name"]})
+            if not vrows:
+                return envelope(False, f"Không tìm thấy nhà cung cấp ID {partner_id}.")
+            vendor = vrows[0]
+        else:
+            vendor, msg = _resolve_partner(supplier_name, "nhà cung cấp",
+                                           "Vui lòng nêu rõ tên nhà cung cấp.")
+            if msg:
+                return envelope(False, msg)
 
-    order_line = []
-    for line in lines:
-        pid = line.get("product_id")
-        if pid:
-            order_line.append((0, 0, {"product_id": pid,
+        order_line = []
+        for line in lines:
+            pid = line.get("product_id")
+            if pid:
+                order_line.append((0, 0, {"product_id": pid,
+                                          "product_qty": line["qty"]}))
+                continue
+            prod, pmsg = _resolve_product(line["product"], "purchase_ok")
+            if pmsg:
+                return envelope(False, pmsg)
+            order_line.append((0, 0, {"product_id": prod["id"],
                                       "product_qty": line["qty"]}))
-            continue
-        prod, pmsg = _resolve_product(line["product"], "purchase_ok")
-        if pmsg:
-            return envelope(False, pmsg)
-        order_line.append((0, 0, {"product_id": prod["id"],
-                                  "product_qty": line["qty"]}))
 
-    pid_ = odoo("purchase.order", "create",
-                [{"partner_id": vendor["id"], "order_line": order_line}])
-    po = odoo("purchase.order", "read", [[pid_]], {"fields": ["name"]})
-    name = po[0]["name"] if po else "?"
-    return envelope(True,
-                    f"Đã tạo RFQ {name} (nháp) cho {vendor['name']} ({len(lines)} dòng).",
-                    ref=name, model="purchase.order", res_id=pid_, state="draft")
+        pid_ = odoo("purchase.order", "create",
+                    [{"partner_id": vendor["id"], "order_line": order_line}])
+        po = odoo("purchase.order", "read", [[pid_]], {"fields": ["name"]})
+        name = po[0]["name"] if po else "?"
+        return envelope(True,
+                        f"Đã tạo RFQ {name} (nháp) cho {vendor['name']} ({len(lines)} dòng).",
+                        ref=name, model="purchase.order", res_id=pid_, state="draft")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("create_rfq",
+                    f"Lỗi khi tạo RFQ cho nhà cung cấp {supplier_name} — thao "
+                    f"tác có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

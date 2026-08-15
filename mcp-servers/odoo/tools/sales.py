@@ -27,24 +27,29 @@ def confirm_sale_order(order_ref: str) -> str:
     Args:
         order_ref: Mã đơn bán, ví dụ "S00012".
     """
-    rows = odoo("sale.order", "search_read",
-                [[["name", "=", order_ref]]],
-                {"fields": ["id", "name", "state"], "limit": 2})
-    if not rows:
-        return envelope(False, f"Không tìm thấy đơn '{order_ref}'.")
-    if len(rows) > 1:
-        return envelope(False, f"Có nhiều đơn tên '{order_ref}'. Vui lòng nêu rõ hơn.")
+    try:
+        rows = odoo("sale.order", "search_read",
+                    [[["name", "=", order_ref]]],
+                    {"fields": ["id", "name", "state"], "limit": 2})
+        if not rows:
+            return envelope(False, f"Không tìm thấy đơn '{order_ref}'.")
+        if len(rows) > 1:
+            return envelope(False, f"Có nhiều đơn tên '{order_ref}'. Vui lòng nêu rõ hơn.")
 
-    order = rows[0]
-    name, state = order["name"], order["state"]
-    if state in ("sale", "done"):
-        return envelope(False, f"Đơn {name} đã được xác nhận rồi.")
-    if state == "cancel":
-        return envelope(False, f"Đơn {name} đã bị hủy, không thể xác nhận.")
+        order = rows[0]
+        name, state = order["name"], order["state"]
+        if state in ("sale", "done"):
+            return envelope(False, f"Đơn {name} đã được xác nhận rồi.")
+        if state == "cancel":
+            return envelope(False, f"Đơn {name} đã bị hủy, không thể xác nhận.")
 
-    odoo("sale.order", "action_confirm", [[order["id"]]])
-    return envelope(True, f"Đã xác nhận đơn {name}.",
-                    ref=name, model="sale.order", res_id=order["id"], state="sale")
+        odoo("sale.order", "action_confirm", [[order["id"]]])
+        return envelope(True, f"Đã xác nhận đơn {name}.",
+                        ref=name, model="sale.order", res_id=order["id"], state="sale")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("confirm_sale_order",
+                    f"Lỗi khi xác nhận đơn {order_ref} — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -115,45 +120,50 @@ def create_quotation(partner_name: str = "", lines: list | None = None,
         partner_id: ID khách hàng đã resolve (ưu tiên hơn partner_name).
     """
     lines = lines or []
-    if not lines:
-        return envelope(False, "Vui lòng cho biết sản phẩm và số lượng cần báo giá.")
+    try:
+        if not lines:
+            return envelope(False, "Vui lòng cho biết sản phẩm và số lượng cần báo giá.")
 
-    if partner_id:
-        prows = odoo("res.partner", "read", [[partner_id]], {"fields": ["id", "name"]})
-        if not prows:
-            return envelope(False, f"Không tìm thấy khách hàng ID {partner_id}.")
-        partner = prows[0]
-    else:
-        partner, msg = _resolve_partner(partner_name, "khách hàng",
-                                        "Vui lòng nêu rõ tên khách hàng.")
-        if msg:
-            return envelope(False, msg)
+        if partner_id:
+            prows = odoo("res.partner", "read", [[partner_id]], {"fields": ["id", "name"]})
+            if not prows:
+                return envelope(False, f"Không tìm thấy khách hàng ID {partner_id}.")
+            partner = prows[0]
+        else:
+            partner, msg = _resolve_partner(partner_name, "khách hàng",
+                                            "Vui lòng nêu rõ tên khách hàng.")
+            if msg:
+                return envelope(False, msg)
 
-    order_line = []
-    for line in lines:
-        pid = line.get("product_id")
-        price_unit = line.get("price_unit")
-        if pid:
-            vals = {"product_id": pid, "product_uom_qty": line["qty"]}
+        order_line = []
+        for line in lines:
+            pid = line.get("product_id")
+            price_unit = line.get("price_unit")
+            if pid:
+                vals = {"product_id": pid, "product_uom_qty": line["qty"]}
+                if price_unit is not None:
+                    vals["price_unit"] = price_unit
+                order_line.append((0, 0, vals))
+                continue
+            prod, pmsg = _resolve_product(line["product"], "sale_ok")
+            if pmsg:
+                return envelope(False, pmsg)
+            vals = {"product_id": prod["id"], "product_uom_qty": line["qty"]}
             if price_unit is not None:
                 vals["price_unit"] = price_unit
             order_line.append((0, 0, vals))
-            continue
-        prod, pmsg = _resolve_product(line["product"], "sale_ok")
-        if pmsg:
-            return envelope(False, pmsg)
-        vals = {"product_id": prod["id"], "product_uom_qty": line["qty"]}
-        if price_unit is not None:
-            vals["price_unit"] = price_unit
-        order_line.append((0, 0, vals))
 
-    sid = odoo("sale.order", "create",
-               [{"partner_id": partner["id"], "order_line": order_line}])
-    so = odoo("sale.order", "read", [[sid]], {"fields": ["name"]})
-    name = so[0]["name"] if so else "?"
-    return envelope(True,
-                    f"Đã tạo báo giá {name} (nháp) cho {partner['name']} ({len(lines)} dòng).",
-                    ref=name, model="sale.order", res_id=sid, state="draft")
+        sid = odoo("sale.order", "create",
+                   [{"partner_id": partner["id"], "order_line": order_line}])
+        so = odoo("sale.order", "read", [[sid]], {"fields": ["name"]})
+        name = so[0]["name"] if so else "?"
+        return envelope(True,
+                        f"Đã tạo báo giá {name} (nháp) cho {partner['name']} ({len(lines)} dòng).",
+                        ref=name, model="sale.order", res_id=sid, state="draft")
+    except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        return fail("create_quotation",
+                    f"Lỗi khi tạo báo giá cho {partner_name} — thao tác có "
+                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
