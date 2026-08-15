@@ -7,10 +7,27 @@ import importlib.util
 import pathlib
 import sys
 
+import pytest
+
 from src.agents import handoff, prompts, roles, write_registry
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
 CHECK = REPO / "scripts" / "check_role_odoo_consistency.py"
+
+
+@pytest.fixture(scope="module")
+def check_mod():
+    """Nạp scripts/check_role_odoo_consistency.py MỘT LẦN cho cả module.
+    scripts/ không phải package con của backend/ (không có __init__.py) nên
+    phải nạp qua đường dẫn file bằng importlib, không import thẳng tên —
+    cùng mẫu với test_tool_access_map_drift.py:47-59, viết lại riêng ở đây
+    (không import chéo file test) để file này tự đứng độc lập."""
+    spec = importlib.util.spec_from_file_location(
+        "_check_role_for_close_test", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def test_ca_hai_vai_deu_so_huu_close_activity():
@@ -89,36 +106,21 @@ def test_close_activity_co_trong_ca_prompt_lan_bang():
     assert "close_activity" in WRITE_TOOL_NAMES
 
 
-def test_bang_quyen_odoo_co_dong_cho_close_activity():
-    spec = importlib.util.spec_from_file_location(
-        "_check_role_for_close_test", CHECK)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    assert "close_activity" in mod.TOOL_ACCESS_MAP
-    assert ("mail.activity", "write") in mod.TOOL_ACCESS_MAP["close_activity"]
+def test_bang_quyen_odoo_co_dong_cho_close_activity(check_mod):
+    assert "close_activity" in check_mod.TOOL_ACCESS_MAP
+    assert ("mail.activity", "write") in check_mod.TOOL_ACCESS_MAP["close_activity"]
 
 
-def test_close_activity_khai_ca_quyen_doc():
+def test_close_activity_khai_ca_quyen_doc(check_mod):
     """close_activity search_read mail.activity TRƯỚC khi action_feedback
     (crm.py:272) — bộ lọc chủ sở hữu là lớp cưỡng chế duy nhất, vì Odoo
     KHÔNG chặn một tài khoản đóng việc của người khác. Thiếu quyền đọc thì
     lớp đó sập, nên cặp read phải được khai."""
-    spec = importlib.util.spec_from_file_location(
-        "_check_role_for_close_test", CHECK)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    assert ("mail.activity", "read") in mod.TOOL_ACCESS_MAP["close_activity"]
+    assert ("mail.activity", "read") in check_mod.TOOL_ACCESS_MAP["close_activity"]
 
 
-def test_find_my_activities_co_trong_bang():
+def test_find_my_activities_co_trong_bang(check_mod):
     """Tool CHỈ-ĐỌC nên nó lọt qua cả hai lưới: không ở roles.py (nên
     test_moi_tool_trong_roles_deu_duoc_bang_phu không phủ), không ở
     TOOL_ACCESS_MAP, không ở UNMAPPED_TOOLS."""
-    spec = importlib.util.spec_from_file_location(
-        "_check_role_for_close_test", CHECK)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    assert ("mail.activity", "read") in mod.TOOL_ACCESS_MAP["find_my_activities"]
+    assert ("mail.activity", "read") in check_mod.TOOL_ACCESS_MAP["find_my_activities"]
