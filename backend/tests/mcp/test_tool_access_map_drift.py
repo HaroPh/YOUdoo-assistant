@@ -20,6 +20,15 @@ trong helpers.py), nên quét thân tool là hụt. Test đi thêm ĐÚNG MỘT 
 được định nghĩa trong cùng package mcp-servers/odoo. Sâu hơn thì KHÔNG — nêu
 thẳng ở đây thay vì để người sau tưởng nó phủ hết.
 
+TASK 8 (đo 2026-08-15): thêm update_quotation_lines/update_rfq_lines vào
+TOOL_ACCESS_MAP lộ một hạng giới hạn khác của bước "đi một cấp" — cả hai tool
+delegate 100% cho helpers._apply_line_ops(model, qty_field, order_ref, ops),
+và model chỉ là THAM SỐ trong thân helper (odoo(model, "search_read", ...)),
+không phải literal, nên bước Constant-check cũ luôn bỏ qua cặp đó dù đi đúng
+một cấp vào tới nơi. _odoo_calls giờ mang theo _subst — literal truyền Ở LỆNH
+GỌI CẤP 0 khớp theo VỊ TRÍ tham số của hàm được gọi — chỉ để giải quyết đúng
+ca này, không mở rộng ra suy luận data-flow chung chung nào khác.
+
 SỬA SO VỚI BẢN GỐC CỦA BRIEF (đo thật khi chạy Step 2, không phải đoán):
 send_delivery_email/send_invoice_email trong TOOL_ACCESS_MAP KHÔNG phải hàm
 MCP — chúng là tên coordinator tầng agent (EmailCfg.tool_name,
@@ -84,9 +93,20 @@ def funcs():
     return out
 
 
-def _odoo_calls(node, funcs, _depth=0):
+def _odoo_calls(node, funcs, _depth=0, _subst=None):
     """{(model, method)} cho mọi lệnh odoo(...) trong `node`, đi thêm ĐÚNG MỘT
-    cấp vào hàm cùng package được gọi trong thân nó."""
+    cấp vào hàm cùng package được gọi trong thân nó.
+
+    _subst: {tên tham số: giá trị literal} áp cho THÂN `node` khi nó được gọi
+    ở lệnh gọi cấp 0 với đối số chuỗi literal khớp VỊ TRÍ tham số. Trường hợp
+    thật cần đến (đo 2026-08-15, xem docstring module): helpers._apply_line_ops
+    nhận model QUA THAM SỐ (dùng chung cho update_quotation_lines/
+    update_rfq_lines), nên thân nó chỉ có odoo(model, "search_read", ...) —
+    model là ast.Name, không phải ast.Constant. Không có bước này, cả hai
+    tool luôn bị coi là "không đụng model nào" dù đọc code xác nhận có. CHỈ
+    thay literal truyền ở lệnh gọi cấp 0 — không suy luận xa hơn (vẫn đúng
+    tinh thần "sâu hơn thì KHÔNG" ở GIỚI HẠN trên)."""
+    subst = _subst or {}
     found = set()
     for sub in ast.walk(node):
         if not isinstance(sub, ast.Call):
@@ -95,10 +115,22 @@ def _odoo_calls(node, funcs, _depth=0):
         ten = fn.id if isinstance(fn, ast.Name) else getattr(fn, "attr", None)
         if ten == "odoo" and len(sub.args) >= 2:
             model, method = sub.args[0], sub.args[1]
-            if isinstance(model, ast.Constant) and isinstance(method, ast.Constant):
-                found.add((model.value, method.value))
+            if isinstance(model, ast.Constant):
+                model_val = model.value
+            elif isinstance(model, ast.Name):
+                model_val = subst.get(model.id)
+            else:
+                model_val = None
+            method_val = method.value if isinstance(method, ast.Constant) else None
+            if model_val is not None and method_val is not None:
+                found.add((model_val, method_val))
         elif _depth == 0 and ten in funcs and ten != node.name:
-            found |= _odoo_calls(funcs[ten], funcs, _depth + 1)
+            callee = funcs[ten]
+            call_subst = {
+                param.arg: arg.value
+                for param, arg in zip(callee.args.args, sub.args)
+                if isinstance(arg, ast.Constant)}
+            found |= _odoo_calls(callee, funcs, _depth + 1, _subst=call_subst)
     return found
 
 
@@ -148,6 +180,51 @@ def test_moi_tool_trong_roles_deu_duoc_bang_phu(script_mod):
     assert not thieu, (
         "tool khai trong roles.py nhưng không có trong TOOL_ACCESS_MAP cũng "
         f"không trong UNMAPPED_TOOLS: {thieu}")
+
+
+def _registered_tools():
+    """Mọi tool MCP đã đăng ký, lấy từ chính registry — nguồn phủ ĐÚNG.
+
+    _declared_tools() chỉ lấy tool GHI khai trong roles.py, nên tool CHỈ-ĐỌC
+    lọt hoàn toàn qua cả hai lưới (find_my_activities là một trường hợp thật,
+    đo 2026-08-14). Registry thì không phân biệt đọc/ghi."""
+    sys.path.insert(0, str(MCP_DIR))
+    try:
+        import server
+        return set(server.mcp._tool_manager._tools)
+    finally:
+        sys.path.remove(str(MCP_DIR))
+
+
+def test_moi_tool_mcp_dang_ky_deu_duoc_bang_phu(script_mod):
+    """Tool CHỈ-ĐỌC cũng phải được khai hoặc được miễn trừ kèm lý do."""
+    phu = set(script_mod.TOOL_ACCESS_MAP) | set(script_mod.UNMAPPED_TOOLS)
+    thieu = sorted(_registered_tools() - phu)
+    assert not thieu, (
+        "tool đã đăng ký trên MCP nhưng không có trong TOOL_ACCESS_MAP cũng "
+        f"không trong UNMAPPED_TOOLS: {thieu}")
+
+
+def test_nguon_phu_moi_rong_hon_nguon_cu(script_mod):
+    """Đối chứng: nếu _registered_tools() vì lý do nào đó trả tập rỗng hoặc
+    hẹp hơn roles.py, lưới ở trên xanh giả và lỗ cấu trúc vẫn nguyên.
+
+    RULING B (đo 2026-08-15): khẳng định gốc dự tính cho test này
+    (_declared_tools() < _registered_tools(), tập con thực sự) SAI và đã bị
+    thay — _declared_tools() KHÔNG phải tập con của registry.
+    send_delivery_email/send_invoice_email được khai trong roles.py (cfg.own
+    v.v.) nhưng KHÔNG phải hàm MCP thật — chúng là tên coordinator tầng
+    agent (EmailCfg.tool_name, backend/src/agents/mail_write.py; xem thêm
+    coordinator_aliases ở trên cho cách file này đã xử lý ca tương tự).
+    Nên thay bằng hai khẳng định đã đo và xác nhận đúng trên checkout này:"""
+    moi = _registered_tools()
+    # (1) nguồn phủ mới thực sự lấp đúng khoảng trống đã tạo ra task này.
+    assert "find_my_activities" in moi - _declared_tools()
+    # (2) chốt CHÍNH XÁC phần không giao nhau: đúng hai tên coordinator tầng
+    # backend, không phải tool MCP thật. Nếu một trong hai trở thành tool
+    # MCP thật sau này, dòng này sẽ đỏ — đúng ý định: buộc người sửa đọc lý
+    # do này thay vì để nó lặng lẽ trôi.
+    assert _declared_tools() - moi == {"send_delivery_email", "send_invoice_email"}
 
 
 def test_model_khai_deu_co_that_trong_nguon_tool(script_mod, funcs, coordinator_aliases):
