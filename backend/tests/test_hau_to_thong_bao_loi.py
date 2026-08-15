@@ -22,6 +22,20 @@ import pytest
 GOC = Path(__file__).resolve().parents[2]
 THU_MUC_QUET = ("backend/src", "mcp-servers/odoo", "backend/skills")
 
+# Bị bỏ sót ở bản đầu (thấy khi merge vào main, 2026-08-15): rglob() không tự
+# tránh .venv. Trên checkout worktree này không có .venv nên lưới xanh giả —
+# trên main, mcp-servers/odoo/.venv/Lib/site-packages/ nằm NGAY DƯỚI một
+# trong ba THU_MUC_QUET, nên bộ quét descend vào đó và báo nhầm hàm fail()
+# trùng tên của click/jsonschema/pycparser/mcp-sdk... là chỗ gọi sai hậu tố.
+# Giữ nhỏ và cục bộ (không đưa vào tests/leak_scan.py): scanner AST ở file
+# này (quet_chuoi_goi_helper) chỉ mình file này dùng — không như quet_file/
+# quet_ast_file trong leak_scan.py mà 4 task khác cùng import (Ruling D).
+# Gộp loại trừ này vào leak_scan.py sẽ khớp nối hai scanner không liên quan
+# chỉ vì tình cờ cùng cần "bỏ qua .venv". Xem test_khong_ro_loi_exception.py
+# và test_tool_access_map_drift.py: cả hai cũng tự giữ danh sách loại trừ
+# riêng, không dùng chung — cùng tiền lệ.
+BO_QUA_THU_MUC = {".venv", "__pycache__", ".git", "node_modules"}
+
 # Hậu tố tầng ĐỌC: chỉ nói "không lấy được dữ liệu" — đúng trong mọi trường hợp.
 HAU_TO_DOC = "— không lấy được dữ liệu. Nếu lặp lại, báo quản trị viên."
 
@@ -112,13 +126,25 @@ def quet_chuoi_goi_helper(path: Path, nhan: str | None = None) -> list[dict]:
     return ket_qua
 
 
+def _cac_file_duoc_quet(goc: Path) -> list[Path]:
+    """Mọi `.py` dưới `goc`, bỏ qua các cây con có tên nằm trong
+    BO_QUA_THU_MUC (vd `.venv/Lib/site-packages/...`).
+
+    Tách riêng khỏi _moi_cho_goi() để kiểm được bằng tay trên một `tmp_path`
+    dựng thủ công, không phụ thuộc checkout thật có .venv hay không (xem
+    test_bo_qua_venv_va_pycache_nhung_khong_bo_qua_file_thuong bên dưới)."""
+    return [p for p in sorted(goc.rglob("*.py"))
+            if not any(phan in BO_QUA_THU_MUC
+                       for phan in p.relative_to(goc).parts)]
+
+
 def _moi_cho_goi() -> list[dict]:
     out = []
     for thu_muc in THU_MUC_QUET:
         goc = GOC / thu_muc
         if not goc.exists():
             continue
-        for p in sorted(goc.rglob("*.py")):
+        for p in _cac_file_duoc_quet(goc):
             out += quet_chuoi_goi_helper(
                 p, nhan=p.relative_to(GOC).as_posix())
     return out
@@ -250,3 +276,48 @@ def test_quet_file_khong_parse_duoc_tra_rong(tmp_path):
     p = tmp_path / "hong.py"
     p.write_text('def f(:\n    pass\n', encoding="utf-8")
     assert quet_chuoi_goi_helper(p) == []
+
+
+def test_bo_qua_venv_va_pycache_nhung_khong_bo_qua_file_thuong(tmp_path):
+    """Hồi quy cho đúng lỗi đã lọt qua merge: worktree không có .venv nên
+    bản đầu của _moi_cho_goi() (rglob() trần, không loại trừ) chưa từng
+    chạy qua một cây .venv thật. Trên main, mcp-servers/odoo/.venv/Lib/
+    site-packages/ nằm dưới THU_MUC_QUET, nên bộ quét descend vào đó và báo
+    nhầm các hàm fail()/fail_read()/fail_write() trùng tên của thư viện
+    ngoài (click, jsonschema, pycparser, mcp-sdk...) là chỗ gọi sai hậu tố.
+
+    Dựng lại đúng hình dạng đó bằng tay — không dựa vào checkout nào đó
+    tình cờ có .venv — rồi khẳng định CẢ HAI CHIỀU: file thường vẫn được
+    thấy, file dưới .venv/__pycache__ thì không. Chỉ kiểm một chiều (thư
+    mục loại trừ bị bỏ qua) sẽ vẫn xanh nếu bộ quét bị sửa hỏng thành bỏ
+    qua MỌI THỨ — hình dạng lỗi này đã xảy ra hai lần trên nhánh này rồi."""
+    # File nguồn bình thường — PHẢI được quét.
+    (tmp_path / "thuong.py").write_text(
+        'def t():\n    return fail("t", "M", e)\n', encoding="utf-8")
+
+    # Mô phỏng mcp-servers/odoo/.venv/Lib/site-packages/click/types.py —
+    # một hàm `fail` trùng tên của thư viện ngoài, PHẢI bị bỏ qua.
+    site_packages = tmp_path / ".venv" / "Lib" / "site-packages" / "click"
+    site_packages.mkdir(parents=True)
+    (site_packages / "types.py").write_text(
+        'def fail(param, message, ctx=None):\n'
+        '    raise Exception(f"khong lien quan gi den he thong nay {message}")\n',
+        encoding="utf-8")
+
+    # __pycache__ cũng PHẢI bị bỏ qua.
+    pycache = tmp_path / "goi" / "__pycache__"
+    pycache.mkdir(parents=True)
+    (pycache / "cache_gia.py").write_text(
+        'def t():\n    return fail_write("t", "SAI HOAN TOAN VE HAU TO", e)\n',
+        encoding="utf-8")
+
+    thay = _cac_file_duoc_quet(tmp_path)
+
+    assert tmp_path / "thuong.py" in thay
+    assert not any(".venv" in p.parts for p in thay), (
+        "file dưới .venv lọt qua bộ lọc")
+    assert not any("__pycache__" in p.parts for p in thay), (
+        "file dưới __pycache__ lọt qua bộ lọc")
+    assert thay == [tmp_path / "thuong.py"], (
+        "bộ lọc thấy nhiều/ít hơn đúng MỘT file thường — kiểm cả hai chiều "
+        f"thất bại: {thay}")
