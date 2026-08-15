@@ -120,30 +120,51 @@ backend.
    docker exec youdoo-ollama ollama pull bge-m3
    ```
 
-4. **Chạy migration**
+4. **Run the migrations** (needs step 3's Postgres container to be up)
 
-   Repo **không có runner migration tự động**. Các file trong
-   `backend/migrations/` phải chạy tay một lần, theo thứ tự số:
+   There is **no automatic migration runner**. The files in
+   `backend/migrations/` are run by hand, once, in numeric order.
 
-   ```bash
-   psql "$DATABASE_URL" -f backend/migrations/001_llm_usage.sql
-   psql "$DATABASE_URL" -f backend/migrations/002_mcp_call_log.sql
+   `psql` is not installed on the host — Postgres lives in the
+   `youdoo-postgres` container, so run it there, the same way step 3 pulls
+   the embedding model. Copy the file in first rather than piping it:
+   `Get-Content | docker exec -i` decodes the UTF-8 file as ANSI and
+   re-encodes it, which turns the Vietnamese comments inside
+   `002_mcp_call_log.sql` into mojibake and prepends a BOM (measured
+   2026-08-15: the first line comes out as
+   `-- Vá»‡t kiá»ƒm toÃ¡n...`, and 1536 bytes become 1911). `docker cp` is
+   a byte-for-byte copy and has no such problem.
+
+   ```powershell
+   docker cp backend\migrations\001_llm_usage.sql youdoo-postgres:/tmp/001_llm_usage.sql
+   docker cp backend\migrations\002_mcp_call_log.sql youdoo-postgres:/tmp/002_mcp_call_log.sql
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/001_llm_usage.sql
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/002_mcp_call_log.sql
    ```
 
-   Muốn chạy bộ test `integration` (kiểm tra vòng ghi khép kín thật của
-   vệt kiểm toán) thì cần thêm `pip install psycopg2-binary` vào venv của
-   `backend/` — venv này mặc định không có gói đó (`mcp-servers/odoo/.venv`
-   ở bước 2 thì đã có sẵn).
+   `admin` / `ai_assistant` are `POSTGRES_USER` and `POSTGRES_DB` from
+   `docker-compose.yml` — they must match the user and database in your
+   `DATABASE_URL`. If you overrode `POSTGRES_USER` in `.env`, use that
+   value here instead.
 
-   Cả hai đều `CREATE TABLE IF NOT EXISTS` nên chạy lại nhiều lần vô hại.
+   Both scripts are `CREATE TABLE IF NOT EXISTS`, so re-running them is
+   harmless.
 
-   `001_llm_usage.sql` — sổ ngân sách LLM. `002_mcp_call_log.sql` — vệt kiểm
-   toán mọi lệnh gọi MCP.
+   `001_llm_usage.sql` — the LLM budget ledger. `002_mcp_call_log.sql` —
+   the audit trail for every MCP call.
 
-   **Quên chạy `002` thì tiến trình MCP từ chối khởi động**, kèm thông báo nêu
-   đúng tên file cần chạy. Đó là chủ đích: bảng này từng thiếu suốt một thời
-   gian dài mà không ai biết, vì `log_mcp_event` nuốt mọi lỗi ghi để không làm
-   hỏng tool.
+   **Skip `002` and the MCP processes refuse to start**, with a message
+   naming the exact file to run. That is deliberate: this table was missing
+   for a long time and nobody noticed, because `log_mcp_event` swallows
+   every write error so that logging can never break a tool. A Postgres
+   that is merely *unreachable* gets a different message, naming the
+   host:port it tried — the MCP process retries a few times with backoff
+   first, so a cold container is not a hard failure.
+
+   To run the `integration` test suite (the one that proves the audit
+   trail's write-then-read-back loop really closes), also
+   `pip install psycopg2-binary` into `backend/`'s venv — it does not ship
+   with that package (`mcp-servers/odoo/.venv` from step 2 already has it).
 
 5. **Index the RAG corpus into Postgres — required once, the table starts
    empty.** Without this, every RAG/mixed scenario below will silently
