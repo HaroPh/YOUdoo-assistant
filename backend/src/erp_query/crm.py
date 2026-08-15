@@ -1,7 +1,7 @@
 """CRM bounded context — leads/opportunities. crm.lead KHÔNG nằm trong
 MODEL_DENYLIST của gateway (đã verify); res.users NẰM TRONG denylist nên
 resolve assignee ở MCP-side (server.py), không ở đây."""
-from .envelope import ok, err
+from .envelope import ok, fail_read
 from .gateway import default_gateway
 from .resolve import resolve_entity
 
@@ -25,7 +25,9 @@ def find_lead_duplicates(email=None, phone=None, *, gw=None):
     try:
         rows = gw.search_read("crm.lead", domain, ["name", "type"], limit=5)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi kiểm tra lead trùng: {e}")
+        return fail_read("find_lead_duplicates",
+                         f"Lỗi kiểm tra lead trùng — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     return ok({"rows": rows},
               f"{len(rows)} lead trùng email/SĐT." if rows else "Không trùng.")
 
@@ -43,7 +45,9 @@ def list_crm_leads(kind=None, stage=None, limit=50, *, gw=None):
                                "stage_id", "user_id", "expected_revenue"],
                               order="id desc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu lead/cơ hội: {e}")
+        return fail_read("list_crm_leads",
+                         f"Lỗi tra cứu lead/cơ hội — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Chưa có lead/cơ hội nào phù hợp.")
     lines = [f"{r['name']} | {'lead' if r['type'] == 'lead' else 'cơ hội'} "
@@ -89,7 +93,9 @@ def list_my_activities(login, limit=20, *, gw=None):
                               ACTIVITY_FIELDS, order="date_deadline asc",
                               limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra việc được giao: {e}")
+        return fail_read("list_my_activities",
+                         f"Lỗi tra việc được giao — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": []}, "Hiện không có việc nào được giao cho bạn.")
     lines = [f"- {r.get('res_name') or r.get('res_model')}: "

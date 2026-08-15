@@ -4,7 +4,7 @@ Bẫy id-space (probe 2026-07-19): mrp.bom link theo product_tmpl_id (TEMPLATE),
 mrp.production.product_id là VARIANT — trên instance thật template 39 =
 "Table Top" nhưng variant 39 = "Drawer"; mọi lookup BoM phải đi qua
 product.product.product_tmpl_id."""
-from .envelope import ok, err
+from .envelope import ok, err, fail_read
 from .gateway import default_gateway
 from .resolve import resolve_entity
 
@@ -39,7 +39,9 @@ def find_boms_for_variant(product_id, *, gw=None):
         prows = gw.search_read("product.product", [["id", "=", product_id]],
                                ["id", "name", "product_tmpl_id"], limit=1)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu sản phẩm: {e}")
+        return fail_read("find_boms_for_variant",
+                         f"Lỗi tra cứu sản phẩm — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not prows:
         return err(f"Không tìm thấy sản phẩm ID {product_id}.")
     tmpl_id = prows[0]["product_tmpl_id"][0]
@@ -49,7 +51,9 @@ def find_boms_for_variant(product_id, *, gw=None):
                                ["active", "=", True]],
                               ["id", "code", "type", "product_qty"], limit=20)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu định mức: {e}")
+        return fail_read("find_boms_for_variant",
+                         f"Lỗi tra cứu định mức — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     return ok({"product": {"id": prows[0]["id"], "name": prows[0]["name"],
                            "tmpl_id": tmpl_id},
                "boms": [{"id": b["id"], "code": b.get("code") or None,
@@ -71,7 +75,9 @@ def check_bom_availability(bom_id, mo_qty, *, gw=None):
         lines = gw.search_read("mrp.bom.line", [["bom_id", "=", bom_id]],
                                ["product_id", "product_qty"], limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu định mức: {e}")
+        return fail_read("check_bom_availability",
+                         f"Lỗi tra cứu định mức — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not lines:
         return ok({"rows": [], "all_enough": True}, "BoM không có nguyên liệu.")
     pids = [l["product_id"][0] for l in lines]
@@ -81,7 +87,9 @@ def check_bom_availability(bom_id, mo_qty, *, gw=None):
                                 ["location_id.usage", "=", "internal"]],
                                ["quantity:sum"], ["product_id"])
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu tồn kho: {e}")
+        return fail_read("check_bom_availability",
+                         f"Lỗi tra cứu tồn kho — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     on_hand = {(g.get("product_id") or [0, ""])[0]: g.get("quantity") or 0.0
                for g in groups}
     rows = []
@@ -113,7 +121,9 @@ def get_bom_detail(product, *, gw=None):
                                    ["bom_id", "product_id", "product_qty"],
                                    limit=100)
     except Exception as ex:                                 # noqa: BLE001
-        return err(f"Lỗi tra cứu định mức: {ex}")
+        return fail_read("get_bom_detail",
+                         f"Lỗi tra cứu định mức — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", ex)
     pids = sorted({l["product_id"][0] for l in all_lines})
     on_hand = {}
     if pids:
@@ -157,7 +167,9 @@ def list_manufacturing_orders(state=None, product=None, limit=20, *, gw=None):
                                "qty_producing", "state", "date_start", "origin"],
                               order="id desc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu lệnh sản xuất: {e}")
+        return fail_read("list_manufacturing_orders",
+                         f"Lỗi tra cứu lệnh sản xuất — không lấy được dữ "
+                         f"liệu. Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không có lệnh sản xuất nào phù hợp.")
     body = "\n".join(
@@ -175,14 +187,18 @@ def get_bom_recipe(bom_id, *, gw=None):
         brows = gw.search_read("mrp.bom", [["id", "=", bom_id]],
                                ["id", "code", "type", "product_qty"], limit=1)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu định mức: {e}")
+        return fail_read("get_bom_recipe",
+                         f"Lỗi tra cứu định mức — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not brows:
         return err(f"Không tìm thấy BoM {bom_id}.")
     try:
         lines = gw.search_read("mrp.bom.line", [["bom_id", "=", bom_id]],
                                ["product_id", "product_qty"], limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu định mức: {e}")
+        return fail_read("get_bom_recipe",
+                         f"Lỗi tra cứu định mức — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     b = brows[0]
     return ok({"bom": {"id": b["id"], "code": b.get("code") or None,
                        "type": b["type"], "product_qty": b["product_qty"]},
@@ -204,7 +220,9 @@ def open_mo_count_for_bom(bom_id, *, gw=None):
                                                 "progress", "to_close"]]],
                               ["id"], limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu lệnh sản xuất: {e}")
+        return fail_read("open_mo_count_for_bom",
+                         f"Lỗi tra cứu lệnh sản xuất — không lấy được dữ "
+                         f"liệu. Nếu lặp lại, báo quản trị viên.", e)
     return ok({"count": len(rows), "capped": len(rows) >= 100},
               f"{len(rows)} lệnh sản xuất đang mở.")
 
@@ -248,7 +266,9 @@ def count_pending_sale_orders_for_kit(bom_id, *, gw=None):
                                    ["id", "state"], limit=100)
             pick_state = {p["id"]: p["state"] for p in prows}
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu đơn bán: {e}")
+        return fail_read("count_pending_sale_orders_for_kit",
+                         f"Lỗi tra cứu đơn bán — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     at_risk = 0
     for o in orders:
         pick_ids = o.get("picking_ids") or []

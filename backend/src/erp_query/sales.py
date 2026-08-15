@@ -1,7 +1,7 @@
 """Sales bounded context — business read functions. Domains live here, in Python."""
 from datetime import datetime, timezone
 
-from .envelope import ok, err
+from .envelope import ok, err, fail_read
 from .gateway import default_gateway
 from .resolve import resolve_entity, _resolve_single
 
@@ -37,7 +37,9 @@ def list_sale_orders(state=None, customer=None, date_from=None, date_to=None, li
                               ["name", "partner_id", "date_order", "state", "amount_total",
                                "delivery_status"], order="date_order desc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu đơn bán: {e}")
+        return fail_read("list_sale_orders",
+                         f"Lỗi tra cứu đơn bán — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không tìm thấy đơn bán nào phù hợp.")
     lines = [f"{r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} | {r['state']} "
@@ -62,7 +64,9 @@ def get_sale_order_detail(ref, *, gw=None):
                                ["id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"],
                                order="id asc", limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu chi tiết đơn: {e}")
+        return fail_read("get_sale_order_detail",
+                         f"Lỗi tra cứu chi tiết đơn — không lấy được dữ "
+                         f"liệu. Nếu lặp lại, báo quản trị viên.", e)
     body = "\n".join(f"  {(l['product_id'] or [0, 'N/A'])[1]} | SL {l['product_uom_qty']:.1f} "
                      f"| {l['price_unit']:,.0f} | {l['price_subtotal']:,.0f}" for l in lines)
     return ok({"order": o, "lines": lines},
@@ -81,7 +85,9 @@ def get_product_price(product_id, partner_id=None, qty=1.0, *, gw=None):
         rows = gw.search_read("product.product", [["id", "=", product_id]],
                               ["name", "list_price"], limit=1)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra giá: {e}")
+        return fail_read("get_product_price",
+                         f"Lỗi tra giá — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return err(f"Không tìm thấy sản phẩm ID {product_id}.")
     price = rows[0].get("list_price") or 0.0
@@ -100,7 +106,9 @@ def sales_summary(period="month", *, gw=None):
         groups = gw.read_group("sale.order", domain,
                                ["amount_total:sum"], ["partner_id"], limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tổng hợp doanh thu: {e}")
+        return fail_read("sales_summary",
+                         f"Lỗi tổng hợp doanh thu — không lấy được dữ "
+                         f"liệu. Nếu lặp lại, báo quản trị viên.", e)
     total = sum(g.get("amount_total") or 0 for g in groups)
     rows = [{"partner": (g.get("partner_id") or [0, "N/A"])[1],
              "amount": g.get("amount_total") or 0} for g in groups]
@@ -122,7 +130,9 @@ def top_products(by="quantity", period=None, limit=10, *, gw=None):
                                ["product_uom_qty:sum", "price_subtotal:sum"], ["product_id"],
                                orderby=orderby, limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi top sản phẩm: {e}")
+        return fail_read("top_products",
+                         f"Lỗi top sản phẩm — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     rows = [{"product": (g.get("product_id") or [0, "N/A"])[1],
              "qty": g.get("product_uom_qty") or 0,
              "revenue": g.get("price_subtotal") or 0} for g in groups]
@@ -147,7 +157,9 @@ def get_customer_detail(name, *, gw=None):
         sos = gw.search_read("sale.order", [["partner_id", "=", cus["id"]]],
                              ["id"], limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu hồ sơ khách hàng: {e}")
+        return fail_read("get_customer_detail",
+                         f"Lỗi tra cứu hồ sơ khách hàng — không lấy "
+                         f"được dữ liệu. Nếu lặp lại, báo quản trị viên.", e)
     term = p.get("property_payment_term_id")
     display = (f"Khách hàng: {p['name']}\n"
               f"  Email: {p['email'] or '—'} | Điện thoại: {p['phone'] or '—'}\n"
