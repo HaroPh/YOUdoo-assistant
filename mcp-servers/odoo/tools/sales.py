@@ -94,8 +94,8 @@ def deliver_order(order_ref: str) -> str:
                         ref=name, model="sale.order", res_id=so["id"], state="sale")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
         return fail("deliver_order",
-                    f"Lỗi khi giao hàng cho đơn {order_ref} — thao tác chưa "
-                    f"được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi giao hàng cho đơn {order_ref} — thao tác có "
+                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -173,8 +173,8 @@ def update_quotation_lines(order_ref: str, ops: list | None = None) -> str:
         return _apply_line_ops("sale.order", "product_uom_qty", order_ref, ops or [])
     except Exception as e:  # noqa: BLE001
         return fail("update_quotation_lines",
-                    f"Lỗi khi sửa báo giá {order_ref} — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi sửa báo giá {order_ref} — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 _FLAGGABLE_MODELS = ("sale.order", "purchase.order")
@@ -210,5 +210,5 @@ def flag_order_for_review(model: str, order_ref: str, note: str) -> str:
                         state=order["state"])
     except Exception as e:  # noqa: BLE001
         return fail("flag_order_for_review",
-                    f"Lỗi khi ghi chú đơn {order_ref} — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi ghi chú đơn {order_ref} — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)

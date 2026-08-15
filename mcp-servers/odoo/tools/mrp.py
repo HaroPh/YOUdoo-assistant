@@ -76,8 +76,8 @@ def create_manufacturing_order(product_id: int, qty: float, bom_id: int = 0) -> 
                         state="draft")
     except Exception as e:  # noqa: BLE001
         return fail("create_manufacturing_order",
-                    f"Lỗi khi tạo lệnh sản xuất — thao tác chưa được thực "
-                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi tạo lệnh sản xuất — thao tác có thể chưa "
+                    f"hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -112,8 +112,8 @@ def confirm_manufacturing_order(order_ref: str) -> str:
                         state="confirmed")
     except Exception as e:  # noqa: BLE001
         return fail("confirm_manufacturing_order",
-                    f"Lỗi khi xác nhận lệnh sản xuất — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi xác nhận lệnh sản xuất — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -187,8 +187,8 @@ def complete_manufacturing_order(order_ref: str) -> str:
                         state="done")
     except Exception as e:  # noqa: BLE001
         return fail("complete_manufacturing_order",
-                    f"Lỗi khi hoàn tất lệnh sản xuất — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi hoàn tất lệnh sản xuất — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -244,7 +244,7 @@ def create_bom(product_id: int, components: list, batch_qty: float = 1.0,
                         ref=label, model="mrp.bom", res_id=bom_id, state="active")
     except Exception as e:  # noqa: BLE001
         return fail("create_bom",
-                    f"Lỗi khi tạo BoM — thao tác chưa được thực hiện. "
+                    f"Lỗi khi tạo BoM — thao tác có thể chưa hoàn tất. "
                     f"Nếu lặp lại, báo quản trị viên.", e)
 
 
@@ -314,5 +314,5 @@ def update_bom_lines(bom_id: int, changes: list) -> str:
                         ref=label, model="mrp.bom", res_id=bom_id, state="active")
     except Exception as e:  # noqa: BLE001
         return fail("update_bom_lines",
-                    f"Lỗi khi sửa BoM — thao tác chưa được thực hiện. "
+                    f"Lỗi khi sửa BoM — thao tác có thể chưa hoàn tất. "
                     f"Nếu lặp lại, báo quản trị viên.", e)

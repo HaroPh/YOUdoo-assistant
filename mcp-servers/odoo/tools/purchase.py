@@ -87,8 +87,8 @@ def receive_order(order_ref: str) -> str:
                         state="purchase")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
         return fail("receive_order",
-                    f"Lỗi khi nhận hàng cho đơn mua {order_ref} — thao tác "
-                    f"chưa được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi nhận hàng cho đơn mua {order_ref} — thao tác có "
+                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -142,7 +142,7 @@ def create_bill_from_po(order_ref: str) -> str:
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
         return fail("create_bill_from_po",
                     f"Lỗi khi tạo hóa đơn cho đơn mua {order_ref} — thao tác "
-                    f"chưa được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -210,8 +210,8 @@ def update_rfq_lines(order_ref: str, ops: list | None = None) -> str:
         return _apply_line_ops("purchase.order", "product_qty", order_ref, ops or [])
     except Exception as e:  # noqa: BLE001
         return fail("update_rfq_lines",
-                    f"Lỗi khi sửa đơn mua {order_ref} — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi sửa đơn mua {order_ref} — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -286,5 +286,5 @@ def create_bulk_rfq(vendor_names: list | None = None, partner_ids: list | None =
                         model="purchase.order")
     except Exception as e:  # noqa: BLE001
         return fail("create_bulk_rfq",
-                    f"Lỗi khi tạo RFQ hàng loạt — thao tác chưa được thực "
-                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi tạo RFQ hàng loạt — thao tác có thể chưa "
+                    f"hoàn tất. Nếu lặp lại, báo quản trị viên.", e)

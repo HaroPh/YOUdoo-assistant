@@ -157,8 +157,8 @@ def make_create_lead_node(tools):
                 "description": str(args.get("description") or "")})
         except Exception as e:  # noqa: BLE001 — never crash the graph
             return fail_write("create_lead_node",
-                              "Lỗi khi tạo lead — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi tạo lead — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("create_lead", result)
 
     return create_lead_node
@@ -197,8 +197,8 @@ def make_convert_lead_node(tools):
                                          "assignee_name": assignee})
         except Exception as e:  # noqa: BLE001
             return fail_write("convert_lead_node",
-                              "Lỗi khi chuyển lead — thao tác chưa được "
-                              "thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi chuyển lead — thao tác có thể chưa "
+                              "hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("convert_lead", result)
 
     return convert_lead_node
@@ -287,8 +287,8 @@ def make_log_activity_node(tools):
                                          "assignee": assignee})
         except Exception as e:  # noqa: BLE001
             return fail_write("log_activity_node",
-                              "Lỗi khi lên lịch hoạt động — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi lên lịch hoạt động — thao tác có "
+                              "thể chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("log_activity", result)
 
@@ -371,8 +371,8 @@ def make_close_activity_node(tools):
             result = await closer.ainvoke({"activity_id": act["id"], "note": note})
         except Exception as e:  # noqa: BLE001
             return fail_write("close_activity_node",
-                              "Lỗi khi đóng việc — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi đóng việc — thao tác có thể chưa "
+                              "hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("close_activity", result)
 
     return close_activity_node

@@ -144,8 +144,8 @@ def make_post_invoice_node(tools):
             result = await tool.ainvoke({"invoice_id": invoice_id})
         except Exception as e:  # noqa: BLE001
             return fail_write("post_invoice_node",
-                              "Lỗi khi phát hành hóa đơn — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi phát hành hóa đơn — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("post_invoice", result)
 
@@ -219,8 +219,8 @@ def make_register_payment_node(tools):
             result = await tool.ainvoke(payload)
         except Exception as e:  # noqa: BLE001
             return fail_write("register_payment_node",
-                              "Lỗi khi ghi nhận thanh toán — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi ghi nhận thanh toán — thao tác có "
+                              "thể chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("register_payment", result)
 

@@ -107,8 +107,8 @@ def make_return_order_node(tools):
             result = await tool.ainvoke({"picking_id": picking["id"], "lines": lines})
         except Exception as e:  # noqa: BLE001
             return fail_write("return_order_node",
-                              "Lỗi khi trả hàng — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi trả hàng — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("return_order", result)
 
     return return_order_node
@@ -148,8 +148,8 @@ def make_create_credit_memo_node(tools):
             result = await tool.ainvoke({"invoice_id": inv["id"], "reason": reason})
         except Exception as e:  # noqa: BLE001
             return fail_write("create_credit_memo_node",
-                              "Lỗi khi tạo credit memo — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi tạo credit memo — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("create_credit_memo", result)
 

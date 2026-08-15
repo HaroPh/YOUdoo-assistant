@@ -50,7 +50,7 @@ def test_fail_ghi_ca_hai_dich_va_khong_lo_gi(monkeypatch):
 
         exc = ValueError("Youdoo AI / Read Only")
         raw = helpers.fail("post_invoice", "Lỗi khi tạo hóa đơn — thao tác "
-                                           "chưa được thực hiện.", exc)
+                                           "có thể chưa hoàn tất.", exc)
         data = _json.loads(raw)
 
         assert data["ok"] is False

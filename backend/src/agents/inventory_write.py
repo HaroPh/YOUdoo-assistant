@@ -75,8 +75,8 @@ def make_inventory_node(tools):
                                          "location_name": location_name})
         except Exception as e:  # noqa: BLE001 — never crash the graph
             return fail_write("inventory_adjust",
-                              "Lỗi khi điều chỉnh tồn kho — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi điều chỉnh tồn kho — thao tác có "
+                              "thể chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _msg(_tool_result_text(result))
 
@@ -132,8 +132,8 @@ def make_internal_transfer_node(tools):
                                          "to_location": to_location})
         except Exception as e:  # noqa: BLE001 — never crash the graph
             return fail_write("internal_transfer",
-                              "Lỗi khi chuyển kho — thao tác chưa được "
-                              "thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi chuyển kho — thao tác có thể chưa "
+                              "hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
         return _msg(_tool_result_text(result))
 
     return internal_transfer
@@ -187,8 +187,8 @@ def make_scrap_product_node(tools):
                                          "location_name": location_name, "reason": reason})
         except Exception as e:  # noqa: BLE001 — never crash the graph
             return fail_write("scrap_product",
-                              "Lỗi khi ghi nhận phế liệu — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi ghi nhận phế liệu — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _msg(_tool_result_text(result))
 

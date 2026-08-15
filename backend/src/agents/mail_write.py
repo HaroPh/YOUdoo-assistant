@@ -196,8 +196,8 @@ def make_send_template_email_preview_node(tools, cfg: EmailCfg):
                 "res_model": cfg.res_model, "ref": ref})
         except Exception as e:  # noqa: BLE001
             return fail_write("send_template_email_preview_node",
-                              "Lỗi khi soạn mail — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi soạn mail — thao tác có thể chưa "
+                              "hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
         # preview_template_email trả JSON phẳng {ok, display, mail_id, subject,
         # recipients} — parse_write_result chỉ cần key "ok"+"display" để coi là
         # envelope hợp lệ, KHÔNG lồng dưới "data" (đó là shape khác của
@@ -288,8 +288,8 @@ def make_send_template_email_node(tools, cfg: EmailCfg):
             result = await send_tool.ainvoke({"mail_id": mail_id})
         except Exception as e:  # noqa: BLE001
             return fail_write("send_template_email_node",
-                              "Lỗi khi gửi mail — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi gửi mail — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish(cfg.tool_name, result)
 
     return send_template_email_node

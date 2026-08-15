@@ -432,8 +432,8 @@ def make_erp_write_executor_node(tools):
             # trong dict trả về, và fail_write không biết về nó.
             logger.exception("write executor failed: tool=%s", name)
             return {"messages": [AIMessage(
-                content="Lỗi khi thực hiện thao tác — thao tác chưa được "
-                        "thực hiện. Nếu lặp lại, báo quản trị viên."
+                content="Lỗi khi thực hiện thao tác — thao tác có thể "
+                        "chưa hoàn tất. Nếu lặp lại, báo quản trị viên."
             )], **cleared}
         display, env = parse_write_result(result)
         upd = {"messages": [AIMessage(content=display)],

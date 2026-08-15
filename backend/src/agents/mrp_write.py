@@ -132,8 +132,8 @@ def make_create_mo_node(tools):
                                          "qty": qty, "bom_id": bom["id"]})
         except Exception as e:  # noqa: BLE001 — never crash the graph
             return fail_write("create_mo_node",
-                              "Lỗi khi tạo lệnh sản xuất — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi tạo lệnh sản xuất — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("create_manufacturing_order", result)
 

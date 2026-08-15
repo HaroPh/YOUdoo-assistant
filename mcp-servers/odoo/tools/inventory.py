@@ -283,5 +283,5 @@ def return_order(picking_id: int, lines: list | None = None) -> str:
                         res_id=new_id, state=new_pick["state"])
     except Exception as e:  # noqa: BLE001
         return fail("return_order",
-                    f"Lỗi khi tạo phiếu trả hàng — thao tác chưa được thực "
-                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi tạo phiếu trả hàng — thao tác có thể chưa "
+                    f"hoàn tất. Nếu lặp lại, báo quản trị viên.", e)

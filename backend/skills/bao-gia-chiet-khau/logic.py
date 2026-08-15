@@ -136,7 +136,7 @@ def build_tools(mcp_tools):
             except Exception as e:  # noqa: BLE001 — tool luôn trả text, không phá graph
                 logging.getLogger(__name__).exception(
                     "tao_bao_gia thất bại: %s: %s", type(e).__name__, e)
-                return ("Lỗi khi tạo báo giá — thao tác chưa được thực hiện. "
+                return ("Lỗi khi tạo báo giá — thao tác có thể chưa hoàn tất. "
                         "Nếu lặp lại, báo quản trị viên.")
         tools.append(create_discount_quote_gated)
 

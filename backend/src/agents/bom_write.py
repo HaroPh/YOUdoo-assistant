@@ -171,8 +171,8 @@ def make_create_bom_node(tools):
                                          "is_kit": is_kit})
         except Exception as e:  # noqa: BLE001
             return fail_write("create_bom_node",
-                              "Lỗi khi tạo BoM — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi tạo BoM — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("create_bom", result)
 
     return create_bom_node
@@ -289,8 +289,8 @@ def make_update_bom_node(tools):
             result = await tool.ainvoke({"bom_id": bom["id"], "changes": changes})
         except Exception as e:  # noqa: BLE001
             return fail_write("update_bom_node",
-                              "Lỗi khi sửa BoM — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi sửa BoM — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("update_bom_lines", result)
 
     return update_bom_node

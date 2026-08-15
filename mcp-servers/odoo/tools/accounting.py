@@ -138,8 +138,8 @@ def create_invoice_from_order(order_ref: str) -> str:
                         state="draft")
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
         return fail("create_invoice_from_order",
-                    f"Lỗi khi tạo hóa đơn cho đơn {order_ref} — thao tác chưa "
-                    f"được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi tạo hóa đơn cho đơn {order_ref} — thao tác có "
+                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -257,8 +257,8 @@ def register_payment(invoice_id: int = 0, invoice_ref: str = "",
             state=after["payment_state"])
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
         return fail("register_payment",
-                    f"Lỗi khi ghi nhận thanh toán — thao tác chưa được thực "
-                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi ghi nhận thanh toán — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -310,7 +310,7 @@ def create_credit_memo(invoice_id: int, reason: str = "") -> str:
                         state=cn["state"])
     except Exception as e:  # noqa: BLE001
         return fail("create_credit_memo",
-                    f"Lỗi khi tạo credit memo — thao tác chưa được thực hiện. "
+                    f"Lỗi khi tạo credit memo — thao tác có thể chưa hoàn tất. "
                     f"Nếu lặp lại, báo quản trị viên.", e)
 
 
@@ -342,7 +342,7 @@ def create_vendor(name: str, email: str = "", phone: str = "",
                         ref=name, model="res.partner", res_id=partner_id)
     except Exception as e:  # noqa: BLE001
         return fail("create_vendor",
-                    f"Lỗi khi tạo nhà cung cấp — thao tác chưa được thực hiện. "
+                    f"Lỗi khi tạo nhà cung cấp — thao tác có thể chưa hoàn tất. "
                     f"Nếu lặp lại, báo quản trị viên.", e)
 
 
@@ -422,5 +422,5 @@ def update_vendor_pricing(price: float, vendor_name: str = "", partner_id: int =
                         res_id=si_id)
     except Exception as e:  # noqa: BLE001
         return fail("update_vendor_pricing",
-                    f"Lỗi khi cập nhật giá nhà cung cấp — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi cập nhật giá nhà cung cấp — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)

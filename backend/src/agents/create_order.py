@@ -205,8 +205,8 @@ def make_order_node(tools, cfg: OrderCfg):
                 {"partner_id": partner["id"], "lines": tool_lines})
         except Exception as e:  # noqa: BLE001 — never crash the graph
             return fail_write("order_node",
-                              "Lỗi khi tạo đơn — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi tạo đơn — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         display, env = parse_write_result(result)
         upd = {"messages": [AIMessage(content=display)],
                "pending_action": None,

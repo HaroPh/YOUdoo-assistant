@@ -105,8 +105,8 @@ def make_create_vendor_node(tools):
                                          "vat": vat, "street": street, "city": city})
         except Exception as e:  # noqa: BLE001
             return fail_write("create_vendor_node",
-                              "Lỗi khi tạo nhà cung cấp — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi tạo nhà cung cấp — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("create_vendor", result)
 
@@ -180,7 +180,7 @@ def make_update_vendor_pricing_node(tools):
         except Exception as e:  # noqa: BLE001
             return fail_write("update_vendor_pricing_node",
                               "Lỗi khi khai giá nhà cung cấp — thao tác "
-                              "chưa được thực hiện. Nếu lặp lại, báo quản "
+                              "có thể chưa hoàn tất. Nếu lặp lại, báo quản "
                               "trị viên.", e)
         return _finish("update_vendor_pricing", result)
 
@@ -241,8 +241,8 @@ def make_create_bulk_rfq_node(tools):
                 "partner_ids": [v["id"] for v in vendors], "lines": lines})
         except Exception as e:  # noqa: BLE001
             return fail_write("create_bulk_rfq_node",
-                              "Lỗi khi tạo RFQ hàng loạt — thao tác chưa "
-                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "Lỗi khi tạo RFQ hàng loạt — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
                               "viên.", e)
         return _finish("create_bulk_rfq", result)
 

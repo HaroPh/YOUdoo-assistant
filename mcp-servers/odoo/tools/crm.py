@@ -40,7 +40,7 @@ def create_lead(name: str = "", contact_name: str = "", partner_name: str = "",
                         ref=name, model="crm.lead", res_id=lead_id, state="lead")
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
         return fail("create_lead",
-                    f"Lỗi khi tạo lead — thao tác chưa được thực hiện. "
+                    f"Lỗi khi tạo lead — thao tác có thể chưa hoàn tất. "
                     f"Nếu lặp lại, báo quản trị viên.", e)
 
 
@@ -108,8 +108,8 @@ def convert_lead(lead_id: int, assignee_name: str = "") -> str:
                         state="opportunity")
     except Exception as e:  # noqa: BLE001
         return fail("convert_lead",
-                    f"Lỗi khi chuyển lead thành cơ hội — thao tác chưa được "
-                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi chuyển lead thành cơ hội — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 def _resolve_assignee(assignee: str):
@@ -247,8 +247,8 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
                         state="planned")
     except Exception as e:  # noqa: BLE001
         return fail("log_activity",
-                    f"Lỗi khi lên lịch hoạt động — thao tác chưa được thực "
-                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
+                    f"Lỗi khi lên lịch hoạt động — thao tác có thể chưa "
+                    f"hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

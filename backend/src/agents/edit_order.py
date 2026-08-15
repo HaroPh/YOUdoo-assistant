@@ -135,8 +135,8 @@ def make_edit_order_node(tools, cfg: EditCfg):
                                              "note": _flag_note(changes)})
             except Exception as e:  # noqa: BLE001
                 return fail_write("edit_node",
-                                  "Lỗi khi ghi chú — thao tác chưa được "
-                                  "thực hiện. Nếu lặp lại, báo quản trị "
+                                  "Lỗi khi ghi chú — thao tác có thể chưa "
+                                  "hoàn tất. Nếu lặp lại, báo quản trị "
                                   "viên.", e)
             display, fenv = parse_write_result(result)
             upd = {"messages": [AIMessage(content=display)], "pending_action": None,
@@ -218,8 +218,8 @@ def make_edit_order_node(tools, cfg: EditCfg):
             result = await tool.ainvoke({"order_ref": name, "ops": ops})
         except Exception as e:  # noqa: BLE001
             return fail_write("edit_node",
-                              "Lỗi khi sửa đơn — thao tác chưa được thực "
-                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
+                              "Lỗi khi sửa đơn — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         display, eenv = parse_write_result(result)
         upd = {"messages": [AIMessage(content=display)], "pending_action": None,
                "last_write": {"tool": cfg.tool_name, **eenv} if eenv else None}
