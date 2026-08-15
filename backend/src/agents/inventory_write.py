@@ -8,7 +8,7 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .tool_result import _tool_result_text
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
-                           _disambig_q, WRITE_DISABLED_MSG)
+                           _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory
@@ -74,7 +74,10 @@ def make_inventory_node(tools):
             result = await tool.ainvoke({"product_id": product["id"], "new_qty": new_qty,
                                          "location_name": location_name})
         except Exception as e:  # noqa: BLE001 — never crash the graph
-            return _msg(f"Lỗi khi điều chỉnh tồn kho: {e}")
+            return fail_write("inventory_adjust",
+                              "Lỗi khi điều chỉnh tồn kho — thao tác chưa "
+                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _msg(_tool_result_text(result))
 
     return inventory_adjust
@@ -128,7 +131,9 @@ def make_internal_transfer_node(tools):
                                          "from_location": from_location,
                                          "to_location": to_location})
         except Exception as e:  # noqa: BLE001 — never crash the graph
-            return _msg(f"Lỗi khi chuyển kho: {e}")
+            return fail_write("internal_transfer",
+                              "Lỗi khi chuyển kho — thao tác chưa được "
+                              "thực hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _msg(_tool_result_text(result))
 
     return internal_transfer
@@ -181,7 +186,10 @@ def make_scrap_product_node(tools):
             result = await tool.ainvoke({"product_id": product["id"], "qty": qty,
                                          "location_name": location_name, "reason": reason})
         except Exception as e:  # noqa: BLE001 — never crash the graph
-            return _msg(f"Lỗi khi ghi nhận phế liệu: {e}")
+            return fail_write("scrap_product",
+                              "Lỗi khi ghi nhận phế liệu — thao tác chưa "
+                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _msg(_tool_result_text(result))
 
     return scrap_product

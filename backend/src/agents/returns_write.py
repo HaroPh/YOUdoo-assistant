@@ -11,7 +11,7 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
-                           _disambig_q, WRITE_DISABLED_MSG)
+                           _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory, accounting
@@ -106,7 +106,9 @@ def make_return_order_node(tools):
         try:
             result = await tool.ainvoke({"picking_id": picking["id"], "lines": lines})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi trả hàng: {e}")
+            return fail_write("return_order_node",
+                              "Lỗi khi trả hàng — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("return_order", result)
 
     return return_order_node
@@ -145,7 +147,10 @@ def make_create_credit_memo_node(tools):
         try:
             result = await tool.ainvoke({"invoice_id": inv["id"], "reason": reason})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi tạo credit memo: {e}")
+            return fail_write("create_credit_memo_node",
+                              "Lỗi khi tạo credit memo — thao tác chưa "
+                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _finish("create_credit_memo", result)
 
     return create_credit_memo_node

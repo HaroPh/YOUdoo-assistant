@@ -72,7 +72,7 @@ from langgraph.types import interrupt as _interrupt
 
 from .state import ERPAgentState
 from .tool_result import parse_write_result
-from .create_order import _ttl_expiry, _msg, WRITE_DISABLED_MSG
+from .create_order import _ttl_expiry, _msg, WRITE_DISABLED_MSG, fail_write
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 
@@ -195,7 +195,9 @@ def make_send_template_email_preview_node(tools, cfg: EmailCfg):
                 "template_name": cfg.template_name,
                 "res_model": cfg.res_model, "ref": ref})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi soạn mail: {e}")
+            return fail_write("send_template_email_preview_node",
+                              "Lỗi khi soạn mail — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         # preview_template_email trả JSON phẳng {ok, display, mail_id, subject,
         # recipients} — parse_write_result chỉ cần key "ok"+"display" để coi là
         # envelope hợp lệ, KHÔNG lồng dưới "data" (đó là shape khác của
@@ -285,7 +287,9 @@ def make_send_template_email_node(tools, cfg: EmailCfg):
         try:
             result = await send_tool.ainvoke({"mail_id": mail_id})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi gửi mail: {e}")
+            return fail_write("send_template_email_node",
+                              "Lỗi khi gửi mail — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish(cfg.tool_name, result)
 
     return send_template_email_node

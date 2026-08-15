@@ -317,7 +317,9 @@ async def test_gated_tool_mcp_error_returns_text(monkeypatch):
     _patch_reads(monkeypatch, [{"id": 41, "name": "Azur", "score": 1}],
                  [{"id": 552, "name": "Tủ", "score": 1}])
     res = await _gated([_fake_create({}, raise_exc=ValueError("write-mode tắt"))]).ainvoke(_ARGS)
-    assert res.startswith("Lỗi khi tạo báo giá:")
+    assert res.startswith("Lỗi khi tạo báo giá")
+    assert "—" in res and "báo quản trị viên" in res
+    assert "ValueError" not in res and "Traceback" not in res
 
 
 # ── E2E qua build_skill_node + StateGraph tối giản ───────────────────────

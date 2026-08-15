@@ -13,7 +13,7 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .tool_result import parse_write_result, _tool_result_text
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
-                           _disambig_q, WRITE_DISABLED_MSG)
+                           _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import crm
@@ -156,7 +156,9 @@ def make_create_lead_node(tools):
                 "email": email, "phone": phone,
                 "description": str(args.get("description") or "")})
         except Exception as e:  # noqa: BLE001 — never crash the graph
-            return _msg(f"Lỗi khi tạo lead: {e}")
+            return fail_write("create_lead_node",
+                              "Lỗi khi tạo lead — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("create_lead", result)
 
     return create_lead_node
@@ -194,7 +196,9 @@ def make_convert_lead_node(tools):
             result = await tool.ainvoke({"lead_id": lead["id"],
                                          "assignee_name": assignee})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi chuyển lead: {e}")
+            return fail_write("convert_lead_node",
+                              "Lỗi khi chuyển lead — thao tác chưa được "
+                              "thực hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("convert_lead", result)
 
     return convert_lead_node
@@ -282,7 +286,10 @@ def make_log_activity_node(tools):
                                          "date_deadline": deadline,
                                          "assignee": assignee})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi lên lịch hoạt động: {e}")
+            return fail_write("log_activity_node",
+                              "Lỗi khi lên lịch hoạt động — thao tác chưa "
+                              "được thực hiện. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _finish("log_activity", result)
 
     return log_activity_node
@@ -363,7 +370,9 @@ def make_close_activity_node(tools):
         try:
             result = await closer.ainvoke({"activity_id": act["id"], "note": note})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi đóng việc: {e}")
+            return fail_write("close_activity_node",
+                              "Lỗi khi đóng việc — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("close_activity", result)
 
     return close_activity_node

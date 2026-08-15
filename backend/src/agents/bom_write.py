@@ -16,7 +16,7 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
-                           _disambig_q, WRITE_DISABLED_MSG)
+                           _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory, mrp
@@ -170,7 +170,9 @@ def make_create_bom_node(tools):
                                          "batch_qty": batch_qty, "code": code,
                                          "is_kit": is_kit})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi tạo BoM: {e}")
+            return fail_write("create_bom_node",
+                              "Lỗi khi tạo BoM — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("create_bom", result)
 
     return create_bom_node
@@ -286,7 +288,9 @@ def make_update_bom_node(tools):
         try:
             result = await tool.ainvoke({"bom_id": bom["id"], "changes": changes})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi sửa BoM: {e}")
+            return fail_write("update_bom_node",
+                              "Lỗi khi sửa BoM — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         return _finish("update_bom_lines", result)
 
     return update_bom_node

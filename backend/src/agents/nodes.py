@@ -425,10 +425,15 @@ def make_erp_write_executor_node(tools):
             )], **cleared}
         try:
             result = await tool.ainvoke(action.get("args") or {})
-        except Exception as e:
+        except Exception:
+            # logger.exception ghi nguyên văn lỗi + traceback vào logger tiến
+            # trình (đã đủ vệt kiểm toán); content trả người dùng phải sạch
+            # — không đi qua fail_write vì **cleared phải sống sót nguyên vẹn
+            # trong dict trả về, và fail_write không biết về nó.
             logger.exception("write executor failed: tool=%s", name)
             return {"messages": [AIMessage(
-                content=f"Lỗi khi thực hiện thao tác: {e}"
+                content="Lỗi khi thực hiện thao tác — thao tác chưa được "
+                        "thực hiện. Nếu lặp lại, báo quản trị viên."
             )], **cleared}
         display, env = parse_write_result(result)
         upd = {"messages": [AIMessage(content=display)],

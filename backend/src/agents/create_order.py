@@ -4,6 +4,7 @@ create_rfq) and its pure helpers. Reads come from erp_query; the created order i
 built from resolved IDs so it matches the confirmed draft. Within-flow memory is
 LangGraph interrupt-replay — the node is re-entrant and holds no persistent state."""
 
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from ..erp_query import sales, inventory, purchase
 
 WRITE_DISABLED_MSG = ("Tính năng ghi (tạo/sửa đơn hàng, cập nhật tồn kho) "
                       "chưa được kích hoạt trong phiên bản này.")
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_entity_for_order(envelope: dict, ref: str):
@@ -66,6 +69,20 @@ def _by_id(options, chosen):
 
 def _msg(text: str) -> dict:
     return {"messages": [AIMessage(content=text)]}
+
+
+def fail_write(where: str, display: str, exc: Exception) -> dict:
+    """Ghi nguyên văn lỗi vào logger; trả người dùng tin nhắn KHÔNG lộ gì.
+
+    Đặt cạnh _msg vì _msg là định nghĩa DUY NHẤT trong cây agents (8
+    coordinator khác import lại từ đây), nên helper này đi theo đúng đường
+    import sẵn có, không tạo module mới.
+
+    Đích là logger tiến trình (logs/backend_err.log): backend không có bảng
+    kiểm toán riêng, và dựng thêm một cái là quyết định kiến trúc khác.
+    """
+    logger.exception("%s thất bại: %s: %s", where, type(exc).__name__, exc)
+    return _msg(display)
 
 
 def _disambig_q(label: str, options) -> str:
@@ -187,7 +204,9 @@ def make_order_node(tools, cfg: OrderCfg):
             result = await tool.ainvoke(
                 {"partner_id": partner["id"], "lines": tool_lines})
         except Exception as e:  # noqa: BLE001 — never crash the graph
-            return _msg(f"Lỗi khi tạo đơn: {e}")
+            return fail_write("order_node",
+                              "Lỗi khi tạo đơn — thao tác chưa được thực "
+                              "hiện. Nếu lặp lại, báo quản trị viên.", e)
         display, env = parse_write_result(result)
         upd = {"messages": [AIMessage(content=display)],
                "pending_action": None,
