@@ -29,6 +29,29 @@ def _get_db():
         _db_conn.autocommit = True
     return _db_conn
 
+def assert_log_table_ready() -> None:
+    """Fail-loud khi có DSN mà thiếu bảng — gọi MỘT LẦN lúc khởi động.
+
+    Vì sao cần: log_mcp_event nuốt MỌI lỗi ghi (đúng — log không được làm
+    hỏng tool), nên thiếu bảng là trạng thái hoàn toàn im lặng. Đo 2026-08-14:
+    mcp_call_log chưa từng tồn tại và không ai biết, suốt từ ngày port.
+
+    Không có DATABASE_URL ⇒ trả về ngay: "không cấu hình = tắt log" là thiết
+    kế có chủ ý của module này, không phải lỗi.
+    """
+    if not DATABASE_URL:
+        return
+    conn = _get_db()
+    if conn is None:
+        return
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass('public.mcp_call_log') IS NOT NULL")
+        if not cur.fetchone()[0]:
+            raise RuntimeError(
+                "Thiếu bảng mcp_call_log — vệt kiểm toán MCP sẽ im lặng không "
+                "ghi gì. Chạy backend/migrations/002_mcp_call_log.sql trên "
+                "database ở DATABASE_URL rồi khởi động lại.")
+
 def log_mcp_event(event_type: str, *, tool_name=None, model_name=None,
                   operation=None, duration_ms=None, error_code=None,
                   error_message=None, caller="mcp-odoo") -> None:
