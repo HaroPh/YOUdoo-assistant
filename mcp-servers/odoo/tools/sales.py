@@ -161,9 +161,18 @@ def create_quotation(partner_name: str = "", lines: list | None = None,
                         f"Đã tạo báo giá {name} (nháp) cho {partner['name']} ({len(lines)} dòng).",
                         ref=name, model="sale.order", res_id=sid, state="draft")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # partner_name có thể rỗng (caller truyền partner_id thay tên) — ưu
+        # tiên ID nếu có, vẫn định danh được chứng từ; chỉ dùng câu trơn khi
+        # không có gì cả.
+        if partner_name:
+            prefix = f"Lỗi khi tạo báo giá cho {partner_name}"
+        elif partner_id:
+            prefix = f"Lỗi khi tạo báo giá cho khách hàng (ID {partner_id})"
+        else:
+            prefix = "Lỗi khi tạo báo giá"
         return fail("create_quotation",
-                    f"Lỗi khi tạo báo giá cho {partner_name} — thao tác có "
-                    f"thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
+                    f"{prefix} — thao tác có thể chưa hoàn tất. Nếu lặp "
+                    f"lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

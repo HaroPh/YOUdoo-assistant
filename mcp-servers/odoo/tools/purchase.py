@@ -201,9 +201,18 @@ def create_rfq(supplier_name: str = "", lines: list | None = None,
                         f"Đã tạo RFQ {name} (nháp) cho {vendor['name']} ({len(lines)} dòng).",
                         ref=name, model="purchase.order", res_id=pid_, state="draft")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # supplier_name có thể rỗng (caller truyền partner_id thay tên) — ưu
+        # tiên ID nếu có, vẫn định danh được chứng từ; chỉ dùng câu trơn khi
+        # không có gì cả.
+        if supplier_name:
+            prefix = f"Lỗi khi tạo RFQ cho nhà cung cấp {supplier_name}"
+        elif partner_id:
+            prefix = f"Lỗi khi tạo RFQ cho nhà cung cấp (ID {partner_id})"
+        else:
+            prefix = "Lỗi khi tạo RFQ"
         return fail("create_rfq",
-                    f"Lỗi khi tạo RFQ cho nhà cung cấp {supplier_name} — thao "
-                    f"tác có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
+                    f"{prefix} — thao tác có thể chưa hoàn tất. Nếu lặp "
+                    f"lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

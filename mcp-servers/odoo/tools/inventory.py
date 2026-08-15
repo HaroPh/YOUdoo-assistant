@@ -108,9 +108,18 @@ def inventory_adjustment(new_qty: float, product_name: str = "",
         return (f"Đã điều chỉnh tồn kho {prod['name']} tại {loc['complete_name']}: "
                 f"{old:g} → {now:g}.")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # product_name có thể rỗng (caller truyền product_id thay tên) — ưu
+        # tiên ID nếu có, vẫn định danh được chứng từ; chỉ dùng câu trơn khi
+        # không có gì cả.
+        if product_name:
+            prefix = f"Lỗi khi điều chỉnh tồn kho {product_name}"
+        elif product_id:
+            prefix = f"Lỗi khi điều chỉnh tồn kho (ID {product_id})"
+        else:
+            prefix = "Lỗi khi điều chỉnh tồn kho"
         return fail("inventory_adjustment",
-                    f"Lỗi khi điều chỉnh tồn kho {product_name} — thao tác "
-                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
+                    f"{prefix} — thao tác có thể chưa hoàn tất. Nếu lặp "
+                    f"lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -182,9 +191,18 @@ def internal_transfer(product_name: str = "", qty: float = 0.0,
         return (f"Đã chuyển {qty:g} {prod['name']} từ {src['complete_name']} "
                 f"sang {dst['complete_name']} (phiếu {pick['name']}).")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # product_name có thể rỗng (caller truyền product_id thay tên) — ưu
+        # tiên ID nếu có, vẫn định danh được chứng từ; chỉ dùng câu trơn khi
+        # không có gì cả.
+        if product_name:
+            prefix = f"Lỗi khi chuyển kho {product_name}"
+        elif product_id:
+            prefix = f"Lỗi khi chuyển kho (ID {product_id})"
+        else:
+            prefix = "Lỗi khi chuyển kho"
         return fail("internal_transfer",
-                    f"Lỗi khi chuyển kho {product_name} — thao tác có thể "
-                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
+                    f"{prefix} — thao tác có thể chưa hoàn tất. Nếu lặp "
+                    f"lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -230,9 +248,18 @@ def scrap_product(product_name: str = "", qty: float = 0.0,
                     f"ghi nhận phế liệu. Vui lòng xử lý trực tiếp trên Odoo.")
         return f"Đã ghi nhận phế liệu {qty:g} {prod['name']} tại {loc['complete_name']}."
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
+        # product_name có thể rỗng (caller truyền product_id thay tên) — ưu
+        # tiên ID nếu có, vẫn định danh được chứng từ; chỉ dùng câu trơn khi
+        # không có gì cả.
+        if product_name:
+            prefix = f"Lỗi khi ghi nhận phế liệu {product_name}"
+        elif product_id:
+            prefix = f"Lỗi khi ghi nhận phế liệu (ID {product_id})"
+        else:
+            prefix = "Lỗi khi ghi nhận phế liệu"
         return fail("scrap_product",
-                    f"Lỗi khi ghi nhận phế liệu {product_name} — thao tác "
-                    f"có thể chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
+                    f"{prefix} — thao tác có thể chưa hoàn tất. Nếu lặp "
+                    f"lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

@@ -55,7 +55,18 @@ def _cac_id_duoc_bao_ve(ham: ast.AST) -> set[int]:
 
     Try lồng nhau tự động được tính: thân của try lồng bên trong vẫn là hậu
     duệ của thân try ngoài, nên đã nằm trong tập id() ở vòng quét try ngoài
-    rồi — không cần xử lý đệ quy riêng."""
+    rồi — không cần xử lý đệ quy riêng.
+
+    GIỚI HẠN ĐÃ BIẾT (final review 2026-08-15): ast.walk(stmt) đi CẢ VÀO một
+    `def` lồng bên trong thân try, nên odoo() gọi trong THÂN của một hàm chỉ
+    ĐỊNH NGHĨA trong try (không nhất thiết được GỌI trong try đó — vd một
+    closure trả ra ngoài rồi gọi sau) vẫn bị tính là được bảo vệ, dù lúc gọi
+    thật có thể đã ở ngoài phạm vi try. Không sai với bất kỳ tool nào trong
+    cây hiện tại (hàm lồng duy nhất, mrp.py `_raw_moves` trong
+    complete_manufacturing_order, vừa định nghĩa vừa được gọi trong CÙNG một
+    try) — nhưng một closure tương lai có thể lọt qua lưới này. Không sửa
+    logic ở đây (đã cân nhắc và loại — cây hiện tại không cần, thêm máy móc
+    đón trước một trường hợp chưa xảy ra là suy đoán không có bằng chứng)."""
     bao_ve: set[int] = set()
     for con in ast.walk(ham):
         if isinstance(con, ast.Try):
