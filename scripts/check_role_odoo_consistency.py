@@ -97,7 +97,16 @@ TOOL_ACCESS_MAP = {
     "log_activity":            [("mail.activity", "create"), ("ir.model", "read")],  # crm.py log_activity
     # action_feedback đặt active=False + state='done' trên chính bản ghi
     # mail.activity (đo 2026-08-14) — là "write", không phải "unlink".
-    "close_activity":          [("mail.activity", "write")],  # crm.py close_activity
+    # Cặp READ cũng bắt buộc: tool search_read mail.activity TRƯỚC khi ghi
+    # (crm.py:272) để lọc theo chủ sở hữu, và bộ lọc đó là lớp cưỡng chế DUY
+    # NHẤT vì Odoo không chặn đóng việc của người khác. Mất quyền đọc =
+    # sập lớp cưỡng chế, không phải chỉ mất tiện ích.
+    "close_activity":          [("mail.activity", "read"),
+                                ("mail.activity", "write")],  # crm.py close_activity
+    # Tool CHỈ-ĐỌC. Đo 2026-08-14: cả hai vai non-admin đọc được, nhưng cả
+    # hai trả 0 dòng của chính mình — nên quyền đọc hỏng sẽ trông y hệt
+    # "không có việc nào được giao". Phải canh tường minh.
+    "find_my_activities":      [("mail.activity", "read")],  # crm.py find_my_activities
 }
 
 # Tool nêu trong roles.py nhưng KHÔNG map sạch vào MỘT cặp (model, operation)
