@@ -30,8 +30,12 @@ def test_khong_tool_mcp_nao_ro_exception():
 
 
 def test_fail_ghi_ca_hai_dich_va_khong_lo_gi(monkeypatch):
-    """Câu trả về phải sạch, VÀ nguyên văn lỗi phải tới cả hai đích. Thiếu vế
-    thứ hai thì bản sửa chỉ là giấu lỗi đi."""
+    """Câu trả về phải sạch, VÀ nguyên văn lỗi phải tới cả hai đích — không
+    chỉ "có gọi", mà phải MANG nguyên văn. log_mcp_event im lặng không làm
+    gì khi thiếu DATABASE_URL, nên logger tiến trình là dấu vết SỐNG SÓT
+    DUY NHẤT trong môi trường chưa cấu hình DB — một test chỉ kiểm tra
+    logger "có được gọi" mà không kiểm nội dung thì để đúng lỗ hổng này lọt
+    qua."""
     sys.path.insert(0, str(MCP_DIR))
     try:
         import helpers
@@ -56,5 +60,12 @@ def test_fail_ghi_ca_hai_dich_va_khong_lo_gi(monkeypatch):
         assert da_ghi["tool_name"] == "post_invoice"
         assert da_log, "không ghi vào logger tiến trình — thiếu DATABASE_URL " \
                        "thì lỗi sẽ biến mất hoàn toàn"
+        # logger.exception("tool %s thất bại: %s", tool_name, detail) — detail
+        # là đối số cuối trong tuple positional args đã bắt được. Chỉ "có gọi"
+        # thôi không đủ: nếu detail rỗng/thiếu, câu trên vẫn đúng mà nguyên
+        # văn lỗi đã biến mất khỏi đích sống sót duy nhất.
+        assert "Youdoo AI / Read Only" in da_log[0][-1], \
+            "logger có được gọi nhưng KHÔNG mang nguyên văn lỗi — nửa vệt " \
+            "kiểm toán này vô giá trị"
     finally:
         sys.path.remove(str(MCP_DIR))
