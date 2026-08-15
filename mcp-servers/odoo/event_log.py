@@ -3,20 +3,60 @@ modularization). Port pattern log_event từ mcp_log.py. Mỗi dòng ghi kèm
 hash-chain (audit_chain.compute_entry_hash) để phát hiện sửa/xoá dòng sau
 khi ghi — xem docs/superpowers/specs/2026-07-23-audit-trail-hash-chain-
 design.md."""
+import logging
 import threading
+import time
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import audit_chain
-from config import DATABASE_URL
+from config import DATABASE_URL, ODOO_USER
+
+logger = logging.getLogger(__name__)
 
 MAX_TEXT = 10_000
 _db_conn = None
 _db_lock = threading.Lock()
 
+# Nhãn mặc định của bên ghi. KHÔNG được là hằng "mcp-odoo": start-dev.ps1
+# chạy BA tiến trình MCP (ai-admin / ai-warehouse / ai-accounting) cùng ghi
+# vào MỘT bảng, nên một hằng chung khiến mọi dòng permission_denied trả lời
+# được "có chuyện gì bị từ chối" mà không trả lời được "AI nào" — trong khi
+# cách ly theo vai chính là biện pháp an ninh chính của hệ thống.
+DEFAULT_CALLER = f"mcp-odoo/{ODOO_USER}"
+
+# Khoá advisory dùng chung cho MỌI tiến trình ghi mcp_call_log. Xem
+# docstring log_mcp_event: _db_lock chỉ là threading.Lock, tức chỉ serialise
+# TRONG một tiến trình. Hằng số phải giống hệt nhau ở mọi tiến trình mới có
+# tác dụng — đừng suy ra từ biến môi trường nào.
+CHAIN_LOCK_KEY = 20260814
+
+# Retry kết nối lúc khởi động (assert_log_table_ready). start-dev.ps1 chạy
+# `docker compose up -d` rồi đi thẳng vào vòng khởi động MCP; lệnh đó trả về
+# khi container đã ĐƯỢC TẠO, không phải khi Postgres đã nhận kết nối.
+CONNECT_RETRIES = 5
+CONNECT_BACKOFF = 0.5      # giây; nhân đôi mỗi lần ⇒ tổng ≈ 7.5s
+
+
 def _truncate(text: str | None) -> str | None:
     if text and len(text) > MAX_TEXT:
         return text[:MAX_TEXT] + "... [truncated]"
     return text
+
+
+def _dsn_target(dsn: str) -> str:
+    """host:port/database từ DSN — KHÔNG bao giờ kèm mật khẩu.
+
+    urlsplit tách sẵn hostname/port/path, nên không có đường nào để phần
+    userinfo (chứa mật khẩu) lọt vào chuỗi trả về.
+    """
+    try:
+        parts = urlsplit(dsn)
+        return (f"{parts.hostname or '?'}:{parts.port or 5432}"
+                f"/{(parts.path or '').lstrip('/') or '?'}")
+    except Exception:                                       # noqa: BLE001
+        return "?"
+
 
 def _get_db():
     """Lazy connection, reconnect khi lỗi. None nếu không cấu hình DATABASE_URL."""
@@ -28,6 +68,38 @@ def _get_db():
         _db_conn = psycopg2.connect(DATABASE_URL)
         _db_conn.autocommit = True
     return _db_conn
+
+
+def _connect_with_retry():
+    """Kết nối, thử lại có backoff. Ném RuntimeError nếu vẫn không tới được.
+
+    Tách RÕ hai kiểu hỏng: "không tới được database" khác hẳn "tới được
+    nhưng thiếu bảng". Trước bản này chỉ kiểu thứ hai có thông báo tử tế;
+    kiểu thứ nhất ném thẳng psycopg2.OperationalError ra ngoài và giết tiến
+    trình, trái với đúng những gì docs/getting-started.md hứa người vận hành
+    sẽ thấy.
+    """
+    global _db_conn
+    loi_cuoi = None
+    for lan in range(CONNECT_RETRIES):
+        try:
+            return _get_db()
+        except Exception as exc:                            # noqa: BLE001
+            loi_cuoi = exc
+            _db_conn = None
+            if lan == CONNECT_RETRIES - 1:
+                break
+            time.sleep(CONNECT_BACKOFF * (2 ** lan))
+    # Nguyên văn lỗi chỉ vào log tiến trình, không vào thông báo ném ra:
+    # chuỗi lỗi của driver có thể mang theo nguyên cả DSN.
+    logger.exception("không kết nối được Postgres cho vệt kiểm toán MCP")
+    raise RuntimeError(
+        f"Không kết nối được Postgres ({_dsn_target(DATABASE_URL)}) sau "
+        f"{CONNECT_RETRIES} lần thử — vệt kiểm toán MCP không khởi động "
+        f"được. Kiểm tra container youdoo-postgres đã lên chưa "
+        f"(docker compose up -d) và DATABASE_URL trong .env. "
+        f"Loại lỗi: {type(loi_cuoi).__name__}.") from None
+
 
 def assert_log_table_ready() -> None:
     """Fail-loud khi có DSN mà thiếu bảng — gọi MỘT LẦN lúc khởi động.
@@ -41,7 +113,7 @@ def assert_log_table_ready() -> None:
     """
     if not DATABASE_URL:
         return
-    conn = _get_db()
+    conn = _connect_with_retry()
     if conn is None:
         return
     with conn.cursor() as cur:
@@ -52,37 +124,68 @@ def assert_log_table_ready() -> None:
                 "ghi gì. Chạy backend/migrations/002_mcp_call_log.sql trên "
                 "database ở DATABASE_URL rồi khởi động lại.")
 
+
 def log_mcp_event(event_type: str, *, tool_name=None, model_name=None,
                   operation=None, duration_ms=None, error_code=None,
-                  error_message=None, caller="mcp-odoo") -> None:
+                  error_message=None, caller=None) -> None:
     """Ghi mcp_call_log kèm hash-chain. Mọi lỗi log đều nuốt — KHÔNG được
-    làm hỏng tool."""
+    làm hỏng tool.
+
+    Đọc-tính-ghi phải là MỘT giao dịch có pg_advisory_xact_lock: hàm này đọc
+    entry_hash của dòng cuối rồi mới INSERT dòng chained vào nó, và
+    start-dev.ps1 chạy BA tiến trình MCP ghi chung một bảng. _db_lock là
+    threading.Lock — chỉ serialise trong MỘT tiến trình — nên hai tiến trình
+    đọc cùng một đỉnh chuỗi sẽ chained cùng một prev_hash, và
+    verify_audit_chain báo "Chuỗi đứt tại id=N" trên dữ liệu không ai sửa.
+    Khoá advisory được giữ tới hết giao dịch (xact), nên phải chạy với
+    autocommit TẮT; bật lại ngay sau commit để mọi đường khác của module giữ
+    nguyên hành vi cũ.
+    """
     global _db_conn
     try:
         with _db_lock:
             conn = _get_db()
             if conn is None:
                 return
-            with conn.cursor() as cur:
-                cur.execute("SELECT entry_hash FROM mcp_call_log "
-                           "ORDER BY id DESC LIMIT 1")
-                row = cur.fetchone()
-                prev_hash = row[0] if row and row[0] else audit_chain.GENESIS_HASH
+            conn.autocommit = False
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT pg_advisory_xact_lock(%s)",
+                                (CHAIN_LOCK_KEY,))
+                    cur.execute("SELECT entry_hash FROM mcp_call_log "
+                                "ORDER BY id DESC LIMIT 1")
+                    row = cur.fetchone()
+                    prev_hash = (row[0] if row and row[0]
+                                 else audit_chain.GENESIS_HASH)
 
-                now = datetime.now(timezone.utc)
-                truncated_error = _truncate(error_message)
-                entry_hash = audit_chain.compute_entry_hash(
-                    prev_hash, now, event_type, caller, tool_name, model_name,
-                    operation, duration_ms, error_code, truncated_error)
+                    now = datetime.now(timezone.utc)
+                    truncated_error = _truncate(error_message)
+                    entry_hash = audit_chain.compute_entry_hash(
+                        prev_hash, now, event_type, caller or DEFAULT_CALLER,
+                        tool_name, model_name, operation, duration_ms,
+                        error_code, truncated_error)
 
-                cur.execute("""
-                    INSERT INTO mcp_call_log
-                    (event_type, caller, tool_name, model_name, operation,
-                     duration_ms, error_code, error_message, created_at,
-                     entry_hash, prev_hash)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (event_type, caller, tool_name, model_name, operation,
-                      duration_ms, error_code, truncated_error, now,
-                      entry_hash, prev_hash))
-    except Exception:
+                    cur.execute("""
+                        INSERT INTO mcp_call_log
+                        (event_type, caller, tool_name, model_name, operation,
+                         duration_ms, error_code, error_message, created_at,
+                         entry_hash, prev_hash)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (event_type, caller or DEFAULT_CALLER, tool_name,
+                          model_name, operation, duration_ms, error_code,
+                          truncated_error, now, entry_hash, prev_hash))
+                conn.commit()
+            except Exception:                               # noqa: BLE001
+                # Kết thúc giao dịch dở TRƯỚC khi ném tiếp — không được để
+                # connection nằm lại ở trạng thái aborted cho lượt sau.
+                # rollback() tự nó cũng có thể ném (connection đã chết);
+                # nuốt, vì except bên ngoài sẽ vứt hẳn connection.
+                try:
+                    conn.rollback()
+                except Exception:                           # noqa: BLE001
+                    pass
+                raise
+            # Chỉ gán được khi KHÔNG còn giao dịch mở — nên nằm sau commit.
+            conn.autocommit = True
+    except Exception:                                       # noqa: BLE001
         _db_conn = None   # ép reconnect lần sau

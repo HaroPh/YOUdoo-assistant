@@ -80,6 +80,39 @@ function Get-PortOwnerPid($port) {
     return $null
 }
 
+# ── Chờ Postgres NHẬN được kết nối, trước khi khởi động MCP ────────────────
+# `docker compose up -d` ở trên trả về khi container đã ĐƯỢC TẠO, chứ không
+# phải khi Postgres đã nhận kết nối. Từ đợt vệt kiểm toán 2026-08-15, mỗi
+# tiến trình MCP gọi assert_log_table_ready() lúc khởi động, tức chạm
+# Postgres NGAY — trước đó không có gì trong đường khởi động MCP chạm tới nó.
+# Postgres lạnh ⇒ cả ba tiến trình chết ngay khi vừa sinh ra.
+# Đây là lưới THỨ HAI: event_log.assert_log_table_ready cũng tự retry có
+# backoff. Cái này chỉ để không phải trả giá bằng ba lần retry × ba tiến trình.
+$pgUser = [System.Environment]::GetEnvironmentVariable("POSTGRES_USER")
+if (-not $pgUser) { $pgUser = "admin" }
+if (Get-Command docker -ErrorAction SilentlyContinue) {
+    Write-Host "[0b/2] Chờ Postgres (youdoo-postgres) nhận kết nối ..." -ForegroundColor Green
+    # Cùng lý do như khối docker compose ở trên: tắt Stop tạm thời quanh lệnh
+    # native, tự đọc $LASTEXITCODE.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $pgReady = $false
+    $swPg = [Diagnostics.Stopwatch]::StartNew()
+    while ($swPg.Elapsed.TotalSeconds -lt 60) {
+        docker exec youdoo-postgres pg_isready -q -U $pgUser
+        if ($LASTEXITCODE -eq 0) { $pgReady = $true; break }
+        Start-Sleep -Milliseconds 700
+    }
+    $ErrorActionPreference = $prevEap
+    if ($pgReady) {
+        Write-Host "    Postgres OK" -ForegroundColor Green
+    } else {
+        Write-Host "    [WARN] Postgres chưa nhận kết nối sau 60s — mcp-odoo vẫn được khởi động; nếu Postgres thật sự không tới được, nó sẽ báo lỗi nêu rõ host:port thay vì chết câm." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[0b/2] Không có docker CLI — bỏ qua bước chờ Postgres." -ForegroundColor Yellow
+}
+
 # ── mcp-odoo × 3 vai (:8003 admin / :8004 warehouse / :8005 accounting) ────
 # Mỗi tiến trình CHỈ nắm credential của vai mình — đó là lý do chọn cô lập
 # theo tiến trình: bug định tuyến vai chỉ gây "sai bộ tool", không leo thang.
