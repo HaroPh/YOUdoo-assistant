@@ -6,7 +6,7 @@ domain (_resolve_product, _resolve_location) nằm ở helpers.py — xem docstr
 """
 from server import mcp
 from odoo_call import odoo
-from helpers import envelope, _resolve_product, _resolve_location
+from helpers import envelope, fail, _resolve_product, _resolve_location
 
 
 @mcp.tool()
@@ -282,4 +282,6 @@ def return_order(picking_id: int, lines: list | None = None) -> str:
                         ref=new_pick["name"], model="stock.picking",
                         res_id=new_id, state=new_pick["state"])
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi tạo phiếu trả hàng: {e}")
+        return fail("return_order",
+                    f"Lỗi khi tạo phiếu trả hàng — thao tác có thể chưa "
+                    f"hoàn tất. Nếu lặp lại, báo quản trị viên.", e)

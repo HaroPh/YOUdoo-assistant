@@ -9,6 +9,7 @@ Transport: HTTP/SSE tại port MCP_ODOO_PORT (mặc định 8003 — KHÔNG ph�
 gây backend Youdoo nhận nhầm request test của D:\Project).
 Connect:   http://mcp-odoo:${MCP_ODOO_PORT:-8003}/sse  (từ backend container)
 """
+import logging
 import os
 import sys
 
@@ -66,4 +67,23 @@ forbid_extra_kwargs(mcp._tool_manager)
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # CẢ HAI dòng dưới đây thuộc về ĐIỂM VÀO TIẾN TRÌNH, không phải cấp
+    # module: 8 file test và evals/role_config.py `import server` chỉ để đọc
+    # registry tool. Ở cấp module, assert_log_table_ready sẽ làm tất cả nổ
+    # khi chưa chạy migration, và basicConfig sẽ gắn handler vào root logger
+    # của tiến trình pytest.
+    #
+    # stderr mỗi tiến trình MCP được start-dev.ps1 chuyển vào
+    # logs/mcp-odoo-<vai>_err.log. Không có dòng basicConfig này,
+    # logger.exception chỉ tới đó nhờ handler `lastResort` mặc định của
+    # Python — đúng ngẫu nhiên, và im lặng mất nếu ai đó thêm cấu hình khác.
+    logging.basicConfig(
+        level=logging.INFO, stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    # Thà không lên còn hơn lên sai — cùng triết lý assert_embedding_marker.
+    from event_log import assert_log_table_ready
+
+    assert_log_table_ready()
+
     mcp.run(transport="sse")

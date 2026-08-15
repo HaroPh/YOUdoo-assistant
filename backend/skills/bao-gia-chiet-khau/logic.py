@@ -10,6 +10,8 @@ tiền. Đây chính là lý do skill này không khai báo thuần bằng SKILL
 Port nguyên văn từ D:\\Project\\backend\\src\\agents\\skill_agentic_discount_quote.py
 (chỉ đổi import tương đối → tuyệt đối, và _build_tools → build_tools cho khớp
 hợp đồng loader). Prose quy trình sống ở SKILL.md cạnh file này."""
+import logging
+
 from langchain_core.tools import tool
 
 from src.agents.agentic_gate import REFUSED_MSG, _confirm_write, ask_human
@@ -132,7 +134,10 @@ def build_tools(mcp_tools):
                 return await create.ainvoke({"partner_id": partner["id"],
                                              "lines": tool_lines})
             except Exception as e:  # noqa: BLE001 — tool luôn trả text, không phá graph
-                return f"Lỗi khi tạo báo giá: {e}"
+                logging.getLogger(__name__).exception(
+                    "tao_bao_gia thất bại: %s: %s", type(e).__name__, e)
+                return ("Lỗi khi tạo báo giá — thao tác có thể chưa hoàn tất. "
+                        "Nếu lặp lại, báo quản trị viên.")
         tools.append(create_discount_quote_gated)
 
     return tools

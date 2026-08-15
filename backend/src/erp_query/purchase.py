@@ -1,5 +1,5 @@
 """Purchase bounded context — suppliers and purchase orders."""
-from .envelope import ok, err
+from .envelope import ok, err, fail_read
 from .gateway import default_gateway
 from .resolve import resolve_entity, _resolve_single
 
@@ -24,7 +24,9 @@ def list_purchase_orders(state=None, vendor=None, date_from=None, date_to=None, 
                               ["name", "partner_id", "date_order", "state", "amount_total"],
                               order="date_order desc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra đơn mua: {e}")
+        return fail_read("list_purchase_orders",
+                         f"Lỗi tra đơn mua — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không tìm thấy đơn mua nào phù hợp.")
     body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} | {r['state']} "
@@ -46,7 +48,9 @@ def get_purchase_order_detail(ref, *, gw=None):
                                ["id", "product_id", "product_qty", "price_unit", "price_subtotal"],
                                order="id asc", limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra chi tiết đơn mua: {e}")
+        return fail_read("get_purchase_order_detail",
+                         f"Lỗi tra chi tiết đơn mua — không lấy được dữ "
+                         f"liệu. Nếu lặp lại, báo quản trị viên.", e)
     body = "\n".join(f"  {(l['product_id'] or [0, 'N/A'])[1]} | SL {l['product_qty']:.1f} "
                      f"| {l['price_unit']:,.0f} | {l['price_subtotal']:,.0f}" for l in lines)
     return ok({"order": o, "lines": lines},
@@ -61,7 +65,9 @@ def list_suppliers(limit=50, *, gw=None):
                               ["name", "email", "phone", "city"],
                               order="name asc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu nhà cung cấp: {e}")
+        return fail_read("list_suppliers",
+                         f"Lỗi tra cứu nhà cung cấp — không lấy được dữ "
+                         f"liệu. Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Chưa có nhà cung cấp nào trong hệ thống.")
     lines = [f"{r['name']} | {r['email'] or '—'} | {r['phone'] or '—'}" for r in rows]
@@ -90,7 +96,10 @@ def get_product_suppliers(product, *, gw=None):
                                   ["state", "in", ["purchase", "done"]]],
                                  ["partner_id"], limit=50)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu nhà cung cấp của sản phẩm: {e}")
+        return fail_read("get_product_suppliers",
+                         f"Lỗi tra cứu nhà cung cấp của sản phẩm — không "
+                         f"lấy được dữ liệu. Nếu lặp lại, báo quản trị "
+                         f"viên.", e)
     seen = set()
     history_partners = []
     for h in history:
@@ -132,7 +141,9 @@ def get_supplier_detail(name, *, gw=None):
         pos = gw.search_read("purchase.order", [["partner_id", "=", sup["id"]]],
                              ["id"], limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu hồ sơ nhà cung cấp: {e}")
+        return fail_read("get_supplier_detail",
+                         f"Lỗi tra cứu hồ sơ nhà cung cấp — không lấy "
+                         f"được dữ liệu. Nếu lặp lại, báo quản trị viên.", e)
     bank_txt = "; ".join(f"{b['acc_number']} ({b['bank_id'][1] if b['bank_id'] else '?'})"
                          for b in banks) or "—"
     term = p.get("property_supplier_payment_term_id")
@@ -164,7 +175,9 @@ def check_po_matching(ref, *, gw=None):
                                ["product_id", "product_qty", "qty_received", "qty_invoiced"],
                                order="id asc", limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi đối soát đơn mua: {e}")
+        return fail_read("check_po_matching",
+                         f"Lỗi đối soát đơn mua — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not lines:
         return err(f"Đơn mua '{ref}' không có dòng sản phẩm nào.")
     mismatches = [l for l in lines if l["qty_invoiced"] > l["qty_received"]]
@@ -194,7 +207,9 @@ def list_po_mismatches(*, gw=None):
                                 "qty_received", "qty_invoiced"],
                                order="order_id asc", limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra đơn mua lệch đối soát: {e}")
+        return fail_read("list_po_mismatches",
+                         f"Lỗi tra đơn mua lệch đối soát — không lấy "
+                         f"được dữ liệu. Nếu lặp lại, báo quản trị viên.", e)
     capped = len(lines) >= 100
     bad = [l for l in lines if l["qty_invoiced"] > l["qty_received"]]
     if not bad:
@@ -227,6 +242,8 @@ def find_vendor_duplicates(name, email=None, *, gw=None):
     try:
         rows = gw.search_read("res.partner", domain, ["name", "email"], limit=5)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi kiểm tra nhà cung cấp trùng: {e}")
+        return fail_read("find_vendor_duplicates",
+                         f"Lỗi kiểm tra nhà cung cấp trùng — không lấy "
+                         f"được dữ liệu. Nếu lặp lại, báo quản trị viên.", e)
     return ok({"rows": rows},
               f"{len(rows)} NCC trùng tên/email." if rows else "Không trùng.")

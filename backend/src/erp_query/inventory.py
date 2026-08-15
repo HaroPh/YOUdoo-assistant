@@ -1,6 +1,6 @@
 """Inventory bounded context — product, stock, lots."""
 from datetime import datetime, timezone
-from .envelope import ok, err
+from .envelope import ok, err, fail_read
 from .gateway import default_gateway
 from .resolve import resolve_entity
 
@@ -20,7 +20,9 @@ def get_stock(product=None, limit=100, *, gw=None):
                                "reserved_quantity", "available_quantity", "product_uom_id"],
                               order="product_id asc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra tồn kho: {e}")
+        return fail_read("get_stock",
+                         f"Lỗi tra tồn kho — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không có dữ liệu tồn kho phù hợp.")
     body = "\n".join(f"  {(r['product_id'] or [0, 'N/A'])[1]} @ {(r['location_id'] or [0, 'N/A'])[1]} "
@@ -39,7 +41,9 @@ def get_lots(product=None, limit=50, *, gw=None):
                               ["name", "product_id", "product_qty"],
                               order="product_id asc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra lô/sê-ri: {e}")
+        return fail_read("get_lots",
+                         f"Lỗi tra lô/sê-ri — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không tìm thấy lô/sê-ri phù hợp.")
     body = "\n".join(f"  {r['name']} | {(r['product_id'] or [0, 'N/A'])[1]} "
@@ -61,7 +65,9 @@ def list_reorder_needed(*, gw=None):
                                       "product_max_qty", "warehouse_id"],
                                      limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu quy tắc tái đặt hàng: {e}")
+        return fail_read("list_reorder_needed",
+                         f"Lỗi tra cứu quy tắc tái đặt hàng — không lấy "
+                         f"được dữ liệu. Nếu lặp lại, báo quản trị viên.", e)
     if not orderpoints:
         return ok({"rows": [], "count": 0},
                   "Chưa có quy tắc tái đặt hàng nào được thiết lập.")
@@ -73,7 +79,9 @@ def list_reorder_needed(*, gw=None):
                                 ["location_id.usage", "=", "internal"]],
                                ["quantity:sum"], ["product_id"])
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu tồn kho: {e}")
+        return fail_read("list_reorder_needed",
+                         f"Lỗi tra cứu tồn kho — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     on_hand_by_pid = {(g.get("product_id") or [0, ""])[0]: g.get("quantity") or 0.0
                       for g in groups}
 
@@ -116,7 +124,9 @@ def list_late_deliveries(direction=None, *, gw=None):
                               ["name", "partner_id", "scheduled_date", "state"],
                               order="scheduled_date asc", limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra phiếu giao/nhận trễ hạn: {e}")
+        return fail_read("list_late_deliveries",
+                         f"Lỗi tra phiếu giao/nhận trễ hạn — không lấy "
+                         f"được dữ liệu. Nếu lặp lại, báo quản trị viên.", e)
     capped = len(rows) >= 100
     if not rows:
         msg = "Không có phiếu giao/nhận nào trễ hạn."
@@ -148,7 +158,9 @@ def find_done_deliveries_for_order(order_ref, *, gw=None):
         orders = gw.search_read("sale.order", [["name", "=", order_ref]],
                                 ["id", "name", "state", "picking_ids"], limit=2)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu đơn bán: {e}")
+        return fail_read("find_done_deliveries_for_order",
+                         f"Lỗi tra cứu đơn bán — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not orders:
         return err(f"Không tìm thấy đơn '{order_ref}'.")
     if len(orders) > 1:
@@ -166,6 +178,8 @@ def find_done_deliveries_for_order(order_ref, *, gw=None):
                                   ["id", "name", "date_done"],
                                   order="date_done desc", limit=20)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu phiếu giao: {e}")
+        return fail_read("find_done_deliveries_for_order",
+                         f"Lỗi tra cứu phiếu giao — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     return ok({"order": order, "pickings": pickings},
               f"{len(pickings)} phiếu giao đã hoàn tất cho đơn {order['name']}.")

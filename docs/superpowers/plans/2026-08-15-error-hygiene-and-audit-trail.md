@@ -1354,3 +1354,24 @@ Bước 3 và 4 là **một cặp**: câu trả lời sạch **và** dấu vết
 - `erp_query/crm.py:88` đọc `mail.activity` ở tầng gateway backend (spec §6.3) — nằm ngoài `TOOL_ACCESS_MAP` theo đúng thiết kế của bảng đó.
 - Khôi phục spec hash-chain gốc (spec §6.4) — không có trong repo này.
 - Phân loại nguyên nhân lỗi cho người dùng (spec §6.6) — đã loại có chủ ý ở §2.3.
+- **Đa ngôn ngữ.** Phát sinh từ câu hỏi của người dùng giữa lúc thực thi đợt
+  này ("user là người nước ngoài thì sao"), đo 2026-08-15. Người dùng chốt:
+  **có trong kế hoạch, nhưng chưa phải bây giờ.** Ghi lại số liệu để đợt sau
+  khỏi đo lại:
+  - Youdoo chỉ-tiếng-Việt là do **tầng prompt** quyết, không do chuỗi lỗi:
+    `prompts.py` `SYSTEM_PROMPT`:7, nhánh RAG:169, `CHITCHAT_PROMPT`:153,
+    `FUSE_PROMPT`:187 đều ghim "trả lời bằng tiếng Việt". Người dùng chat tiếng
+    Anh hôm nay vẫn nhận tiếng Việt, bất kể chuỗi lỗi viết bằng gì.
+  - Ba tầng đợt này chạm KHÔNG giống nhau về đường đi, và đây là chỗ dễ đánh
+    giá sai nhất: tầng MCP trả JSON cho **LLM đọc rồi tự viết câu trả lời**;
+    tầng đọc trả dict cho điều phối; còn tầng điều phối ghi thì `_msg()`
+    (`create_order.py:67`) tạo thẳng `AIMessage` — chuỗi đó **CHÍNH LÀ câu trả
+    lời, nguyên văn, không LLM nào đứng giữa**. Tầng thứ ba là tầng khó nhất.
+  - **Đã cân nhắc và BÁC** phương án "tách hậu tố ra hằng số cho dễ i18n sau
+    này": ~90 tiền tố cũng là tiếng Việt và vẫn nằm tại điểm gọi, nên tách
+    riêng hậu tố gần như không giảm chi phí thật, đổi lại mất khả năng đọc trọn
+    câu ngay tại chỗ gọi.
+  - Đợt i18n thật cần: bảng thông điệp cho tầng điều phối ghi, sửa 4 prompt
+    (đụng cổng eval), và một tầng nhận diện ngôn ngữ người dùng hiện chưa tồn
+    tại. Đợt này có ràng buộc cứng **không chạm prompt**, nên không thể làm ở
+    đây kể cả khi muốn.

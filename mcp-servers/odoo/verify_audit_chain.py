@@ -1,8 +1,6 @@
 """Kiểm tra tính toàn vẹn chuỗi hash trong mcp_call_log — chạy tay khi cần
 điều tra: `python verify_audit_chain.py`. Xem docs/superpowers/specs/
 2026-07-23-audit-trail-hash-chain-design.md."""
-import psycopg2
-
 import audit_chain
 from config import DATABASE_URL
 
@@ -26,7 +24,21 @@ def fetch_rows(conn) -> list[dict]:
 def verify(rows: list[dict]) -> tuple[bool, str]:
     """Duyệt các dòng đã hash-chain theo thứ tự id (rows PHẢI đã ORDER BY
     id), tính lại từng hash và so khớp entry_hash + liên kết prev_hash với
-    dòng ngay trước."""
+    dòng ngay trước.
+
+    Trả (True, tóm tắt) khi chuỗi nguyên vẹn, (False, lý do) khi đứt.
+
+    `rows` RỖNG trả (False, ...) — KHÔNG phải (True, "OK — 0 dòng") như bản
+    trước 2026-08-15. Không có dòng nào để kiểm là "chưa kiểm được gì", không
+    phải bằng chứng toàn vẹn; đúng trạng thái của mcp_call_log suốt thời gian
+    bảng không tồn tại, và bản cũ báo OK trên đúng trạng thái đó.
+    """
+    if not rows:
+        # Danh sách rỗng đi hết vòng lặp mà không kiểm gì, nên bản cũ trả
+        # (True, "OK — 0 dòng") — công cụ kiểm toàn vẹn báo toàn vẹn trên
+        # đúng trạng thái mcp_call_log chưa từng ghi được dòng nào.
+        return False, ("Bảng rỗng — không có dòng nào đã hash-chain để kiểm. "
+                       "Đây KHÔNG phải bằng chứng toàn vẹn.")
     prev = audit_chain.GENESIS_HASH
     for row in rows:
         if row["prev_hash"] != prev:
@@ -42,6 +54,9 @@ def verify(rows: list[dict]) -> tuple[bool, str]:
 
 
 def main() -> None:
+    import psycopg2  # nhập trễ: module này phải import được kể cả khi
+                      # psycopg2 không có mặt (venv backend/ chạy test không
+                      # có gói này, chỉ mcp-servers/odoo/.venv mới cần).
     conn = psycopg2.connect(DATABASE_URL)
     try:
         rows = fetch_rows(conn)

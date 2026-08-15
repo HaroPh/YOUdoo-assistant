@@ -10,6 +10,7 @@ SelectorEventLoop we create ourselves.
 Run:  python run.py     (from the backend/ directory)
 """
 import asyncio
+import logging
 import os
 import sys
 
@@ -17,6 +18,21 @@ from uvicorn import Config, Server
 
 
 def main() -> None:
+    # Dòng này thuộc về ĐIỂM VÀO TIẾN TRÌNH, không phải cấp module — cùng lý
+    # do đã ghi ở mcp-servers/odoo/server.py: đặt ở cấp module sẽ gắn handler
+    # vào root logger của mọi tiến trình pytest/công cụ chỉ `import run`.
+    #
+    # uvicorn.Config dùng log_config mặc định, và cấu hình đó CHỈ chạm các
+    # logger tên "uvicorn*" — root logger không được đụng tới. Không có dòng
+    # dưới đây, toàn bộ 68 chỗ fail_read/fail_write (logger.exception) chỉ ra
+    # được stderr nhờ handler `lastResort` của Python: WARNING trở lên, không
+    # timestamp, không level, không tên logger — và im lặng biến mất nếu sau
+    # này ai đó thêm một dictConfig. stderr của tiến trình backend được
+    # start-dev.ps1 chuyển vào logs/backend_err.log.
+    logging.basicConfig(
+        level=logging.INFO, stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
     config = Config(
         "src.main:app",
         host=os.environ.get("BACKEND_HOST", "0.0.0.0"),

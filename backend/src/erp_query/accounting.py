@@ -1,7 +1,7 @@
 """Accounting bounded context — customer/vendor invoices."""
 from datetime import datetime, timezone
 
-from .envelope import ok, err
+from .envelope import ok, err, fail_read
 from .gateway import default_gateway
 
 _FIELDS = ["name", "partner_id", "invoice_date", "invoice_date_due",
@@ -27,7 +27,9 @@ def list_invoices(move_type, partner=None, payment_state=None, limit=50, *, gw=N
         rows = gw.search_read("account.move", domain, _FIELDS,
                               order="invoice_date desc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra hóa đơn: {e}")
+        return fail_read("list_invoices",
+                         f"Lỗi tra hóa đơn — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không có hóa đơn nào phù hợp.")
     body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} "
@@ -45,7 +47,9 @@ def get_overdue_invoices(limit=50, *, gw=None):
         rows = gw.search_read("account.move", domain, _FIELDS,
                               order="invoice_date_due asc", limit=limit)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra hóa đơn quá hạn: {e}")
+        return fail_read("get_overdue_invoices",
+                         f"Lỗi tra hóa đơn quá hạn — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không có hóa đơn nào quá hạn.")
     body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} "
@@ -64,7 +68,9 @@ def get_partner_balance(name, *, gw=None):
         partners = gw.search_read("res.partner", [["name", "ilike", name]],
                                   ["id", "name"], limit=5)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu đối tác: {e}")
+        return fail_read("get_partner_balance",
+                         f"Lỗi tra cứu đối tác — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not partners:
         return err(f"Không tìm thấy đối tác '{name}'.")
     if len(partners) > 1:
@@ -83,7 +89,9 @@ def get_partner_balance(name, *, gw=None):
                             ["partner_id", "=", partner["id"]]],
                            ["amount_residual:sum"], ["partner_id"])
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra công nợ: {e}")
+        return fail_read("get_partner_balance",
+                         f"Lỗi tra công nợ — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     ar_amt = ar[0]["amount_residual"] if ar else 0.0
     ap_amt = ap[0]["amount_residual"] if ap else 0.0
     if not ar_amt and not ap_amt:
@@ -111,7 +119,9 @@ def find_posted_invoice(invoice_ref, *, gw=None):
                               ["id", "name", "state", "partner_id",
                                "amount_total"], limit=2)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra cứu hóa đơn: {e}")
+        return fail_read("find_posted_invoice",
+                         f"Lỗi tra cứu hóa đơn — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return err(f"Không tìm thấy hóa đơn khách '{invoice_ref}'.")
     if len(rows) > 1:
@@ -139,7 +149,9 @@ def get_invoice_detail(invoice_id, *, gw=None):
         rows = gw.search_read("account.move", [["id", "=", invoice_id]],
                               _DETAIL_FIELDS, limit=1)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra hóa đơn: {e}")
+        return fail_read("get_invoice_detail",
+                         f"Lỗi tra hóa đơn — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return err(f"Không tìm thấy hóa đơn ID {invoice_id}.")
     try:
@@ -148,7 +160,9 @@ def get_invoice_detail(invoice_id, *, gw=None):
                                 ["display_type", "=", "product"]],
                                _LINE_FIELDS, limit=100)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra dòng hóa đơn: {e}")
+        return fail_read("get_invoice_detail",
+                         f"Lỗi tra dòng hóa đơn — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     return ok({"invoice": rows[0], "lines": lines},
               f"Hóa đơn ID {invoice_id}: {len(lines)} dòng.")
 
@@ -173,7 +187,9 @@ def find_draft_invoices(partner_name, amount=None, invoice_date=None, *, gw=None
         rows = gw.search_read("account.move", domain, _DETAIL_FIELDS,
                               order="invoice_date desc", limit=10)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra hóa đơn nháp: {e}")
+        return fail_read("find_draft_invoices",
+                         f"Lỗi tra hóa đơn nháp — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return err(f"Không tìm thấy hóa đơn nháp nào của '{partner_name}'.")
     return ok({"rows": rows, "count": len(rows)},
@@ -214,7 +230,9 @@ def find_open_invoices(invoice_ref=None, partner_name=None, amount=None,
         rows = gw.search_read("account.move", domain, _DETAIL_FIELDS,
                               order="invoice_date desc", limit=10)
     except Exception as e:                                  # noqa: BLE001
-        return err(f"Lỗi tra hóa đơn: {e}")
+        return fail_read("find_open_invoices",
+                         f"Lỗi tra hóa đơn — không lấy được dữ liệu. "
+                         f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return err("Không tìm thấy hóa đơn đã phát hành còn nợ phù hợp.")
     return ok({"rows": rows, "count": len(rows)}, f"{len(rows)} hóa đơn.")

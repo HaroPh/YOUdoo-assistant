@@ -97,7 +97,68 @@ TOOL_ACCESS_MAP = {
     "log_activity":            [("mail.activity", "create"), ("ir.model", "read")],  # crm.py log_activity
     # action_feedback đặt active=False + state='done' trên chính bản ghi
     # mail.activity (đo 2026-08-14) — là "write", không phải "unlink".
-    "close_activity":          [("mail.activity", "write")],  # crm.py close_activity
+    # Cặp READ cũng bắt buộc: tool search_read mail.activity TRƯỚC khi ghi
+    # (crm.py:272) để lọc theo chủ sở hữu, và bộ lọc đó là lớp cưỡng chế DUY
+    # NHẤT vì Odoo không chặn đóng việc của người khác. Mất quyền đọc =
+    # sập lớp cưỡng chế, không phải chỉ mất tiện ích.
+    "close_activity":          [("mail.activity", "read"),
+                                ("mail.activity", "write")],  # crm.py close_activity
+    # Tool CHỈ-ĐỌC. Đo 2026-08-14: cả hai vai non-admin đọc được, nhưng cả
+    # hai trả 0 dòng của chính mình — nên quyền đọc hỏng sẽ trông y hệt
+    # "không có việc nào được giao". Phải canh tường minh.
+    "find_my_activities":      [("mail.activity", "read")],  # crm.py find_my_activities
+    # ── Task 8 (2026-08-15): mở nguồn phủ sang MỌI tool MCP đã đăng ký, ──
+    # không chỉ tool GHI khai trong roles.py. 15 tool dưới đây trước đó lọt
+    # qua cả hai lưới (roles.py không khai chúng vì roles.py chỉ khai tool
+    # GHI theo vai; nhiều tool ở đây là ĐỌC hoặc chưa gán cho vai non-admin
+    # nào). Đo bằng AST trực tiếp trên thân từng hàm trong
+    # mcp-servers/odoo/tools/*.py, tra method → operation qua
+    # ODOO_METHOD_OPERATION_MAP.
+    # ── Sản xuất (mrp.py) ──
+    "create_manufacturing_order": [("mrp.bom", "read"),                # tìm/đọc BoM
+                                   ("mrp.production", "create"),        # tạo lệnh sản xuất nháp
+                                   ("mrp.production", "read"),           # re-read xác nhận
+                                   ("product.product", "read")],         # đọc sản phẩm
+    "confirm_manufacturing_order": [("mrp.production", "read"),         # tra theo mã
+                                    ("mrp.production", "write")],        # action_confirm
+    "complete_manufacturing_order": [("mrp.production", "read"),        # tra + re-read sau mark done
+                                     ("mrp.production", "write"),        # action_assign + button_mark_done
+                                     ("stock.move", "read")],            # đọc move_raw_ids kiểm nguyên liệu
+    "create_bom":               [("mrp.bom", "create"),                 # tạo BoM mới
+                                 ("mrp.bom", "read"),                    # re-read lấy code
+                                 ("product.product", "read")],           # đọc sản phẩm thành phẩm
+    "update_bom_lines":          [("mrp.bom", "read"),                  # tra + re-read
+                                  ("mrp.bom", "write"),                  # ghi bom_line_ids
+                                  ("mrp.bom.line", "read")],             # đọc dòng nguyên liệu hiện có
+    # ── CRM (crm.py) ──
+    "create_lead":                [("crm.lead", "create")],
+    "convert_lead":                [("crm.lead", "read"),                # tra + re-read
+                                    ("crm.lead", "write"),                # restore partner_id/user_id
+                                    ("res.users", "read")],               # resolve assignee (name_search)
+    # ── Mua hàng (purchase.py) ──
+    "create_bulk_rfq":             [("purchase.order", "create"),        # tạo nhiều RFQ nháp
+                                    ("purchase.order", "read"),           # re-read lấy name
+                                    ("res.partner", "read")],             # đọc/resolve NCC
+    "update_rfq_lines":            [("purchase.order", "read"),          # _apply_line_ops: tra
+                                    ("purchase.order", "write")],         # _apply_line_ops: ghi order_line
+    # ── Bán hàng (sales.py) ──
+    "update_quotation_lines":      [("sale.order", "read"),              # _apply_line_ops: tra
+                                    ("sale.order", "write")],             # _apply_line_ops: ghi order_line
+    # ── Kế toán (accounting.py) ──
+    "create_vendor":                [("res.partner", "create")],
+    "update_vendor_pricing":        [("product.product", "read"),        # đọc sản phẩm
+                                     ("product.supplierinfo", "create"),  # chưa có giá thì tạo mới
+                                     ("product.supplierinfo", "read"),    # tra giá hiện có
+                                     ("product.supplierinfo", "write"),   # đã có giá thì ghi đè
+                                     ("res.partner", "read")],            # đọc/resolve NCC
+    # ── Mail (mail.py) — 3 tool dùng chung cho MỌI coordinator gửi mail ──
+    "preview_template_email":       [("mail.mail", "read"),              # đọc bản nháp vừa tạo
+                                     ("mail.template", "create"),         # send_mail → tạo mail.mail (operation "create")
+                                     ("mail.template", "read"),           # tra template theo tên
+                                     ("res.partner", "read")],            # đọc người nhận
+    "send_prepared_email":          [("mail.mail", "read"),              # tra + re-read sau gửi
+                                     ("mail.mail", "write")],             # lật state 'outgoing' + send()
+    "discard_prepared_email":       [("mail.mail", "unlink")],
 }
 
 # Tool nêu trong roles.py nhưng KHÔNG map sạch vào MỘT cặp (model, operation)

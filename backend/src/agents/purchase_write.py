@@ -13,7 +13,7 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
-                           _disambig_q, WRITE_DISABLED_MSG)
+                           _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import inventory, purchase
@@ -104,7 +104,10 @@ def make_create_vendor_node(tools):
             result = await tool.ainvoke({"name": name, "email": email, "phone": phone,
                                          "vat": vat, "street": street, "city": city})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi tạo nhà cung cấp: {e}")
+            return fail_write("create_vendor_node",
+                              "Lỗi khi tạo nhà cung cấp — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _finish("create_vendor", result)
 
     return create_vendor_node
@@ -175,7 +178,10 @@ def make_update_vendor_pricing_node(tools):
                 call_args["delay"] = int(delay)
             result = await tool.ainvoke(call_args)
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi khai giá nhà cung cấp: {e}")
+            return fail_write("update_vendor_pricing_node",
+                              "Lỗi khi khai giá nhà cung cấp — thao tác "
+                              "có thể chưa hoàn tất. Nếu lặp lại, báo quản "
+                              "trị viên.", e)
         return _finish("update_vendor_pricing", result)
 
     return update_vendor_pricing_node
@@ -234,7 +240,10 @@ def make_create_bulk_rfq_node(tools):
             result = await tool.ainvoke({
                 "partner_ids": [v["id"] for v in vendors], "lines": lines})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi tạo RFQ hàng loạt: {e}")
+            return fail_write("create_bulk_rfq_node",
+                              "Lỗi khi tạo RFQ hàng loạt — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _finish("create_bulk_rfq", result)
 
     return create_bulk_rfq_node

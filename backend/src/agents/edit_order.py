@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage
 
 from .create_order import (
     _interrupt, _msg, _by_id, _disambig_q, _ttl_expiry,
-    resolve_entity_for_order, WRITE_DISABLED_MSG,
+    resolve_entity_for_order, WRITE_DISABLED_MSG, fail_write,
 )
 from .tool_result import parse_write_result
 from .working_context import derive_working_context
@@ -134,7 +134,10 @@ def make_edit_order_node(tools, cfg: EditCfg):
                 result = await tool.ainvoke({"model": cfg.model, "order_ref": name,
                                              "note": _flag_note(changes)})
             except Exception as e:  # noqa: BLE001
-                return _msg(f"Lỗi khi ghi chú: {e}")
+                return fail_write("edit_node",
+                                  "Lỗi khi ghi chú — thao tác có thể chưa "
+                                  "hoàn tất. Nếu lặp lại, báo quản trị "
+                                  "viên.", e)
             display, fenv = parse_write_result(result)
             upd = {"messages": [AIMessage(content=display)], "pending_action": None,
                    "last_write": {"tool": FLAG_TOOL, **fenv} if fenv else None}
@@ -214,7 +217,9 @@ def make_edit_order_node(tools, cfg: EditCfg):
         try:
             result = await tool.ainvoke({"order_ref": name, "ops": ops})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi sửa đơn: {e}")
+            return fail_write("edit_node",
+                              "Lỗi khi sửa đơn — thao tác có thể chưa hoàn "
+                              "tất. Nếu lặp lại, báo quản trị viên.", e)
         display, eenv = parse_write_result(result)
         upd = {"messages": [AIMessage(content=display)], "pending_action": None,
                "last_write": {"tool": cfg.tool_name, **eenv} if eenv else None}

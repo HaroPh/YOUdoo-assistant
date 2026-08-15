@@ -20,6 +20,33 @@ trong helpers.py), nên quét thân tool là hụt. Test đi thêm ĐÚNG MỘT 
 được định nghĩa trong cùng package mcp-servers/odoo. Sâu hơn thì KHÔNG — nêu
 thẳng ở đây thay vì để người sau tưởng nó phủ hết.
 
+TASK 8 (đo 2026-08-15): thêm update_quotation_lines/update_rfq_lines vào
+TOOL_ACCESS_MAP lộ một hạng giới hạn khác của bước "đi một cấp" — cả hai tool
+delegate 100% cho helpers._apply_line_ops(model, qty_field, order_ref, ops),
+và model chỉ là THAM SỐ trong thân helper (odoo(model, "search_read", ...)),
+không phải literal, nên bước Constant-check cũ luôn bỏ qua cặp đó dù đi đúng
+một cấp vào tới nơi. _odoo_calls giờ mang theo _subst — literal truyền Ở LỆNH
+GỌI CẤP 0 khớp theo VỊ TRÍ tham số của hàm được gọi.
+
+FIX ROUND 1 (review Important, đo 2026-08-15): bản đầu áp _subst KHÔNG ĐIỀU
+KIỆN cho MỌI lệnh gọi cấp 0→1 trong toàn mcp-servers/odoo, không riêng
+_apply_line_ops — 3 đường tạo ra substitution SAI (không phải chỉ thiếu):
+zip() lờ đi posonlyargs (callee có tham số buộc vị trí thì lệch tên), lờ đi
+self nếu funcs từng trỏ vào bound method (hiện KHÔNG có class nào trong
+mcp-servers/odoo nên ngủ yên, nhưng không gì chặn), và callee có thể GÁN LẠI
+tên tham số trước khi dùng trong odoo() mà substitution vẫn ghi đè bằng giá
+trị đã bắt ở lệnh gọi. Cả ba đều ĐANG NGỦ YÊN (đo thật: probe model giả và
+hoán đổi sale.order/purchase.order đều lên ĐỎ đúng), nhưng "chưa lộ" khác
+"không lộ được" — một docstring liệt kê nguy cơ không tự nó chặn được nguy
+cơ (đúng luận điểm xuyên suốt nhánh này: khai báo xuông thì trôi, chỉ cơ chế
+máy mới giữ). Nên _odoo_calls giờ CHỦ ĐỘNG TỪ CHỐI substitution (không phải
+chỉ ghi chú) khi không tin được khớp vị trí — xem _khop_vi_tri_an_toan/
+_ten_bi_gan_lai bên dưới và docstring _odoo_calls. Từ chối là hướng AN
+TOÀN: substitution thiếu → model không giải được → khai báo không thỏa →
+test_model_khai_deu_co_that_trong_nguon_tool đỏ ẦM Ĩ; substitution sai →
+lặng thinh và có thể đóng dấu OK nhầm. Bất đối xứng đó là toàn bộ lý do
+fail-closed thay vì chỉ cảnh báo bằng lời.
+
 SỬA SO VỚI BẢN GỐC CỦA BRIEF (đo thật khi chạy Step 2, không phải đoán):
 send_delivery_email/send_invoice_email trong TOOL_ACCESS_MAP KHÔNG phải hàm
 MCP — chúng là tên coordinator tầng agent (EmailCfg.tool_name,
@@ -84,9 +111,79 @@ def funcs():
     return out
 
 
-def _odoo_calls(node, funcs, _depth=0):
+def _khop_vi_tri_an_toan(callee):
+    """True nếu chữ ký `callee` đơn giản đủ để zip() theo VỊ TRÍ với các đối
+    số ở lệnh gọi mà KHÔNG lệch tên — chỉ tham số thường (args), không
+    positional-only (posonlyargs — review Fix 1: '/' làm lệch mọi tên sau
+    nó), không keyword-only, không *args/**kwargs (thay đổi số lượng/thứ tự
+    khớp). False = TỪ CHỐI substitution cho TOÀN BỘ callee này, không cố
+    khớp một phần."""
+    a = callee.args
+    return not (a.posonlyargs or a.kwonlyargs or a.vararg or a.kwarg)
+
+
+def _ten_co_trong_target(target, ten):
+    """True nếu `ten` xuất hiện như một BINDING TARGET bên trong node target
+    (xử lý cả unpacking: (a, b) = ..., [a, b] = ...)."""
+    return any(isinstance(n, ast.Name) and n.id == ten for n in ast.walk(target))
+
+
+def _ten_bi_gan_lai(callee, ten):
+    """True nếu tham số `ten` bị GÁN LẠI ở bất kỳ đâu trong thân `callee`
+    (review Fix 3) — assignment thường, augmented assignment, annotated
+    assignment, target vòng for, with ... as, walrus (:=), target
+    comprehension, hoặc tên except-handler. Bảo thủ có chủ ý: không phân
+    biệt scope lồng bên trong (hàm/lambda con) — thấy `ten` làm target ở
+    ĐÂU cũng coi là rebind, thà bỏ sót một substitution còn hơn dùng nhầm
+    giá trị đã bắt tại lệnh gọi cấp trên."""
+    for sub in ast.walk(callee):
+        if isinstance(sub, ast.Assign):
+            if any(_ten_co_trong_target(t, ten) for t in sub.targets):
+                return True
+        elif isinstance(sub, (ast.AugAssign, ast.AnnAssign)):
+            if _ten_co_trong_target(sub.target, ten):
+                return True
+        elif isinstance(sub, (ast.For, ast.AsyncFor)):
+            if _ten_co_trong_target(sub.target, ten):
+                return True
+        elif isinstance(sub, (ast.With, ast.AsyncWith)):
+            if any(item.optional_vars and _ten_co_trong_target(item.optional_vars, ten)
+                   for item in sub.items):
+                return True
+        elif isinstance(sub, ast.NamedExpr):
+            if _ten_co_trong_target(sub.target, ten):
+                return True
+        elif isinstance(sub, ast.comprehension):
+            if _ten_co_trong_target(sub.target, ten):
+                return True
+        elif isinstance(sub, ast.ExceptHandler):
+            if sub.name == ten:
+                return True
+    return False
+
+
+def _odoo_calls(node, funcs, _depth=0, _subst=None):
     """{(model, method)} cho mọi lệnh odoo(...) trong `node`, đi thêm ĐÚNG MỘT
-    cấp vào hàm cùng package được gọi trong thân nó."""
+    cấp vào hàm cùng package được gọi trong thân nó.
+
+    _subst: {tên tham số: giá trị literal} áp cho THÂN `node` khi nó được gọi
+    ở lệnh gọi cấp 0 với đối số chuỗi literal khớp VỊ TRÍ tham số. Trường hợp
+    thật cần đến (đo 2026-08-15, xem docstring module): helpers._apply_line_ops
+    nhận model QUA THAM SỐ (dùng chung cho update_quotation_lines/
+    update_rfq_lines), nên thân nó chỉ có odoo(model, "search_read", ...) —
+    model là ast.Name, không phải ast.Constant.
+
+    FAIL-CLOSED (review Fix 1, đo 2026-08-15): substitution chỉ được XÂY khi
+    _khop_vi_tri_an_toan(callee) đúng (không posonly/kwonly/*args/**kwargs —
+    khớp lệch tên nếu có), và CHỈ đưa một tên cụ thể vào substitution khi
+    _ten_bi_gan_lai(callee, tên) SAI (callee không gán lại tên đó trước khi
+    dùng). Bất kỳ điều kiện nào không thỏa → KHÔNG substitute (cho toàn bộ
+    callee, hoặc cho đúng tên đó) — model ở callee vẫn là ast.Name không
+    resolve được, cặp không được báo cáo, TOOL_ACCESS_MAP khai model đó sẽ
+    làm test_model_khai_deu_co_that_trong_nguon_tool đỏ. Đó là hướng AN
+    TOÀN có chủ ý: thiếu substitution gây ồn (đỏ), substitution sai gây im
+    lặng (đóng dấu OK nhầm) — xem docstring module."""
+    subst = _subst or {}
     found = set()
     for sub in ast.walk(node):
         if not isinstance(sub, ast.Call):
@@ -95,10 +192,23 @@ def _odoo_calls(node, funcs, _depth=0):
         ten = fn.id if isinstance(fn, ast.Name) else getattr(fn, "attr", None)
         if ten == "odoo" and len(sub.args) >= 2:
             model, method = sub.args[0], sub.args[1]
-            if isinstance(model, ast.Constant) and isinstance(method, ast.Constant):
-                found.add((model.value, method.value))
+            if isinstance(model, ast.Constant):
+                model_val = model.value
+            elif isinstance(model, ast.Name):
+                model_val = subst.get(model.id)
+            else:
+                model_val = None
+            method_val = method.value if isinstance(method, ast.Constant) else None
+            if model_val is not None and method_val is not None:
+                found.add((model_val, method_val))
         elif _depth == 0 and ten in funcs and ten != node.name:
-            found |= _odoo_calls(funcs[ten], funcs, _depth + 1)
+            callee = funcs[ten]
+            call_subst = {}
+            if _khop_vi_tri_an_toan(callee):
+                for param, arg in zip(callee.args.args, sub.args):
+                    if isinstance(arg, ast.Constant) and not _ten_bi_gan_lai(callee, param.arg):
+                        call_subst[param.arg] = arg.value
+            found |= _odoo_calls(callee, funcs, _depth + 1, _subst=call_subst)
     return found
 
 
@@ -148,6 +258,51 @@ def test_moi_tool_trong_roles_deu_duoc_bang_phu(script_mod):
     assert not thieu, (
         "tool khai trong roles.py nhưng không có trong TOOL_ACCESS_MAP cũng "
         f"không trong UNMAPPED_TOOLS: {thieu}")
+
+
+def _registered_tools():
+    """Mọi tool MCP đã đăng ký, lấy từ chính registry — nguồn phủ ĐÚNG.
+
+    _declared_tools() chỉ lấy tool GHI khai trong roles.py, nên tool CHỈ-ĐỌC
+    lọt hoàn toàn qua cả hai lưới (find_my_activities là một trường hợp thật,
+    đo 2026-08-14). Registry thì không phân biệt đọc/ghi."""
+    sys.path.insert(0, str(MCP_DIR))
+    try:
+        import server
+        return set(server.mcp._tool_manager._tools)
+    finally:
+        sys.path.remove(str(MCP_DIR))
+
+
+def test_moi_tool_mcp_dang_ky_deu_duoc_bang_phu(script_mod):
+    """Tool CHỈ-ĐỌC cũng phải được khai hoặc được miễn trừ kèm lý do."""
+    phu = set(script_mod.TOOL_ACCESS_MAP) | set(script_mod.UNMAPPED_TOOLS)
+    thieu = sorted(_registered_tools() - phu)
+    assert not thieu, (
+        "tool đã đăng ký trên MCP nhưng không có trong TOOL_ACCESS_MAP cũng "
+        f"không trong UNMAPPED_TOOLS: {thieu}")
+
+
+def test_nguon_phu_moi_rong_hon_nguon_cu(script_mod):
+    """Đối chứng: nếu _registered_tools() vì lý do nào đó trả tập rỗng hoặc
+    hẹp hơn roles.py, lưới ở trên xanh giả và lỗ cấu trúc vẫn nguyên.
+
+    RULING B (đo 2026-08-15): khẳng định gốc dự tính cho test này
+    (_declared_tools() < _registered_tools(), tập con thực sự) SAI và đã bị
+    thay — _declared_tools() KHÔNG phải tập con của registry.
+    send_delivery_email/send_invoice_email được khai trong roles.py (cfg.own
+    v.v.) nhưng KHÔNG phải hàm MCP thật — chúng là tên coordinator tầng
+    agent (EmailCfg.tool_name, backend/src/agents/mail_write.py; xem thêm
+    coordinator_aliases ở trên cho cách file này đã xử lý ca tương tự).
+    Nên thay bằng hai khẳng định đã đo và xác nhận đúng trên checkout này:"""
+    moi = _registered_tools()
+    # (1) nguồn phủ mới thực sự lấp đúng khoảng trống đã tạo ra task này.
+    assert "find_my_activities" in moi - _declared_tools()
+    # (2) chốt CHÍNH XÁC phần không giao nhau: đúng hai tên coordinator tầng
+    # backend, không phải tool MCP thật. Nếu một trong hai trở thành tool
+    # MCP thật sau này, dòng này sẽ đỏ — đúng ý định: buộc người sửa đọc lý
+    # do này thay vì để nó lặng lẽ trôi.
+    assert _declared_tools() - moi == {"send_delivery_email", "send_invoice_email"}
 
 
 def test_model_khai_deu_co_that_trong_nguon_tool(script_mod, funcs, coordinator_aliases):
@@ -222,3 +377,80 @@ def test_helper_mot_cap_that_su_duoc_di_vao(funcs):
     models = {m for m, _ in _odoo_calls(node, funcs)}
     assert "stock.picking" in models, (
         "đi một cấp vào helper không hoạt động — test_model_bi_ghi_trong_nguon_deu_da_duoc_khai sẽ xanh giả")
+
+
+# ── Fix round 1 (review Important, 2026-08-15): guard fail-closed của
+# _odoo_calls đo bằng AST TỔNG HỢP nhỏ, KHÔNG đụng file nguồn thật trong
+# mcp-servers/odoo — 3 test dưới đây phải phân biệt được "guard đã chặn
+# đúng ca nguy hiểm" với "substitution bị tắt luôn, mọi ca đều rỗng" (một
+# guard tắt hết tính năng cũng làm 2 test đầu "xanh" theo nghĩa lỏng lẻo,
+# nên test thứ 3 — ca an toàn thật — phải khẳng định substitution VẪN chạy).
+
+def _ham_tu_ma(src):
+    """Parse `src`, trả {tên hàm: ast.FunctionDef} — dựng AST tổng hợp nhỏ
+    tại chỗ cho test guard, không đọc/ghi file nào."""
+    tree = ast.parse(src)
+    return {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+
+
+def test_subst_tu_choi_khi_callee_co_tham_so_buoc_vi_tri():
+    """Review Fix 1: callee khai tham số buộc vị trí (a, b, /, model) — chỉ
+    `model` nằm trong callee.args.args (a, b bị đẩy sang posonlyargs), nên
+    zip() ngây thơ với 3 đối số lệnh gọi sẽ khớp NHẦM đối số ĐẦU TIÊN ("A",
+    lẽ ra thuộc `a`) vào tên `model` — SAI, không phải thiếu (đúng ca 1 mà
+    review nêu). Không guard: cặp lộ ra sẽ là ("A", "write") — model giả,
+    không phải "purchase.order" ở đối số thứ ba. Có guard:
+    _khop_vi_tri_an_toan thấy posonlyargs khác rỗng → từ chối TOÀN BỘ
+    substitution cho callee này → không cặp nào được báo cáo."""
+    src = '''
+def caller():
+    return helper("A", "B", "purchase.order")
+
+def helper(a, b, /, model):
+    return odoo(model, "write")
+'''
+    funcs = _ham_tu_ma(src)
+    calls = _odoo_calls(funcs["caller"], funcs)
+    assert calls == set(), (
+        "guard không chặn positional-only — substitution lệch tên đã lọt "
+        f"qua: {calls}")
+
+
+def test_subst_tu_choi_khi_ten_bi_gan_lai_truoc_khi_dung():
+    """Review Fix 3: callee GÁN LẠI tên tham số trước khi dùng trong odoo() —
+    giá trị bắt ở lệnh gọi cấp trên không còn đúng ngữ nghĩa tại điểm gọi
+    odoo(). Guard phải từ chối substitute đúng tên đó, nên cặp không được
+    báo cáo."""
+    src = '''
+def caller():
+    return helper("sale.order")
+
+def helper(model):
+    model = "purchase.order"
+    return odoo(model, "write")
+'''
+    funcs = _ham_tu_ma(src)
+    calls = _odoo_calls(funcs["caller"], funcs)
+    assert calls == set(), (
+        "guard không chặn rebind — substitution có thể đã dùng giá trị cũ "
+        f"sai ngữ cảnh: {calls}")
+
+
+def test_subst_van_hoat_dong_o_ca_an_toan():
+    """Đối chứng bắt buộc: ca giống _apply_line_ops thật (tham số thường,
+    không rebind) — guard KHÔNG được tắt tính năng, substitution vẫn phải
+    chạy và trả đúng model. Thiếu test này thì 2 test trên có thể xanh giả
+    vì guard đã vô hiệu hoá toàn bộ cơ chế, không phải vì nó chặn đúng ca
+    nguy hiểm."""
+    src = '''
+def caller():
+    return helper("sale.order", "product_uom_qty")
+
+def helper(model, qty_field):
+    return odoo(model, "write")
+'''
+    funcs = _ham_tu_ma(src)
+    calls = _odoo_calls(funcs["caller"], funcs)
+    assert calls == {("sale.order", "write")}, (
+        "guard đã tắt luôn substitution ở ca an toàn — tính năng Task 8 bị "
+        f"vô hiệu hoá thay vì chỉ chặn ca nguy hiểm: {calls}")

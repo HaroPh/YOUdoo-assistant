@@ -8,7 +8,7 @@ import json
 
 from server import mcp
 from odoo_call import odoo, get_uid
-from helpers import envelope, today_iso, resolve_unique
+from helpers import envelope, fail, today_iso, resolve_unique
 
 
 @mcp.tool()
@@ -39,7 +39,9 @@ def create_lead(name: str = "", contact_name: str = "", partner_name: str = "",
         return envelope(True, f"Đã tạo lead '{name}'.",
                         ref=name, model="crm.lead", res_id=lead_id, state="lead")
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
-        return envelope(False, f"Lỗi khi tạo lead: {e}")
+        return fail("create_lead",
+                    f"Lỗi khi tạo lead — thao tác có thể chưa hoàn tất. "
+                    f"Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -105,7 +107,9 @@ def convert_lead(lead_id: int, assignee_name: str = "") -> str:
                         ref=after["name"], model="crm.lead", res_id=lead_id,
                         state="opportunity")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi chuyển lead thành cơ hội: {e}")
+        return fail("convert_lead",
+                    f"Lỗi khi chuyển lead thành cơ hội — thao tác có thể "
+                    f"chưa hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 def _resolve_assignee(assignee: str):
@@ -242,7 +246,9 @@ def log_activity(res_model: str, res_id: int, activity_type: str, summary: str,
                         ref=ref, model="mail.activity", res_id=act_id,
                         state="planned")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi lên lịch hoạt động: {e}")
+        return fail("log_activity",
+                    f"Lỗi khi lên lịch hoạt động — thao tác có thể chưa "
+                    f"hoàn tất. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()

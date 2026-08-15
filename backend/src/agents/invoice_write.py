@@ -21,7 +21,7 @@ from langgraph.types import interrupt as _interrupt
 from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .create_order import (_by_id, _ttl_expiry, _msg, _disambig_q,
-                           WRITE_DISABLED_MSG)
+                           WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
 from .prompts import WRITE_CONFIRM_SUFFIX
 from ..erp_query import accounting
@@ -143,7 +143,10 @@ def make_post_invoice_node(tools):
         try:
             result = await tool.ainvoke({"invoice_id": invoice_id})
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi phát hành hóa đơn: {e}")
+            return fail_write("post_invoice_node",
+                              "Lỗi khi phát hành hóa đơn — thao tác có thể "
+                              "chưa hoàn tất. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _finish("post_invoice", result)
 
     return post_invoice_node
@@ -215,7 +218,10 @@ def make_register_payment_node(tools):
         try:
             result = await tool.ainvoke(payload)
         except Exception as e:  # noqa: BLE001
-            return _msg(f"Lỗi khi ghi nhận thanh toán: {e}")
+            return fail_write("register_payment_node",
+                              "Lỗi khi ghi nhận thanh toán — thao tác có "
+                              "thể chưa hoàn tất. Nếu lặp lại, báo quản trị "
+                              "viên.", e)
         return _finish("register_payment", result)
 
     return register_payment_node
