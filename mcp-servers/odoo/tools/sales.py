@@ -14,7 +14,7 @@ không có tín hiệu domain nào mạnh hơn — đặt tại sales.py.
 """
 from server import mcp
 from odoo_call import odoo
-from helpers import envelope, _resolve_partner, _resolve_product, _apply_line_ops, \
+from helpers import envelope, fail, _resolve_partner, _resolve_product, _apply_line_ops, \
     _validate_order_pickings
 
 
@@ -93,7 +93,9 @@ def deliver_order(order_ref: str) -> str:
         return envelope(True, f"Đã giao hàng cho đơn {name} ({val} phiếu).",
                         ref=name, model="sale.order", res_id=so["id"], state="sale")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
-        return envelope(False, f"Lỗi khi giao hàng cho đơn {order_ref}: {e}")
+        return fail("deliver_order",
+                    f"Lỗi khi giao hàng cho đơn {order_ref} — thao tác chưa "
+                    f"được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -170,7 +172,9 @@ def update_quotation_lines(order_ref: str, ops: list | None = None) -> str:
     try:
         return _apply_line_ops("sale.order", "product_uom_qty", order_ref, ops or [])
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi sửa báo giá {order_ref}: {e}")
+        return fail("update_quotation_lines",
+                    f"Lỗi khi sửa báo giá {order_ref} — thao tác chưa được "
+                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 _FLAGGABLE_MODELS = ("sale.order", "purchase.order")
@@ -205,4 +209,6 @@ def flag_order_for_review(model: str, order_ref: str, note: str) -> str:
                         ref=order["name"], model=model, res_id=order["id"],
                         state=order["state"])
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi ghi chú đơn {order_ref}: {e}")
+        return fail("flag_order_for_review",
+                    f"Lỗi khi ghi chú đơn {order_ref} — thao tác chưa được "
+                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)

@@ -7,7 +7,7 @@ sao chúng không nằm trong module domain nào.
 """
 from server import mcp
 from odoo_call import odoo
-from helpers import envelope, today_iso, _resolve_partner, _resolve_product, \
+from helpers import envelope, fail, today_iso, _resolve_partner, _resolve_product, \
     _apply_line_ops, _validate_order_pickings
 
 
@@ -86,7 +86,9 @@ def receive_order(order_ref: str) -> str:
                         ref=name, model="purchase.order", res_id=po["id"],
                         state="purchase")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
-        return envelope(False, f"Lỗi khi nhận hàng cho đơn mua {order_ref}: {e}")
+        return fail("receive_order",
+                    f"Lỗi khi nhận hàng cho đơn mua {order_ref} — thao tác "
+                    f"chưa được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -138,7 +140,9 @@ def create_bill_from_po(order_ref: str) -> str:
                         ref=None, model="account.move", res_id=max(new_ids),
                         state="draft")
     except Exception as e:  # noqa: BLE001 — không exception nào xuyên qua MCP tool
-        return envelope(False, f"Lỗi khi tạo hóa đơn cho đơn mua {order_ref}: {e}")
+        return fail("create_bill_from_po",
+                    f"Lỗi khi tạo hóa đơn cho đơn mua {order_ref} — thao tác "
+                    f"chưa được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -205,7 +209,9 @@ def update_rfq_lines(order_ref: str, ops: list | None = None) -> str:
     try:
         return _apply_line_ops("purchase.order", "product_qty", order_ref, ops or [])
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi sửa đơn mua {order_ref}: {e}")
+        return fail("update_rfq_lines",
+                    f"Lỗi khi sửa đơn mua {order_ref} — thao tác chưa được "
+                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -279,4 +285,6 @@ def create_bulk_rfq(vendor_names: list | None = None, partner_ids: list | None =
         return envelope(True, f"Đã tạo {len(names)} RFQ nháp: {listing}.",
                         model="purchase.order")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi tạo RFQ hàng loạt: {e}")
+        return fail("create_bulk_rfq",
+                    f"Lỗi khi tạo RFQ hàng loạt — thao tác chưa được thực "
+                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)

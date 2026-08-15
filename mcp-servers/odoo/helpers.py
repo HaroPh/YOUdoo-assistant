@@ -15,9 +15,13 @@ mục đích chẻ theo domain (SP-2 cần cấp cho mỗi specialist agent mộ
 hẹp, tự chứa). Nên cả 5 nằm ở đây, cạnh envelope/resolve_unique — hạ tầng
 dùng chung, không thuộc riêng domain nào."""
 import json
+import logging
 from datetime import datetime, timezone
 
+from event_log import log_mcp_event
 from odoo_call import odoo
+
+logger = logging.getLogger(__name__)
 
 
 def now_iso() -> str:
@@ -52,6 +56,25 @@ def envelope(ok: bool, display: str, *, ref=None, model=None,
     user-facing Vietnamese sentence. Non-chain tools keep plain strings."""
     return json.dumps({"ok": ok, "ref": ref, "model": model, "res_id": res_id,
                        "state": state, "display": display}, ensure_ascii=False)
+
+
+def fail(tool_name: str, display: str, exc: Exception) -> str:
+    """Ghi nguyên văn lỗi vào log tiến trình VÀ vệt kiểm toán; trả người dùng
+    câu KHÔNG lộ gì.
+
+    Ghi cả hai đích có chủ ý: log_mcp_event im lặng không làm gì khi thiếu
+    DATABASE_URL, nên nếu chỉ dựa vào nó thì môi trường không cấu hình DB sẽ
+    làm lỗi biến mất hoàn toàn — đúng lỗ hổng đợt này đi đóng.
+
+    Nguyên văn lỗi Odoo KHÔNG được vào `display`: đo 2026-08-14, lỗi phân
+    quyền của Odoo liệt kê đầy đủ danh sách nhóm được phép, kể cả nhóm tự tạo
+    của dự án.
+    """
+    detail = f"{type(exc).__name__}: {exc}"
+    logger.exception("tool %s thất bại: %s", tool_name, detail)
+    log_mcp_event("tool_error", tool_name=tool_name, error_code="E500",
+                  error_message=detail)
+    return envelope(False, display)
 
 
 # ─── Helper resolve/apply dùng chung nhiều domain (xem docstring module) ─────

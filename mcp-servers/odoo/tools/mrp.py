@@ -6,7 +6,7 @@ resolve dùng chung ở helpers.py.
 """
 from server import mcp
 from odoo_call import odoo
-from helpers import envelope
+from helpers import envelope, fail
 
 
 @mcp.tool()
@@ -75,7 +75,9 @@ def create_manufacturing_order(product_id: int, qty: float, bom_id: int = 0) -> 
                         ref=mo["name"], model="mrp.production", res_id=mo_id,
                         state="draft")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi tạo lệnh sản xuất: {e}")
+        return fail("create_manufacturing_order",
+                    f"Lỗi khi tạo lệnh sản xuất — thao tác chưa được thực "
+                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -109,7 +111,9 @@ def confirm_manufacturing_order(order_ref: str) -> str:
                         ref=name, model="mrp.production", res_id=mo["id"],
                         state="confirmed")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi xác nhận lệnh sản xuất: {e}")
+        return fail("confirm_manufacturing_order",
+                    f"Lỗi khi xác nhận lệnh sản xuất — thao tác chưa được "
+                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -182,7 +186,9 @@ def complete_manufacturing_order(order_ref: str) -> str:
                         ref=name, model="mrp.production", res_id=mo["id"],
                         state="done")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi hoàn tất lệnh sản xuất: {e}")
+        return fail("complete_manufacturing_order",
+                    f"Lỗi khi hoàn tất lệnh sản xuất — thao tác chưa được "
+                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -237,7 +243,9 @@ def create_bom(product_id: int, components: list, batch_qty: float = 1.0,
                         f"{len(components)} nguyên liệu (mẻ {batch_qty:g}).",
                         ref=label, model="mrp.bom", res_id=bom_id, state="active")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi tạo BoM: {e}")
+        return fail("create_bom",
+                    f"Lỗi khi tạo BoM — thao tác chưa được thực hiện. "
+                    f"Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -305,4 +313,6 @@ def update_bom_lines(bom_id: int, changes: list) -> str:
         return envelope(True, f"Đã cập nhật BoM {label}: {len(after)} nguyên liệu.",
                         ref=label, model="mrp.bom", res_id=bom_id, state="active")
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi sửa BoM: {e}")
+        return fail("update_bom_lines",
+                    f"Lỗi khi sửa BoM — thao tác chưa được thực hiện. "
+                    f"Nếu lặp lại, báo quản trị viên.", e)

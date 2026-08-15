@@ -7,7 +7,7 @@ domain (_resolve_partner, _resolve_product) nằm ở helpers.py — xem docstri
 """
 from server import mcp
 from odoo_call import odoo
-from helpers import envelope, resolve_unique, _resolve_partner, _resolve_product
+from helpers import envelope, fail, resolve_unique, _resolve_partner, _resolve_product
 
 
 @mcp.tool()
@@ -137,7 +137,9 @@ def create_invoice_from_order(order_ref: str) -> str:
                         ref=None, model="account.move", res_id=max(new_ids),
                         state="draft")
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
-        return envelope(False, f"Lỗi khi tạo hóa đơn cho đơn {order_ref}: {e}")
+        return fail("create_invoice_from_order",
+                    f"Lỗi khi tạo hóa đơn cho đơn {order_ref} — thao tác chưa "
+                    f"được thực hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -254,7 +256,9 @@ def register_payment(invoice_id: int = 0, invoice_ref: str = "",
             ref=after["name"], model="account.move", res_id=move_id,
             state=after["payment_state"])
     except Exception as e:  # noqa: BLE001 — never raise through the MCP tool
-        return envelope(False, f"Lỗi khi ghi nhận thanh toán: {e}")
+        return fail("register_payment",
+                    f"Lỗi khi ghi nhận thanh toán — thao tác chưa được thực "
+                    f"hiện. Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -305,7 +309,9 @@ def create_credit_memo(invoice_id: int, reason: str = "") -> str:
                         ref=None, model="account.move", res_id=new_id,
                         state=cn["state"])
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi tạo credit memo: {e}")
+        return fail("create_credit_memo",
+                    f"Lỗi khi tạo credit memo — thao tác chưa được thực hiện. "
+                    f"Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -335,7 +341,9 @@ def create_vendor(name: str, email: str = "", phone: str = "",
         return envelope(True, f"Đã tạo nhà cung cấp '{name}'.",
                         ref=name, model="res.partner", res_id=partner_id)
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi tạo nhà cung cấp: {e}")
+        return fail("create_vendor",
+                    f"Lỗi khi tạo nhà cung cấp — thao tác chưa được thực hiện. "
+                    f"Nếu lặp lại, báo quản trị viên.", e)
 
 
 @mcp.tool()
@@ -413,4 +421,6 @@ def update_vendor_pricing(price: float, vendor_name: str = "", partner_id: int =
                         ref=vendor["name"], model="product.supplierinfo",
                         res_id=si_id)
     except Exception as e:  # noqa: BLE001
-        return envelope(False, f"Lỗi khi cập nhật giá nhà cung cấp: {e}")
+        return fail("update_vendor_pricing",
+                    f"Lỗi khi cập nhật giá nhà cung cấp — thao tác chưa được "
+                    f"thực hiện. Nếu lặp lại, báo quản trị viên.", e)
