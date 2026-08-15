@@ -87,6 +87,69 @@ def test_server_goi_kiem_bang_va_chi_trong_main():
         "chạy migration"
 
 
+@pytest.fixture
+def verify_mod():
+    sys.path.insert(0, str(MCP_DIR))
+    try:
+        import verify_audit_chain
+        yield importlib.reload(verify_audit_chain)
+    finally:
+        sys.path.remove(str(MCP_DIR))
+
+
+def test_bang_rong_khong_phai_nguyen_ven(verify_mod):
+    """Bảng rỗng là "chưa có gì để kiểm", KHÔNG phải bằng chứng toàn vẹn.
+    Trước bản sửa này verify([]) trả (True, "... chuỗi nguyên vẹn") và main()
+    thoát 0 — tức công cụ báo OK trên đúng trạng thái hỏng."""
+    ok, msg = verify_mod.verify([])
+    assert ok is False
+    assert "rỗng" in msg or "không có dòng" in msg
+
+
+@pytest.mark.integration
+def test_ghi_roi_doc_lai_duoc(event_log_mod):
+    """Test DUY NHẤT chứng minh vòng ghi khép kín: gọi log_mcp_event rồi ĐỌC
+    LẠI dòng vừa ghi và tính lại hash.
+
+    Đây chính là thứ đã vắng mặt suốt và là lý do cả cơ chế chết mà không ai
+    biết — mọi test khác chỉ khẳng định hàm ĐƯỢC GỌI, không khẳng định có
+    dòng nào ra tới database.
+
+    Cần DATABASE_URL thật và migration 002 đã chạy. Chạy riêng:
+        pytest tests/mcp/test_audit_log_table.py -m integration
+    """
+    psycopg2 = pytest.importorskip("psycopg2")
+
+    import audit_chain
+
+    if not event_log_mod.DATABASE_URL:
+        pytest.skip("cần DATABASE_URL")
+
+    dau = "test-ghi-doc-lai"
+    event_log_mod.log_mcp_event("tool_error", tool_name=dau,
+                                error_code="E500", error_message="probe")
+
+    conn = psycopg2.connect(event_log_mod.DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT created_at, event_type, caller, tool_name, model_name,"
+                " operation, duration_ms, error_code, error_message,"
+                " entry_hash, prev_hash FROM mcp_call_log"
+                " WHERE tool_name = %s ORDER BY id DESC LIMIT 1", (dau,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    assert row is not None, "không có dòng nào ra tới database"
+    (created_at, event_type, caller, tool_name, model_name, operation,
+     duration_ms, error_code, error_message, entry_hash, prev_hash) = row
+    assert error_message == "probe"
+    assert audit_chain.compute_entry_hash(
+        prev_hash, created_at, event_type, caller, tool_name, model_name,
+        operation, duration_ms, error_code, error_message) == entry_hash
+
+
 def test_import_server_khong_can_bang(monkeypatch):
     """Đối chứng bằng hành vi, không bằng vị trí văn bản: `import server`
     phải chạy được kể cả khi bảng chưa có. Đây là hồi quy thật — 8 file test

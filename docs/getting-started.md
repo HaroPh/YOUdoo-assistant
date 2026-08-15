@@ -120,7 +120,32 @@ backend.
    docker exec youdoo-ollama ollama pull bge-m3
    ```
 
-4. **Index the RAG corpus into Postgres — required once, the table starts
+4. **Chạy migration**
+
+   Repo **không có runner migration tự động**. Các file trong
+   `backend/migrations/` phải chạy tay một lần, theo thứ tự số:
+
+   ```bash
+   psql "$DATABASE_URL" -f backend/migrations/001_llm_usage.sql
+   psql "$DATABASE_URL" -f backend/migrations/002_mcp_call_log.sql
+   ```
+
+   Muốn chạy bộ test `integration` (kiểm tra vòng ghi khép kín thật của
+   vệt kiểm toán) thì cần thêm `pip install psycopg2-binary` vào venv của
+   `backend/` — venv này mặc định không có gói đó (`mcp-servers/odoo/.venv`
+   ở bước 2 thì đã có sẵn).
+
+   Cả hai đều `CREATE TABLE IF NOT EXISTS` nên chạy lại nhiều lần vô hại.
+
+   `001_llm_usage.sql` — sổ ngân sách LLM. `002_mcp_call_log.sql` — vệt kiểm
+   toán mọi lệnh gọi MCP.
+
+   **Quên chạy `002` thì tiến trình MCP từ chối khởi động**, kèm thông báo nêu
+   đúng tên file cần chạy. Đó là chủ đích: bảng này từng thiếu suốt một thời
+   gian dài mà không ai biết, vì `log_mcp_event` nuốt mọi lỗi ghi để không làm
+   hỏng tool.
+
+5. **Index the RAG corpus into Postgres — required once, the table starts
    empty.** Without this, every RAG/mixed scenario below will silently
    return "no info" instead of a real answer (confirmed while writing this
    doc — `rag_chunks` had 0 rows on a fresh checkout). From `backend/`,
