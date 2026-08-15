@@ -6,6 +6,7 @@ that policy lives in orchestration (C).
 Kill-switch ERP_SEMANTIC_RESOLVE != "1" (hoặc model khác product.product) →
 _resolve_legacy: hành vi trước feature từng bit — không semantic, không
 reranker, không normalize."""
+import logging
 import math
 import os
 from difflib import SequenceMatcher
@@ -14,6 +15,8 @@ from .envelope import ok, fail_read
 from .gateway import default_gateway
 from . import semantic
 from ..rag import reranker
+
+logger = logging.getLogger(__name__)
 
 MAX_CANDIDATES = 10
 
@@ -87,7 +90,14 @@ def _resolve_enhanced(model, query, limit, gw) -> dict:
                 # Giữ thứ tự RRF; ID archive/đã xóa không có trong fresh → tự rớt.
                 cands += [{"id": i, "name": by_id[i]} for i in extra if i in by_id]
             except Exception:                               # noqa: BLE001
-                pass   # fail-open: vứt nhánh semantic, giữ lexical (spec §8.5)
+                # Fail-open CÓ CHỦ ĐÍCH: vứt nhánh semantic, giữ lexical
+                # (spec §8.5). Nhưng phải để lại dấu vết —
+                # erp_query/gateway.py không log gì, nên nếu im lặng ở đây
+                # thì một nhánh semantic hỏng chỉ biểu hiện thành "kết quả
+                # kém hơn một chút", vô hình với mọi công cụ đo.
+                logger.exception(
+                    "resolve_entity: đọc lại ứng viên semantic thất bại — "
+                    "chỉ còn nhánh lexical (fail-open)")
 
     if not cands:
         return ok({"matches": [], "needs_disambiguation": False},

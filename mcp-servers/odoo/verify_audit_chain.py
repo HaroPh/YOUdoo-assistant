@@ -24,7 +24,15 @@ def fetch_rows(conn) -> list[dict]:
 def verify(rows: list[dict]) -> tuple[bool, str]:
     """Duyệt các dòng đã hash-chain theo thứ tự id (rows PHẢI đã ORDER BY
     id), tính lại từng hash và so khớp entry_hash + liên kết prev_hash với
-    dòng ngay trước."""
+    dòng ngay trước.
+
+    Trả (True, tóm tắt) khi chuỗi nguyên vẹn, (False, lý do) khi đứt.
+
+    `rows` RỖNG trả (False, ...) — KHÔNG phải (True, "OK — 0 dòng") như bản
+    trước 2026-08-15. Không có dòng nào để kiểm là "chưa kiểm được gì", không
+    phải bằng chứng toàn vẹn; đúng trạng thái của mcp_call_log suốt thời gian
+    bảng không tồn tại, và bản cũ báo OK trên đúng trạng thái đó.
+    """
     if not rows:
         # Danh sách rỗng đi hết vòng lặp mà không kiểm gì, nên bản cũ trả
         # (True, "OK — 0 dòng") — công cụ kiểm toàn vẹn báo toàn vẹn trên

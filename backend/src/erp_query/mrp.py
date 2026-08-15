@@ -4,9 +4,13 @@ Bẫy id-space (probe 2026-07-19): mrp.bom link theo product_tmpl_id (TEMPLATE),
 mrp.production.product_id là VARIANT — trên instance thật template 39 =
 "Table Top" nhưng variant 39 = "Drawer"; mọi lookup BoM phải đi qua
 product.product.product_tmpl_id."""
+import logging
+
 from .envelope import ok, err, fail_read
 from .gateway import default_gateway
 from .resolve import resolve_entity
+
+logger = logging.getLogger(__name__)
 
 _STATE_LABELS = {"draft": "nháp", "confirmed": "đã xác nhận",
                  "progress": "đang sản xuất", "to_close": "chờ đóng",
@@ -135,7 +139,15 @@ def get_bom_detail(product, *, gw=None):
             on_hand = {(g.get("product_id") or [0, ""])[0]:
                        g.get("quantity") or 0.0 for g in groups}
         except Exception:                                   # noqa: BLE001
-            on_hand = {}    # tồn chỉ để tham khảo — lỗi không chặn hiển thị BoM
+            # Fail-open CÓ CHỦ ĐÍCH: tồn chỉ để tham khảo, lỗi không chặn
+            # hiển thị BoM. Nhưng phải để lại dấu vết — không như tầng MCP,
+            # erp_query/gateway.py KHÔNG log gì, nên nếu im lặng ở đây thì
+            # một stock.quant hỏng vĩnh viễn chỉ biểu hiện thành "BoM không
+            # có số tồn", mãi mãi, không ai biết.
+            logger.exception(
+                "get_bom_detail: đọc tồn kho thất bại — trả BoM không kèm "
+                "số tồn (fail-open)")
+            on_hand = {}
     out_boms = []
     parts = [f"Định mức của {row['name']}:"]
     for b in boms:
