@@ -44,13 +44,17 @@ TIER_ONE = [
 
 # ── Tầng 2: chỉ thành việc khi lọc trạng thái ────────────────────────────────
 # KHÔNG quét mặc định; là nguyên liệu tất định cho câu "còn gì nữa không".
+# (định danh kỹ thuật, nhãn tiếng Việt). Nhãn là thứ DUY NHẤT được phép ra
+# display: người dùng nghiệp vụ không đọc "list_sale_orders(state=draft)".
 TIER_TWO = [
-    "list_sale_orders(state=draft)",
-    "list_purchase_orders(state=draft)",
-    "list_manufacturing_orders(state=confirmed)",
-    "list_crm_leads",
-    "find_open_invoices",
+    ("list_sale_orders(state=draft)",           "đơn bán còn nháp"),
+    ("list_purchase_orders(state=draft)",       "đơn mua còn nháp"),
+    ("list_manufacturing_orders(state=confirmed)", "lệnh sản xuất đã xác nhận"),
+    ("list_crm_leads",                          "cơ hội CRM đang mở"),
+    ("find_open_invoices",                      "hóa đơn chưa thanh toán"),
 ]
+
+TIER_TWO_LABELS = [label for _, label in TIER_TWO]
 
 
 def dept_for_role(role: str | None) -> str | None:
@@ -136,7 +140,12 @@ def list_pending_work(role: str | None = None) -> dict:
         # thuộc bộ phận của vai; phần còn lại giữ nguyên thứ tự khai.
         checked.sort(key=lambda c: (c["dept"] is not None,
                                     c["dept"] != dept))
-    data = {"checked": checked, "not_checked": list(TIER_TWO), "failed": failed}
+    # not_checked mang CẢ định danh lẫn nhãn, cùng hình dạng {queue, label} như
+    # checked/failed: LLM cần định danh để biết gọi tool nào khi người dùng hỏi
+    # tiếp "còn gì nữa không", và cần nhãn để biết gọi tên nhóm đó bằng tiếng
+    # Việt. Chỉ nhãn mới được đi ra display.
+    not_checked = [{"queue": ident, "label": label} for ident, label in TIER_TWO]
+    data = {"checked": checked, "not_checked": not_checked, "failed": failed}
     return ok(data, _render_display(checked, failed))
 
 
@@ -163,4 +172,14 @@ def _render_display(checked, failed) -> str:
                       + ", ".join(f"{f['label']}" for f in failed) + ".")
     if checked:
         footer.append("Đã kiểm: " + ", ".join(c["label"] for c in checked) + ".")
+    # LUÔN nói còn bao nhiêu nhóm CHƯA quét — ở MỌI nhánh, kể cả khi tầng 1
+    # rỗng sạch. Không có dòng này, bản tin liệt kê 5 hàng đợi rỗng dưới một
+    # chỉ dẫn SYSTEM_PROMPT bảo "nếu tool trả rỗng, nói rõ không có dữ liệu",
+    # và thứ tự nhiên để model nói là đúng câu spec §4 CẤM ("không còn việc
+    # gì"). Đây cũng là cơ chế DUY NHẤT spec giao cho câu hỏi tiếp
+    # "còn gì nữa không?" — không được để nó phụ thuộc việc model có tự đọc
+    # data["not_checked"] hay không.
+    footer.append(
+        f"Chưa kiểm {len(TIER_TWO)} nhóm khác "
+        f"({', '.join(TIER_TWO_LABELS[:2])}…) — hỏi \"còn gì nữa không?\" nếu cần.")
     return "\n".join([header, *lines, *footer])

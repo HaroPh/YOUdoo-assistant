@@ -107,6 +107,34 @@ def test_tat_ca_rong_van_khong_noi_het_viec(gia_hang_doi):
         assert cam not in d.lower(), f"khẳng định đã quét hết: {cam!r}"
 
 
+def test_footer_luon_noi_con_nhom_chua_kiem(gia_hang_doi):
+    """CẢ HAI nhánh hiển thị phải nói còn bao nhiêu nhóm CHƯA quét.
+
+    Ràng buộc spec §4: display không bao giờ được ngụ ý đã quét hết. Nhánh
+    "tất cả rỗng" là nhánh nguy hiểm nhất — nó liệt kê 5 hàng đợi rỗng, mà
+    SYSTEM_PROMPT lại có chỉ dẫn "nếu tool trả rỗng, nói rõ không có dữ liệu",
+    nên thứ tự nhiên để model nói ra là đúng câu spec CẤM. Trước fix này
+    _render_display KHÔNG hề đọc data["not_checked"] ở bất kỳ nhánh nào."""
+    so_nhom = str(len(work_queue.TIER_TWO))
+
+    d_co_viec = work_queue.list_pending_work()["display"]
+    assert "Chưa kiểm" in d_co_viec
+    assert so_nhom in d_co_viec
+    assert "còn gì nữa không" in d_co_viec.lower()
+
+    for ten in gia_hang_doi:
+        gia_hang_doi[ten] = _ok({"rows": [], "count": 0})
+    d_rong = work_queue.list_pending_work()["display"]
+    assert "Chưa kiểm" in d_rong
+    assert so_nhom in d_rong
+    assert "còn gì nữa không" in d_rong.lower()
+
+    # Định danh lập trình KHÔNG được rò ra người dùng ở bất kỳ nhánh nào.
+    for d in (d_co_viec, d_rong):
+        for ident, _ in work_queue.TIER_TWO:
+            assert ident not in d, f"định danh lộ ra display: {ident}"
+
+
 def test_tat_ca_hang_doi_hong_khong_noi_da_kiem_0(gia_hang_doi):
     """Khi tất cả hàng đợi hỏng (checked trống), không nói "Đã kiểm 0 hàng đợi"
     hay "Đã kiểm: ." — chỉ "Không kiểm được" là đủ để nói sự thật."""
@@ -119,10 +147,24 @@ def test_tat_ca_hang_doi_hong_khong_noi_da_kiem_0(gia_hang_doi):
 
 
 def test_not_checked_mang_dung_tang_hai(gia_hang_doi):
-    """Câu "còn gì nữa không" phải có nguyên liệu tất định để trả lời."""
+    """Câu "còn gì nữa không" phải có nguyên liệu tất định để trả lời.
+
+    not_checked mang CẢ định danh (để LLM biết gọi tool nào) lẫn nhãn tiếng
+    Việt (để LLM biết gọi tên nhóm đó ra sao), cùng hình dạng {queue, label}
+    như checked/failed."""
     res = work_queue.list_pending_work()
-    assert set(res["data"]["not_checked"]) == set(work_queue.TIER_TWO)
+    assert [(c["queue"], c["label"]) for c in res["data"]["not_checked"]] \
+        == list(work_queue.TIER_TWO)
     assert len(work_queue.TIER_TWO) >= 5
+    assert work_queue.TIER_TWO_LABELS == [n for _, n in work_queue.TIER_TWO]
+
+
+def test_nhan_tang_hai_khong_phai_chuoi_goi_ham():
+    """Nhãn tầng 2 là tiếng Việt cho người dùng nghiệp vụ, KHÔNG phải định
+    danh lập trình — nhãn là thứ duy nhất được đi ra display."""
+    for ident, nhan in work_queue.TIER_TWO:
+        assert "(" not in nhan and "_" not in nhan, f"nhãn lộ định danh: {nhan!r}"
+        assert nhan != ident
 
 
 def test_lambda_that_khong_truyen_limit_chan_duoc_so_dem(monkeypatch):
