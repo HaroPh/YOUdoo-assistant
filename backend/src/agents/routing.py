@@ -258,10 +258,20 @@ def decide_route(state: ERPAgentState) -> str:
 
     intent = state.get("intent") or "unknown"
     sop = state.get("sop")
+    depth = state.get("depth") or "none"
     if sop and skill_gate.skills_enabled():
         last_human = next((m.content for m in reversed(state["messages"])
                            if m.type == "human"), "")
         folded = _fold(last_human)
         if intent == "erp_write" or not looks_like_question(folded):
-            return sop            # SOP nhận trọn lượt
+            # `sop` nói MIỀN, `depth` nói SÂU TỚI ĐÂU — hai câu hỏi tách rời
+            # từ 2026-08-16. one_step đi đúng đường erp_write hôm nay nên hành
+            # vi cuối KHÔNG đổi; SOP chỉ nhận trọn lượt khi người dùng thật sự
+            # muốn cả quy trình.
+            if depth == "one_step":
+                return "erp_write"
+            # TẠM THỜI: "unsure" rơi chung nhánh với "full_sop" vì node
+            # clarify_depth chưa tồn tại — trả một tên ngoài intent_targets sẽ
+            # làm LangGraph ném lỗi định tuyến giữa lượt chat thật.
+            return sop
     return intent                 # phủ quyết: rớt sop, dùng intent
