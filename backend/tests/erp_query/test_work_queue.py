@@ -304,6 +304,13 @@ def test_prompt_khong_con_day_ket_luan_tu_mot_hang_doi():
 
     assert "list_pending_work" in SYSTEM_PROMPT
     assert "KHÔNG được kết luận" in SYSTEM_PROMPT
+    # Vế PHỦ ĐỊNH: dòng GỐC (trước nhánh này) dạy trợ lý trục "việc của tôi".
+    # Chỉ khẳng định hai chuỗi CÓ MẶT thì việc ai đó dán nguyên dòng cũ trở
+    # lại vẫn xanh. Chuỗi dưới đây nhận diện ĐÚNG dòng cũ và KHÔNG khớp dòng
+    # đã sửa ("Việc giao đích danh cho một người: list_my_activities (khi
+    # user hỏi ...)").
+    assert "Việc được giao: list_my_activities (dùng khi user hỏi" \
+        not in SYSTEM_PROMPT, "dòng gốc bị dán trở lại"
 
 
 def test_tool_truyen_dung_vai_xuong_work_queue(monkeypatch):

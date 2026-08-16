@@ -295,6 +295,15 @@ READ_CASES = [
     ("có phiếu giao nào trễ hạn không?", "list_late_deliveries", {}, ()),
     ("liệt kê hóa đơn quá hạn", "get_overdue_invoices", {}, ()),
     ("hàng nào cần đặt bổ sung?", "list_reorder_needed", {}, ()),
+    # Câu NGHIỆM THU SỐNG nguyên văn của tính năng bàn giao chéo bộ phận
+    # (docs/superpowers/plans/2026-08-13-cross-department-handoff.md:874, hàng
+    # #3 bảng nghiệm thu, vai kế toán). Đây là ca dễ bị list_pending_work cướp
+    # nhất — dòng prompt của tool mới tự nhận "có việc gì không" làm trigger,
+    # gần y hệt về mặt chữ. Nếu cướp, người dùng nhận một con số trần trụi
+    # thay vì tóm tắt + hạn + chứng từ của việc bàn giao: hồi quy IM LẶNG của
+    # một tính năng đã chạy thật. list_my_activities TRƯỚC ĐÂY CHƯA HỀ có ca
+    # eval nào, ở bất kỳ set nào — đây là lớp phủ đầu tiên của nó.
+    ("có việc gì chuyển cho tôi không?", "list_my_activities", {}, ()),
 ]
 
 # ── synthesis set (SP-0) ─────────────────────────────────────────────────────
