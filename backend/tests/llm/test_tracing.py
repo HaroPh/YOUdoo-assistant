@@ -1,13 +1,16 @@
 # backend/tests/llm/test_tracing.py
 """tracing.py: get_handler()/routed_span()/annotate_span() — không đường nào
 được phép ném exception ra ngoài (bất biến toàn module)."""
+import dataclasses
+
 import pytest
 from langchain_core.messages import AIMessage
 
 from src.llm import tracing
 from src.llm.budget import Verdict
 from src.llm.catalog import spec_for
-from src.llm.router import InvokeResult, RouteDecision, SkippedLink
+from src.llm.router import (AttemptError, InvokeResult, RouteDecision,
+                            SkippedLink)
 
 
 def test_get_handler_khong_throw_khi_construct_loi(monkeypatch):
@@ -110,6 +113,55 @@ def test_annotate_span_tach_empty_skip_khoi_budget_verdict():
 
     assert captured["budget_verdict"] == [("gemini-3.5-flash-lite", "cooldown")]
     assert captured["empty_skips"] == ["gemma-4-26b"]
+
+
+def test_metadata_mang_chi_phi_that_cua_luot_tut_mat_xich():
+    """I2: trước bản sửa, trace chỉ có actual_tokens của lượt ĐƯỢC TRẢ VỀ —
+    lượt bị vứt vì phản hồi rỗng đốt token thật (sổ ngân sách đã đếm) nhưng
+    vô hình trên Langfuse. Hai khoá để RIÊNG, không cộng sẵn vào
+    actual_tokens (bất biến 'không tự tính lại tổng token')."""
+    captured = {}
+
+    class _FakeSpan:
+        def update(self, *, metadata):
+            captured.update(metadata)
+
+    decision = RouteDecision(
+        role="router", spec=spec_for("groq-gpt-oss-20b"), fallback_depth=1,
+        skipped=(SkippedLink("gemini-3.1-flash-lite", Verdict.EMPTY),),
+        base_tokens=123)
+    result = InvokeResult(
+        message=AIMessage(content="ok"), decision=decision,
+        prompt_tokens=10, completion_tokens=20, total_tokens=800,
+        attempts=(AttemptError("gemini-3.1-flash-lite", "phản hồi rỗng"),),
+        discarded_tokens=2406)
+
+    tracing.annotate_span(_FakeSpan(), decision, result)
+
+    assert captured["actual_tokens"] == 800
+    assert captured["discarded_tokens"] == 2406
+    assert captured["attempts"] == [("gemini-3.1-flash-lite", "phản hồi rỗng")]
+
+
+def test_metadata_cat_ngan_loi_nguyen_van_cua_nha_cung_cap():
+    """a.error có thể là nguyên văn exception provider — dài, đôi khi kèm
+    payload. Trace cần đủ chữ để nhận ra loại lỗi, không cần cả stack."""
+    captured = {}
+
+    class _FakeSpan:
+        def update(self, *, metadata):
+            captured.update(metadata)
+
+    decision, result = _fake_decision_and_result()
+    dai = "x" * 500
+    result = dataclasses.replace(
+        result, attempts=(AttemptError("groq-gpt-oss-20b", dai),))
+
+    tracing.annotate_span(_FakeSpan(), decision, result)
+
+    alias, loi = captured["attempts"][0]
+    assert alias == "groq-gpt-oss-20b"
+    assert len(loi) == 200
 
 
 def test_routed_span_gan_dung_span_lam_cha_qua_otel_that(monkeypatch):

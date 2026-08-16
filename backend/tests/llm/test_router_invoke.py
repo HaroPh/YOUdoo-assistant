@@ -506,3 +506,72 @@ async def test_ainvoke_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     assert [s.alias for s in exc.value.skipped] == [
         "gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"]
     assert len(khong_duoc_cham.calls) == 0
+
+
+# ── discarded_tokens: chi phí THẬT của một lượt tụt mắt xích ──────────────────
+# Sổ ngân sách đã đếm đủ từ đầu (test_luot_bi_bo_van_duoc_ghi_so_ngan_sach),
+# nhưng InvokeResult.total_tokens chỉ mang lượt ĐƯỢC TRẢ VỀ — nên Langfuse
+# báo một lượt router tốn 800 token trong khi thật sự tốn 2406+800.
+
+
+def test_token_luot_bi_bo_vao_discarded_khong_vao_total(clock):
+    rong = FakeChatClient([fake_ai_rong(total=2406)])
+    tot = FakeChatClient([fake_ai("ok", total=800)])
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+
+    got = r.invoke("router", MSGS)
+
+    # total_tokens giữ nguyên nghĩa "con số provider báo cho ĐÚNG lượt này" —
+    # cộng gộp vào đây sẽ phá bất biến toàn dự án.
+    assert got.total_tokens == 800
+    assert got.discarded_tokens == 2406
+
+
+def test_khong_tut_mat_xich_thi_discarded_bang_khong(clock):
+    tot = FakeChatClient([fake_ai("ok", total=800)])
+    r = _router(clock, {"gemini-3.1-flash-lite": tot})
+
+    got = r.invoke("router", MSGS)
+
+    assert got.discarded_tokens == 0
+
+
+def test_moi_mat_xich_deu_rong_thi_khong_dem_hai_lan_luot_cuoi(clock):
+    """Ca dễ sai nhất: khi cạn chuỗi vì rỗng, kết quả TRẢ VỀ chính là lượt
+    rỗng cuối cùng. Token của nó đã nằm ở total_tokens, cộng thêm vào
+    discarded là đếm hai lần đúng một lượt gọi."""
+    rong1 = FakeChatClient([fake_ai_rong(total=2406)])
+    rong2 = FakeChatClient([fake_ai_rong(total=1500)])
+    r = _router(clock, {"gemini-3.1-flash-lite": rong1,
+                        "groq-llama-3.3-70b": rong2})
+
+    got = r.invoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
+
+    assert got.total_tokens == 1500        # lượt cuối, được trả về
+    assert got.discarded_tokens == 2406    # CHỈ lượt đầu
+    assert got.total_tokens + got.discarded_tokens == 3906
+
+
+async def test_ainvoke_cung_dem_discarded(clock):
+    """invoke và ainvoke là HAI thân hàm riêng — đường async mới là đường
+    production, và lớp lỗi 'sửa một quên một' đã xảy ra thật ở file này."""
+    rong = FakeChatClient([fake_ai_rong(total=2406)])
+    tot = FakeChatClient([fake_ai("ok", total=800)])
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+
+    got = await r.ainvoke("router", MSGS)
+
+    assert got.total_tokens == 800
+    assert got.discarded_tokens == 2406
+
+
+async def test_ainvoke_moi_mat_xich_deu_rong_khong_dem_hai_lan(clock):
+    rong1 = FakeChatClient([fake_ai_rong(total=2406)])
+    rong2 = FakeChatClient([fake_ai_rong(total=1500)])
+    r = _router(clock, {"gemini-3.1-flash-lite": rong1,
+                        "groq-llama-3.3-70b": rong2})
+
+    got = await r.ainvoke("fusion", MSGS)
+
+    assert got.total_tokens == 1500
+    assert got.discarded_tokens == 2406

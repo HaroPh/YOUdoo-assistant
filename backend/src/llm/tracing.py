@@ -81,7 +81,14 @@ def _metadata(decision, result) -> dict:
     lời nổi prompt này trong CHÍNH lượt gọi này). Gộp chung vào
     budget_verdict sẽ làm ai đó truy vấn khoá này để đếm số lần cạn hạn mức
     đếm dư. Tách sang khoá riêng empty_skips (danh sách alias), phân biệt
-    bằng Verdict.EMPTY chứ không so chuỗi."""
+    bằng Verdict.EMPTY chứ không so chuỗi.
+
+    actual_tokens là token của lượt ĐƯỢC TRẢ VỀ, KHÔNG phải chi phí thật của
+    lời gọi: một lượt tụt mắt xích còn đốt discarded_tokens ở những lượt bị
+    vứt. Hai con số để RIÊNG chứ không cộng sẵn — cộng vào actual_tokens sẽ
+    làm nó lệch khỏi con số provider báo cho đúng lượt đó, phá bất biến
+    "không bao giờ tự tính lại tổng token" của toàn dự án. Muốn chi phí thật
+    thì cộng ở nơi truy vấn."""
     return {
         "role": decision.role,
         "alias": decision.spec.alias,
@@ -95,6 +102,12 @@ def _metadata(decision, result) -> dict:
                         if s.verdict is Verdict.EMPTY],
         "est_tokens": decision.base_tokens,
         "actual_tokens": result.total_tokens,
+        "discarded_tokens": getattr(result, "discarded_tokens", 0),
+        # Cắt 200 ký tự: a.error có thể là nguyên văn exception nhà cung cấp
+        # (dài, đôi khi kèm payload). Trace là chỗ chẩn đoán, cần alias + đủ
+        # chữ để nhận ra loại lỗi, không cần cả stack.
+        "attempts": [(a.alias, (a.error or "")[:200])
+                     for a in getattr(result, "attempts", ())],
     }
 
 
