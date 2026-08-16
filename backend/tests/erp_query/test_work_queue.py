@@ -304,3 +304,35 @@ def test_prompt_khong_con_day_ket_luan_tu_mot_hang_doi():
 
     assert "list_pending_work" in SYSTEM_PROMPT
     assert "KHÔNG được kết luận" in SYSTEM_PROMPT
+
+
+def test_tool_truyen_dung_vai_xuong_work_queue(monkeypatch):
+    """Chặng CUỐI của dây nối vai: tools.py → work_queue.list_pending_work.
+
+    test_read_tools_role.py đã khoá chặng graph.py → build_erp_query_tools vì
+    một tool anh em từng có đúng lỗ hổng này. Chặng sau nó thì chưa: đo bằng
+    cách ép wrapper luôn truyền None, 1564/1565 test vẫn XANH — nghĩa là toàn
+    bộ việc xếp hàng đợi theo bộ phận (Task 2) có thể chết lặng lẽ mà không
+    test nào đỏ."""
+    import src.erp_query.tools as tmod
+    from src.erp_query.tools import build_erp_query_tools
+
+    bat = {}
+
+    def _gia(role=None):
+        bat["role"] = role
+        return _ok({"checked": [], "not_checked": [], "failed": []})
+
+    monkeypatch.setattr(tmod.work_queue, "list_pending_work", _gia)
+
+    class _Cfg:
+        name = "accounting"
+        own = set()
+        unrestricted = False
+
+    tool = next(t for t in build_erp_query_tools(_Cfg())
+                if t.name == "list_pending_work")
+    tool.invoke({})
+
+    assert bat["role"] == "accounting", (
+        f"wrapper không truyền vai xuống work_queue: {bat.get('role')!r}")
