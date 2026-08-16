@@ -445,7 +445,7 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None,
             [SystemMessage(content=prompt),
              HumanMessage(content=text)]))
         lat.append(ms)
-        got, _sop = parse_proposal(resp.content, valid_sops)
+        got, _sop, _depth = parse_proposal(resp.content, valid_sops)
         if got != expected:
             return {"text": text, "expected": expected, "got": got}
         return None
@@ -483,7 +483,7 @@ async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None,
         resp, ms = await _timed(llm.ainvoke(
             [SystemMessage(content=prompt), HumanMessage(content=text)]))
         lat.append(ms)
-        intent, sop = parse_proposal(resp.content, valid_sops)
+        intent, sop, depth = parse_proposal(resp.content, valid_sops)
         got = decide_route({"messages": [HumanMessage(content=text)],
                             "intent": intent, "sop": sop})
         if got != expected:

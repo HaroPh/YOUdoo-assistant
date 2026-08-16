@@ -13,6 +13,10 @@ class ERPAgentState(TypedDict):
                                   # nên không sống sót sang lượt sau; quyết
                                   # định cuối vẫn do routing.decide_route
                                   # (phủ quyết tất định), không do trường này.
+    depth: str | None             # độ sâu SOP router đề cử: "full_sop" |
+                                  # "one_step" | "unsure" | "none". TRANSIENT
+                                  # y hệt `sop` — intent_router ghi khoá này
+                                  # trên MỌI return. "none" khi sop rỗng.
     pending_action: dict | None   # {"tool": str, "args": dict, "summary": str}
     confirmed: bool | None        # None=not asked, True=yes, False=no
     last_write: dict | None       # last write result handle:

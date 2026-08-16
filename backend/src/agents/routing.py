@@ -61,22 +61,28 @@ from .skill_gate import _fold
 from .confirmation import CONFIRM, classify_keyword
 
 VALID_INTENTS = {"erp_read", "erp_write", "rag", "mixed", "unknown"}
+# Độ sâu — CÂU HỎI THỨ HAI, tách khỏi `sop`. Trước 2026-08-16 hai câu hỏi này
+# gộp vào một trường: `sop` vừa phải nói việc thuộc miền nào, vừa phải đoán
+# chạy sâu tới đâu. Đó là nguyên nhân ca "quy trình nhập kho cho đơn mua
+# P00021" hỏng bền bỉ từ 2026-07-16 (cụm đó nằm ở CẢ vế Dùng-khi lẫn
+# KHÔNG-dùng-khi của mô tả skill).
+VALID_DEPTHS = {"full_sop", "one_step", "unsure", "none"}
 
 
 class RouteProposal(NamedTuple):
     """Đầu ra của LỚP 1 — ĐỀ CỬ, chưa phải quyết định định tuyến.
 
-    PHẢI là NamedTuple, KHÔNG được đổi sang dataclass: eval_sop_select
-    (evals/run_eval.py) unpack kiểu tuple (`intent, sop = parse_proposal(...)`).
-    NamedTuple vẫn LÀ tuple nên chỗ đó không gãy. Đây là ràng buộc có test
-    canh (test_route_proposal_unpacks_as_tuple), không phải sở thích.
+    PHẢI là NamedTuple, KHÔNG được đổi sang dataclass: run_eval.py unpack
+    kiểu tuple ở hai chỗ. NamedTuple vẫn LÀ tuple nên chỗ đó không gãy. Đây
+    là ràng buộc có test canh (test_route_proposal_unpacks_as_tuple).
     """
     intent: str          # luôn thuộc VALID_INTENTS; "unknown" khi không parse được
-    sop: str | None      # ĐỀ CỬ — lớp 2 (decide_route) có quyền bỏ
+    sop: str | None      # MIỀN nghiệp vụ — lớp 2 (decide_route) có quyền bỏ
+    depth: str           # luôn thuộc VALID_DEPTHS; "none" khi sop is None
 
 
 def parse_proposal(text: str, valid_sops) -> RouteProposal:
-    """Parse hợp đồng 2 dòng của router. FAIL AN TOÀN ở mọi hướng:
+    """Parse hợp đồng 3 dòng của router. FAIL AN TOÀN ở mọi hướng:
 
     - intent không nhận ra → "unknown" (hành vi cũ);
     - sop không nằm trong valid_sops → None. Tên worker model bịa ra KHÔNG BAO
@@ -84,9 +90,16 @@ def parse_proposal(text: str, valid_sops) -> RouteProposal:
       lỗi định tuyến giữa một lượt chat thật;
     - không thấy dòng "intent:" nào → thử đọc cả chuỗi như MỘT TỪ intent (hợp
       đồng CŨ). Model nhỏ hay bỏ qua format; rơi về đúng hành vi hôm nay tốt
-      hơn là rơi về "unknown"."""
+      hơn là rơi về "unknown";
+    - sop rỗng → depth LUÔN "none", kể cả khi model điền bừa (đo được ở spike
+      vòng 1: model điền depth vào cả lượt sop rỗng);
+    - có sop nhưng depth không đọc được → "full_sop". FAIL AN TOÀN: chiều
+      "one_step" là chiều BỎ QUA các bước kiểm tra của SOP, không bao giờ được
+      là mặc định của một lỗi parse.
+    """
     intent: str | None = None
     sop: str | None = None
+    depth: str | None = None
     for line in (text or "").splitlines():
         stripped = line.strip()
         low = stripped.lower()
@@ -98,10 +111,18 @@ def parse_proposal(text: str, valid_sops) -> RouteProposal:
             value = stripped[len("sop:"):].strip()
             if value in valid_sops:
                 sop = value
+        elif low.startswith("depth:"):
+            value = low[len("depth:"):].strip()
+            if value in VALID_DEPTHS:
+                depth = value
     if intent is None:
         bare = (text or "").strip().lower()
         intent = bare if bare in VALID_INTENTS else "unknown"
-    return RouteProposal(intent, sop)
+    if sop is None:
+        depth = "none"
+    elif depth in (None, "none"):
+        depth = "full_sop"
+    return RouteProposal(intent, sop, depth)
 
 
 def make_intent_router_node(llm, worker_block: str = "", valid_sops=frozenset()):
@@ -127,16 +148,16 @@ def make_intent_router_node(llm, worker_block: str = "", valid_sops=frozenset())
             None,
         )
         if not last_human:
-            return {"intent": "unknown", "sop": None}
+            return {"intent": "unknown", "sop": None, "depth": "none"}
 
         response = await llm.ainvoke([
             SystemMessage(content=prompt),
             HumanMessage(content=last_human.content),
         ])
-        intent, sop = parse_proposal(response.content, valid_sops)
-        # LUÔN ghi khoá "sop" (kể cả None): nó TRANSIENT, đề cử của lượt trước
-        # không được sống sót sang lượt sau.
-        return {"intent": intent, "sop": sop}
+        intent, sop, depth = parse_proposal(response.content, valid_sops)
+        # LUÔN ghi cả ba khoá (kể cả None/"none"): chúng TRANSIENT, đề cử của
+        # lượt trước không được sống sót sang lượt sau.
+        return {"intent": intent, "sop": sop, "depth": depth}
 
     return intent_router
 
