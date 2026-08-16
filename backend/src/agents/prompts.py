@@ -31,9 +31,10 @@ Dòng này là tín hiệu nội bộ, sẽ bị hệ thống xoá trước khi 
 # thụt (điều kiện lên sóng §5.3).
 INTENT_ROUTER_PROMPT = """Classify the user's latest message.
 
-Reply with EXACTLY two lines and nothing else (no punctuation, no explanation):
+Reply with EXACTLY three lines and nothing else (no punctuation, no explanation):
 intent: <one intent word>
 sop: <one SOP worker name, or leave empty>
+depth: <full_sop | one_step | unsure | none>
 
 intent — choose EXACTLY ONE of:
 erp_read   — query / read data from ERP: orders, inventory, customers, suppliers, revenue, top products, bill of materials (BoM) / production recipes, manufacturing orders, tasks/activities assigned to the user ("việc của tôi", "có việc gì chuyển cho tôi không")
@@ -47,13 +48,28 @@ Rules for intent:
 - When the question needs a policy/document AND specific ERP records together, choose mixed.
 - Greetings / small talk → unknown.
 
-Rules for sop — fill it ONLY when the user is asking to EXECUTE a listed
-business procedure end-to-end. Leave it empty (write "sop:" with nothing after
-it) when ANY of these holds:
-- the user is only ASKING ABOUT a procedure — that is a documentation lookup;
-- the user gives a plain one-step command without procedure wording;
-- no worker in the list below matches.
-Never invent a worker name that is not listed."""
+Rules for sop — this field names the BUSINESS DOMAIN of the work, nothing
+else. Judge by meaning, not by wording, and IGNORE how short or long the
+request is. Fill it whenever the user wants work CARRIED OUT in one of the
+domains listed below, no matter how briefly they say it. Leave it empty
+("sop:" with nothing after) ONLY when:
+- the user is merely ASKING ABOUT a procedure or policy (documentation lookup), or
+- the work does not belong to any domain listed below.
+Do NOT leave it empty merely because the command is short.
+Never invent a worker name that is not listed.
+
+Rules for depth — how much of the procedure the user wants carried out.
+Write "none" when sop is empty. Otherwise choose:
+- full_sop  — they want the complete procedure including its checks. Signals:
+  they say "quy trình" / "SOP" / "đầy đủ" / "theo đúng quy trình"; or they ask
+  to verify/count/compare/inspect; or they state a condition; or they describe
+  several steps. Asking for the procedure BY NAME is the strongest signal.
+- one_step  — they clearly want it done immediately without extra checks:
+  words like "luôn", "ngay", or a bare command naming the action and the record.
+- unsure    — the request names the domain and the record but gives NO signal
+  either way, so both readings are equally reasonable.
+Do not guess between full_sop and one_step. If there is no real signal, say
+unsure — a wrong guess either skips safety checks or wastes the user's time."""
 
 
 def render_intent_router_prompt(worker_block: str) -> str:

@@ -208,3 +208,31 @@ def test_hop_dong_hai_dong_cu_van_doc_duoc():
     from src.agents.routing import parse_proposal
     assert parse_proposal("intent: rag\nsop:", SOPS) == ("rag", None, "none")
     assert parse_proposal("erp_read", SOPS) == ("erp_read", None, "none")
+
+
+# ── Hợp đồng 3 dòng + luật depth ──────────────────────────────────────────────
+
+
+def test_prompt_khai_bao_du_bon_gia_tri_depth():
+    """Prompt và VALID_DEPTHS phải khớp nhau. Lệch một giá trị nghĩa là model
+    được dạy nói một từ mà parse_proposal sẽ vứt đi — im lặng."""
+    from src.agents.routing import VALID_DEPTHS
+    for gia_tri in VALID_DEPTHS:
+        assert gia_tri in INTENT_ROUTER_PROMPT, gia_tri
+
+
+def test_prompt_khong_con_bat_sop_rong_vi_cau_ngan():
+    """Luật CŨ bảo để `sop` rỗng khi 'a plain one-step command'. Chính luật đó
+    làm 2/3 skill không nhận diện được câu đời thật. Nó phải BIẾN MẤT khỏi vế
+    sop và sống ở luật depth."""
+    assert "one-step command" not in INTENT_ROUTER_PROMPT
+    assert "Do NOT leave it empty merely because the command is short" \
+        in INTENT_ROUTER_PROMPT
+
+
+def test_prompt_day_goi_ten_quy_trinh_la_tin_hieu_full_sop():
+    """Spike vòng 2 bỏ sót đúng dòng này và hậu quả là 3 câu yêu cầu quy trình
+    đầy đủ bị gán one_step — tức BỎ QUA kiểm tra ở đúng chỗ người dùng đã xin
+    kiểm tra. Ghim lại."""
+    assert "quy trình" in INTENT_ROUTER_PROMPT
+    assert "strongest signal" in INTENT_ROUTER_PROMPT
