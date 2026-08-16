@@ -147,15 +147,42 @@ def test_ref_shaped_invoice_in_partner_rejected(monkeypatch):
 
 
 def test_tool_without_target_fields_unaffected(monkeypatch):
-    # get_product_price has partner_id (int, named "partner_id" not
-    # "partner") — proves the check matches on exact field NAME, not any
-    # string-typed field or substring match.
+    # find_product has name_or_code — CHỨA "name" nhưng không PHẢI "name",
+    # nên chứng minh phép kiểm khớp theo TÊN FIELD chính xác, không phải
+    # chuỗi con. Truyền thẳng một giá trị ref-shaped: nếu phép kiểm lỡ khớp
+    # theo chuỗi con thì đúng lượt gọi này sẽ ném ValidationError.
+    #
+    # Neo trước đây là partner_id của get_product_price; tham số đó đã bị gỡ
+    # khỏi @tool wrapper (nó không bao giờ ảnh hưởng giá trả về), nên neo
+    # chuyển sang đây.
     import src.erp_query.tools as tmod
-    monkeypatch.setattr(tmod.sales, "get_product_price",
+    monkeypatch.setattr(tmod.inventory, "find_product",
                         lambda *a, **kw: {"status": "success", "data": {}, "display": "ok"})
-    tool = next(t for t in build_erp_query_tools() if t.name == "get_product_price")
-    out = json.loads(tool.invoke({"product_id": 1}))
+    tool = next(t for t in build_erp_query_tools() if t.name == "find_product")
+    out = json.loads(tool.invoke({"name_or_code": "S00059"}))
     assert out["status"] == "success"
+
+
+def test_get_product_price_khong_lo_partner_id_ra_schema(monkeypatch):
+    """Giá trả về LUÔN là list_price, không phụ thuộc khách hàng (sales.py
+    ghi rõ vì sao: gateway chỉ-đọc không gọi được ORM method cần cho
+    pricelist). Để partner_id trong chữ ký @tool là mời LLM tin rằng truyền
+    khách vào sẽ ra giá riêng của khách đó — nên nó phải VẮNG khỏi schema,
+    và hàm business-layer phải luôn nhận partner_id=None."""
+    import src.erp_query.tools as tmod
+    goi = {}
+
+    def ghi_lai(product_id, partner_id=None, qty=1.0, **kw):
+        goi.update(product_id=product_id, partner_id=partner_id, qty=qty)
+        return {"status": "success", "data": {}, "display": "ok"}
+
+    monkeypatch.setattr(tmod.sales, "get_product_price", ghi_lai)
+    tool = next(t for t in build_erp_query_tools() if t.name == "get_product_price")
+
+    assert "partner_id" not in tool.args_schema.model_fields
+    out = json.loads(tool.invoke({"product_id": 108, "qty": 50}))
+    assert out["status"] == "success"
+    assert goi == {"product_id": 108, "partner_id": None, "qty": 50}
 
 
 def test_zero_param_tool_unaffected(monkeypatch):

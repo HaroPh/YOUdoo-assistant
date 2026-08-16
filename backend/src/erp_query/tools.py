@@ -93,9 +93,12 @@ def build_erp_query_tools(role_cfg=None) -> list:
         return _json(sales.get_sale_order_detail(ref))
 
     @tool
-    def get_product_price(product_id: int, partner_id: int = 0, qty: float = 1.0) -> str:
-        """Giá bán hiệu lực của 1 sản phẩm (theo bảng giá), tùy chọn cho 1 khách + số lượng."""
-        return _json(sales.get_product_price(product_id, partner_id or None, qty))
+    def get_product_price(product_id: int, qty: float = 1.0) -> str:
+        """Giá NIÊM YẾT (list_price) của 1 sản phẩm. Mọi khách hàng đều cùng
+        một giá: tool này KHÔNG áp bảng giá (pricelist) hay giá riêng theo
+        khách — sales.get_product_price ghi rõ vì sao không làm được. qty chỉ
+        được ghi kèm vào câu trả lời, KHÔNG đổi đơn giá."""
+        return _json(sales.get_product_price(product_id, None, qty))
 
     @tool
     def sales_summary(period: str = "month") -> str:
