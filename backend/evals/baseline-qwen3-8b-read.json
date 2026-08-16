@@ -1,11 +1,25 @@
 {
   "set": "read",
-  "n": 20,
-  "tool_acc": 1.0,
-  "param_acc": 1.0,
+  "n": 26,
+  "tool_acc": 0.9615384615384616,
+  "param_acc": 0.9615384615384616,
   "fabricated_param": 0,
-  "lat_p50": 2863,
-  "lat_p95": 7228,
-  "fails": [],
+  "lat_p50": 892,
+  "lat_p95": 4799,
+  "fails": [
+    {
+      "text": "khách Azure Interior thông tin thế nào?",
+      "expected_tool": "find_customer",
+      "got_tool": "get_customer_detail",
+      "expected_args": {
+        "name": "Azure Interior"
+      },
+      "got_args": {
+        "name": "Azure Interior"
+      },
+      "tool_ok": false,
+      "fabricated": []
+    }
+  ],
   "errors": []
 }

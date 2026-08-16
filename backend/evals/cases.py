@@ -252,6 +252,13 @@ READ_CASES = [
     # tool LangChain không expose nó nên model không thể/không nên đưa "limit"
     # vào tool call. exp_args để rỗng như các case tham số-tùy-chọn khác.
     ("top 5 sản phẩm bán chạy nhất", "top_products", {}, ()),
+    # Đo 2026-08-15: ca này trượt reproducibly (3/3 lần, kể cả với prompt và
+    # bộ tool GỐC trước nhánh feat/morning-work-queue — cô lập bằng cách loại
+    # list_pending_work khỏi tool list và revert SYSTEM_PROMPT về bản cũ,
+    # vẫn trượt y hệt) — model chọn get_customer_detail thay vì find_customer.
+    # KHÔNG PHẢI hồi quy của nhánh này. Baseline cũ (n=20, tool_acc=1.0) là
+    # một lần chụp may mắn trên ca biên vốn không ổn định với model này.
+    # Ngoài phạm vi plan này — cần một investigation riêng nếu muốn sửa.
     ("khách Azure Interior thông tin thế nào?", "find_customer",
      {"name": "Azure Interior"}, ("name",)),
     ("hóa đơn nào đang quá hạn?", "get_overdue_invoices", {}, ()),
@@ -275,6 +282,19 @@ READ_CASES = [
     ("danh sách cơ hội đang mở", "list_crm_leads", {}, ()),
     ("chi tiết đơn mua P00003", "get_purchase_order_detail",
      {"ref": "P00003"}, ("ref",)),
+    # ── Bản tin việc cần xử lý (2026-08-15) ─────────────────────────────────
+    # Nhóm A — câu buổi sáng phải đi tới tool tổng hợp. Đo trước khi có tool
+    # này: 3/3 vai trả lời "không có việc nào được giao" trong khi hệ thống
+    # có 29 phiếu trễ và 22 hóa đơn quá hạn.
+    ("hôm nay tôi cần xử lý gì?", "list_pending_work", {}, ()),
+    ("có việc gì cần làm không?", "list_pending_work", {}, ()),
+    ("còn gì nữa không?", "list_pending_work", {}, ()),
+    # Nhóm B — CHỐNG CƯỚP. Câu nêu rõ MỘT loại chứng từ phải đi thẳng tool
+    # của loại đó, không bị hút về tool tổng hợp. Thiếu nhóm này thì tool mới
+    # có thể nuốt hết mà điểm vẫn đẹp.
+    ("có phiếu giao nào trễ hạn không?", "list_late_deliveries", {}, ()),
+    ("liệt kê hóa đơn quá hạn", "get_overdue_invoices", {}, ()),
+    ("hàng nào cần đặt bổ sung?", "list_reorder_needed", {}, ()),
 ]
 
 # ── synthesis set (SP-0) ─────────────────────────────────────────────────────
