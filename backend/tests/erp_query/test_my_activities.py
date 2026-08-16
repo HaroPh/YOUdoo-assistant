@@ -58,3 +58,20 @@ def test_gateway_hong_thi_tra_loi_khong_vo():
 
     got = crm.list_my_activities("ai-accounting", gw=Hong())
     assert got["status"] == "error"
+
+
+def test_capped_false_duoi_gioi_han():
+    got = crm.list_my_activities("ai-accounting", limit=5,
+                                 gw=FakeGateway([{"id": 1, "summary": "a",
+                                                  "res_model": "sale.order",
+                                                  "res_name": "S1"}]))
+    assert got["data"]["capped"] is False
+    assert "có thể còn nhiều hơn" not in got["display"]
+
+
+def test_capped_true_cham_tran():
+    rows = [{"id": i, "summary": f"việc {i}", "res_model": "sale.order",
+             "res_name": f"S{i}"} for i in range(5)]
+    got = crm.list_my_activities("ai-accounting", limit=5, gw=FakeGateway(rows))
+    assert got["data"]["capped"] is True
+    assert "có thể còn nhiều hơn — đã đạt giới hạn 5 dòng" in got["display"]

@@ -86,7 +86,8 @@ def list_my_activities(login, limit=20, *, gw=None):
     active_test=False mới tách được hai trường hợp."""
     login = str(login or "").strip()
     if not login:
-        return ok({"rows": []}, "Không xác định được tài khoản để tra việc.")
+        return ok({"rows": [], "count": 0, "capped": False},
+                  "Không xác định được tài khoản để tra việc.")
     gw = gw or default_gateway()
     try:
         rows = gw.search_read("mail.activity", [["user_id.login", "=", login]],
@@ -96,10 +97,17 @@ def list_my_activities(login, limit=20, *, gw=None):
         return fail_read("list_my_activities",
                          f"Lỗi tra việc được giao — không lấy được dữ liệu. "
                          f"Nếu lặp lại, báo quản trị viên.", e)
+    capped = len(rows) >= limit
     if not rows:
-        return ok({"rows": []}, "Hiện không có việc nào được giao cho bạn.")
+        msg = "Hiện không có việc nào được giao cho bạn."
+        if capped:
+            msg += f" (có thể còn nhiều hơn — đã đạt giới hạn {limit} dòng)"
+        return ok({"rows": [], "count": 0, "capped": capped}, msg)
     lines = [f"- {r.get('res_name') or r.get('res_model')}: "
             f"{r.get('summary') or '(không có mô tả)'} "
             f"(hạn {r.get('date_deadline') or 'chưa đặt'})" for r in rows]
-    return ok({"rows": rows},
-              f"{len(rows)} việc đang được giao cho bạn:\n" + "\n".join(lines))
+    display_text = f"{len(rows)} việc đang được giao cho bạn"
+    if capped:
+        display_text += f" (có thể còn nhiều hơn — đã đạt giới hạn {limit} dòng)"
+    display_text += ":\n" + "\n".join(lines)
+    return ok({"rows": rows, "count": len(rows), "capped": capped}, display_text)
