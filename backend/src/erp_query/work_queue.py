@@ -20,13 +20,22 @@ _FAKE_QUEUES: dict = {}
 # ── Tầng 1: bản thân định nghĩa đã là việc tồn đọng ───────────────────────────
 # (tên, nhãn tiếng Việt, bộ phận, hàm gọi). Bộ phận None = việc giao đích danh,
 # luôn đứng đầu, không xếp theo bộ phận.
+# ⚠️ KHÔNG hạ `limit` của bất kỳ hàng đợi nào xuống mức có thể CHẶN số đếm
+# thật. _count ưu tiên data["count"], nhưng cả accounting.get_overdue_invoices
+# lẫn crm.list_my_activities tính count = len(rows) SAU khi search_read đã áp
+# limit — nên một limit thấp làm con số tiêu đề sai mà không có dấu hiệu nào.
+# Đo 2026-08-15: có 22 hóa đơn quá hạn thật; limit=20 làm bản tin báo 20.
+# Đúng con bug tính năng này sinh ra để diệt, tái sinh ở TẦNG GỌI chứ không
+# phải ở _count. Nên để hàm tự dùng mặc định của nó (get_overdue_invoices: 50)
+# hoặc trần 100 — quy ước sẵn có của repo cho "đủ lớn để không cần chặn"
+# (inventory/purchase/mrp đều dùng 100 kèm cờ `capped`).
 TIER_ONE = [
     ("list_my_activities",   "việc được giao đích danh", None,
-     lambda role: crm.list_my_activities(f"ai-{role}" if role else "", limit=20)),
+     lambda role: crm.list_my_activities(f"ai-{role}" if role else "", limit=100)),
     ("list_late_deliveries", "phiếu giao/nhận trễ hạn",  "Kho",
      lambda role: inventory.list_late_deliveries()),
     ("get_overdue_invoices", "hóa đơn quá hạn",          "Kế toán",
-     lambda role: accounting.get_overdue_invoices(limit=20)),
+     lambda role: accounting.get_overdue_invoices()),
     ("list_reorder_needed",  "mặt hàng cần đặt bổ sung", "Mua hàng",
      lambda role: inventory.list_reorder_needed()),
     ("list_po_mismatches",   "đơn mua lệch hóa đơn",     "Mua hàng",

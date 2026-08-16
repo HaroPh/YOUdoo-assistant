@@ -125,6 +125,60 @@ def test_not_checked_mang_dung_tang_hai(gia_hang_doi):
     assert len(work_queue.TIER_TWO) >= 5
 
 
+def test_lambda_that_khong_truyen_limit_chan_duoc_so_dem(monkeypatch):
+    """Chạy CHÍNH các lambda trong TIER_ONE, không qua cửa sau _FAKE_QUEUES.
+
+    Vì sao cần: cả 14 test còn lại đều thay hàng đợi THEO TÊN qua _FAKE_QUEUES,
+    nên các lambda thật — nơi DUY NHẤT các tham số `limit=` tồn tại — chạy
+    KHÔNG LẦN NÀO trong cả bộ test. Lỗi thoát ra đúng khe đó: get_overdue_invoices
+    bị gọi với limit=20 trong khi thực tế có 22 hóa đơn quá hạn, nên con số
+    tiêu đề của bản tin sai mà mọi test vẫn xanh.
+
+    _count ưu tiên data["count"], nhưng với get_overdue_invoices và
+    list_my_activities thì count CHÍNH LÀ len(rows) sau khi search_read đã áp
+    limit — nên limit thấp = số đếm bị chặn, im lặng."""
+    goi = {}
+
+    def _ghi(ten):
+        def _fn(*a, **kw):
+            goi[ten] = {"args": a, "kwargs": kw}
+            return _ok({"rows": [], "count": 0})
+        return _fn
+
+    monkeypatch.setattr(work_queue, "_FAKE_QUEUES", {})   # tắt cửa sau
+    monkeypatch.setattr(work_queue.crm, "list_my_activities",
+                        _ghi("list_my_activities"))
+    monkeypatch.setattr(work_queue.inventory, "list_late_deliveries",
+                        _ghi("list_late_deliveries"))
+    monkeypatch.setattr(work_queue.accounting, "get_overdue_invoices",
+                        _ghi("get_overdue_invoices"))
+    monkeypatch.setattr(work_queue.inventory, "list_reorder_needed",
+                        _ghi("list_reorder_needed"))
+    monkeypatch.setattr(work_queue.purchase, "list_po_mismatches",
+                        _ghi("list_po_mismatches"))
+
+    work_queue.list_pending_work("accounting")
+
+    # Chốt chặn của chính test này: nếu cửa sau còn bật, hoặc lambda không
+    # chạy, `goi` rỗng và mọi khẳng định dưới đây đúng một cách rỗng tuếch.
+    assert set(goi) == {ten for ten, _, _, _ in work_queue.TIER_ONE}, (
+        f"lambda THẬT trong TIER_ONE không chạy — test không đo gì: {goi!r}")
+
+    # Số tham số VỊ TRÍ hợp lệ của từng hàng đợi. Chốt luôn cả đường này: nếu
+    # ai đó viết crm.list_my_activities("ai-x", 20) thì limit nằm ở args chứ
+    # không ở kwargs và sẽ lọt qua phép kiểm bên dưới.
+    vi_tri_toi_da = {"list_my_activities": 1}          # login; còn lại: 0
+    for ten, ghi_nhan in goi.items():
+        toi_da = vi_tri_toi_da.get(ten, 0)
+        assert len(ghi_nhan["args"]) <= toi_da, (
+            f"{ten} nhận {len(ghi_nhan['args'])} tham số vị trí (tối đa "
+            f"{toi_da}) — limit truyền theo vị trí sẽ lọt khỏi phép kiểm sau")
+        limit = ghi_nhan["kwargs"].get("limit")
+        assert limit is None or limit >= 50, (
+            f"{ten} bị gọi với limit={limit} — đủ thấp để CHẶN số đếm thật "
+            f"và làm sai con số tiêu đề của bản tin")
+
+
 def test_suy_bo_phan_tu_tool_so_huu():
     """Suy ra, KHÔNG khai bảng thứ hai. Ghim kết quả vì nó dựa một phần vào
     giá trị mà roles.py tự nhận là TUỲ TIỆN (log_activity/close_activity =
