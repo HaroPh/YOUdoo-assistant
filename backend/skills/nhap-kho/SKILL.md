@@ -1,16 +1,11 @@
 ---
 name: nhap-kho
 description: >-
-  Dùng khi người dùng muốn THỰC HIỆN việc nhập kho cho một đơn mua theo đúng
-  quy trình đầy đủ — kiểm đếm, đối chiếu số lượng, kiểm tra QC, rồi mới xác
-  nhận nhận hàng. Nhận diện theo Ý ĐỊNH, KHÔNG cần đúng chữ "quy trình": câu
-  nhắc tới kiểm đếm/đối chiếu/QC trước khi nhận, hoặc mô tả nhiều bước cũng
-  tính (vd "xác nhận đã kiểm đếm hàng cho đơn mua P00021 rồi mới nhập kho").
-  KHÔNG dùng khi: người dùng chỉ HỎI về quy trình nhập kho hoặc SOP nhập kho
-  (đó là tra cứu tài liệu), hoặc ra một lệnh nhận hàng NGẮN GỌN một bước,
-  không kèm điều kiện hay yêu cầu kiểm tra gì thêm (đó là lệnh ghi trực
-  tiếp, đi qua planner tier-1), hoặc người dùng muốn điều chỉnh tồn kho trực
-  tiếp không qua đơn mua.
+  Miền nhận hàng vào kho theo một đơn mua. Chọn worker này khi người dùng
+  muốn NHẬN HÀNG cho một đơn mua — kể cả câu rất ngắn, kể cả khi không nhắc
+  chữ "quy trình", kể cả khi chỉ mô tả tình huống ("hàng về rồi, xử lý giúp
+  tôi"). KHÔNG chọn khi người dùng chỉ hỏi quy trình nhập kho gồm những gì,
+  hoặc khi họ muốn điều chỉnh tồn kho trực tiếp không qua đơn mua.
 tools:
   read: [get_purchase_order_detail]
   write:

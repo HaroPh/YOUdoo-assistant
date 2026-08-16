@@ -25,8 +25,8 @@ def test_manifest_uses_entry_not_declarative_write():
 
 
 def test_description_has_both_clauses():
-    assert "Dùng khi" in SPEC.description
-    assert "KHÔNG dùng khi" in SPEC.description
+    assert "Chọn worker này khi" in SPEC.description
+    assert "KHÔNG chọn khi" in SPEC.description
 
 
 @pytest.mark.parametrize("tier,total,expected", [

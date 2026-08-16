@@ -44,8 +44,8 @@ def test_manifest_matches_source_module():
 
 
 def test_description_has_both_clauses():
-    assert "Dùng khi" in SPEC.description
-    assert "KHÔNG dùng khi" in SPEC.description
+    assert "Chọn worker này khi" in SPEC.description
+    assert "KHÔNG chọn khi" in SPEC.description
 
 
 @pytest.mark.asyncio

@@ -1,15 +1,11 @@
 ---
 name: giao-hang
 description: >-
-  Dùng khi người dùng muốn THỰC HIỆN việc giao hàng cho một đơn bán đã xác
-  nhận theo đúng quy trình đầy đủ — tra đơn, kiểm tra, rồi mới xác nhận giao.
-  Nhận diện theo Ý ĐỊNH, KHÔNG cần đúng chữ "quy trình": câu có yêu cầu kiểm
-  tra/đối chiếu trước khi giao, nêu điều kiện, hoặc mô tả nhiều bước cũng
-  tính (vd "giao hàng cho đơn S00012, đối chiếu số lượng trước khi giao").
-  KHÔNG dùng khi: người dùng chỉ HỎI về quy trình giao hàng (đó là tra cứu
-  tài liệu), hoặc ra một lệnh giao NGẮN GỌN một bước, không kèm điều kiện
-  hay yêu cầu kiểm tra gì thêm (đó là lệnh ghi trực tiếp, đi qua planner
-  tier-1).
+  Miền giao hàng cho đơn bán. Chọn worker này khi người dùng muốn ĐƯA HÀNG
+  ĐI GIAO cho một đơn bán — kể cả câu rất ngắn, kể cả khi không nhắc chữ
+  "quy trình", kể cả khi chỉ mô tả tình huống ("đóng gói xong rồi, cho đi
+  giao", "khách giục đơn này, xuất cho khách"). KHÔNG chọn khi người dùng
+  chỉ hỏi quy trình giao hàng gồm những gì.
 tools:
   read: [get_sale_order_detail]
   write:

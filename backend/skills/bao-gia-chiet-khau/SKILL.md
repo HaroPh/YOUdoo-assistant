@@ -1,11 +1,10 @@
 ---
 name: bao-gia-chiet-khau
 description: >-
-  Dùng khi người dùng muốn tạo báo giá CÓ CHIẾT KHẤU theo cấp khách hàng
-  (thường / thân thiết / đối tác chiến lược).
-  KHÔNG dùng khi: người dùng chỉ hỏi về chính sách chiết khấu (đó là tra cứu
-  tài liệu), hoặc muốn tạo báo giá thường không chiết khấu (đó là lệnh ghi
-  trực tiếp, đi qua planner tier-1).
+  Miền báo giá cho khách. Chọn worker này khi người dùng muốn LÀM một báo
+  giá / tính giá bán cho một khách hàng cụ thể — kể cả khi họ không nhắc tới
+  chữ "chiết khấu" (cấp khách và chiết khấu do chính quy trình xác định).
+  KHÔNG chọn khi người dùng chỉ hỏi về chính sách chiết khấu.
 entry: logic.py
 declares_tools: [create_discount_quote]
 ---
