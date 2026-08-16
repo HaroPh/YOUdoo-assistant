@@ -70,6 +70,12 @@ class InvokeResult:
     completion_tokens: int
     total_tokens: int
     attempts: tuple[AttemptError, ...]   # các mắt xích đã thử và hỏng
+    # Token của những lượt gọi ĐÃ TIÊU nhưng kết quả bị vứt (phản hồi rỗng ⇒
+    # tụt mắt xích). Sổ ngân sách đã tính chúng từ đầu (_finish chạy mọi lượt),
+    # nhưng total_tokens chỉ mang lượt ĐƯỢC TRẢ VỀ — nên nếu không có trường
+    # này thì trace báo một lượt router tốn ~370 token trong khi thật sự tốn
+    # 2406+370. Mặc định 0 để mọi chỗ dựng InvokeResult cũ còn nguyên nghĩa.
+    discarded_tokens: int = 0
 
 
 def _gop_content(content) -> str:
@@ -302,6 +308,7 @@ class Router:
         attempts: list[AttemptError] = []
         empty_aliases: set[str] = set()
         last_empty: InvokeResult | None = None
+        empty_totals: list[int] = []
         for _ in range(self._max_attempts(role, pin)):
             try:
                 decision = self.resolve(role, base, pin=pin,
@@ -325,17 +332,25 @@ class Router:
             # vì token đã tiêu thật.
             result = self._finish(decision, response, attempts)
             if _usable(result.message):
-                return result
+                return dataclasses.replace(result,
+                                           discarded_tokens=sum(empty_totals))
             self._log_empty(decision, response)
             attempts.append(AttemptError(decision.spec.alias,
                                          EMPTY_RESPONSE_REASON))
             empty_aliases.add(decision.spec.alias)
+            empty_totals.append(result.total_tokens)
             last_empty = result
         if last_empty is not None:
             # Cạn chuỗi vì rỗng → trả kết quả cuối, KHÔNG ném. Giữ hành vi
             # trước bản sửa làm sàn: không caller nào bắt ChainExhausted, nên
             # ném ở đây sẽ biến câu trả lời kém thành lỗi 500.
-            return dataclasses.replace(last_empty, attempts=tuple(attempts))
+            #
+            # [:-1] chứ không phải cả empty_totals: phần tử cuối LUÔN là
+            # last_empty (mỗi lần append liền sau đó gán last_empty = result),
+            # mà last_empty chính là kết quả TRẢ VỀ — token của nó đã nằm ở
+            # total_tokens, đếm thêm vào discarded là đếm hai lần.
+            return dataclasses.replace(last_empty, attempts=tuple(attempts),
+                                       discarded_tokens=sum(empty_totals[:-1]))
         raise ChainExhausted(role, tuple(
             SkippedLink(a.alias, Verdict.COOLDOWN) for a in attempts))
 
@@ -354,6 +369,7 @@ class Router:
         attempts: list[AttemptError] = []
         empty_aliases: set[str] = set()
         last_empty: InvokeResult | None = None
+        empty_totals: list[int] = []
         for _ in range(self._max_attempts(role, pin)):
             try:
                 decision = await asyncio.to_thread(
@@ -378,14 +394,19 @@ class Router:
             result = await asyncio.to_thread(self._finish, decision, response,
                                              attempts)
             if _usable(result.message):
-                return result
+                return dataclasses.replace(result,
+                                           discarded_tokens=sum(empty_totals))
             self._log_empty(decision, response)
             attempts.append(AttemptError(decision.spec.alias,
                                          EMPTY_RESPONSE_REASON))
             empty_aliases.add(decision.spec.alias)
+            empty_totals.append(result.total_tokens)
             last_empty = result
         if last_empty is not None:
-            return dataclasses.replace(last_empty, attempts=tuple(attempts))
+            # [:-1]: xem chú thích cùng chỗ ở invoke() — phần tử cuối chính là
+            # last_empty đang được trả về, token của nó không phải token phí.
+            return dataclasses.replace(last_empty, attempts=tuple(attempts),
+                                       discarded_tokens=sum(empty_totals[:-1]))
         raise ChainExhausted(role, tuple(
             SkippedLink(a.alias, Verdict.COOLDOWN) for a in attempts))
 
