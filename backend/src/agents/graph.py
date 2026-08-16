@@ -11,8 +11,9 @@ from .nodes import (
     make_erp_write_executor_node,
     make_rag_node,
     make_respond_unknown_node,
+    make_clarify_depth_node,
 )
-from .routing import make_intent_router_node, decide_route
+from .routing import make_intent_router_node, decide_route, route_after_clarify
 from .fanout import (make_fuse_answer_node, make_gather_docs_node,
                      make_gather_erp_node, make_mixed_node)
 from .write_registry import (WRITE_COORDINATORS, COORDINATED_TOOLS,
@@ -83,6 +84,7 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
         llms["fusion"], build_erp_query_tools(role_cfg)))
     g.add_node("fuse_answer", make_fuse_answer_node(llms["fusion"]))
     g.add_node("respond_unknown", make_respond_unknown_node(llms["chitchat"]))
+    g.add_node("clarify_depth", make_clarify_depth_node())
     for spec in WRITE_COORDINATORS.values():
         g.add_node(spec.node, spec.build(
             llms["planner"], tools_for_coordinator(spec, tools, mcp_all_tools)))
@@ -105,9 +107,17 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
         "rag": "rag",
         "mixed": "mixed",
         "unknown": "respond_unknown",
+        "clarify_depth": "clarify_depth",
     }
     intent_targets.update({s.name: s.name for s in skill_specs})
     g.add_conditional_edges("intent_router", decide_route, intent_targets)
+
+    # Sau khi người dùng chọn độ sâu: cùng tập đích với intent_targets phần
+    # SOP + erp_write. KHÔNG dùng lại intent_targets nguyên khối — clarify_depth
+    # trỏ về chính nó sẽ tạo vòng lặp.
+    clarify_targets = {"erp_write": "erp_write_planner"}
+    clarify_targets.update({s.name: s.name for s in skill_specs})
+    g.add_conditional_edges("clarify_depth", route_after_clarify, clarify_targets)
 
     g.add_edge("erp_read", END)
     write_targets = {END: END, "erp_write_executor": "erp_write_executor"}

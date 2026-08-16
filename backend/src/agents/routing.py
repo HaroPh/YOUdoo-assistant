@@ -270,8 +270,22 @@ def decide_route(state: ERPAgentState) -> str:
             # muốn cả quy trình.
             if depth == "one_step":
                 return "erp_write"
-            # TẠM THỜI: "unsure" rơi chung nhánh với "full_sop" vì node
-            # clarify_depth chưa tồn tại — trả một tên ngoài intent_targets sẽ
-            # làm LangGraph ném lỗi định tuyến giữa lượt chat thật.
+            if depth == "unsure":
+                return "clarify_depth"
             return sop
     return intent                 # phủ quyết: rớt sop, dùng intent
+
+
+def route_after_clarify(state: ERPAgentState) -> str:
+    """Đích sau khi người dùng đã chọn độ sâu. Cùng luật với decide_route,
+    nhưng KHÔNG chạy lại lớp phủ quyết câu-hỏi: lượt này người dùng vừa trả
+    lời một câu hỏi hai lựa chọn, không phải vừa gửi một yêu cầu mới.
+
+    `sop` TRANSIENT nên phòng trường hợp nó rỗng lúc quay lại: trả erp_write
+    thay vì một tên node không tồn tại (LangGraph sẽ ném lỗi định tuyến giữa
+    lượt chat thật).
+    """
+    sop = state.get("sop")
+    if not sop or state.get("depth") == "one_step":
+        return "erp_write"
+    return sop

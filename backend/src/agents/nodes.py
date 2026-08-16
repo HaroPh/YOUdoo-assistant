@@ -118,6 +118,48 @@ def make_respond_unknown_node(llm):
     return respond_unknown
 
 
+# ── clarify_depth ─────────────────────────────────────────────────────────────
+
+# id ĐI THẲNG vào state["depth"] qua Command(resume=...) của _decide_resume,
+# nên phải là giá trị VALID_DEPTHS, không phải nhãn hiển thị.
+CLARIFY_DEPTH_OPTIONS = [
+    {"id": "full_sop", "name": "Chạy đủ quy trình (có các bước kiểm tra)"},
+    {"id": "one_step", "name": "Làm nhanh một bước, bỏ qua kiểm tra"},
+]
+
+
+def make_clarify_depth_node():
+    """Hỏi người dùng muốn chạy đủ quy trình hay làm nhanh một bước.
+
+    CHỈ chạy khi router trả depth="unsure" — đo 2026-08-16 là 2/18 ca (11%),
+    cả hai đều mơ hồ thật và tất định qua 3 lượt.
+
+    Dùng interrupt(kind="disambiguation") CÓ SẴN, không phát minh kind mới:
+    erp_agent._decide_resume parse lựa chọn TẤT ĐỊNH cho kind đó qua
+    parse_selection (nhận cả số thứ tự lẫn tên). Rơi về "confirm" sẽ ép câu
+    trả lời qua bộ phân loại có/không và phá hẳn lượt hỏi hai lựa chọn.
+
+    ⚠️ Tín hiệu sống qua lượt nằm ở TRẠNG THÁI PARKED do checkpointer giữ,
+    KHÔNG gắn lên AIMessage: bản đầu của cơ chế write-confirmation làm thế và
+    chết hoàn toàn trong production vì _invoke_fresh dựng lại kênh messages từ
+    payload client (main.py._filter_messages đã lược còn role+content).
+    """
+    async def clarify_depth(state: ERPAgentState) -> dict:
+        choice = _interrupt({
+            "kind": "disambiguation",
+            "question": "Bạn muốn chạy đủ quy trình (có các bước kiểm tra) "
+                        "hay làm nhanh một bước?",
+            "options": CLARIFY_DEPTH_OPTIONS,
+        })
+        # FAIL AN TOÀN: không hiểu câu trả lời thì chạy ĐỦ quy trình. Chiều
+        # one_step là chiều BỎ QUA kiểm tra.
+        if choice not in ("full_sop", "one_step"):
+            choice = "full_sop"
+        return {"depth": choice}
+
+    return clarify_depth
+
+
 # ── erp_write_planner ─────────────────────────────────────────────────────────
 
 # A5 redefined (spec 2026-07-10-a5-planner-json-retry): qwen3:8b là model họ

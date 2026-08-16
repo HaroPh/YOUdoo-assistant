@@ -81,14 +81,12 @@ def test_depth_none_giu_nguyen_hanh_vi_cu():
     assert got == "nhap-kho"
 
 
-def test_unsure_tam_thoi_chay_full_sop_cho_task_5():
-    """TẠM THỜI. Task 5 đổi nhánh này sang node clarify_depth. Ghim lại để
-    trạng thái tạm không nằm im: khi Task 5 xong, test này PHẢI đỏ và được
-    thay bằng test khẳng định route đi 'clarify_depth'."""
+def test_unsure_di_toi_node_hoi_lai():
+    """Đường DUY NHẤT thật sự mới của đợt này: câu mơ hồ thì hỏi, không đoán."""
     from src.agents.routing import decide_route
     got = decide_route(_state_sop(
         "kho báo hàng P00021 đã tới, cần làm gì tiếp", "nhap-kho", "unsure"))
-    assert got == "nhap-kho"
+    assert got == "clarify_depth"
 
 
 def test_phu_quyet_cau_hoi_van_can_du_depth_la_one_step():

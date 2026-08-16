@@ -380,18 +380,34 @@ def test_every_skill_node_edges_into_context_sync():
 
 def test_skill_nodes_reachable_only_from_intent_router():
     """Bất biến bảo mật toàn đồ thị (nối dài test_all_write_mutating_nodes_...):
-    một node SOP mang tool ghi đã gate, nhưng chỉ được vào từ intent_router —
-    nơi DUY NHẤT áp phủ quyết tất định. Một cạnh tương lai chọc thẳng vào node
-    SOP từ chỗ khác sẽ đi vòng qua lớp phòng thủ đó và phải fail test này."""
+    một node SOP mang tool ghi đã gate, nhưng chỉ được vào từ intent_router
+    hoặc clarify_depth — hai nơi ÁP DỤNG hoặc TIẾP NỐI phủ quyết tất định.
+    Một cạnh tương lai chọc thẳng vào node SOP từ chỗ khác sẽ đi vòng qua lớp
+    phòng thủ đó và phải fail test này.
+
+    clarify_depth (Task 5) được thêm vào tập nguồn hợp lệ KHÔNG PHẢI vì nới
+    lỏng bất biến: decide_route chỉ trả "clarify_depth" SAU KHI phủ quyết
+    câu-hỏi đã chạy qua (intent == "erp_write" hoặc not
+    looks_like_question(...)) VÀ depth == "unsure" — clarify_depth vì thế là
+    một lối TIẾP NỐI của đúng quyết định đã qua veto đó, chờ người dùng chọn
+    độ sâu, không phải một lối vào mới bỏ qua veto. route_after_clarify
+    không chạy lại looks_like_question vì lượt đó người dùng đang trả lời
+    một câu hỏi hai lựa chọn (interrupt kind="disambiguation"), không phải
+    gửi yêu cầu mới; giá trị nó nhận cũng tất định — parse_selection chỉ trả
+    đúng một trong hai id khai báo ở CLARIFY_DEPTH_OPTIONS hoặc None (re-ask,
+    không resume), và `sop` đã được validate theo valid_sops từ lượt
+    intent_router gốc."""
     from src.agents.skill_loader import load_skill_specs
     graph = build_graph(MagicMock(), tools=[], checkpointer=None)
     edges = [(e.source, e.target) for e in graph.get_graph().edges]
     skill_nodes = {s.name for s in load_skill_specs()}
     assert skill_nodes, "không có skill nào — test này vô nghĩa nếu rỗng"
+    allowed_sources = {"intent_router", "clarify_depth"}
     for source, target in edges:
         if target in skill_nodes:
-            assert source == "intent_router", (
-                f"cạnh {source} -> {target} vào node SOP không qua intent_router")
+            assert source in allowed_sources, (
+                f"cạnh {source} -> {target} vào node SOP không qua "
+                f"intent_router/clarify_depth")
 
 
 def test_every_write_tool_in_a_skill_node_is_gated():
