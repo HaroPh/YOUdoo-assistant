@@ -44,6 +44,37 @@ TIER_TWO = [
 ]
 
 
+def dept_for_role(role: str | None) -> str | None:
+    """Bộ phận của một vai — SUY RA từ tool nó sở hữu, không khai bảng thứ hai.
+
+    Lấy đa số của DEPT_OF trên cfg.own, từ đúng profile ĐANG CHẠY
+    (roles.load_profile()) — KHÔNG duyệt mọi profile. Đo 2026-08-15: kho
+    {Kho: 9}, kế toán {Kế toán: 4, Kho: 2}. Hai phiếu "Kho" của kế toán là
+    log_activity/close_activity, mà roles.py tự ghi rằng giá trị đó TUỲ TIỆN
+    — nên kết quả được ghim bằng test, không thả trôi.
+
+    Vai unrestricted (admin) không có bộ phận ⇒ None ⇒ giữ thứ tự khai. Biến
+    môi trường YOUDOO_POLICY_PROFILE gõ sai ⇒ load_profile() KeyError ⇒ cũng
+    trả None thay vì làm sập cả bản tin.
+    """
+    if not role:
+        return None
+    from collections import Counter
+
+    from ..agents import roles as roles_mod
+
+    try:
+        profile = roles_mod.load_profile()
+    except KeyError:
+        return None
+    cfg = profile.get(role)
+    if cfg is None or getattr(cfg, "unrestricted", False):
+        return None
+    counts = Counter(roles_mod.DEPT_OF[t] for t in cfg.own
+                     if t in roles_mod.DEPT_OF)
+    return counts.most_common(1)[0][0] if counts else None
+
+
 def _count(data) -> int:
     """Số việc thật của một hàng đợi.
 
@@ -59,7 +90,7 @@ def _count(data) -> int:
 
 
 def _call_queue(name, fn, role):
-    """Gọi một hàng đợi. Trả (count, None) khi được, (None, reason) khi hỏng."""
+    """Gọi một hàng đợi. Trả (count, None) khi được, (None, lý do) khi hỏng."""
     fake = _FAKE_QUEUES.get(name)
     try:
         res = fake(role) if callable(fake) else (fake if fake is not None else fn(role))
@@ -90,6 +121,12 @@ def list_pending_work(role: str | None = None) -> dict:
         else:
             checked.append({"queue": name, "label": label,
                             "dept": dept, "count": count})
+    dept = dept_for_role(role)
+    if dept:
+        # Việc đích danh (dept None) luôn đứng đầu tuyệt đối; sau đó hàng đợi
+        # thuộc bộ phận của vai; phần còn lại giữ nguyên thứ tự khai.
+        checked.sort(key=lambda c: (c["dept"] is not None,
+                                    c["dept"] != dept))
     data = {"checked": checked, "not_checked": list(TIER_TWO), "failed": failed}
     return ok(data, _render_display(checked, failed))
 

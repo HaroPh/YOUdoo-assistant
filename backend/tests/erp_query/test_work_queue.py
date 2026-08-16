@@ -6,6 +6,7 @@ việc" trong khi sự thật là "không hỏi được" — đúng con bug tí
 ra để diệt, tái sinh bên trong chính nó. Mọi test dưới đây xoay quanh chỗ đó."""
 import pytest
 
+from src.agents import roles as roles_mod
 from src.erp_query import work_queue
 
 
@@ -122,3 +123,62 @@ def test_not_checked_mang_dung_tang_hai(gia_hang_doi):
     res = work_queue.list_pending_work()
     assert set(res["data"]["not_checked"]) == set(work_queue.TIER_TWO)
     assert len(work_queue.TIER_TWO) >= 5
+
+
+def test_suy_bo_phan_tu_tool_so_huu():
+    """Suy ra, KHÔNG khai bảng thứ hai. Ghim kết quả vì nó dựa một phần vào
+    giá trị mà roles.py tự nhận là TUỲ TIỆN (log_activity/close_activity =
+    "Kho"); nếu đa số đổi chiều, test này phải đỏ để có người xem lại."""
+    assert work_queue.dept_for_role("warehouse") == "Kho"
+    assert work_queue.dept_for_role("accounting") == "Kế toán"
+    assert work_queue.dept_for_role("admin") is None      # unrestricted
+    assert work_queue.dept_for_role("khong-ton-tai") is None
+
+
+def test_viec_dich_danh_luon_dung_dau(gia_hang_doi):
+    """Bất kể vai nào — việc giao đích danh không xếp theo bộ phận."""
+    for vai in ("warehouse", "accounting", None):
+        res = work_queue.list_pending_work(vai)
+        assert res["data"]["checked"][0]["queue"] == "list_my_activities"
+
+
+def test_hang_doi_bo_phan_cua_vai_len_truoc(gia_hang_doi):
+    """Sau việc đích danh, hàng đợi thuộc bộ phận của vai đứng trước."""
+    kho = [c["queue"] for c in
+           work_queue.list_pending_work("warehouse")["data"]["checked"]]
+    assert kho[1] == "list_late_deliveries"                 # Kho
+
+    kt = [c["queue"] for c in
+          work_queue.list_pending_work("accounting")["data"]["checked"]]
+    assert kt[1] == "get_overdue_invoices"                  # Kế toán
+
+
+def test_vai_khong_ro_bo_phan_giu_thu_tu_khai(gia_hang_doi):
+    """admin (unrestricted) không suy ra được bộ phận ⇒ giữ nguyên thứ tự."""
+    ad = [c["queue"] for c in
+          work_queue.list_pending_work("admin")["data"]["checked"]]
+    assert ad == [t[0] for t in work_queue.TIER_ONE]
+
+
+def test_bang_bo_phan_hang_doi_ghim_hai_chieu():
+    """TIER_ONE là nguồn sự thật THỨ HAI (DEPT_OF chỉ phủ tool ghi). Ghim cả
+    hai chiều: thiếu dòng nào, hoặc thêm bộ phận lạ, đều phải đỏ."""
+    that = {ten: bo_phan for ten, _, bo_phan, _ in work_queue.TIER_ONE}
+    assert that == {
+        "list_my_activities": None,
+        "list_late_deliveries": "Kho",
+        "get_overdue_invoices": "Kế toán",
+        "list_reorder_needed": "Mua hàng",
+        "list_po_mismatches": "Mua hàng",
+    }
+    hop_le = set(roles_mod.DEPT_OF.values()) | {None}
+    assert set(that.values()) <= hop_le, "bộ phận không có trong DEPT_OF"
+
+
+def test_moi_truong_profile_sai_khong_lam_sap_ban_tin(gia_hang_doi, monkeypatch):
+    """load_profile() có thể KeyError nếu YOUDOO_POLICY_PROFILE gõ sai — phải
+    trả None (giữ thứ tự khai), không được làm sập cả bản tin."""
+    monkeypatch.setenv("YOUDOO_POLICY_PROFILE", "khong-ton-tai")
+    assert work_queue.dept_for_role("warehouse") is None
+    res = work_queue.list_pending_work("warehouse")
+    assert res["status"] == "success"
