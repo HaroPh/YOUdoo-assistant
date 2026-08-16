@@ -1,13 +1,12 @@
-import os
 import pytest
-
-FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
 @pytest.fixture(scope="module")
-def price_xlsx():
-    os.makedirs(FIX, exist_ok=True)
-    path = os.path.join(FIX, "bang_gia.xlsx")
+def price_xlsx(tmp_path_factory):
+    """Sinh vào thư mục tạm — xem chú thích cùng lý do ở
+    test_chunking_text.py::policy_docx (fixture cũ ghi thẳng vào thư mục
+    fixtures đã commit, làm bẩn working tree sau mọi lượt chạy)."""
+    path = str(tmp_path_factory.mktemp("rag_xlsx") / "bang_gia.xlsx")
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active

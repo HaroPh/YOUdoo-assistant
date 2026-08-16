@@ -1,13 +1,17 @@
-import os
 import pytest
-
-FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
 @pytest.fixture(scope="module")
-def policy_docx():
-    os.makedirs(FIX, exist_ok=True)
-    path = os.path.join(FIX, "policy.docx")
+def policy_docx(tmp_path_factory):
+    """Sinh vào thư mục tạm của pytest, KHÔNG vào tests/rag/fixtures/.
+
+    Trước đây fixture này ghi thẳng vào thư mục fixtures đã commit, nên MỌI
+    lượt chạy pytest đều làm bẩn working tree bằng một file nhị phân "modified"
+    mà không ai sửa (python-docx nhúng dấu thời gian). Hệ quả nguy hiểm hơn
+    chuyện phiền mắt: nó che mất tín hiệu "cây sạch" mà quy trình merge của
+    dự án dựa vào. tmp_path_factory (không phải tmp_path) vì fixture này
+    scope="module"."""
+    path = str(tmp_path_factory.mktemp("rag_text") / "policy.docx")
     from docx import Document
     d = Document()
     d.add_heading("Chính sách hoàn hàng", level=1)
