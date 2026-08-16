@@ -670,3 +670,51 @@ Phép đo hôm nay chạy **đúng một lần** mỗi vai — nó chứng minh 
 - **Không** đụng prompt router, planner, hay SOP skill nào.
 - **Không** gieo thêm dữ liệu demo để bản tin trông đẹp hơn — đó là chế tạo bằng chứng cho chính tính năng (lý do đã ghi 2026-08-12).
 - **Không** sửa `list_my_activities` để nó trả nhiều hơn. Nó trả 0 cho mọi vai AI vì activity được giao cho người thật; đó là sự thật, và bản tin phải trung thực về nó chứ không che.
+
+---
+
+## Kết quả đo — bộ eval `read` (2026-08-16, sau đợt sửa cuối)
+
+| | n | tool_acc | param_acc | fabricated_param | fails |
+|---|---|---|---|---|---|
+| Trước nhánh (baseline `23510ae`, 2026-07-30) | 20 | 1.000 | 1.000 | 0 | — |
+| Giữa nhánh (`f725198`) | 26 | 0.9615 | 0.9615 | 0 | 1 (Azure Interior) |
+| **Sau đợt sửa cuối** | **27** | **1.000** | **1.000** | **0** | **0** |
+
+Lệnh đo: `python -m evals.run_eval --set read --model gemini-3.5-flash-lite`
+(chạy từ `backend/`, dùng `.venv` của worktree).
+
+### Tên file baseline: model ĐO khác model NEO
+
+`run_eval.baseline_path()` ghép tên file từ chuỗi `--model` **nguyên văn**, nên
+`--save-baseline` với `--model gemini-3.5-flash-lite` ghi ra
+`baseline-gemini-3.5-flash-lite-read.json` — **không phải** file mà
+`jobs/eval_gate.py` đọc. Cổng dùng một cái **neo cố định**
+`BASELINE_MODEL = "qwen3-8b"` (`eval_gate.py:30-36`): tên neo được ghim BẤT KỂ
+model nào đang sống, để tên file baseline không phải đổi mỗi lần catalog đổi
+model. Vì vậy quy trình đúng là: chạy `--save-baseline`, rồi **chép nội dung**
+sang `backend/evals/baseline-qwen3-8b-read.json` và **xoá** file mang tên
+gemini. Đã làm và đã đối chiếu nội dung hai đầu; đã xác nhận
+`_baseline_for("read", BASELINE_MODEL, "admin")` trỏ đúng vào file neo và đọc
+được `n=27, tool_acc=1.0`.
+
+### Ca "khách Azure Interior thông tin thế nào?" — kỳ vọng LỖI THỜI, không phải model bất ổn
+
+Kết luận trước đó ("baseline 1.000 cũ là một lần chụp may mắn trên ca biên bất
+ổn") đã ghi vào commit message của `f725198` và vào comment cạnh ca đó —
+**kết luận ấy SAI**, và đã được sửa lại tại chỗ.
+
+Sự thật theo git: baseline `n=20, tool_acc=1.0` được lưu ở `23510ae`
+(2026-07-30), còn `get_customer_detail` mãi tới `c4fcaf3` (2026-08-07) mới được
+đăng ký làm tool, kèm quy tắc SYSTEM_PROMPT "chủ động gọi
+`get_customer_detail`/`get_supplier_detail` khi câu trả lời xoay quanh đúng một
+đối tác" (`91c05f2`/`c46081d`, cùng ngày). `git merge-base --is-ancestor 23510ae
+c4fcaf3` xác nhận thứ tự. Lúc chụp baseline, `get_customer_detail` **chưa tồn
+tại** trong bộ tool — nên không thể nói baseline "may mắn né đúng" một tool chưa
+có. Model chọn `get_customer_detail` hôm nay là **đúng** theo một chỉ dẫn có
+thật, còn sống, thêm vào 8 ngày SAU khi baseline được chụp. Kỳ vọng
+`find_customer` mới là thứ lỗi thời, và đã sửa thành `get_customer_detail`.
+
+Phần "cô lập cho thấy nhánh này không gây ra" của kết luận cũ thì **đúng** và
+được giữ. Chi tiết đầy đủ nằm trong comment cạnh chính ca đó ở
+`backend/evals/cases.py`.

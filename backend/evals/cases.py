@@ -252,7 +252,20 @@ READ_CASES = [
     # tool LangChain không expose nó nên model không thể/không nên đưa "limit"
     # vào tool call. exp_args để rỗng như các case tham số-tùy-chọn khác.
     ("top 5 sản phẩm bán chạy nhất", "top_products", {}, ()),
-    ("khách Azure Interior thông tin thế nào?", "find_customer",
+    # Đo 2026-08-15: baseline "1.000" cũ (n=20, lưu 23510ae 2026-07-30) đo
+    # TRƯỚC KHI get_customer_detail được đăng ký làm tool (c4fcaf3, 2026-08-07)
+    # và trước khi SYSTEM_PROMPT có quy tắc "chủ động gọi get_customer_detail
+    # khi câu hỏi xoay quanh một khách hàng cụ thể" (91c05f2/c46081d, cùng
+    # ngày). Lúc đo baseline, get_customer_detail CHƯA TỒN TẠI trong bộ tool
+    # — model không thể đã chọn nó. Kỳ vọng find_customer là LỖI THỜI, không
+    # phải model bất ổn: get_customer_detail mới là câu trả lời ĐÚNG theo
+    # đúng quy tắc prompt hiện hành (trả hồ sơ đầy đủ — liên hệ/thuế/điều
+    # khoản — hợp với "thông tin thế nào?" hơn find_customer, vốn chỉ tìm
+    # ứng viên+ID). Xác nhận bằng cô lập (revert cả prompt lẫn tool list về
+    # bản trước nhánh feat/morning-work-queue): CÙNG kết quả — xác nhận
+    # nguyên nhân không nằm ở nhánh đó, mà ở khoảng cách 8 ngày giữa lúc đo
+    # baseline và lúc get_customer_detail ra đời.
+    ("khách Azure Interior thông tin thế nào?", "get_customer_detail",
      {"name": "Azure Interior"}, ("name",)),
     ("hóa đơn nào đang quá hạn?", "get_overdue_invoices", {}, ()),
     ("công nợ của khách Azure Interior là bao nhiêu?", "get_partner_balance",
@@ -275,6 +288,28 @@ READ_CASES = [
     ("danh sách cơ hội đang mở", "list_crm_leads", {}, ()),
     ("chi tiết đơn mua P00003", "get_purchase_order_detail",
      {"ref": "P00003"}, ("ref",)),
+    # ── Bản tin việc cần xử lý (2026-08-15) ─────────────────────────────────
+    # Nhóm A — câu buổi sáng phải đi tới tool tổng hợp. Đo trước khi có tool
+    # này: 3/3 vai trả lời "không có việc nào được giao" trong khi hệ thống
+    # có 29 phiếu trễ và 22 hóa đơn quá hạn.
+    ("hôm nay tôi cần xử lý gì?", "list_pending_work", {}, ()),
+    ("có việc gì cần làm không?", "list_pending_work", {}, ()),
+    ("còn gì nữa không?", "list_pending_work", {}, ()),
+    # Nhóm B — CHỐNG CƯỚP. Câu nêu rõ MỘT loại chứng từ phải đi thẳng tool
+    # của loại đó, không bị hút về tool tổng hợp. Thiếu nhóm này thì tool mới
+    # có thể nuốt hết mà điểm vẫn đẹp.
+    ("có phiếu giao nào trễ hạn không?", "list_late_deliveries", {}, ()),
+    ("liệt kê hóa đơn quá hạn", "get_overdue_invoices", {}, ()),
+    ("hàng nào cần đặt bổ sung?", "list_reorder_needed", {}, ()),
+    # Câu NGHIỆM THU SỐNG nguyên văn của tính năng bàn giao chéo bộ phận
+    # (docs/superpowers/plans/2026-08-13-cross-department-handoff.md:874, hàng
+    # #3 bảng nghiệm thu, vai kế toán). Đây là ca dễ bị list_pending_work cướp
+    # nhất — dòng prompt của tool mới tự nhận "có việc gì không" làm trigger,
+    # gần y hệt về mặt chữ. Nếu cướp, người dùng nhận một con số trần trụi
+    # thay vì tóm tắt + hạn + chứng từ của việc bàn giao: hồi quy IM LẶNG của
+    # một tính năng đã chạy thật. list_my_activities TRƯỚC ĐÂY CHƯA HỀ có ca
+    # eval nào, ở bất kỳ set nào — đây là lớp phủ đầu tiên của nó.
+    ("có việc gì chuyển cho tôi không?", "list_my_activities", {}, ()),
 ]
 
 # ── synthesis set (SP-0) ─────────────────────────────────────────────────────

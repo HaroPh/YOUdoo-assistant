@@ -6,7 +6,7 @@ import re
 from langchain_core.tools import tool
 from pydantic import model_validator
 
-from . import sales, inventory, purchase, accounting, crm, mrp
+from . import sales, inventory, purchase, accounting, crm, mrp, work_queue
 
 
 def _json(envelope) -> str:
@@ -219,6 +219,21 @@ def build_erp_query_tools(role_cfg=None) -> list:
         return _json(accounting.get_partner_balance(name))
 
     @tool
+    def list_pending_work() -> str:
+        """Mọi việc đang tồn đọng cần xử lý, gom theo nhóm, có số lượng.
+
+        Dùng khi người dùng hỏi kiểu "hôm nay tôi cần xử lý gì?", "có việc gì
+        không?", "còn gì nữa không?" — tức hỏi CHUNG, không nêu rõ loại chứng
+        từ nào. Tool này quét nhiều hàng đợi cùng lúc (việc được giao, phiếu
+        trễ, hóa đơn quá hạn, hàng cần đặt, đơn mua lệch).
+
+        KHÔNG dùng khi người dùng hỏi về MỘT loại cụ thể — lúc đó gọi thẳng
+        tool của loại đó (list_late_deliveries, get_overdue_invoices, ...).
+        """
+        return _json(work_queue.list_pending_work(
+            role_cfg.name if role_cfg is not None else None))
+
+    @tool
     def list_my_activities(limit: int = 20) -> str:
         """Việc (activity) đang được giao cho bộ phận của bạn, hạn gần nhất trước.
 
@@ -236,7 +251,7 @@ def build_erp_query_tools(role_cfg=None) -> list:
              get_customer_detail, list_crm_leads, list_invoices, get_overdue_invoices,
              list_reorder_needed, get_bom_detail, list_manufacturing_orders,
              list_late_deliveries, check_po_matching, list_po_mismatches,
-             get_partner_balance, list_my_activities]
+             get_partner_balance, list_pending_work, list_my_activities]
     for t in tools:
         _forbid_extra_kwargs(t)
         _reject_ref_shaped_partner_names(t)
