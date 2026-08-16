@@ -182,3 +182,29 @@ def test_moi_truong_profile_sai_khong_lam_sap_ban_tin(gia_hang_doi, monkeypatch)
     assert work_queue.dept_for_role("warehouse") is None
     res = work_queue.list_pending_work("warehouse")
     assert res["status"] == "success"
+
+
+def test_tool_duoc_dang_ky_va_khong_lo_tham_so_role():
+    """LLM không được nhìn thấy tham số role — điền được là tự khai được."""
+    from src.erp_query.tools import build_erp_query_tools
+
+    class _Cfg:
+        name = "warehouse"
+        own = set()
+        unrestricted = False
+
+    ten = {t.name for t in build_erp_query_tools(_Cfg())}
+    assert "list_pending_work" in ten
+
+    t = next(t for t in build_erp_query_tools(_Cfg())
+             if t.name == "list_pending_work")
+    assert "role" not in (t.args or {}), "LLM tự khai được vai"
+
+
+def test_prompt_khong_con_day_ket_luan_tu_mot_hang_doi():
+    """Dòng cũ dạy trợ lý trục 'việc của tôi' — đúng trục ADR-012 §3 chứng
+    minh sai (91/94 phiếu kho không có người phụ trách)."""
+    from src.agents.prompts import SYSTEM_PROMPT
+
+    assert "list_pending_work" in SYSTEM_PROMPT
+    assert "KHÔNG được kết luận" in SYSTEM_PROMPT
