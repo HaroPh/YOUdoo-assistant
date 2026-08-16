@@ -33,8 +33,8 @@ def gia_hang_doi(monkeypatch):
         "list_reorder_needed": _ok({"rows": [1, 1], "count": 2}),
         "list_po_mismatches": _ok({"rows": [], "count": 0}),
     }
-    monkeypatch.setattr(work_queue, "_HANG_DOI_GIA", ban)
-    return work_queue._HANG_DOI_GIA
+    monkeypatch.setattr(work_queue, "_FAKE_QUEUES", ban)
+    return work_queue._FAKE_QUEUES
 
 
 def test_fixture_that_su_lai_duoc_hang_doi(gia_hang_doi):
@@ -80,7 +80,7 @@ def test_exception_cung_vao_failed(gia_hang_doi, monkeypatch):
     """Hỏng cũng có thể là exception chứ không phải envelope lỗi."""
     def _no(*a, **k):
         raise ValueError("Youdoo AI / Read Only")
-    monkeypatch.setitem(work_queue._HANG_DOI_GIA, "list_reorder_needed", _no)
+    monkeypatch.setitem(work_queue._FAKE_QUEUES, "list_reorder_needed", _no)
     res = work_queue.list_pending_work()
     hong = {f["queue"] for f in res["data"]["failed"]}
     assert "list_reorder_needed" in hong
@@ -106,8 +106,19 @@ def test_tat_ca_rong_van_khong_noi_het_viec(gia_hang_doi):
         assert cam not in d.lower(), f"khẳng định đã quét hết: {cam!r}"
 
 
+def test_tat_ca_hang_doi_hong_khong_noi_da_kiem_0(gia_hang_doi):
+    """Khi tất cả hàng đợi hỏng (checked trống), không nói "Đã kiểm 0 hàng đợi"
+    hay "Đã kiểm: ." — chỉ "Không kiểm được" là đủ để nói sự thật."""
+    for ten in gia_hang_doi:
+        gia_hang_doi[ten] = _loi()
+    res = work_queue.list_pending_work()
+    d = res["display"]
+    assert "đã kiểm 0" not in d.lower()
+    assert not d.strip().endswith("Đã kiểm: .")
+
+
 def test_not_checked_mang_dung_tang_hai(gia_hang_doi):
     """Câu "còn gì nữa không" phải có nguyên liệu tất định để trả lời."""
     res = work_queue.list_pending_work()
-    assert set(res["data"]["not_checked"]) == set(work_queue.TANG_HAI)
-    assert len(work_queue.TANG_HAI) >= 5
+    assert set(res["data"]["not_checked"]) == set(work_queue.TIER_TWO)
+    assert len(work_queue.TIER_TWO) >= 5
