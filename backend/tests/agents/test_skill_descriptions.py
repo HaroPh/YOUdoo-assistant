@@ -35,3 +35,27 @@ def test_bao_gia_khong_con_doi_chu_chiet_khau():
     spec = next(s for s in load_skill_specs()
                 if s.name == "bao-gia-chiet-khau")
     assert "tính giá bán cho một khách hàng cụ thể" in spec.description
+
+
+def test_khong_log_missing_negative_clause_warning(caplog):
+    """Loader sử dụng NEGATIVE_CLAUSE_MARKERS để chấp nhận cả "KHÔNG dùng khi"
+    và "KHÔNG chọn khi" — chỉ đưa ra cảnh báo nếu KHÔNG MỘT cụm nào có.
+    Bài test gọi load_skill_specs() thật (không mock) và xác nhận ba skill
+    hiện tại KHÔNG trigger warning MISSING_NEGATIVE_WARNING."""
+    import logging
+    with caplog.at_level(logging.WARNING):
+        specs = load_skill_specs()
+
+    # Xác nhận ba skill được nạp
+    skill_names = {s.name for s in specs}
+    assert {"nhap-kho", "giao-hang", "bao-gia-chiet-khau"}.issubset(skill_names)
+
+    # Xác nhận không có warning nào chứa skill name và "KHÔNG" cho ba skill
+    for skill_name in ("nhap-kho", "giao-hang", "bao-gia-chiet-khau"):
+        matching_warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and skill_name in r.message
+            and ("KHÔNG" in r.message and ("dùng khi" in r.message or "chọn khi" in r.message))
+        ]
+        assert not matching_warnings, \
+            f"Unexpected MISSING_NEGATIVE_WARNING for {skill_name}: {[r.message for r in matching_warnings]}"

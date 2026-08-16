@@ -44,6 +44,9 @@ RESERVED_NODE_NAMES = frozenset({
     "write_continuation", "agentic_context_sync",
 }) | {spec.node for spec in WRITE_COORDINATORS.values()}
 
+# Đánh dấu vế loại trừ trong mô tả skill (chọn cụm nào tuỳ verb mở đầu).
+NEGATIVE_CLAUSE_MARKERS = ("KHÔNG dùng khi", "KHÔNG chọn khi")
+
 
 def load_skill_specs(skills_dir: Path | None = None) -> list[SkillSpec]:
     """Quét <skills_dir>/*/SKILL.md → list[SkillSpec] đã validate, sắp theo name.
@@ -69,7 +72,8 @@ def load_skill_specs(skills_dir: Path | None = None) -> list[SkillSpec]:
         if spec.entry and not (spec.dir / spec.entry).is_file():
             raise SkillManifestError(
                 f"{md}: entry {spec.entry!r} không tồn tại trong {spec.dir}")
-        if "KHÔNG dùng khi" not in spec.description:
+        if not any(marker in spec.description
+                   for marker in NEGATIVE_CLAUSE_MARKERS):
             logger.warning(MISSING_NEGATIVE_WARNING, spec.name)
         seen[spec.name] = md
         specs.append(spec)
