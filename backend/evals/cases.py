@@ -252,14 +252,20 @@ READ_CASES = [
     # tool LangChain không expose nó nên model không thể/không nên đưa "limit"
     # vào tool call. exp_args để rỗng như các case tham số-tùy-chọn khác.
     ("top 5 sản phẩm bán chạy nhất", "top_products", {}, ()),
-    # Đo 2026-08-15: ca này trượt reproducibly (3/3 lần, kể cả với prompt và
-    # bộ tool GỐC trước nhánh feat/morning-work-queue — cô lập bằng cách loại
-    # list_pending_work khỏi tool list và revert SYSTEM_PROMPT về bản cũ,
-    # vẫn trượt y hệt) — model chọn get_customer_detail thay vì find_customer.
-    # KHÔNG PHẢI hồi quy của nhánh này. Baseline cũ (n=20, tool_acc=1.0) là
-    # một lần chụp may mắn trên ca biên vốn không ổn định với model này.
-    # Ngoài phạm vi plan này — cần một investigation riêng nếu muốn sửa.
-    ("khách Azure Interior thông tin thế nào?", "find_customer",
+    # Đo 2026-08-15: baseline "1.000" cũ (n=20, lưu 23510ae 2026-07-30) đo
+    # TRƯỚC KHI get_customer_detail được đăng ký làm tool (c4fcaf3, 2026-08-07)
+    # và trước khi SYSTEM_PROMPT có quy tắc "chủ động gọi get_customer_detail
+    # khi câu hỏi xoay quanh một khách hàng cụ thể" (91c05f2/c46081d, cùng
+    # ngày). Lúc đo baseline, get_customer_detail CHƯA TỒN TẠI trong bộ tool
+    # — model không thể đã chọn nó. Kỳ vọng find_customer là LỖI THỜI, không
+    # phải model bất ổn: get_customer_detail mới là câu trả lời ĐÚNG theo
+    # đúng quy tắc prompt hiện hành (trả hồ sơ đầy đủ — liên hệ/thuế/điều
+    # khoản — hợp với "thông tin thế nào?" hơn find_customer, vốn chỉ tìm
+    # ứng viên+ID). Xác nhận bằng cô lập (revert cả prompt lẫn tool list về
+    # bản trước nhánh feat/morning-work-queue): CÙNG kết quả — xác nhận
+    # nguyên nhân không nằm ở nhánh đó, mà ở khoảng cách 8 ngày giữa lúc đo
+    # baseline và lúc get_customer_detail ra đời.
+    ("khách Azure Interior thông tin thế nào?", "get_customer_detail",
      {"name": "Azure Interior"}, ("name",)),
     ("hóa đơn nào đang quá hạn?", "get_overdue_invoices", {}, ()),
     ("công nợ của khách Azure Interior là bao nhiêu?", "get_partner_balance",
