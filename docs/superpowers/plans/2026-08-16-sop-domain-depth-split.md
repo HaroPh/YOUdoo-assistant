@@ -774,7 +774,7 @@ def make_clarify_depth_node():
     payload client (main.py._filter_messages đã lược còn role+content).
     """
     async def clarify_depth(state: ERPAgentState) -> dict:
-        chon = _interrupt({
+        choice = _interrupt({
             "kind": "disambiguation",
             "question": "Bạn muốn chạy đủ quy trình (có các bước kiểm tra) "
                         "hay làm nhanh một bước?",
@@ -782,9 +782,9 @@ def make_clarify_depth_node():
         })
         # FAIL AN TOÀN: không hiểu câu trả lời thì chạy ĐỦ quy trình. Chiều
         # one_step là chiều BỎ QUA kiểm tra.
-        if chon not in ("full_sop", "one_step"):
-            chon = "full_sop"
-        return {"depth": chon}
+        if choice not in ("full_sop", "one_step"):
+            choice = "full_sop"
+        return {"depth": choice}
 
     return clarify_depth
 ```
