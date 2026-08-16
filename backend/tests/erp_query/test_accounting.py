@@ -29,6 +29,23 @@ def test_get_overdue_invoices_domain():
     assert ["payment_state", "in", ["not_paid", "partial"]] in dom
 
 
+def test_get_overdue_invoices_capped_false_below_limit():
+    rows = [{"name": "INV/2026/0001", "partner_id": [1, "Acme"],
+             "invoice_date_due": "2026-08-01", "amount_residual": 100.0}]
+    out = accounting.get_overdue_invoices(limit=50, gw=_gw(rows))
+    assert out["data"]["capped"] is False
+    assert "có thể còn nhiều hơn" not in out["display"]
+
+
+def test_get_overdue_invoices_capped_true_at_limit():
+    rows = [{"name": f"INV/2026/{i:04d}", "partner_id": [1, "Acme"],
+             "invoice_date_due": "2026-08-01", "amount_residual": 100.0}
+            for i in range(5)]
+    out = accounting.get_overdue_invoices(limit=5, gw=_gw(rows))
+    assert out["data"]["capped"] is True
+    assert "có thể còn nhiều hơn — đã đạt giới hạn 5 dòng" in out["display"]
+
+
 class PartnerBalanceTransport:
     """Đường-2 call cùng model account.move (AR rồi AP) — phân biệt bằng
     domain (move_type), không phải thứ tự gọi."""

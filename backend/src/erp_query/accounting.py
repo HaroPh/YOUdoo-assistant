@@ -50,13 +50,20 @@ def get_overdue_invoices(limit=50, *, gw=None):
         return fail_read("get_overdue_invoices",
                          f"Lỗi tra hóa đơn quá hạn — không lấy được dữ liệu. "
                          f"Nếu lặp lại, báo quản trị viên.", e)
+    capped = len(rows) >= limit
     if not rows:
-        return ok({"rows": [], "count": 0}, "Không có hóa đơn nào quá hạn.")
+        msg = "Không có hóa đơn nào quá hạn."
+        if capped:
+            msg += f" (có thể còn nhiều hơn — đã đạt giới hạn {limit} dòng)"
+        return ok({"rows": [], "count": 0, "capped": capped}, msg)
     body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} "
                      f"| đến hạn {r.get('invoice_date_due') or 'N/A'} "
                      f"| còn {r['amount_residual']:,.0f}" for r in rows)
-    return ok({"rows": rows, "count": len(rows)},
-              f"{len(rows)} hóa đơn quá hạn:\n{body}")
+    display_text = f"{len(rows)} hóa đơn quá hạn"
+    if capped:
+        display_text += f" (có thể còn nhiều hơn — đã đạt giới hạn {limit} dòng)"
+    display_text += f":\n{body}"
+    return ok({"rows": rows, "count": len(rows), "capped": capped}, display_text)
 
 
 def get_partner_balance(name, *, gw=None):
