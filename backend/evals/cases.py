@@ -658,7 +658,11 @@ SOP_SELECT_CASES = [
     ("làm quy trình nhập kho cho đơn mua P00021", "nhap-kho", "full_sop"),
     ("xác nhận đã kiểm đếm hàng cho đơn mua P00021 rồi mới nhập kho",
      "nhap-kho", "full_sop"),
-    # NGỮ NGHĨA
+    # NGỮ NGHĨA. LƯU Ý: spec §1.2 (design doc, dòng 40) đo PRE-PLAN câu này
+    # đã đúng "nhap-kho" (✅). Case này CHỦ ĐÍCH đổi kỳ vọng sang
+    # erp_write/one_step — coi là "bỏ qua kiểm tra SOP" hợp lệ theo mô hình
+    # depth mới, KHÔNG PHẢI lấp một gap còn thiếu. Đây là một đánh đổi có
+    # chủ ý, chưa được nghiệm thu sống xác nhận là cải thiện.
     ("hàng của đơn mua P00021 về rồi, xử lý giúp tôi", "erp_write", "one_step"),
     ("đơn mua P00021 vừa giao tới, làm nốt phần còn lại nhé",
      "nhap-kho", "full_sop"),

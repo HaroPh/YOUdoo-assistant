@@ -7,18 +7,29 @@ tự nhận mình là tầng định tuyến.
 
     message ──► [node "intent_router"] ──state──► [decide_route] ──► node đích
                  LỚP 1: LLM đề xuất               LỚP 2: tất định
-                 RouteProposal(intent, sop)       veto thắng → trả 1 chuỗi
+                 RouteProposal(intent, sop, depth) veto thắng → trả 1 chuỗi
 
 LỚP 1 — XÁC SUẤT (make_intent_router_node → parse_proposal):
-    Một lượt gọi LLM duy nhất đề xuất CẢ `intent` lẫn `sop` (không tốn call
-    thêm — đáng kể khi OpenRouter chỉ ~50 req/ngày). Đầu ra là ĐỀ CỬ, tên kiểu
-    RouteProposal nói đúng điều đó. Parse fail-an-toàn mọi hướng; tên worker
-    model bịa ra không bao giờ lọt ra ngoài.
+    Một lượt gọi LLM duy nhất đề xuất CẢ `intent`, `sop` lẫn `depth` (không
+    tốn call thêm — đáng kể khi OpenRouter chỉ ~50 req/ngày). Đầu ra là ĐỀ CỬ,
+    tên kiểu RouteProposal nói đúng điều đó. Parse fail-an-toàn mọi hướng; tên
+    worker model bịa ra không bao giờ lọt ra ngoài.
 
 LỚP 2 — TẤT ĐỊNH, VÀ NÓ THẮNG (decide_route):
     Điều kiện phủ quyết (`looks_like_question`) KHÔNG phụ thuộc phân loại của
     LLM. Đề cử SOP chỉ được nhận trọn lượt khi câu người dùng không mang dấu
     hiệu câu hỏi, HOẶC router tự tin nói erp_write.
+
+ĐÍCH THỨ BA — "clarify_depth" (từ 2026-08-16): `decide_route` không chỉ trả
+    tên intent hay tên SOP. Khi miền đã rõ (sop nhận trọn lượt) nhưng
+    `depth == "unsure"`, nó trả chuỗi `"clarify_depth"` — không phải tên
+    intent, không phải tên SOP, mà tên một node hỏi lại người dùng chọn giữa
+    "chạy đủ quy trình" và "làm nhanh một bước". `route_after_clarify` (cùng
+    file) là hàm tất định THỨ HAI chạy SAU khi người dùng trả lời câu hỏi đó:
+    cùng luật miền/sâu với `decide_route` nhưng không chạy lại lớp phủ quyết
+    câu-hỏi, vì lượt này là câu trả lời cho một lựa chọn, không phải một yêu
+    cầu mới — route tới SOP nếu người dùng chọn chạy đủ, tới `erp_write` nếu
+    chọn làm nhanh một bước.
 
 VÌ SAO LỚP 2 PHẢI TẤT ĐỊNH — ba bằng chứng độc lập:
     1. Live-verify 2026-07-16: router LLM lỡ route lệnh thật 3/3 LẦN THỬ trên

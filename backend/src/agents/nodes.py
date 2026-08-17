@@ -147,8 +147,9 @@ def make_clarify_depth_node():
     async def clarify_depth(state: ERPAgentState) -> dict:
         choice = _interrupt({
             "kind": "disambiguation",
-            "question": "Bạn muốn chạy đủ quy trình (có các bước kiểm tra) "
-                        "hay làm nhanh một bước?",
+            "question": ("Bạn muốn chạy đủ quy trình hay làm nhanh một bước?\n"
+                         + "\n".join(f"  {i}. {o['name']}"
+                                     for i, o in enumerate(CLARIFY_DEPTH_OPTIONS, 1))),
             "options": CLARIFY_DEPTH_OPTIONS,
         })
         # FAIL AN TOÀN: không hiểu câu trả lời thì chạy ĐỦ quy trình. Chiều

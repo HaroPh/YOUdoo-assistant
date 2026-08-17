@@ -176,6 +176,22 @@ lần này KHÔNG tái phát.
    dự đoán của spike vẫn đứng vững, lệch chỉ tập trung ở các ca liên quan
    tới cụm "quy trình" xuất hiện CÙNG một mã đơn cụ thể (ca #1, #2) và một
    nhánh của cặp "mơ hồ thật" (ca #4).
+5. **Điểm nhấn mạnh thêm sau final review:** ca #2 ("đơn mua P00021 vừa
+   giao tới...") không chỉ là "một gap mới" — spec §1.2 (design doc, dòng
+   41) đo PRE-PLAN câu này đã đúng `nhap-kho` (✅). `cases.py:663-664` vẫn
+   giữ nguyên kỳ vọng đó (không đổi so với pre-plan), nhưng Task 7 đo được
+   giờ FAIL (`erp_write/one_step`). Đây là một HỒI QUY thật so với hành vi
+   đã đúng trước đợt này, không chỉ là "chưa lấp được". Ca #1 ở
+   `cases.py:661-662` là một tình huống liên quan nhưng khác: pre-plan
+   cũng đã đúng `nhap-kho` (spec §1.2 dòng 40), nhưng lần này plan CHỦ
+   ĐÍCH đổi kỳ vọng sang `erp_write/one_step` (xem comment tại
+   `cases.py:661`) — một đánh đổi có ghi nhận, không phải một hồi quy bị
+   che giấu. Vậy trong 6 câu đời thật của spec §1.2: 1 cải thiện đã xác
+   nhận (kho báo hàng → `clarify_depth`), 2 ca trước đó ❌ nay ĐÚNG theo mô
+   hình depth mới (đơn S00012, khách giục — coi one_step→erp_write là hành
+   vi đúng THEO THIẾT KẾ), 1 ca đổi kỳ vọng có chủ đích (ca #1), 1 ca hồi
+   quy thật (ca #2), 1 ca "mơ hồ thật" mất tính tất định (ca #4, xem ở
+   trên).
 
 ## Lỗi phát hiện trong chính công cụ đo (Task 7), đã sửa tại chỗ
 

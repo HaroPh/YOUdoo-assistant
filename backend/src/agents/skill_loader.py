@@ -52,8 +52,9 @@ def load_skill_specs(skills_dir: Path | None = None) -> list[SkillSpec]:
     """Quét <skills_dir>/*/SKILL.md → list[SkillSpec] đã validate, sắp theo name.
 
     Thư mục không tồn tại / rỗng → []. Mọi vi phạm THẨM QUYỀN hoặc cấu trúc →
-    SkillManifestError (app không lên). Ngoại lệ duy nhất: description thiếu vế
-    "KHÔNG dùng khi" chỉ log WARNING và vẫn nạp — xem docstring skill_manifest."""
+    SkillManifestError (app không lên). Ngoại lệ duy nhất: description thiếu
+    CẢ HAI vế loại trừ trong NEGATIVE_CLAUSE_MARKERS ("KHÔNG dùng khi" HOẶC
+    "KHÔNG chọn khi") chỉ log WARNING và vẫn nạp — xem docstring skill_manifest."""
     root = Path(skills_dir) if skills_dir is not None else SKILLS_DIR
     if not root.is_dir():
         return []

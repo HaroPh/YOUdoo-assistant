@@ -40,6 +40,12 @@ async def test_node_park_bang_interrupt_dang_disambiguation(monkeypatch):
     assert da_goi["kind"] == "disambiguation"
     assert da_goi["options"] == CLARIFY_DEPTH_OPTIONS
     assert da_goi["question"].strip()
+    # question PHẢI tự chứa danh sách lựa chọn đánh số: options không đi
+    # tới người dùng qua kênh nào khác (_question_from_interrupts chỉ lấy
+    # value["question"]), nên câu trả lời tự nhiên như "chọn 1"/"1." chỉ
+    # parse được nếu người dùng nhìn thấy số thứ tự ngay trong câu hỏi.
+    assert "1." in da_goi["question"]
+    assert "2." in da_goi["question"]
     assert out["depth"] == "full_sop"
 
 
