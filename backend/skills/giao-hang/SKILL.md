@@ -4,10 +4,12 @@ description: >-
   Miền giao hàng cho đơn bán. Chọn worker này khi người dùng muốn ĐƯA HÀNG
   ĐI GIAO cho một đơn bán — kể cả câu rất ngắn, kể cả khi không nhắc chữ
   "quy trình", kể cả khi chỉ mô tả tình huống ("đóng gói xong rồi, cho đi
-  giao", "khách giục đơn này, xuất cho khách"). Câu có nêu MÃ ĐƠN BÁN cụ
-  thể (ví dụ S00012) là muốn LÀM VIỆC trên đơn đó, kể cả khi câu mở đầu
-  bằng chữ "quy trình". KHÔNG chọn khi câu không nêu đơn bán nào mà chỉ
-  muốn biết các bước gồm những gì.
+  giao", "khách giục đơn này, xuất cho khách"). Câu vừa nêu MÃ ĐƠN BÁN cụ
+  thể (ví dụ S00012) vừa yêu cầu LÀM một việc trên đơn đó thì thuộc miền
+  này, kể cả khi câu mở đầu bằng chữ "quy trình". KHÔNG chọn khi người dùng
+  chỉ muốn XEM/TRA thông tin của đơn (đó là tra cứu dữ liệu, không phải làm
+  việc), hoặc khi câu không nêu đơn bán nào mà chỉ muốn biết các bước gồm
+  những gì.
 tools:
   read: [get_sale_order_detail]
   write:

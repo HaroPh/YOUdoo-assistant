@@ -91,3 +91,33 @@ def test_hijack_khong_dem_ca_yeu_cau_lam_viec():
     from evals.run_eval import _is_hijack
     assert _is_hijack("erp_write", "nhap-kho") is False
     assert _is_hijack("nhap-kho", "nhap-kho") is False
+
+
+def test_co_nhom_ca_doc_thuan_co_ma_chung_tu():
+    """Chỗ mù đã để lọt một hồi quy THẬT (2026-08-17): mô tả skill sửa thành
+    "câu có nêu MÃ ĐƠN MUA cụ thể là muốn LÀM VIỆC trên đơn đó" khiến câu chỉ
+    muốn XEM đơn cũng bị miền nhap-kho vơ, rồi đẩy sang clarify_depth thay vì
+    trả dữ liệu — tất định 3/3, A/B xác nhận chỉ khác đúng đoạn mô tả đó.
+
+    Cả hai cổng đều mù: `intent` chấm đúng `intent` (vẫn là erp_read), còn
+    `sop_select` KHÔNG CÓ ca nào thuộc lớp "đọc thuần có mã chứng từ".
+
+    `_is_hijack` đã sẵn sàng bắt lớp này (erp_read ∈ NON_WORK_EXPECTATIONS, nên
+    `sop` bị điền là hijack) — thiếu mỗi ca để kích hoạt nó. Bài test canh cho
+    ca đó còn nằm đấy."""
+    import re
+    doc_thuan = [t for t, dich, _d in SOP_SELECT_CASES if dich == "erp_read"]
+    assert len(doc_thuan) >= 3, doc_thuan
+    co_ma = [t for t in doc_thuan if re.search(r"\b[PS]\d{5}\b", t)]
+    assert len(co_ma) >= 2, (
+        f"cần ít nhất 2 ca đọc thuần NÊU RÕ mã chứng từ — đó là đặc trưng làm "
+        f"mô tả skill vơ nhầm; hiện có: {co_ma}")
+
+
+def test_ca_doc_thuan_luon_depth_none():
+    """Đọc thuần ⇒ không thuộc miền nào ⇒ `sop` rỗng ⇒ depth "none" (bất biến
+    parse_proposal). depth khác "none" ở một ca erp_read nghĩa là router đã gán
+    miền cho một câu tra cứu — đúng hồi quy nhóm ca này đi canh."""
+    for text, dich, depth in SOP_SELECT_CASES:
+        if dich == "erp_read":
+            assert depth == "none", text

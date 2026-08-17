@@ -688,6 +688,18 @@ SOP_SELECT_CASES = [
     ("chính sách chiết khấu theo cấp khách như thế nào?", "rag", "none"),
     ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "erp_write", "one_step"),
 
+    # ── ĐỌC THUẦN có mã chứng từ ─────────────────────────────────────────────
+    # Nhóm này thêm 2026-08-17 sau một HỒI QUY THẬT lọt qua cả hai cổng: bản
+    # sửa mô tả skill hôm đó viết "câu có nêu MÃ ĐƠN MUA cụ thể là muốn LÀM
+    # VIỆC trên đơn đó" — quá rộng, nên câu chỉ muốn XEM đơn cũng bị miền
+    # nhap-kho vơ luôn rồi đẩy sang clarify_depth (tất định 3/3, A/B xác nhận
+    # chỉ khác đúng đoạn mô tả). Cổng `intent` không thấy vì `intent` vẫn đúng
+    # là erp_read; cổng `sop_select` không thấy vì KHÔNG CÓ ca nào thuộc lớp
+    # này. Đây chính là lớp ca đó — xoá chúng là mở lại chỗ mù.
+    ("cho tôi xem chi tiết đơn mua P00003", "erp_read", "none"),
+    ("chi tiết đơn bán S00012", "erp_read", "none"),
+    ("Wood Corner đã mua những gì", "erp_read", "none"),
+
     # ── câu bắc cầu (§6.4) ──
     ("điều chỉnh tồn kho Desk Pad về 100", "erp_write", "none"),
 ]
