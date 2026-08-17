@@ -506,3 +506,27 @@ async def test_entry_based_skill_tool_gates_via_confirm_write_not_name_match(mon
     assert calls["ainvoke"] == [], (
         "logic.py gọi ainvoke dù _confirm_write trả False — gate bị bỏ qua")
     assert result == REFUSED_MSG
+
+
+def test_reserved_node_names_phu_het_node_that_trong_graph():
+    """RESERVED_NODE_NAMES tồn tại để một SKILL.md không đặt được tên trùng
+    node tier-1 (trùng là hỏng bảng định tuyến — xem comment tại chỗ khai).
+
+    Danh sách đó viết TAY, và lúc thêm bài test này nó thiếu 9 node THẬT:
+    clarify_depth, fuse_answer, gather_docs, gather_erp và cả 5 node gửi mail.
+    Tức bảo vệ đã thủng suốt nhiều đợt mà không ai biết — đúng lớp lỗi "danh
+    sách khai báo thiếu âm thầm" tái phát nhiều lần ở repo này.
+
+    Vá thêm một tên chỉ mua thời gian tới đợt sau. Bài test này canh chính
+    QUAN HỆ: mọi node trong graph THẬT (trừ chính các skill, vì tên node của
+    skill LÀ tên skill) phải có mặt trong danh sách."""
+    from src.agents.skill_loader import RESERVED_NODE_NAMES, load_skill_specs
+
+    graph = build_graph(MagicMock(), tools=[], checkpointer=None)
+    nodes = set(graph.get_graph().nodes)
+    skills = {s.name for s in load_skill_specs()}
+    thieu = nodes - skills - RESERVED_NODE_NAMES - {"__start__", "__end__"}
+    assert not thieu, (
+        f"node có thật trong graph nhưng thiếu trong RESERVED_NODE_NAMES: "
+        f"{sorted(thieu)} — một SKILL.md đặt trùng các tên này sẽ lọt qua "
+        f"validate rồi làm hỏng bảng định tuyến lúc chạy")

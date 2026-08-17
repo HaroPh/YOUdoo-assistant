@@ -26,6 +26,7 @@ from .agentic_gate import REFUSED_MSG, _confirm_write, ask_human
 from .skill_manifest import (MISSING_NEGATIVE_WARNING, SkillManifestError,
                              SkillSpec, parse_skill_md)
 from .write_registry import WRITE_COORDINATORS
+from .mail_write import MAIL_COORDINATOR_CFGS
 from ..erp_query.tools import build_erp_query_tools
 
 logger = logging.getLogger(__name__)
@@ -41,8 +42,13 @@ SKILLS_DIR = Path(__file__).resolve().parents[2] / "skills"
 RESERVED_NODE_NAMES = frozenset({
     "intent_router", "erp_read", "erp_write", "rag", "mixed", "unknown",
     "erp_write_planner", "erp_write_executor", "respond_unknown",
-    "write_continuation", "agentic_context_sync",
-}) | {spec.node for spec in WRITE_COORDINATORS.values()}
+    "write_continuation", "agentic_context_sync", "clarify_depth",
+    "gather_docs", "gather_erp", "fuse_answer",
+}) | {spec.node for spec in WRITE_COORDINATORS.values()} | {
+    # Node GỬI của mỗi coordinator mail: KHÔNG nằm trong WRITE_COORDINATORS
+    # (spec.node của chúng trỏ vào node PREVIEW), nên phải suy riêng — chép
+    # tay 5 cái tên là để đợt thêm coordinator mail thứ 6 thủng tiếp.
+    cfg.send_node for cfg in MAIL_COORDINATOR_CFGS}
 
 # Đánh dấu vế loại trừ trong mô tả skill (chọn cụm nào tuỳ verb mở đầu).
 NEGATIVE_CLAUSE_MARKERS = ("KHÔNG dùng khi", "KHÔNG chọn khi")
