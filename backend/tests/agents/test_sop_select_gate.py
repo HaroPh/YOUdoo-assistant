@@ -28,14 +28,14 @@ def test_every_skill_has_at_least_four_cases():
 def test_expectations_are_valid_route_targets():
     from src.agents.routing import VALID_INTENTS
     from src.agents.skill_loader import load_skill_specs
-    valid = VALID_INTENTS | {s.name for s in load_skill_specs()}
-    for text, expected in SOP_SELECT_CASES:
+    valid = VALID_INTENTS | {s.name for s in load_skill_specs()} | {"clarify_depth"}
+    for text, expected, _ in SOP_SELECT_CASES:
         assert expected in valid, f"{text!r}: đích {expected!r} không phải node hợp lệ"
 
 
 def test_regression_phrasings_present_verbatim():
     """3 câu thua 3/3 lần ở live-verify 2026-07-16 phải có mặt NGUYÊN VĂN."""
-    texts = {t for t, _ in SOP_SELECT_CASES}
+    texts = {t for t, _, _ in SOP_SELECT_CASES}
     assert "quy trình nhập kho cho đơn mua P00021" in texts
     assert "nhập kho theo quy trình cho đơn mua P00021" in texts
     assert "làm quy trình nhập kho cho đơn mua P00021" in texts

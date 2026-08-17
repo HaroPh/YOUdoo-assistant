@@ -627,60 +627,63 @@ MULTI_SOURCE_GATHER_CASES = [
      "chiết khấu", "Desk Pad"),
 ]
 
-# ── SOP_SELECT_CASES ────────────────────────────────────────────────────────
-# (câu tiếng Việt, ĐÍCH ĐỊNH TUYẾN CUỐI kỳ vọng).
+# Mỗi ca là BỘ BA: (câu, đích định tuyến kỳ vọng, depth kỳ vọng).
 #
-# Đích là giá trị decide_route() TRẢ VỀ: tên skill SOP ("giao-hang",
-# "nhap-kho", "bao-gia-chiet-khau") hoặc một trong 5 từ intent tier-1. Nghĩa
-# là bộ này đo TOÀN BỘ chuỗi quyết định (LLM đề cử + phủ quyết tất định), không
-# chỉ đầu ra thô của model — vì lớp tất định LÀ một phần của cơ chế.
+# Trường thứ ba thêm 2026-08-16 khi `sop` được tách thành MIỀN (`sop`) và ĐỘ
+# SÂU (`depth`). Chỉ chấm đích thì `depth` không được canh và sẽ trôi âm thầm.
+# Ca không vào SOP có depth "none" (bất biến của parse_proposal).
 #
-# Mỗi skill tối thiểu 4 hướng, và HAI HƯỚNG ÂM quan trọng ngang hai hướng
-# dương: lỗi đã xảy ra thật là lỗi HIJACK (câu hỏi VỀ quy trình bị SOP cướp).
-#
-# QUYẾT ĐỊNH (2026-07-31, xem lại lúc viết plan SP-2a): ranh giới SOP là NGỮ
-# NGHĨA (ý định "làm đủ quy trình, có kiểm tra/điều kiện" hay không), KHÔNG
-# phải khớp chữ "quy trình" — router là LLM đọc `description`, không string-
-# match. Mỗi skill dưới đây có ÍT NHẤT một ca dương KHÔNG chứa chữ "quy
-# trình" để tự đo đúng việc đó (không phải chỉ nói suông trong description).
+# Ba ca dưới đây kỳ vọng "erp_write" DÙ router nay điền `sop` cho chúng —
+# decide_route ánh xạ (sop, one_step) → erp_write nên hành vi cuối GIỐNG HỆT
+# trước đợt này.
 SOP_SELECT_CASES = [
     # ── giao-hang ──
-    ("làm quy trình giao hàng cho đơn bán S00012", "giao-hang"),
-    ("thực hiện quy trình xuất kho cho đơn bán S00015", "giao-hang"),
-    # dương, KHÔNG chữ "quy trình" — đo đúng ranh giới ngữ nghĩa (xem quyết
-    # định ở trên): có điều kiện/yêu cầu kiểm tra → vẫn là SOP.
+    ("làm quy trình giao hàng cho đơn bán S00012", "giao-hang", "full_sop"),
+    ("thực hiện quy trình xuất kho cho đơn bán S00015", "giao-hang", "full_sop"),
     ("giao hàng cho đơn bán S00012 nhưng kiểm tra kỹ hàng trước khi giao",
-     "giao-hang"),
-    ("quy trình giao hàng gồm những bước nào?", "rag"),          # hỏi VỀ
-    ("giao hàng cho đơn S00040 luôn nhé", "erp_write"),          # lệnh trực tiếp, trùng INTENT_CASES:29
+     "giao-hang", "full_sop"),
+    # NGỮ NGHĨA — không chữ "quy trình", chỉ mô tả tình huống. Đo 2026-08-16:
+    # trước đợt này cả hai rơi về erp_write nên các bước kiểm tra của SOP bị bỏ.
+    ("đơn S00012 đóng gói xong rồi, cho đi giao", "erp_write", "one_step"),
+    ("khách giục đơn S00012, xuất cho khách đi", "erp_write", "one_step"),
+    ("quy trình giao hàng gồm những bước nào?", "rag", "none"),   # hỏi VỀ
+    ("giao hàng cho đơn S00040 luôn nhé", "erp_write", "one_step"),
 
     # ── nhap-kho ──
-    # 3 ca HỒI QUY 2026-07-16, lấy NGUYÊN VĂN từ live-verify (router phân loại
-    # mixed/erp_read cho chính các câu này → lệnh thật lỡ route 3/3 lần thử).
-    # Không diễn giải lại — đó là toàn bộ giá trị của chúng.
-    ("quy trình nhập kho cho đơn mua P00021", "nhap-kho"),
-    ("nhập kho theo quy trình cho đơn mua P00021", "nhap-kho"),
-    ("làm quy trình nhập kho cho đơn mua P00021", "nhap-kho"),
-    # dương, KHÔNG chữ "quy trình" — cùng lý do với ca giao-hang ở trên.
-    ("xác nhận đã kiểm đếm hàng cho đơn mua P00021 rồi mới nhập kho", "nhap-kho"),
-    ("quy trình nhập kho là gì?", "rag"),                        # ca hijack GỐC
-    ("SOP nhập kho gồm những bước nào?", "rag"),                 # trùng INTENT_CASES:50
-    ("nhận hàng cho đơn mua P00003", "erp_write"),               # lệnh trực tiếp
+    # 3 ca HỒI QUY 2026-07-16, lấy NGUYÊN VĂN từ live-verify. Ca đầu là ca
+    # trượt bền bỉ nhất của repo — hỏng qua 2 model và 2 lần viết lại mô tả,
+    # tự khỏi khi hai câu hỏi được tách ra (spike 2026-08-16).
+    ("quy trình nhập kho cho đơn mua P00021", "nhap-kho", "full_sop"),
+    ("nhập kho theo quy trình cho đơn mua P00021", "nhap-kho", "full_sop"),
+    ("làm quy trình nhập kho cho đơn mua P00021", "nhap-kho", "full_sop"),
+    ("xác nhận đã kiểm đếm hàng cho đơn mua P00021 rồi mới nhập kho",
+     "nhap-kho", "full_sop"),
+    # NGỮ NGHĨA
+    ("hàng của đơn mua P00021 về rồi, xử lý giúp tôi", "erp_write", "one_step"),
+    ("đơn mua P00021 vừa giao tới, làm nốt phần còn lại nhé",
+     "nhap-kho", "full_sop"),
+    # MƠ HỒ THẬT — đo 2026-08-16 tất định 3/3 lượt là "unsure".
+    ("kho báo hàng P00021 đã tới, cần làm gì tiếp", "clarify_depth", "unsure"),
+    ("quy trình nhập kho là gì?", "rag", "none"),                 # hijack GỐC
+    ("SOP nhập kho gồm những bước nào?", "rag", "none"),
+    ("nhận hàng cho đơn mua P00003", "erp_write", "one_step"),
 
     # ── bao-gia-chiet-khau ──
-    # Skill này vốn đã không dựa "quy trình" — ranh giới là "có/không có chiết
-    # khấu", một từ khoá miền nghiệp vụ chứ không phải marker quy trình.
-    ("làm quy trình báo giá chiết khấu cho Cửa hàng ABC, 5 Tủ gỗ", "bao-gia-chiet-khau"),
+    ("làm quy trình báo giá chiết khấu cho Cửa hàng ABC, 5 Tủ gỗ",
+     "bao-gia-chiet-khau", "full_sop"),
     ("báo giá kèm chiết khấu theo cấp khách cho Wood Corner, 10 Desk Pad",
-     "bao-gia-chiet-khau"),
-    ("chính sách chiết khấu theo cấp khách như thế nào?", "rag"),  # hỏi VỀ
-    ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "erp_write"),  # trùng INTENT_CASES:27
+     "bao-gia-chiet-khau", "full_sop"),
+    # NGỮ NGHĨA — không chữ "chiết khấu". Trước đợt này rơi sang erp_read, tức
+    # không tạo báo giá và không áp chính sách chiết khấu nào.
+    ("Wood Corner mua 10 Desk Pad, tính giá cho khách này giúp tôi",
+     "clarify_depth", "unsure"),
+    ("tính giá bán 5 Tủ gỗ cho Cửa hàng ABC theo đúng quy trình",
+     "bao-gia-chiet-khau", "full_sop"),
+    ("chính sách chiết khấu theo cấp khách như thế nào?", "rag", "none"),
+    ("tạo báo giá cho Azure Interior, 2 Large Cabinet", "erp_write", "one_step"),
 
     # ── câu bắc cầu (§6.4) ──
-    # Ràng buộc kế thừa từ bản gốc: câu gợi ý trong NO_PO_BRIDGE_MSG (prose của
-    # nhap-kho) KHÔNG được tự kích hoạt lại chính SOP vừa thoát ra — nếu không
-    # người dùng làm đúng lời khuyên sẽ rơi lại vào vòng lặp.
-    ("điều chỉnh tồn kho Desk Pad về 100", "erp_write"),
+    ("điều chỉnh tồn kho Desk Pad về 100", "erp_write", "none"),
 ]
 
 # ── GATHER_CASES ─────────────────────────────────────────────────────────────

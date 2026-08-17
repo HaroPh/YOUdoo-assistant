@@ -479,27 +479,32 @@ async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None,
     lat: list[float] = []
 
     async def call(case):
-        text, expected = case
+        text, expected, expected_depth = case
         resp, ms = await _timed(llm.ainvoke(
             [SystemMessage(content=prompt), HumanMessage(content=text)]))
         lat.append(ms)
         intent, sop, depth = parse_proposal(resp.content, valid_sops)
         got = decide_route({"messages": [HumanMessage(content=text)],
-                            "intent": intent, "sop": sop})
-        if got != expected:
-            return {"text": text, "expected": expected, "got": got,
-                    "raw_intent": intent, "raw_sop": sop,
-                    "hijack": expected not in valid_sops and got in valid_sops}
-        return None
+                            "intent": intent, "sop": sop, "depth": depth})
+        depth_ok = depth == expected_depth
+        if got == expected and depth_ok:
+            return None
+        return {"text": text, "expected": expected, "got": got,
+                "expected_depth": expected_depth, "got_depth": depth,
+                "depth_ok": depth_ok,
+                "raw_intent": intent, "raw_sop": sop,
+                "hijack": expected not in valid_sops and got in valid_sops}
 
     fails, errors = await run_resilient(SOP_SELECT_CASES, call, pace=pace,
                                         checkpoint_path=checkpoint_path)
     n = len(SOP_SELECT_CASES)
     # CHỈ đếm từ fails (phép đo thành công) — lỗi API không bao giờ là hijack.
     hijack = sum(1 for f in fails if f["hijack"])
+    depth_wrong = sum(1 for f in fails if not f["depth_ok"])
     p50, p95 = _percentiles(lat)
     return {"set": "sop_select", "n": n,
             "acc": (n - len(fails) - len(errors)) / n if n else 0.0,
+            "depth_acc": (n - depth_wrong - len(errors)) / n if n else 0.0,
             "hijack": hijack,
             "lat_p50": p50, "lat_p95": p95,
             "fails": fails, "errors": errors}
