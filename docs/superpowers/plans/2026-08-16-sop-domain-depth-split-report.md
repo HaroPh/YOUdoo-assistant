@@ -32,13 +32,20 @@ spike (script cô lập, không qua `evals/cases.py` đầy đủ) và phép đo
 điều tra riêng, KHÔNG thử sửa trong task này (Task 7 không viết code
 sản phẩm).
 
-Ca #4 cũng đáng chú ý: case này được gắn nhãn "MƠ HỒ THẬT — đo 2026-08-16
-tất định 3/3 lượt" trong chính `cases.py` (viết ở Task 6, dựa trên số đo
-spike) — nhưng Task 7 đo lại thì KHÔNG tất định về phía `clarify_depth`
-nữa, mà rơi thẳng về `erp_write/one_step` (bỏ qua hỏi lại) cả 2 lần.
-Ca song sinh của nó — "kho báo hàng P00021 đã tới, cần làm gì tiếp" — vẫn
-đúng `clarify_depth/unsure` ở cả JSON eval lẫn kịch bản sống #3 dưới đây.
-Vậy trong 2 ca "mơ hồ thật" chỉ 1 còn đúng.
+Ca #4 cũng đáng chú ý — nhưng **sửa lại một trích dẫn sai ở bản nháp
+trước của báo cáo này**: comment "MƠ HỒ THẬT — đo 2026-08-16 tất định 3/3
+lượt" trong `cases.py:665` gắn vào ca SONG SINH của nó
+(`"kho báo hàng P00021 đã tới, cần làm gì tiếp"`, dòng 666), KHÔNG PHẢI
+vào chính ca #4 — ca #4 (`cases.py:678`) mang comment riêng "NGỮ NGHĨA —
+không chữ 'chiết khấu'" (dòng 676-677). Cả hai ca cùng thuộc nhóm
+depth="unsure" mà đặc tả `2026-08-16-sop-domain-depth-split-design.md`
+(dòng 129, 290) mô tả chung là "2/18 ca (11%) mơ hồ thật... tất định 3/3
+lượt" ở mức SPIKE, không phải một comment riêng cho từng ca trong
+`cases.py`. Kết luận thực chất không đổi: Task 7 đo lại thì ca song sinh
+("kho báo hàng...") vẫn đúng `clarify_depth/unsure` ở cả JSON eval lẫn
+kịch bản sống #3 dưới đây, còn ca #4 rơi thẳng về `erp_write/one_step`
+(bỏ qua hỏi lại) cả 2 lần đo — trong 2 ca thuộc nhóm "mơ hồ thật" của
+spike, chỉ 1 còn đúng ở Task 7.
 
 3 ca có ghi chú "kỳ vọng theo số đo spike, không theo mong muốn" trong
 `cases.py` (`"đơn S00012 đóng gói xong rồi..."`, `"khách giục..."`,
@@ -46,6 +53,19 @@ Vậy trong 2 ca "mơ hồ thật" chỉ 1 còn đúng.
 sách trượt. Ca #2 ở trên (`"đơn mua P00021 vừa giao tới..."`) KHÔNG nằm
 trong 3 ca được cảnh báo trước đó — đây là một gap mới, không được dự
 đoán trước.
+
+**Riêng biệt, "Ghi chú cho người thực thi" cuối brief Task 7 còn nêu
+tường minh MỘT bộ ba khác** — `"giao hàng cho đơn S00040 luôn nhé"`,
+`"nhận hàng cho đơn mua P00003"`, `"tạo báo giá cho Azure Interior, 2
+Large Cabinet"` (`cases.py:650,669,683`) — làm bằng chứng cho tuyên bố
+"đợt này gần như thuần THÊM khả năng": router nay điền `sop` cho cả ba
+nhưng `decide_route` đưa `(sop, one_step)` về `erp_write` nên hành vi cuối
+không đổi so với trước đợt này. Cả ba đều **KHÔNG** nằm trong `fails` của
+cả hai lần đo `sop_select`. Ca thứ hai của bộ ba này (P00003) còn được
+xác nhận sống qua HTTP thật ở kịch bản 2 (Step 4 dưới đây): router trả
+`erp_write/one_step`, hỏi xác nhận một bước `receive_order`, đúng đường
+`erp_write` cũ — không lệch sang SOP. Vậy tuyên bố "thuần THÊM khả năng"
+của brief đứng vững cho cả 3 ca này.
 
 Raw JSON (2 lần đo, giống hệt nhau ngoại trừ latency):
 
@@ -127,7 +147,7 @@ kịch bản một `session_id` riêng, KHÔNG gọi graph trực tiếp.
 | # | Câu | Kỳ vọng | Đo được | Kết quả |
 |---|---|---|---|---|
 | 1 | "làm quy trình nhập kho cho đơn mua P00021" | vào SOP nhap-kho, hỏi kiểm đếm | "Bạn đã kiểm đếm hàng cho đơn mua P00021 chưa? Tổng số lượng thực nhận (tất cả các mặt hàng) là bao nhiêu?" | ✅ ĐÚNG |
-| 2 | "nhận hàng cho đơn mua P00003" | đi write planner, hỏi xác nhận một bước | "Mình sẽ thực hiện thao tác sau giúp bạn: **Nhận hàng cho đơn mua P00003** (receive_order: order_ref=P00003). Bạn xác nhận giúp mình nhé?" | ✅ ĐÚNG |
+| 2 | "nhận hàng cho đơn mua P00003" | đi write planner, hỏi xác nhận một bước | "Mình sẽ thực hiện thao tác sau giúp bạn: **Nhận hàng cho đơn mua P00003** (receive_order: order_ref=P00003). Bạn xác nhận giúp mình nhé? (trả lời \"có\" để thực hiện, \"không\" để hủy)" | ✅ ĐÚNG |
 | 3a | "kho báo hàng P00021 đã tới, cần làm gì tiếp" | hỏi lại 2 lựa chọn | "Bạn muốn chạy đủ quy trình (có các bước kiểm tra) hay làm nhanh một bước?" | ✅ ĐÚNG |
 | 3b | (cùng session, gửi tiếp) "1" | chạy đủ quy trình | "Bạn đã kiểm đếm hàng cho đơn P00021 chưa? Tổng số lượng thực nhận (tất cả các mặt hàng) là bao nhiêu?" | ✅ ĐÚNG — giống hệt hành vi kịch bản 1 |
 | 4 | "quy trình nhập kho là gì?" | trả lời tài liệu, KHÔNG vào SOP | Trả lời 4 bước quy trình nhập kho kèm nguồn trích dẫn `sop.docx`, không hỏi kiểm đếm/xác nhận gì | ✅ ĐÚNG |
