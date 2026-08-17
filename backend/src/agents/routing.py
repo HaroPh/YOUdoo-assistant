@@ -64,6 +64,7 @@ là sơ đồ, không phải logic định tuyến).
 from typing import NamedTuple
 
 from langchain_core.messages import SystemMessage, HumanMessage
+from langgraph.graph import END
 
 from .state import ERPAgentState
 from .prompts import render_intent_router_prompt
@@ -78,6 +79,13 @@ VALID_INTENTS = {"erp_read", "erp_write", "rag", "mixed", "unknown"}
 # P00021" hỏng bền bỉ từ 2026-07-16 (cụm đó nằm ở CẢ vế Dùng-khi lẫn
 # KHÔNG-dùng-khi của mô tả skill).
 VALID_DEPTHS = {"full_sop", "one_step", "unsure", "none"}
+
+# Node clarify_depth ghi giá trị này khi lượt hỏi bị VỨT vì quá hạn (erp_agent
+# gọi Command(resume=False) rồi xử lý tin nhắn mới như lượt tươi). CỐ Ý KHÔNG
+# nằm trong VALID_DEPTHS: router không bao giờ được phép phát ra nó — nó là
+# trạng thái nội bộ giữa clarify_depth và route_after_clarify, không phải một
+# lựa chọn độ sâu.
+DEPTH_ABANDONED = "abandoned"
 
 
 class RouteProposal(NamedTuple):
@@ -295,7 +303,14 @@ def route_after_clarify(state: ERPAgentState) -> str:
     `sop` TRANSIENT nên phòng trường hợp nó rỗng lúc quay lại: trả erp_write
     thay vì một tên node không tồn tại (LangGraph sẽ ném lỗi định tuyến giữa
     lượt chat thật).
+
+    DEPTH_ABANDONED ⇒ END: lượt này là lượt VỨT một câu hỏi quá hạn, kết quả
+    của nó bị bỏ đi ngay sau đó. Cho nó chạy tiếp vào SOP hay write planner là
+    tốn tiền vô ích và có thể park một interrupt MỚI đúng lúc _invoke_fresh
+    sắp chạy đè lên.
     """
+    if state.get("depth") == DEPTH_ABANDONED:
+        return END
     sop = state.get("sop")
     if not sop or state.get("depth") == "one_step":
         return "erp_write"

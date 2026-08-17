@@ -115,7 +115,9 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
     # Sau khi người dùng chọn độ sâu: cùng tập đích với intent_targets phần
     # SOP + erp_write. KHÔNG dùng lại intent_targets nguyên khối — clarify_depth
     # trỏ về chính nó sẽ tạo vòng lặp.
-    clarify_targets = {"erp_write": "erp_write_planner"}
+    # END: đường VỨT một câu hỏi độ sâu quá hạn (route_after_clarify trả END
+    # cho DEPTH_ABANDONED) — lượt đó không được chạy tiếp vào đâu cả.
+    clarify_targets = {"erp_write": "erp_write_planner", END: END}
     clarify_targets.update({s.name: s.name for s in skill_specs})
     g.add_conditional_edges("clarify_depth", route_after_clarify, clarify_targets)
 

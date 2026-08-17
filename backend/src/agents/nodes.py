@@ -11,6 +11,10 @@ from langchain.agents import create_agent as _create_agent
 from langgraph.types import interrupt as _interrupt
 
 from .state import ERPAgentState
+# _ttl_expiry sống ở create_order như mọi luồng hỏi-rồi-chờ khác (xem
+# agentic_gate.py) — MỘT nguồn cho hạn sử dụng, không chép lại hằng số.
+from .create_order import _ttl_expiry
+from .routing import DEPTH_ABANDONED
 from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
@@ -151,7 +155,19 @@ def make_clarify_depth_node():
                          + "\n".join(f"  {i}. {o['name']}"
                                      for i, o in enumerate(CLARIFY_DEPTH_OPTIONS, 1))),
             "options": CLARIFY_DEPTH_OPTIONS,
+            # Thiếu trường này thì _pending_expiry trả None và nhánh vứt-câu-
+            # hỏi-quá-hạn của erp_agent KHÔNG BAO GIỜ chạy được — người dùng trả
+            # lời không parse được sẽ bị hỏi lại vô hạn, mỗi lượt nuốt luôn tin
+            # nhắn của họ.
+            "expires_at": _ttl_expiry(),
         })
+        # Lượt VỨT câu hỏi quá hạn: erp_agent gọi Command(resume=False) rồi xử
+        # lý tin nhắn mới như lượt tươi. Phải chặn TRƯỚC fail-safe bên dưới —
+        # để False rơi vào đó là chạy nguyên cả SOP cho một lượt sắp bị bỏ đi.
+        # False chỉ tới được từ đúng đường đó: _decide_resume với kind
+        # "disambiguation" chỉ trả Command(resume=<id chuỗi>) hoặc câu hỏi lại.
+        if choice is False:
+            return {"depth": DEPTH_ABANDONED}
         # FAIL AN TOÀN: không hiểu câu trả lời thì chạy ĐỦ quy trình. Chiều
         # one_step là chiều BỎ QUA kiểm tra.
         if choice not in ("full_sop", "one_step"):

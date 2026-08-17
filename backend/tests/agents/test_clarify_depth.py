@@ -8,7 +8,7 @@ qua 3 lượt. Đây là đường DUY NHẤT thật sự mới của đợt nà
 import pytest
 
 from src.agents.nodes import CLARIFY_DEPTH_OPTIONS, make_clarify_depth_node
-from src.agents.routing import route_after_clarify
+from src.agents.routing import DEPTH_ABANDONED, route_after_clarify
 
 
 def test_hai_lua_chon_dung_id_khop_valid_depths():
@@ -47,6 +47,47 @@ async def test_node_park_bang_interrupt_dang_disambiguation(monkeypatch):
     assert "1." in da_goi["question"]
     assert "2." in da_goi["question"]
     assert out["depth"] == "full_sop"
+
+
+@pytest.mark.asyncio
+async def test_interrupt_mang_han_su_dung(monkeypatch):
+    """Thiếu `expires_at` thì `_pending_expiry` trả None, nhánh vứt-câu-hỏi-cũ
+    trong erp_agent KHÔNG BAO GIỜ chạy được, và người dùng trả lời không parse
+    được sẽ bị hỏi lại VÔ HẠN (mỗi lượt nuốt luôn tin nhắn của họ). Mọi
+    interrupt kind="confirm"/"disambiguation" khác trong repo đều mang trường
+    này; đây từng là node DUY NHẤT thiếu."""
+    import time
+    import src.agents.nodes as nodes_mod
+    da_goi = {}
+    monkeypatch.setattr(nodes_mod, "_interrupt",
+                        lambda p: da_goi.update(p) or "full_sop")
+    node = make_clarify_depth_node()
+    await node({"messages": [], "sop": "nhap-kho", "depth": "unsure"})
+    assert da_goi["expires_at"] > time.time()
+
+
+@pytest.mark.asyncio
+async def test_luot_huy_do_het_han_khong_chay_sop(monkeypatch):
+    """erp_agent vứt một câu hỏi quá hạn bằng `Command(resume=False)` rồi xử lý
+    tin nhắn mới như lượt tươi. Với kind="confirm" thì False = "người dùng từ
+    chối", vô hại. Ở ĐÂY nếu False rơi vào fail-safe full_sop bên dưới thì lượt
+    VỨT ĐI lại chạy nguyên cả SOP — tốn tiền, và tệ hơn là có thể park một
+    interrupt MỚI ngay trước khi _invoke_fresh chạy đè lên.
+
+    False chỉ có thể tới từ đúng đường hết hạn đó: _decide_resume với kind
+    "disambiguation" chỉ trả Command(resume=<id chuỗi>) hoặc một câu hỏi lại."""
+    import src.agents.nodes as nodes_mod
+    monkeypatch.setattr(nodes_mod, "_interrupt", lambda payload: False)
+    node = make_clarify_depth_node()
+    out = await node({"messages": [], "sop": "nhap-kho", "depth": "unsure"})
+    assert out["depth"] == DEPTH_ABANDONED
+    assert out["depth"] != "full_sop"
+
+
+def test_huy_thi_ket_thuc_luot_khong_di_dau_ca():
+    from langgraph.graph import END
+    assert route_after_clarify(
+        {"sop": "nhap-kho", "depth": DEPTH_ABANDONED}) == END
 
 
 @pytest.mark.asyncio
@@ -101,3 +142,9 @@ def test_clarify_depth_co_mat_trong_graph_that():
     assert ("__end__", False) not in canh_ra, (
         "clarify_depth chỉ còn cạnh cụt ngầm tới __end__ — route_after_clarify "
         "chưa được đấu dây")
+    # Đường HUỶ (câu hỏi quá hạn) phải có đích thật trong bảng, nếu không
+    # LangGraph ném lỗi định tuyến giữa một lượt chat thật. Cạnh này CÓ ĐIỀU
+    # KIỆN (True) nên không lẫn với cạnh cụt ngầm (False) mà assertion trên canh.
+    assert ("__end__", True) in canh_ra, (
+        "clarify_depth thiếu đích END — lượt vứt câu hỏi quá hạn sẽ không có "
+        "chỗ đi")
