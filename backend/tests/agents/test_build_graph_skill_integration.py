@@ -168,3 +168,44 @@ async def test_build_graph_real_routes_sop_and_syncs_working_context(monkeypatch
         "ref": "S00012", "model": "sale.order",
         "display": "Đã giao hàng cho đơn S00012 (1 phiếu).",
     }
+
+
+@pytest.mark.asyncio
+async def test_luot_huy_do_qua_han_khong_chay_lan_sang_sop():
+    """Đường VỨT một câu hỏi độ sâu quá hạn, chạy trên graph THẬT.
+
+    erp_agent vứt câu hỏi quá hạn bằng `Command(resume=False)` rồi xử lý tin
+    nhắn mới như lượt tươi. Với kind="confirm" thì False = "người dùng từ
+    chối", vô hại. Ở clarify_depth, nếu False rơi vào fail-safe
+    `choice not in ("full_sop","one_step") -> full_sop` thì lượt SẮP BỊ BỎ ĐI
+    lại chạy NGUYÊN CẢ SOP: tốn tiền, và tệ hơn là park một interrupt MỚI
+    đúng lúc _invoke_fresh sắp chạy đè lên.
+
+    Các unit test cạnh đó chỉ khẳng định từng mảnh (node trả DEPTH_ABANDONED,
+    route_after_clarify trả END, graph có cạnh END). Bài này khẳng định TỔ
+    HỢP: qua graph thật + checkpointer thật, lượt huỷ kết thúc SẠCH và không
+    node SOP nào chạy."""
+    responses = [
+        # intent_router: mơ hồ độ sâu -> decide_route đưa vào clarify_depth
+        AIMessage(content="intent: erp_write\nsop: giao-hang\ndepth: unsure"),
+        # KHÔNG có phản hồi nào tiếp theo: nếu lượt huỷ lỡ chạy vào node SOP,
+        # _SeqModel sẽ hết kịch bản và test đỏ ngay — đó là bẫy có chủ đích.
+    ]
+    mcp_tools, calls = _mcp_tools()
+    graph = build_graph(_SeqModel(responses), mcp_tools, MemorySaver())
+    cfg = {"configurable": {"thread_id": "clarify-depth-abandon-1"}}
+
+    first = await graph.ainvoke(
+        {"messages": [HumanMessage(content="đơn S00012 xử lý giúp tôi")]}, cfg)
+
+    assert "__interrupt__" in first, "phải park ở câu hỏi độ sâu"
+    payload = first["__interrupt__"][0].value
+    assert payload["kind"] == "disambiguation"
+    assert payload["expires_at"] > 0, "thiếu hạn thì không bao giờ vứt được"
+
+    final = await graph.ainvoke(Command(resume=False), cfg)
+
+    assert "__interrupt__" not in final, (
+        "lượt huỷ lại park thêm một interrupt MỚI — _invoke_fresh sẽ chạy đè "
+        "lên nó")
+    assert calls["deliver"] == [], "lượt huỷ đã chạy lấn vào node SOP"
