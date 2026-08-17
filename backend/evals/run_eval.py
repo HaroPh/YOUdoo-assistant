@@ -459,6 +459,31 @@ async def eval_intent(llm, pace: float = 0.0, checkpoint_path=None,
             "fails": fails, "errors": errors}
 
 
+# Kỳ vọng KHÔNG phải yêu cầu làm việc: tra cứu tài liệu / đọc dữ liệu. Ca kỳ
+# vọng `clarify_depth` CỐ Ý không có mặt — đó vẫn là yêu cầu làm việc, chỉ chưa
+# rõ độ sâu.
+NON_WORK_EXPECTATIONS = frozenset({"rag", "erp_read", "mixed", "unknown"})
+
+
+def _is_hijack(expected: str, sop: str | None) -> bool:
+    """Hướng NGUY HIỂM: một câu KHÔNG phải yêu cầu làm việc mà bị router gán
+    cho một miền nghiệp vụ.
+
+    Công thức cũ (`expected not in valid_sops and got in valid_sops`) hỏng hai
+    đầu, cả hai đo được 2026-08-17:
+    - DƯƠNG TÍNH GIẢ: ca kỳ vọng `clarify_depth` chạy thẳng SOP của đúng miền
+      đó bị đếm là hijack, dù không có gì bị chiếm quyền.
+    - ĐIỂM MÙ: câu tra cứu bị điền `sop` rồi đi `erp_write` (depth=one_step)
+      thì `got` không phải tên node SOP nên không được đếm — đúng lúc đợt tách
+      miền/độ sâu làm `sop` được điền nhiều hơn hẳn.
+
+    Chấm trên `sop` THÔ của router, không trên đích cuối: lớp phủ quyết tất
+    định có cứu được lượt đó hay không là chuyện khác — router đã nhận nhầm
+    miền thì vẫn phải nổi lên.
+    """
+    return expected in NON_WORK_EXPECTATIONS and sop is not None
+
+
 async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None,
                           role: str = "admin"):
     """Đo việc CHỌN SOP end-to-end: gọi router thật với prompt thật (đã nối
@@ -493,7 +518,7 @@ async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None,
                 "expected_depth": expected_depth, "got_depth": depth,
                 "depth_ok": depth_ok,
                 "raw_intent": intent, "raw_sop": sop,
-                "hijack": expected not in valid_sops and got in valid_sops}
+                "hijack": _is_hijack(expected, sop)}
 
     fails, errors = await run_resilient(SOP_SELECT_CASES, call, pace=pace,
                                         checkpoint_path=checkpoint_path)

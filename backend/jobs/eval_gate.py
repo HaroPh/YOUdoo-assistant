@@ -218,10 +218,16 @@ def run(args) -> JobResult:
             if set_name == "sop_select":
                 entry["acc"] = result.get("acc")
                 entry["hijack"] = result.get("hijack")
+                # depth_acc KHÔNG vào công thức gate (acc đã đòi cả hai vế
+                # đúng) nhưng phải nằm trong entry: nó là thứ duy nhất nói cho
+                # người đọc biết một lượt trượt là trượt MIỀN hay trượt ĐỘ SÂU.
+                entry["depth_acc"] = result.get("depth_acc")
                 entry.update(lat_p50=result.get("lat_p50"),
                              lat_p95=result.get("lat_p95"))
                 print(f"[{set_name}] model={model} pace={pace}s "
-                      f"acc={result.get('acc')} hijack={result.get('hijack')} "
+                      f"acc={result.get('acc')} "
+                      f"depth_acc={result.get('depth_acc')} "
+                      f"hijack={result.get('hijack')} "
                       f"→ {'PASS' if ok else 'FAIL'}")
             elif set_name == "gather":
                 entry["tool_recall"] = result.get("tool_recall")

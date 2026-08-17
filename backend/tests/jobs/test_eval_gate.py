@@ -735,3 +735,21 @@ def test_bo_khong_nhay_vai_doc_baseline_CUA_ADMIN(monkeypatch):
     # đối chứng: bộ NHẠY vai vẫn có hậu tố
     assert eval_gate._baseline_for("intent", "qwen3-8b", "accounting").endswith(
         "baseline-qwen3-8b-intent-accounting.json")
+
+
+def test_sop_select_ghi_lai_depth_acc(monkeypatch):
+    """`depth_acc` là thứ DUY NHẤT phân biệt "trượt MIỀN" với "trượt ĐỘ SÂU".
+
+    Trước bài test này nó bị rơi khỏi entry: `run_eval.eval_sop_select` tính ra
+    nhưng `eval_gate` chép sang entry bằng một danh sách khoá viết tay không có
+    nó, nên job đêm chỉ thấy `acc` tụt mà không biết tụt vì cái gì — và KHÔNG
+    test nào canh, tức gỡ hẳn dòng tính `depth_acc` trong run_eval vẫn xanh
+    (đúng lớp lỗi "danh sách khai báo thiếu âm thầm" đã tái phát nhiều lần)."""
+    async def fn(llm, pace=0.0, checkpoint_path=None, **kw):
+        return {"set": "sop_select", "n": 24, "acc": 1.0, "depth_acc": 0.875,
+                "hijack": 0, "lat_p50": 1, "lat_p95": 2,
+                "fails": [], "errors": []}
+    monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fn)
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    result = eval_gate.run(_args(set_="sop_select"))
+    assert result.detail["sop_select"]["depth_acc"] == 0.875
