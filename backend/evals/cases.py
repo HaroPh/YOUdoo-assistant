@@ -633,9 +633,11 @@ MULTI_SOURCE_GATHER_CASES = [
 # SÂU (`depth`). Chỉ chấm đích thì `depth` không được canh và sẽ trôi âm thầm.
 # Ca không vào SOP có depth "none" (bất biến của parse_proposal).
 #
-# Ba ca dưới đây kỳ vọng "erp_write" DÙ router nay điền `sop` cho chúng —
-# decide_route ánh xạ (sop, one_step) → erp_write nên hành vi cuối GIỐNG HỆT
-# trước đợt này.
+# Các ca kỳ vọng "erp_write" bên dưới giữ nguyên kỳ vọng DÙ router nay điền
+# `sop` cho chúng — decide_route ánh xạ (sop, one_step) → erp_write nên hành vi
+# cuối GIỐNG HỆT trước đợt này. (Bản trước ghi "Ba ca dưới đây" và không nói rõ
+# ba ca nào; thực tế có SÁU ca erp_write/one_step cộng một ca erp_write/none,
+# nên câu đó vừa sai số vừa không chỉ được vào đâu.)
 SOP_SELECT_CASES = [
     # ── giao-hang ──
     ("làm quy trình giao hàng cho đơn bán S00012", "giao-hang", "full_sop"),

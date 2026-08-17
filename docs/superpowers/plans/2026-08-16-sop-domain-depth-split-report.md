@@ -48,7 +48,9 @@ kịch bản sống #3 dưới đây, còn ca #4 rơi thẳng về `erp_write/on
 spike, chỉ 1 còn đúng ở Task 7.
 
 3 ca có ghi chú "kỳ vọng theo số đo spike, không theo mong muốn" trong
-`cases.py` (`"đơn S00012 đóng gói xong rồi..."`, `"khách giục..."`,
+**plan** (`2026-08-16-sop-domain-depth-split.md` dòng 1062 — bản trước của
+báo cáo này dẫn nhầm là trong `cases.py`, cụm đó không có ở đó)
+(`"đơn S00012 đóng gói xong rồi..."`, `"khách giục..."`,
 `"hàng của đơn mua P00021 về rồi..."`) **ĐỀU ĐÚNG** — không nằm trong danh
 sách trượt. Ca #2 ở trên (`"đơn mua P00021 vừa giao tới..."`) KHÔNG nằm
 trong 3 ca được cảnh báo trước đó — đây là một gap mới, không được dự
@@ -171,7 +173,7 @@ lần này KHÔNG tái phát.
    `erp_write/one_step`.
 3. **1 ca mới, không được spike dự đoán trước** — case #2 ở trên
    ("đơn mua P00021 vừa giao tới..."), không nằm trong danh sách 3 ca
-   "kỳ vọng theo số đo spike" mà `cases.py` đã cảnh báo trước.
+   "kỳ vọng theo số đo spike" mà plan đã cảnh báo trước.
 4. Ngược lại, **3 ca ĐƯỢC cảnh báo trước đều đúng** — cho thấy phần lớn
    dự đoán của spike vẫn đứng vững, lệch chỉ tập trung ở các ca liên quan
    tới cụm "quy trình" xuất hiện CÙNG một mã đơn cụ thể (ca #1, #2) và một

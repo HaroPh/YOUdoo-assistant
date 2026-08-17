@@ -122,7 +122,11 @@ async def test_build_graph_real_routes_sop_and_syncs_working_context(monkeypatch
     mcp_tools, calls = _mcp_tools()
 
     responses = [
-        # 1) intent_router: hợp đồng 2 dòng thật (routing.py.parse_proposal)
+        # 1) intent_router: CỐ Ý trả hợp đồng 2 dòng (thiếu `depth`) — từ
+        # 2026-08-16 hợp đồng thật là 3 dòng, nên đây là bài chứng minh đường
+        # TƯƠNG THÍCH NGƯỢC còn sống: parse_proposal thấy có `sop` mà không đọc
+        # được `depth` thì mặc định "full_sop" (fail an toàn), nên lượt này vẫn
+        # vào đúng node SOP.
         AIMessage(content="intent: erp_write\nsop: giao-hang"),
         # 2) node giao-hang, lượt ReAct #1: tra chi tiết đơn
         AIMessage(content="", tool_calls=[

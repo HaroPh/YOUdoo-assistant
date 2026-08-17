@@ -9,7 +9,8 @@ skill_loader.py.
 
 Triết lý validate giống assert_embedding_marker(): thà app không lên còn hơn
 lên sai. Mọi luật dưới đây dính tới THẨM QUYỀN hoặc tính đúng đắn cấu trúc →
-raise. Ngoại lệ DUY NHẤT là vế "KHÔNG dùng khi" trong description: nó là chất
+raise. Ngoại lệ DUY NHẤT là vế loại trừ trong description ("KHÔNG dùng khi"
+HOẶC "KHÔNG chọn khi" — xem skill_loader.NEGATIVE_CLAUSE_MARKERS): nó là chất
 lượng prompt, không phải thẩm quyền — một description tồi làm SOP bị chọn nhầm,
 và lớp phủ quyết tất định (routing.decide_route) cùng confirm-gate vẫn chặn
 hậu quả. Chặn cứng ở đó sẽ biến một lỗi soạn thảo thành sự cố ngừng dịch vụ,
@@ -31,8 +32,9 @@ _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 
 MISSING_NEGATIVE_WARNING = (
-    "skill %r: description thiếu vế 'KHÔNG dùng khi' — SOP này dễ bị chọn "
-    "nhầm cho câu hỏi VỀ quy trình. Vẫn nạp (xem docstring skill_manifest)."
+    "skill %r: description thiếu vế loại trừ ('KHÔNG dùng khi' hoặc 'KHÔNG "
+    "chọn khi') — SOP này dễ bị chọn nhầm cho câu hỏi VỀ quy trình. Vẫn nạp "
+    "(xem docstring skill_manifest)."
 )
 
 

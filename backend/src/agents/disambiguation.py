@@ -4,10 +4,14 @@
 The user is shown a numbered candidate list ("1. Azur Interior  2. Azur
 Furniture") and replies with an index or a name. This maps the reply to a
 candidate id, or None when it cannot be resolved cleanly (the caller re-asks).
-No LLM — a write flow must not guess which entity was meant."""
+No LLM — a write flow must not guess which entity was meant.
+
+The id's type is whatever the caller put in `options`: an ERP record id (int)
+for entity pickers, but a plain string for `clarify_depth`, whose ids are the
+depth values ("full_sop"/"one_step") that flow straight into state."""
 
 
-def parse_selection(reply: str, options: list[dict]) -> int | None:
+def parse_selection(reply: str, options: list[dict]) -> int | str | None:
     s = (reply or "").strip().lower()
     if not s or not options:
         return None
