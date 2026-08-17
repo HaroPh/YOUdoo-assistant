@@ -63,7 +63,9 @@ Write "none" when sop is empty. Otherwise choose:
 - full_sop  — they want the complete procedure including its checks. Signals:
   they say "quy trình" / "SOP" / "đầy đủ" / "theo đúng quy trình"; or they ask
   to verify/count/compare/inspect; or they state a condition; or they describe
-  several steps. Asking for the procedure BY NAME is the strongest signal.
+  several steps; or they name a policy, tier or rule the work must follow
+  ("theo cấp khách", "theo chính sách ..."). Asking for the procedure BY
+  NAME is the strongest signal.
 - one_step  — they clearly want it done immediately without extra checks:
   words like "luôn", "ngay", or a bare command naming the action and the record.
 - unsure    — the request names the domain and the record but gives NO signal

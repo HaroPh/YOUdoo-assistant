@@ -334,12 +334,15 @@ def test_planner_dangerous_misroute_fails_even_with_perfect_acc(monkeypatch, tmp
     assert result.detail["planner"]["gate"] == "FAIL"
 
 
-def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_path):
-    """--set all phải chạy TẤT CẢ set đã đăng ký, TRỪ sop_select (Finding 5,
-    final review fix wave 2026-07-31, quyết định người dùng): sop_select là
-    gate tuyệt đối biết trước FAIL 16/17 (ca hồi quy 2026-07-16) — để nó
-    trong "all" sẽ làm job hàng đêm đỏ vĩnh viễn, che tín hiệu 7 gate khác.
-    Vẫn đăng ký đầy đủ trong EVAL_FN — chỉ loại khỏi tập "all" chạy mặc định.
+def test_set_all_runs_every_registered_set_except_gather_pair(monkeypatch, tmp_path):
+    """--set all phải chạy TẤT CẢ set đã đăng ký, TRỪ `gather` và
+    `multi_source_gather` (gate của chúng trả True vô điều kiện nên để trong
+    "all" chỉ tạo PASS giả).
+
+    `sop_select` ĐÃ QUAY LẠI "all" (2026-08-17): nó bị loại 2026-07-31 vì cổng
+    tuyệt đối (acc == 1.0) biết trước FAIL nên sẽ đỏ vĩnh viễn; lý do đó hết
+    khi cổng về khuôn chung (hijack==0 + acc>=baseline). Để nó ngoài "all"
+    thêm nữa nghĩa là hàng rào an toàn định tuyến tiếp tục không ai gác.
 
     Bẫy thật (nhiều lần: Task 2's fix round, rồi TÁI PHÁT khi Task 3/4/5 thêm
     read/synthesis/multi_source, rồi TÁI PHÁT LẦN NỮA ở plan
@@ -378,9 +381,11 @@ def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_pa
     fms = _fake_ms_eval(coverage=0.75)
     monkeypatch.setitem(eval_gate.EVAL_FN, "multi_source", fms)
 
-    # sop_select FAKE trả FAIL nếu lỡ chạy — nếu test này vẫn PASS thì chứng
-    # minh nó KHÔNG được gọi (không phải "gọi và tình cờ pass").
-    fsop = _fake_sop_select_eval(acc=0.0, hijack=0)
+    sop_base = tmp_path / "sop.json"
+    sop_base.write_text('{"set":"sop_select","n":27,"acc":0.9259}',
+                        encoding="utf-8")
+    _patch_baseline(monkeypatch, "sop_select", sop_base)
+    fsop = _fake_sop_select_eval(acc=0.9259, hijack=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select", fsop)
 
     # gather's gate always returns True by design (no threshold yet) —
@@ -397,14 +402,13 @@ def test_set_all_runs_every_registered_set_except_sop_select(monkeypatch, tmp_pa
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == \
-        set(eval_gate.EVAL_FN) - {"sop_select", "gather", "multi_source_gather"}
-    assert "sop_select" not in result.detail
+        set(eval_gate.EVAL_FN) - {"gather", "multi_source_gather"}
+    assert "sop_select" in result.detail
     assert "gather" not in result.detail
     assert "multi_source_gather" not in result.detail
     assert result.exit_code == PASS
-    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms):
+    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
-    assert fsop.calls == [], "sop_select KHÔNG được chạy dưới --set all"
     assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
     assert fmsg.calls == [], "multi_source_gather KHÔNG được chạy dưới --set all"
 
@@ -616,13 +620,22 @@ def test_role_choices_suy_tu_roles_khong_viet_tay():
 
 
 def test_bo_co_baseline_khong_doi():
-    """chitchat và sop_select là cổng TUYỆT ĐỐI — thêm baseline cho chúng là
-    đổi ngữ nghĩa cổng, không phải sửa lỗi."""
+    """Thêm/bớt baseline cho một bộ là ĐỔI NGỮ NGHĨA CỔNG, không phải sửa lỗi —
+    bài test này tồn tại để việc đó không xảy ra lặng lẽ.
+
+    `chitchat` vẫn tuyệt đối (`violations == 0`): nó đo vi phạm, không đo chất
+    lượng, nên "so với hôm qua" vô nghĩa.
+
+    `sop_select` ĐÃ ĐỔI 2026-08-17, có chủ đích: cổng tuyệt đối cũ (acc == 1.0)
+    đỏ vĩnh viễn từ 2026-07-31 nên bị gỡ khỏi `--set all`, tức nó gác đúng bằng
+    KHÔNG suốt 6 tuần. Nay theo khuôn 4 cổng anh em — `hijack` giữ tuyệt đối
+    (thuộc tính an toàn), `acc` so baseline (chất lượng)."""
     from jobs import eval_gate
     assert "chitchat" not in eval_gate.BASELINE_SETS
-    assert "sop_select" not in eval_gate.BASELINE_SETS
+    assert "sop_select" in eval_gate.BASELINE_SETS
     assert eval_gate.BASELINE_SETS == frozenset(
-        {"intent", "confirm", "planner", "read", "synthesis", "multi_source"})
+        {"intent", "confirm", "planner", "read", "synthesis", "multi_source",
+         "sop_select"})
 
 
 def test_duong_dan_baseline_theo_vai():
@@ -753,3 +766,50 @@ def test_sop_select_ghi_lai_depth_acc(monkeypatch):
     monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
     result = eval_gate.run(_args(set_="sop_select"))
     assert result.detail["sop_select"]["depth_acc"] == 0.875
+
+
+def _fake_sop(acc=1.0, depth_acc=1.0, hijack=0):
+    async def fn(llm, pace=0.0, checkpoint_path=None, **kw):
+        return {"set": "sop_select", "n": 27, "acc": acc,
+                "depth_acc": depth_acc, "hijack": hijack,
+                "lat_p50": 1, "lat_p95": 2, "fails": [], "errors": []}
+    return fn
+
+
+def _run_sop(monkeypatch, tmp_path, *, acc, base_acc=0.9259, hijack=0):
+    import json
+    p = tmp_path / "base.json"
+    p.write_text(json.dumps({"acc": base_acc}), encoding="utf-8")
+    _patch_baseline(monkeypatch, "sop_select", p)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "sop_select",
+                        _fake_sop(acc=acc, hijack=hijack))
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    return eval_gate.run(_args(set_="sop_select"))
+
+
+def test_sop_select_gate_theo_khuon_chung(monkeypatch, tmp_path):
+    """sop_select về đúng khuôn của 4 cổng anh em (planner/read/synthesis/
+    multi_source): điều kiện AN TOÀN tuyệt đối + chất lượng so baseline.
+
+    Trước đây nó đòi `acc == 1.0`, và hệ quả đo được là cổng đỏ VĨNH VIỄN từ
+    2026-07-31 nên bị gỡ khỏi `--set all` — tức hàng rào an toàn định tuyến
+    KHÔNG được job nào gác suốt 6 tuần. `hijack` vẫn tuyệt đối: đó mới là
+    hướng đã gây sự cố thật (live-verify 2026-07-16)."""
+    assert _run_sop(monkeypatch, tmp_path, acc=0.9259).exit_code == PASS
+    assert _run_sop(monkeypatch, tmp_path, acc=1.0).exit_code == PASS
+    # tụt dưới baseline vẫn TRƯỢT — baseline-relative không có nghĩa là buông
+    assert _run_sop(monkeypatch, tmp_path, acc=0.88).exit_code == GATE_FAIL
+    # hijack khác 0 trượt DÙ chất lượng đạt
+    assert _run_sop(monkeypatch, tmp_path, acc=1.0, hijack=1).exit_code == GATE_FAIL
+
+
+def test_sop_select_van_ghi_hijack_va_depth_acc_khi_co_baseline(monkeypatch, tmp_path):
+    """Nhánh báo cáo CÓ baseline dùng một danh sách khoá viết tay khác hẳn
+    nhánh không-baseline. Chuyển sop_select sang nhánh đó mà quên hai khoá này
+    là tái lập ĐÚNG lỗi vừa vá ở b4c8d12 (depth_acc rơi khỏi entry), lần này
+    thêm cả `hijack` — con số an toàn được trích trong mọi báo cáo."""
+    r = _run_sop(monkeypatch, tmp_path, acc=0.9259)
+    e = r.detail["sop_select"]
+    assert e["depth_acc"] == 1.0
+    assert e["hijack"] == 0
+    assert e["baseline_acc"] == 0.9259

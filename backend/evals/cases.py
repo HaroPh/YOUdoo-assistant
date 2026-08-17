@@ -666,6 +666,18 @@ SOP_SELECT_CASES = [
     # depth mới, KHÔNG PHẢI lấp một gap còn thiếu. Đây là một đánh đổi có
     # chủ ý, chưa được nghiệm thu sống xác nhận là cải thiện.
     ("hàng của đơn mua P00021 về rồi, xử lý giúp tôi", "erp_write", "one_step"),
+    # CA NÀY ĐANG TRƯỢT, CÓ CHỦ ĐÍCH — đừng "sửa" bằng cách hạ kỳ vọng.
+    # Nó gần như SONG SINH về cấu trúc với ca ngay trên (mô tả tình huống +
+    # nhờ làm việc mơ hồ), và model xử lý HAI CÂU NHƯ NHAU dưới mọi biến thể
+    # prompt/mô tả đã đo ngày 2026-08-17 — luôn ra erp_write/one_step. Đổi kỳ
+    # vọng ở đây thành one_step sẽ cho 26/27 thay vì 25/27, nhưng:
+    #   - "làm nốt phần còn lại" trong tiếng Việt HÀM Ý có một chuỗi việc còn
+    #     dở, mạnh hơn hẳn "xử lý giúp tôi" — nên hai câu KHÔNG chắc tương
+    #     đương, và model xử lý giống nhau là bằng chứng về MODEL chứ không
+    #     phải về đáp án đúng;
+    #   - hạ kỳ vọng theo model hôm nay là xoá vĩnh viễn tín hiệu để biết khi
+    #     nào model khá lên.
+    # Cổng nay baseline-relative nên giữ một ca trượt đã biết không tốn gì.
     ("đơn mua P00021 vừa giao tới, làm nốt phần còn lại nhé",
      "nhap-kho", "full_sop"),
     # MƠ HỒ THẬT — đo 2026-08-16 tất định 3/3 lượt là "unsure".

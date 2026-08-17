@@ -6,13 +6,24 @@ from jobs.eval_gate import BASELINE_SETS, EVAL_FN, ROLE_FOR_SET, _gate
 def test_set_registered_everywhere():
     assert ROLE_FOR_SET["sop_select"] == "router"
     assert "sop_select" in EVAL_FN
-    assert "sop_select" not in BASELINE_SETS  # gate tuyệt đối, không baseline
+    # ĐỔI 2026-08-17: có baseline. Trước đó là cổng tuyệt đối (acc == 1.0),
+    # và hệ quả đo được là đỏ vĩnh viễn từ 2026-07-31 nên bị gỡ khỏi
+    # `--set all` — hàng rào an toàn định tuyến suốt 6 tuần không ai gác.
+    assert "sop_select" in BASELINE_SETS
 
 
-def test_gate_requires_perfect_score_and_zero_hijack():
-    assert _gate("sop_select", {"acc": 1.0, "hijack": 0}, None) is True
-    assert _gate("sop_select", {"acc": 0.99, "hijack": 0}, None) is False
-    assert _gate("sop_select", {"acc": 1.0, "hijack": 1}, None) is False
+def test_gate_giu_hijack_tuyet_doi_nhung_acc_theo_baseline():
+    """Khuôn chung của 4 cổng anh em: điều kiện AN TOÀN tuyệt đối + chất lượng
+    so baseline. `hijack` KHÔNG được nới — đó là hướng đã gây sự cố thật
+    (live-verify 2026-07-16) và là thứ vừa bắt được hồi quy "câu ĐỌC bị miền
+    vơ" (2026-08-17)."""
+    base = {"acc": 0.9259}
+    assert _gate("sop_select", {"acc": 0.9259, "hijack": 0}, base) is True
+    assert _gate("sop_select", {"acc": 1.0, "hijack": 0}, base) is True
+    # baseline-relative KHÔNG phải buông: tụt dưới baseline vẫn trượt
+    assert _gate("sop_select", {"acc": 0.90, "hijack": 0}, base) is False
+    # hijack khác 0 trượt DÙ chất lượng đạt
+    assert _gate("sop_select", {"acc": 1.0, "hijack": 1}, base) is False
 
 
 def test_every_skill_has_at_least_four_cases():

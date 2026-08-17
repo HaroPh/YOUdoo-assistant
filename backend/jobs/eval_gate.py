@@ -25,7 +25,7 @@ from src.llm.catalog import chain_for
 # có mặt: chúng là cổng tuyệt đối (violations==0 / hijack==0), không phải phép
 # đo tương đối — thêm baseline cho chúng là đổi ngữ nghĩa cổng.
 BASELINE_SETS = frozenset({"intent", "confirm", "planner", "read",
-                           "synthesis", "multi_source"})
+                           "synthesis", "multi_source", "sop_select"})
 
 # Model NEO của baseline — cố định, KHÔNG đổi theo model đang được ĐO (model
 # catalog hiện hành hoặc --model candidate). "So ứng viên với chuẩn đã ghim"
@@ -71,12 +71,24 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
     if set_name == "chitchat":
         return result["violations"] == 0
     if set_name == "sop_select":
-        # Gate TUYỆT ĐỐI (§5.3 điều kiện 1: "xanh toàn bộ"), không
-        # baseline-relative: đây là hàng rào an toàn định tuyến, không phải phép
-        # đo chất lượng tương đối. hijack==0 là hệ quả của acc==1.0 nhưng vẫn
-        # kiểm riêng — nó là hướng lỗi đã xảy ra THẬT (live-verify 2026-07-16)
-        # và phải nổi rõ trong báo cáo khi gate trượt.
-        return result["hijack"] == 0 and result["acc"] == 1.0
+        # ĐỔI 2026-08-17: về đúng khuôn của 4 cổng anh em ngay dưới đây
+        # (planner/read/synthesis/multi_source) — điều kiện AN TOÀN tuyệt đối
+        # + chất lượng so baseline. Trước đó nó đòi acc == 1.0, gộp hai thứ
+        # khác bản chất vào một cổng, và hệ quả ĐO ĐƯỢC là: đỏ vĩnh viễn từ
+        # 2026-07-31 nên bị gỡ khỏi `--set all` — tức hàng rào an toàn định
+        # tuyến KHÔNG được job nào gác suốt 6 tuần. Một cổng không ai chạy
+        # thì không gác gì cả.
+        #
+        # hijack GIỮ TUYỆT ĐỐI: đó mới là hướng đã gây sự cố thật
+        # (live-verify 2026-07-16), và nó vừa chứng minh giá trị lần nữa —
+        # định nghĩa mới của nó (b4c8d12) chính là thứ bắt được hồi quy
+        # "câu ĐỌC bị miền vơ" ngày 2026-08-17.
+        #
+        # Baseline-relative KHÔNG phải buông: acc tụt dưới baseline vẫn trượt.
+        # Thứ duy nhất thôi bị đòi là sự hoàn hảo của một chỉ số chất lượng,
+        # trên một tập ca mà 2 ca còn lại là giới hạn phán đoán độ sâu đã đo
+        # và ghi lại (xem cases.py).
+        return result["hijack"] == 0 and result["acc"] >= base["acc"]
     if set_name == "planner":
         return (result["dangerous_misroute"] == 0
                 and result["tool_acc"] >= base["tool_acc"])
@@ -120,13 +132,12 @@ def run(args) -> JobResult:
     if args.set == "both":
         sets = ["intent", "confirm"]
     elif args.set == "all":
-        # sop_select CỐ Ý không nằm trong "all" (quyết định người dùng, final
-        # review fix wave 2026-07-31, Finding 5): gate tuyệt đối biết trước
-        # FAIL 16/17 (ca hồi quy 2026-07-16, xem docs/superpowers/plans/
-        # 2026-07-31-sp2a-sop-skills-report.md §2) — để nó trong "all" sẽ làm
-        # job hàng đêm đỏ VĨNH VIỄN, che tín hiệu 7 gate khác đang khỏe. Vẫn
-        # đăng ký đầy đủ trong EVAL_FN/add_args choices — theo dõi riêng qua
-        # `--set sop_select`.
+        # sop_select ĐÃ QUAY LẠI "all" (2026-08-17). Nó bị loại 2026-07-31 vì
+        # gate tuyệt đối (acc == 1.0) biết trước FAIL 16/17 nên sẽ đỏ vĩnh
+        # viễn và che tín hiệu các gate khác. Lý do đó HẾT: gate nay theo
+        # khuôn chung (hijack==0 + acc>=baseline, xem _gate), nên nó báo động
+        # khi có thứ THỰC SỰ tụt chứ không kêu suốt. Để nó ngoài "all" thêm
+        # nữa nghĩa là hàng rào an toàn định tuyến tiếp tục không ai gác.
         # gather CŨNG cố ý không nằm trong "all" (spec 2026-08-01-sp2c §2):
         # chưa có baseline/ngưỡng tuyệt đối nào được xác nhận — để trong
         # "all" sẽ luôn PASS giả (gate trả True vô điều kiện) và làm loãng
@@ -135,7 +146,7 @@ def run(args) -> JobResult:
         # multi_source_gather CŨNG bị loại, cùng lý do với gather: gate trả
         # True vô điều kiện nên để trong "all" chỉ tạo PASS giả.
         sets = [s for s in EVAL_FN
-                if s not in ("sop_select", "gather", "multi_source_gather")]
+                if s not in ("gather", "multi_source_gather")]
     else:
         sets = [args.set]
     detail, any_fail = {}, False
@@ -205,11 +216,21 @@ def run(args) -> JobResult:
                          false_answer=result.get("false_answer"),
                          citation_validity=result.get("citation_validity"),
                          fabricated_number=result.get("fabricated_number"),
+                         # sop_select: hai khoá này KHÔNG có ở danh sách trên
+                         # và nhánh không-baseline cũ mới là chỗ ghi chúng —
+                         # chuyển set sang nhánh này mà quên là tái lập đúng
+                         # lỗi "danh sách khoá viết tay trôi lệch" vừa vá.
+                         hijack=result.get("hijack"),
+                         depth_acc=result.get("depth_acc"),
                          lat_p50=result.get("lat_p50"),
                          lat_p95=result.get("lat_p95"))
+            extra = ("" if result.get("hijack") is None
+                     else f" hijack={result['hijack']}"
+                          f" depth_acc={result.get('depth_acc')}")
             print(f"[{set_name}] model={model} pace={pace}s "
                   f"{acc_key}={result[acc_key]:.3f} "
-                  f"baseline={base[acc_key]:.3f} → {'PASS' if ok else 'FAIL'}")
+                  f"baseline={base[acc_key]:.3f}{extra} "
+                  f"→ {'PASS' if ok else 'FAIL'}")
         else:
             # base is None: chitchat (violations), sop_select (acc + hijack),
             # gather (tool_recall + fact_coverage), hoặc multi_source_gather

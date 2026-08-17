@@ -1,0 +1,34 @@
+{
+  "set": "sop_select",
+  "n": 27,
+  "acc": 0.9259259259259259,
+  "depth_acc": 0.9259259259259259,
+  "hijack": 0,
+  "lat_p50": 786,
+  "lat_p95": 1210,
+  "fails": [
+    {
+      "text": "đơn mua P00021 vừa giao tới, làm nốt phần còn lại nhé",
+      "expected": "nhap-kho",
+      "got": "erp_write",
+      "expected_depth": "full_sop",
+      "got_depth": "one_step",
+      "depth_ok": false,
+      "raw_intent": "erp_write",
+      "raw_sop": "nhap-kho",
+      "hijack": false
+    },
+    {
+      "text": "Wood Corner mua 10 Desk Pad, tính giá cho khách này giúp tôi",
+      "expected": "clarify_depth",
+      "got": "erp_write",
+      "expected_depth": "unsure",
+      "got_depth": "one_step",
+      "depth_ok": false,
+      "raw_intent": "erp_write",
+      "raw_sop": "bao-gia-chiet-khau",
+      "hijack": false
+    }
+  ],
+  "errors": []
+}
