@@ -4,7 +4,9 @@ description: >-
   Miền báo giá cho khách. Chọn worker này khi người dùng muốn LÀM một báo
   giá / tính giá bán cho một khách hàng cụ thể — kể cả khi họ không nhắc tới
   chữ "chiết khấu" (cấp khách và chiết khấu do chính quy trình xác định).
-  KHÔNG chọn khi người dùng chỉ hỏi về chính sách chiết khấu.
+  Câu có nêu TÊN KHÁCH cụ thể kèm sản phẩm/số lượng là muốn LÀM báo giá cho
+  khách đó. KHÔNG chọn khi câu không nêu khách nào cụ thể mà chỉ hỏi về
+  chính sách chiết khấu nói chung.
 entry: logic.py
 declares_tools: [create_discount_quote]
 ---

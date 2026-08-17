@@ -37,6 +37,50 @@ def test_bao_gia_khong_con_doi_chu_chiet_khau():
     assert "tính giá bán cho một khách hàng cụ thể" in spec.description
 
 
+# Mốc "đặc trưng phân biệt": mô tả phải nói THẲNG rằng nêu chứng từ cụ thể là
+# muốn LÀM việc, thay vì bắt model tự suy ra điều đó.
+MOC_CHUNG_TU = {
+    "nhap-kho": "MÃ ĐƠN MUA",
+    "giao-hang": "MÃ ĐƠN BÁN",
+    "bao-gia-chiet-khau": "TÊN KHÁCH",
+}
+
+# Cụm mà vế loại trừ TỪNG mở đầu bằng, và một yêu cầu thi hành hợp lệ cũng mở
+# đầu y hệt — nguồn gốc ca hỏng bền bỉ nhất repo.
+CUM_VA_CHAM = {
+    "nhap-kho": "hỏi quy trình nhập kho",
+    "giao-hang": "hỏi quy trình giao hàng",
+}
+
+
+@pytest.mark.parametrize("ten", ["nhap-kho", "giao-hang", "bao-gia-chiet-khau"])
+def test_mo_ta_neu_thang_dac_trung_phan_biet(ten):
+    """Đo 2026-08-17 (spike sau khi đợt tách miền/độ sâu lên main): mô tả bắt
+    model TỰ SUY RA rằng có mã chứng từ nghĩa là muốn thi hành, và nó KHÔNG suy
+    — nó khớp mẫu câu mở đầu. Nêu thẳng đặc trưng này là thứ đưa ca hồi quy
+    2026-07-16 về đúng sau 4 lần sửa thất bại."""
+    spec = next(s for s in load_skill_specs() if s.name == ten)
+    assert MOC_CHUNG_TU[ten] in spec.description
+
+
+@pytest.mark.parametrize("ten", sorted(CUM_VA_CHAM))
+def test_ve_loai_tru_khong_trung_mo_dau_voi_cau_thi_hanh(ten):
+    """Gốc rễ ca "quy trình nhập kho cho đơn mua P00021" (hỏng từ 2026-07-16,
+    sống sót qua 2 model và 3 lần viết lại mô tả): vế loại trừ chứa "chỉ hỏi
+    quy trình nhập kho gồm những gì", mà câu THI HÀNH hợp lệ ở trên lại mở đầu
+    bằng đúng cụm "quy trình nhập kho" đó.
+
+    Đo được 2026-08-17, giữ nguyên ngữ nghĩa chỉ đổi trật tự từ:
+      "quy trình nhập kho cho đơn mua P00021"        -> rag/none      ✗
+      "thực hiện quy trình nhập kho cho đơn mua P00021" -> nhap-kho/full_sop ✓
+      "đơn mua P00021 cần làm theo quy trình nhập kho"  -> nhap-kho/full_sop ✓
+
+    Vế loại trừ phải mô tả bằng ĐẶC TRƯNG (không nêu chứng từ nào) chứ không
+    chép lại cụm mà câu thi hành cũng dùng."""
+    spec = next(s for s in load_skill_specs() if s.name == ten)
+    assert CUM_VA_CHAM[ten] not in spec.description
+
+
 def test_khong_log_missing_negative_clause_warning(caplog):
     """Loader sử dụng NEGATIVE_CLAUSE_MARKERS để chấp nhận cả "KHÔNG dùng khi"
     và "KHÔNG chọn khi" — chỉ đưa ra cảnh báo nếu KHÔNG MỘT cụm nào có.

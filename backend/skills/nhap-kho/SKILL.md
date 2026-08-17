@@ -4,8 +4,10 @@ description: >-
   Miền nhận hàng vào kho theo một đơn mua. Chọn worker này khi người dùng
   muốn NHẬN HÀNG cho một đơn mua — kể cả câu rất ngắn, kể cả khi không nhắc
   chữ "quy trình", kể cả khi chỉ mô tả tình huống ("hàng về rồi, xử lý giúp
-  tôi"). KHÔNG chọn khi người dùng chỉ hỏi quy trình nhập kho gồm những gì,
-  hoặc khi họ muốn điều chỉnh tồn kho trực tiếp không qua đơn mua.
+  tôi"). Câu có nêu MÃ ĐƠN MUA cụ thể (ví dụ P00021) là muốn LÀM VIỆC trên
+  đơn đó, kể cả khi câu mở đầu bằng chữ "quy trình". KHÔNG chọn khi câu
+  không nêu đơn mua nào mà chỉ muốn biết các bước gồm những gì, hoặc khi họ
+  muốn điều chỉnh tồn kho trực tiếp không qua đơn mua.
 tools:
   read: [get_purchase_order_detail]
   write:
