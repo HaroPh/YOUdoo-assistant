@@ -28,3 +28,20 @@ def test_moi_prompt_deu_co_ca_hai_ngon_ngu():
     for ten in ("CHITCHAT_PROMPT", "RAG_SYNTHESIS_PROMPT", "FUSE_PROMPT"):
         langs = {lang for p, _q, lang in LANGUAGE_CASES if p == ten}
         assert langs == {"vi", "en"}, ten
+
+
+def test_khong_bi_bao_dong_sai_cho_anh_va_cho_viet():
+    """Hồi quy: "cho" trong tiếng Anh (echo, school, anchor, chose, psychology)
+    không còn dọng báo động sai bằng ranh giới từ \b."""
+    assert looks_vietnamese("I need to echo this value back") is False
+    assert looks_vietnamese("Go to school tomorrow") is False
+    assert looks_vietnamese("Drop the anchor into the water") is False
+    assert looks_vietnamese("I chose this option") is False
+    assert looks_vietnamese("Psychology is the study of behavior") is False
+
+
+def test_tieng_viet_that_van_dung_sau_ranh_gioi():
+    """Hồi quy: tiếng Việt thật với "cho" vẫn được nhận diện đúng sau khi
+    thêm ranh giới từ."""
+    assert looks_vietnamese("Cho tôi xin lỗi vì đã làm việc này") is True
+    assert looks_vietnamese("Vui lòng xác nhận đơn hàng này") is True

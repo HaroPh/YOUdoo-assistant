@@ -570,9 +570,16 @@ async def eval_localize(llm, pace: float = 0.0, checkpoint_path=None):
 # tiếng Việt được phép (và phải) giữ nguyên trong câu trả lời tiếng Anh — đếm
 # dấu thanh làm bộ dò báo động giả trên chính phần trích dẫn nguồn (đo được ở
 # spike 2026-08-18).
+#
+# GIỚI HẠN: "từ" vừa có nghĩa giới từ (from/of) vừa là âm tiết đầu từ ghép
+# "từ điển" (dictionary) hoặc tên riêng "Từ Liêm". Ranh giới từ `\b` không phân
+# biệt được hai trường hợp — cần NER thật để tách riêng. Giới hạn này KHÔNG
+# kích hoạt với 6 ca LANGUAGE_CASES hiện có (không ca nào chứa ngữ cảnh RAG hay
+# trích dẫn tài liệu thật). Sẽ giải quyết nếu sau này detect false-positive ở
+# vấn đề này.
 _VI_FUNCTION_WORDS = re.compile(
-    r"(của|và|là|cho|không|được|với|các|những|này|tôi|bạn|mình|hãy|"
-    r"nếu|theo|khi|đã|sẽ|có thể|vui lòng|từ)", re.IGNORECASE)
+    r"\b(của|và|là|cho|không|được|với|các|những|này|tôi|bạn|mình|hãy|"
+    r"nếu|theo|khi|đã|sẽ|có thể|vui lòng|từ)\b", re.IGNORECASE)
 
 
 def looks_vietnamese(text: str) -> bool:
