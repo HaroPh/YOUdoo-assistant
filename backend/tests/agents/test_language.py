@@ -48,3 +48,19 @@ def test_khong_du_tin_hieu_thi_ve_vi(text):
     Rơi về vi là chiều an toàn; Task 4 quét TOÀN BỘ lịch sử người dùng nên
     lượt đó vẫn ra đúng ngôn ngữ khi client gửi đủ lịch sử."""
     assert detect_lang(text) == VI
+
+
+def test_khong_dau_khong_du_hu_tu_thi_ve_vi():
+    # Diacritic-free Vietnamese with exactly ONE incidental EN-word collision
+    # must NOT trigger English — this was the bug (single-word false positive).
+    assert detect_lang("toi can bao gia cho khach hang Azure") == "vi"
+    assert detect_lang("kiem tra ton kho san pham Cabinet A") == "vi"
+    assert detect_lang("lam on kiem tra hoa don INV/2026/00004") == "vi"
+    assert detect_lang("cam on ban") == "vi"
+
+
+def test_hai_hu_tu_tieng_anh_van_ve_en():
+    # Real English with >=2 function words must still detect correctly.
+    assert detect_lang("show me the details of purchase order P00003") == "en"
+    assert detect_lang("which invoices are overdue?") == "en"
+    assert detect_lang("receive the goods for purchase order P00003") == "en"

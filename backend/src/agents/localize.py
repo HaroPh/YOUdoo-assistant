@@ -20,8 +20,24 @@ _VI_CHARS = re.compile(
     r"[ăâđêôơưĂÂĐÊÔƠƯáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩị"
     r"óòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]")
 
+# Hư từ tiếng Việt phổ biến — dùng để phân biệt "câu tiếng Việt thật" với
+# "câu tiếng Anh có trích dẫn/chân trang mang dấu tiếng Việt" (ví dụ chân
+# trang "📄 Nguồn:" của build_citations(), hay tên đối tác/sản phẩm tiếng
+# Việt). Chỉ có dấu KHÔNG đủ để kết luận cần dịch — cùng bài học đã áp dụng
+# cho looks_vietnamese() ở evals/run_eval.py, viết lại tự chứa ở đây để
+# không đảo hướng phụ thuộc sản phẩm→eval.
+_VI_WORDS = re.compile(
+    r"\b(của|và|là|cho|không|được|với|các|những|này|tôi|bạn|mình|hãy|"
+    r"nếu|theo|khi|đã|sẽ|có thể|vui lòng|từ)\b", re.IGNORECASE)
+
+
+def _has_vietnamese_prose(text: str) -> bool:
+    """Văn bản có PHẢI câu tiếng Việt thật không (không chỉ mang dấu)."""
+    return bool(_VI_CHARS.search(text) and _VI_WORDS.search(text))
+
 # SỰ VIỆC không được phép đổi:
-#   - ngày dạng D/M/YYYY là MỘT token nguyên (không tách rời ngày/tháng/năm)
+#   - ngày dạng D/M/YYYY hoặc YYYY-MM-DD là MỘT token nguyên (không tách rời
+#     ngày/tháng/năm)
 #   - mã chứng từ có gạch chéo: WH/OUT/00001, INV/2026/00004
 #   - mã dạng chữ+số: P00003, S00012, E-COM07, F-COM07
 #   - mọi cụm chữ số: 255, 25.5, 10.0
@@ -36,8 +52,8 @@ _VI_CHARS = re.compile(
 # vẫn đọc trước duyệt; (d) trước đây không có dịch nên localize() là thêm-lớp-
 # an-toàn chứ không hồi quy.
 _FACT = re.compile(
-    r"\d{1,2}/\d{1,2}/\d{4}|[A-Z]{2,}/[A-Z0-9/]+|"
-    r"[A-Za-z]+(?:-[A-Za-z]+)*-?\d[\w/-]*|\d[\d.,]*")
+    r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|[A-Z]{2,}/[A-Z0-9/]+|"
+    r"[A-Za-z]+(?:-[A-Za-z]+)*-?\d[\w/-]*|\d[\d.,]*\d|\d")
 
 TRANSLATE_PROMPT = (
     "Translate the message below into {target}. Keep EVERY number, amount, "
@@ -70,8 +86,8 @@ async def localize(text: str, lang: str, llm) -> str:
     """Bản dịch nếu ĐẠT lớp phủ quyết, ngược lại bản gốc. Không bao giờ ném."""
     if not text or lang not in _TARGET or lang == "vi":
         return text
-    if not _VI_CHARS.search(text):
-        return text          # đã là tiếng Anh — không dịch lại
+    if not _has_vietnamese_prose(text):
+        return text          # đã là tiếng Anh (hoặc chỉ mang dấu qua trích dẫn/tên riêng) — không dịch lại
     try:
         from langchain_core.messages import HumanMessage
         prompt = TRANSLATE_PROMPT.format(target=_TARGET[lang], text=text)

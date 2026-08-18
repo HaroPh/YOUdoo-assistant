@@ -161,11 +161,15 @@ def run(args) -> JobResult:
         # True vô điều kiện nên để trong "all" chỉ tạo PASS giả.
         # localize CŨNG bị loại, cùng lý do: gate trả True vô điều kiện nên để trong
         # "all" sẽ chỉ tạo PASS giả mà không đo được gì thật.
-        # language CŨNG bị loại: gate tuyệt đối (acc == 1.0), không có baseline,
-        # để trong "all" sẽ chỉ tạo PASS/FAIL giả mà không gác được bất kỳ thứ
-        # gì thật — mặc dù lý do khác (nhị phân) chứ không phải "gác nhẹ".
+        # language ĐÃ QUAY LẠI "all" (final review, 2026-08-18): lý do loại ban
+        # đầu ("gate tuyệt đối = PASS/FAIL giả") tự mâu thuẫn với chitchat (cũng
+        # tuyệt đối, vẫn nằm trong "all"), và loại nó khỏi job đêm nghĩa là
+        # KHÔNG AI gác 4 prompt vừa sửa khỏi hồi quy tiếng Anh — đúng cái mà
+        # chính Task 6 viết set này để bắt. An toàn để đưa lại vì eval_language's
+        # "en" giờ đòi bằng chứng dương (fix cùng đợt), không còn suy từ thiếu
+        # bằng chứng tiếng Việt nữa.
         sets = [s for s in EVAL_FN
-                if s not in ("gather", "multi_source_gather", "localize", "language")]
+                if s not in ("gather", "multi_source_gather", "localize")]
     else:
         sets = [args.set]
     detail, any_fail = {}, False
@@ -292,6 +296,20 @@ def run(args) -> JobResult:
                       f"citation_validity={result.get('citation_validity'):.3f} "
                       f"fabricated_number={result.get('fabricated_number')} "
                       f"→ {'PASS' if ok else 'FAIL'}")
+            elif set_name == "language":
+                # Nhánh này thiếu từ khi "language" ra đời (Task 6) — chưa lộ
+                # ra vì set này chưa từng chạy dưới nhánh base=None của report
+                # (không có test standalone `--set language`, và bị loại khỏi
+                # "all"). Đưa lại vào "all" (fix cùng đợt) chạy thẳng vào
+                # nhánh else phía dưới vốn viết CỨNG cho chitchat
+                # (`result["violations"]`) → KeyError vì kết quả language
+                # không có khoá đó. Thêm nhánh riêng, cùng khuôn sop_select/
+                # gather/multi_source_gather ở trên.
+                entry["acc"] = result.get("acc")
+                entry.update(lat_p50=result.get("lat_p50"),
+                             lat_p95=result.get("lat_p95"))
+                print(f"[{set_name}] model={model} pace={pace}s "
+                      f"acc={result.get('acc')} → {'PASS' if ok else 'FAIL'}")
             else:
                 # chitchat
                 entry["violations"] = result["violations"]

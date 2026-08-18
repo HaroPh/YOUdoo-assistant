@@ -37,6 +37,7 @@ from src.agents.synthesis import (SENTINEL, _format_context, _MARKER_RE,
                                   extract_write_suggestion)
 from src.agents.nodes import _parse_plan_tiered
 from src.agents.routing import parse_proposal, decide_route
+from src.agents.language import _EN_WORDS, _WORD as _EN_WORD_RE
 from src.erp_query.tools import build_erp_query_tools
 from jobs.resilience import run_resilient
 from evals import role_config
@@ -591,6 +592,20 @@ def looks_vietnamese(text: str) -> bool:
     return bool(_VI_FUNCTION_WORDS.search(text or ""))
 
 
+def _has_english_evidence(text: str) -> bool:
+    """Câu trả lời có BẰNG CHỨNG DƯƠNG là tiếng Anh không (không chỉ vì thiếu
+    tiếng Việt)?
+
+    Dùng chung bộ hư từ tiếng Anh của src.agents.language.detect_lang (Fix 1)
+    thay vì tự chép lại danh sách — cùng lý do reuse của render_fuse_input:
+    hai bản sao trôi lệch nhau là nguồn lỗi. Đây là chiều phụ thuộc ĐÚNG (eval
+    infra → src), khác với localize._has_vietnamese_prose phải tự chứa vì
+    chiều ngược lại (src → evals) sẽ đảo layering.
+    """
+    words = set(_EN_WORD_RE.findall((text or "").lower()))
+    return len(words & _EN_WORDS) >= 2
+
+
 async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
     """Câu trả lời có theo ngôn ngữ người dùng không — đo tầng PROMPT.
 
@@ -607,6 +622,14 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
     chinh_sach_hoan_hang mà 2 câu hỏi LANGUAGE_CASES đã nhắm tới) để model có
     nội dung thật để trả lời bằng văn xuôi — đây cũng chính là ca thật sự
     kiểm được rủi ro trích dẫn danh từ riêng tiếng Việt mà spec §2.4 nói tới.
+
+    FUSE_PROMPT nhận cùng cách xử lý (final review, 2026-08-18): gọi bare
+    (không TÀI LIỆU + DỮ LIỆU ERP) thì không tái tạo được đúng lỗi gốc mà spec
+    §2.3 ghi lại — luật ngôn ngữ bị SỨC NẶNG của ngữ cảnh tiếng Việt thật (tài
+    liệu + khối ERP) lấn át, một lượt gọi trơ trụi không mang sức nặng đó. Bơm
+    qua `render_fuse_input` (đúng hàm production dùng, topic sla_giao_hang —
+    cùng topic 2 câu hỏi LANGUAGE_CASES của FUSE_PROMPT nhắm tới) để ca eval
+    này thật sự kiểm được lỗi nó được viết ra để bắt.
     """
     from src.agents import prompts as prompts_mod
     lat: list[float] = []
@@ -618,13 +641,26 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
             chunks = fixtures.load_chunks("chinh_sach_hoan_hang")
             human = (f"TÀI LIỆU:\n{_format_context(chunks)}"
                      f"\n\nCÂU HỎI: {question}")
+        elif prompt_name == "FUSE_PROMPT":
+            chunks = fixtures.load_chunks("sla_giao_hang")
+            erp_block = "Đơn S00165 | Azure Interior | trạng thái sale | 1.500.000"
+            human = render_fuse_input(chunks, erp_block, question)
         else:
             human = question
         resp, ms = await _timed(llm.ainvoke(
             [SystemMessage(content=system), HumanMessage(content=human)]))
         lat.append(ms)
         body = (resp.content or "").strip()
-        got = "vi" if looks_vietnamese(body) else "en"
+        if not body:
+            return {"prompt": prompt_name, "question": question,
+                    "want": want, "got": "EMPTY", "body": ""}
+        if looks_vietnamese(body):
+            got = "vi"
+        elif _has_english_evidence(body):
+            got = "en"
+        else:
+            return {"prompt": prompt_name, "question": question,
+                    "want": want, "got": "INCONCLUSIVE", "body": body[:160]}
         if got == want:
             return None
         return {"prompt": prompt_name, "question": question,

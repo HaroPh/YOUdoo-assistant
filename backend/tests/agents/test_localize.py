@@ -6,7 +6,8 @@ toàn: người dùng đọc câu này rồi duyệt một thao tác ghi THẬT.
 """
 import pytest
 
-from src.agents.localize import extract_facts, facts_survived, localize
+from src.agents.localize import (
+    _has_vietnamese_prose, extract_facts, facts_survived, localize)
 
 GOC = ('Mình sẽ thực hiện thao tác sau giúp bạn:\n\n'
        '**Nhận hàng cho đơn mua P00003**\n(receive_order: order_ref=P00003)\n'
@@ -118,3 +119,44 @@ def test_hoan_doi_ngay_thang_nam_thi_truot():
     src = "Thực hiện ngày 3/4/2026"
     out_hoandoi = "Perform on 4/3/2026"  # hoán đổi ngày/tháng → ngày/tháng khác
     assert facts_survived(src, out_hoandoi) is False
+
+
+def test_ngay_ISO_la_mot_token_nguyen():
+    # ISO date transposition (day/month swap) must be CAUGHT, not pass silently.
+    src = "da hoan tat viec 'goi lai' tren 'S00119' (han 2026-08-25)."
+    out_bad = "task 'call back' on 'S00119' complete (due 2026-25-08)."
+    assert facts_survived(src, out_bad) is False
+    out_good = "task 'call back' on 'S00119' complete (due 2026-08-25)."
+    assert facts_survived(src, out_good) is True
+
+
+def test_dau_cau_dinh_sau_so_khong_lam_truot_ban_dich_dung():
+    # A faithful translation must not be rejected just because trailing
+    # punctuation lands in a different place than the source.
+    src = ("Hóa đơn INV/2026/00004 của Acme Corporation, số tiền 1250.5, hạn "
+           "2026-07-30. Bạn xác nhận ghi nhận thanh toán?")
+    out_good = ("Invoice INV/2026/00004 from Acme Corporation for 1250.5, "
+                "due 2026-07-30 -- do you confirm recording this payment?")
+    assert facts_survived(src, out_good) is True
+    # A real amount corruption must still be caught.
+    out_bad = ("Invoice INV/2026/00004 from Acme Corporation for 1265.5, "
+               "due 2026-07-30.")
+    assert facts_survived(src, out_bad) is False
+
+
+def test_tieng_anh_kem_chan_trang_trich_dan_khong_bi_dich_lai():
+    # English prose + the deterministic "📄 Nguồn:" citation footer (has a
+    # diacritic in "Nguồn") must NOT trigger translation — it's already English.
+    text = ("The return policy allows returns within 30 days.\n\n"
+            "📄 Nguồn:\n• Return Policy Section 1 (policy.docx)")
+    assert _has_vietnamese_prose(text) is False
+
+
+def test_tieng_anh_kem_ten_rieng_tieng_viet_khong_bi_dich_lai():
+    text = "Order S00042 for Công Ty TNHH Thương Mại is ready."
+    assert _has_vietnamese_prose(text) is False
+
+
+def test_cau_tieng_viet_that_van_duoc_nhan_dung():
+    text = "Bạn xác nhận giúp mình nhé?"
+    assert _has_vietnamese_prose(text) is True

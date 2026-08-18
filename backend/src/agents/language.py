@@ -43,4 +43,4 @@ def detect_lang(text) -> str:
     if _VI_CHARS.search(s.lower()):
         return VI
     words = set(_WORD.findall(s.lower()))
-    return EN if words & _EN_WORDS else VI
+    return EN if len(words & _EN_WORDS) >= 2 else VI
