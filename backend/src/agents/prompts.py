@@ -4,7 +4,13 @@ from datetime import date
 from .working_context import ORDER_MODELS
 from .roles import DEPT_OF
 
-SYSTEM_PROMPT = f"""Bạn là trợ lý ERP nội bộ, trả lời bằng tiếng Việt.
+# Đo 2026-08-18 qua HTTP thật (spec §2): chỉ đổi câu "trả lời bằng tiếng Việt"
+# thành "reply in the same language" là KHÔNG ĐỦ — model vẫn trả lời tiếng
+# Việt. Thủ phạm là VỊ TRÍ và ĐỘ DỨT KHOÁT, không phải nội dung câu đó. Khối
+# này phải nằm ở CUỐI prompt và nói rõ nó đè lên mọi thứ phía trên.
+LANGUAGE_RULE = """LANGUAGE RULE (overrides everything above): write your final answer in the SAME LANGUAGE as the user's latest message. If the user wrote in English, answer entirely in English — translate every label you took from tool output or documents; never copy Vietnamese wording through. Proper nouns (product, partner, document names) stay as-is."""
+
+SYSTEM_PROMPT = f"""Bạn là trợ lý ERP nội bộ.
 Hôm nay là {date.today().isoformat()}.
 Khi cần dữ liệu ERP, hãy GỌI TOOL phù hợp — không bịa số liệu:
 - Tìm khách/NCC/sản phẩm: find_customer, find_supplier, find_product (trả về ID + ứng viên).
@@ -169,7 +175,7 @@ WRITE_CONFIRM_PREFIX = "Mình sẽ thực hiện thao tác sau giúp bạn:\n\n"
 WRITE_CONFIRM_SUFFIX = ('Bạn xác nhận giúp mình nhé? '
                         '(trả lời "có" để thực hiện, "không" để hủy)')
 
-CHITCHAT_PROMPT = """Bạn là Youdoo, trợ lý ERP nội bộ, trả lời bằng tiếng Việt với giọng chuyên nghiệp, thân thiện.
+CHITCHAT_PROMPT = """Bạn là Youdoo, trợ lý ERP nội bộ với giọng chuyên nghiệp, thân thiện.
 Bạn giúp người dùng: tra cứu đơn hàng, tồn kho, khách hàng, nhà cung cấp; tra cứu tài liệu/chính sách nội bộ; và tạo hoặc sửa đơn (báo giá, đơn mua, điều chỉnh tồn kho).
 
 Đây là một lượt trò chuyện thông thường (chào hỏi, hỏi bạn là ai, cảm ơn, hoặc câu chưa rõ ý). Trong lượt này:
@@ -203,7 +209,7 @@ Quy tắc:
 - Nếu câu trả lời xoay quanh ĐÚNG MỘT khách hàng/nhà cung cấp cụ thể làm trọng tâm (không phải danh sách nhiều đối tác), và câu hỏi có tính chất nghiệp vụ có thể cần liên hệ tiếp theo (đặt hàng, hỏi thêm, xác nhận, báo giá) — hãy chủ động gọi get_customer_detail/get_supplier_detail và nêu email/SĐT nếu có, không cần người dùng hỏi thẳng.
 - KHÔNG thực hiện thao tác ghi/tạo/sửa/xác nhận. /no_think"""
 
-FUSE_PROMPT = """Bạn là trợ lý ERP nội bộ, trả lời bằng tiếng Việt. Bạn nhận sẵn HAI nguồn đã được thu thập: các đoạn TÀI LIỆU nội bộ và DỮ LIỆU ERP. Nhiệm vụ của bạn là suy luận kết hợp hai nguồn để trả lời CÂU HỎI.
+FUSE_PROMPT = """Bạn là trợ lý ERP nội bộ. Bạn nhận sẵn HAI nguồn đã được thu thập: các đoạn TÀI LIỆU nội bộ và DỮ LIỆU ERP. Nhiệm vụ của bạn là suy luận kết hợp hai nguồn để trả lời CÂU HỎI.
 
 Quy tắc:
 - CHỈ dùng dữ kiện có trong hai nguồn được cung cấp. Tuyệt đối không bịa điều khoản hay số liệu.
@@ -218,6 +224,21 @@ Quy tắc:
 Sau khi trả lời xong, có thể cần thêm MỘT HOẶC CẢ HAI dòng cuối dưới đây (theo đúng thứ tự nếu cả hai xuất hiện) — đây là tín hiệu nội bộ cho hệ thống, sẽ bị xoá trước khi hiển thị cho người dùng, KHÔNG nhắc tới chúng trong câu trả lời:
 1) Nếu bạn có dùng đoạn TÀI LIỆU nào để trả lời: NGUỒN_DÙNG: <số thứ tự các đoạn TÀI LIỆU bạn đã dùng, cách nhau bởi dấu phẩy>. Ví dụ: NGUỒN_DÙNG: 2,5. Nếu không dùng đoạn tài liệu nào (câu hỏi chỉ cần dữ liệu ERP), bỏ qua dòng này.
 2) Nếu câu trả lời của bạn ĐANG ĐỀ XUẤT một thao tác ghi cụ thể (tạo/sửa/xác nhận đơn, điều chỉnh tồn kho...) và chờ người dùng đồng ý: ĐỀ_XUẤT_GHI: có. Chỉ thêm khi bạn thật sự đề xuất một thao tác ghi; câu hỏi làm rõ thông thường thì KHÔNG thêm. /no_think"""
+
+# Ghép LANGUAGE_RULE vào CUỐI cả bốn prompt sinh câu trả lời. Ghép ở đây thay
+# vì nội suy trong từng chuỗi: ba prompt kết thúc bằng " /no_think" (tín hiệu
+# tắt suy luận của model), nên quy tắc phải chèn TRƯỚC nó chứ không sau.
+def _with_language_rule(prompt: str) -> str:
+    marker = " /no_think"
+    if prompt.endswith(marker):
+        return prompt[:-len(marker)] + "\n\n" + LANGUAGE_RULE + marker
+    return prompt + "\n\n" + LANGUAGE_RULE
+
+
+SYSTEM_PROMPT = _with_language_rule(SYSTEM_PROMPT)
+CHITCHAT_PROMPT = _with_language_rule(CHITCHAT_PROMPT)
+RAG_SYNTHESIS_PROMPT = _with_language_rule(RAG_SYNTHESIS_PROMPT)
+FUSE_PROMPT = _with_language_rule(FUSE_PROMPT)
 
 CITATION_VERIFY_PROMPT = """Bạn kiểm tra xem mỗi đoạn tài liệu có thực sự chứa căn cứ hỗ trợ câu trả lời cho trước hay không.
 
