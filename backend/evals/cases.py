@@ -815,3 +815,22 @@ GATHER_CASES = [
       "find_product": "Tìm thấy 1 sản phẩm: Large Cabinet (ID 108)",
       "get_product_price": "Giá Large Cabinet: 2.400.000 (SL 50)."}),
 ]
+
+# ── LOCALIZE_CASES ───────────────────────────────────────────────────────────
+# Chuỗi ĐIỀU PHỐI thật (không phải câu do LLM sinh) — đây là những chuỗi đi
+# THẲNG ra người dùng rồi người ta DUYỆT một thao tác ghi dựa trên chúng. Mỗi
+# ca là (văn bản gốc tiếng Việt, ngôn ngữ đích).
+LOCALIZE_CASES = [
+    ('Mình sẽ thực hiện thao tác sau giúp bạn:\n\n**Nhận hàng cho đơn mua '
+     'P00003**\n(receive_order: order_ref=P00003)\nBạn xác nhận giúp mình nhé? '
+     '(trả lời "có" để thực hiện, "không" để hủy)', "en"),
+    ('Báo giá cho Azure Interior:\n  - [E-COM07] Large Cabinet × 2 = 640\n'
+     'Tổng: 640\nBạn xác nhận giúp mình nhé?', "en"),
+    ('Xác nhận GIAO HÀNG cho đơn bán S00012?', "en"),
+    ('Xác nhận phiếu kho WH/OUT/00001 đã reserve đủ hàng?', "en"),
+    ('Đã giao hàng cho đơn S00012 (1 phiếu).', "en"),
+    ('Hóa đơn INV/2026/00004 của Acme Corporation, số tiền 1250.5, hạn '
+     '2026-07-30. Bạn xác nhận ghi nhận thanh toán?', "en"),
+    ('Sản phẩm Large Cabinet (ID 108) của Wood Corner đã hết hạn bảo hành từ '
+     '30/06/2026.', "en"),
+]

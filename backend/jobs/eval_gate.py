@@ -55,14 +55,16 @@ ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitcha
                 # gather_erp và fuse_answer đều dùng role "fusion" — set này
                 # chạy CẢ HAI nên vẫn đúng một role.
                 "multi_source_gather": "fusion",
-                "gather": "fusion"}
+                "gather": "fusion",
+                "localize": "evaluator"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
            "read": run_eval.eval_read, "synthesis": run_eval.eval_synthesis,
            "multi_source": run_eval.eval_multi_source,
            "sop_select": run_eval.eval_sop_select,
            "gather": run_eval.eval_gather,
-           "multi_source_gather": run_eval.eval_multi_source_gather}
+           "multi_source_gather": run_eval.eval_multi_source_gather,
+           "localize": run_eval.eval_localize}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -122,6 +124,11 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # để người đọc tự đánh giá, không phải job tự đánh giá thay (spec
         # 2026-08-01-sp2c §2). Siết lại thành ngưỡng thật khi có đủ số đo.
         return True
+    if set_name == "localize":
+        # GÁC NHẸ ở đợt đầu, cùng lý do gather/multi_source_gather: chưa có số
+        # đo nào để biết ngưỡng hợp lý. Số vào báo cáo để người đọc tự đánh
+        # giá. Siết thành ngưỡng thật khi đủ số đo.
+        return True
     if set_name == "intent":
         return result["acc"] >= base["acc"]
     return (result["false_confirm"] == 0
@@ -145,8 +152,10 @@ def run(args) -> JobResult:
         # riêng qua `--set gather` cho tới khi có đủ số đo để siết ngưỡng.
         # multi_source_gather CŨNG bị loại, cùng lý do với gather: gate trả
         # True vô điều kiện nên để trong "all" chỉ tạo PASS giả.
+        # localize CŨNG bị loại, cùng lý do: gate trả True vô điều kiện nên để trong
+        # "all" sẽ chỉ tạo PASS giả mà không đo được gì thật.
         sets = [s for s in EVAL_FN
-                if s not in ("gather", "multi_source_gather")]
+                if s not in ("gather", "multi_source_gather", "localize")]
     else:
         sets = [args.set]
     detail, any_fail = {}, False

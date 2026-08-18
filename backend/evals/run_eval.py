@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
-                         MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
+                         LOCALIZE_CASES, MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
                          MULTI_SOURCE_GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
@@ -531,6 +531,37 @@ async def eval_sop_select(llm, pace: float = 0.0, checkpoint_path=None,
             "acc": (n - len(fails) - len(errors)) / n if n else 0.0,
             "depth_acc": (n - depth_wrong - len(errors)) / n if n else 0.0,
             "hijack": hijack,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
+async def eval_localize(llm, pace: float = 0.0, checkpoint_path=None):
+    """Đo lớp dịch chuỗi điều phối: BẢN DỊCH GIỮ ĐỦ SỰ VIỆC hay không.
+
+    `acc` = tỉ lệ ca trả về BẢN DỊCH (tức đã qua lớp phủ quyết).
+    `fact_loss` = số ca lớp phủ quyết phải chặn (bản dịch làm mất/đổi sự
+    việc). fact_loss > 0 KHÔNG phải lỗi hệ thống — đó là cổng làm đúng việc;
+    nhưng nó đo được model dịch tệ tới đâu, nên phải nổi lên trong báo cáo.
+    """
+    from src.agents.localize import facts_survived, localize
+    lat: list[float] = []
+
+    async def call(case):
+        text, lang = case
+        out, ms = await _timed(localize(text, lang, llm))
+        lat.append(ms)
+        if out != text:
+            return None                    # đã dịch và qua lớp phủ quyết
+        return {"text": text[:80], "lang": lang,
+                "reason": "roi_ve_ban_goc"}
+
+    fails, errors = await run_resilient(LOCALIZE_CASES, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(LOCALIZE_CASES)
+    p50, p95 = _percentiles(lat)
+    return {"set": "localize", "n": n,
+            "acc": (n - len(fails) - len(errors)) / n if n else 0.0,
+            "fact_loss": len(fails),
             "lat_p50": p50, "lat_p95": p95,
             "fails": fails, "errors": errors}
 

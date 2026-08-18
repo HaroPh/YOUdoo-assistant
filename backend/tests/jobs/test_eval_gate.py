@@ -208,6 +208,19 @@ def _fake_gather_eval(tool_recall=1.0, fact_coverage=1.0, n=10):
     return fn
 
 
+def _fake_localize_eval(acc=1.0, fact_loss=0, n=7):
+    async def fn(llm, pace=0.0, checkpoint_path=None):
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
+        fails = []
+        if fact_loss > 0:
+            fails.append({"text": "Xác nhận x", "lang": "en",
+                         "reason": "roi_ve_ban_goc"})
+        return {"set": "localize", "n": n, "acc": acc, "fact_loss": fact_loss,
+                "lat_p50": 500, "lat_p95": 1000, "fails": fails, "errors": []}
+    fn.calls = []
+    return fn
+
+
 def test_chitchat_zero_violations_passes(monkeypatch):
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -334,10 +347,10 @@ def test_planner_dangerous_misroute_fails_even_with_perfect_acc(monkeypatch, tmp
     assert result.detail["planner"]["gate"] == "FAIL"
 
 
-def test_set_all_runs_every_registered_set_except_gather_pair(monkeypatch, tmp_path):
-    """--set all phải chạy TẤT CẢ set đã đăng ký, TRỪ `gather` và
-    `multi_source_gather` (gate của chúng trả True vô điều kiện nên để trong
-    "all" chỉ tạo PASS giả).
+def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch, tmp_path):
+    """--set all phải chạy TẤT CẢ set đã đăng ký, TRỪ `gather`,
+    `multi_source_gather`, và `localize` (gate của chúng trả True vô điều kiện
+    nên để trong "all" chỉ tạo PASS giả).
 
     `sop_select` ĐÃ QUAY LẠI "all" (2026-08-17): nó bị loại 2026-07-31 vì cổng
     tuyệt đối (acc == 1.0) biết trước FAIL nên sẽ đỏ vĩnh viễn; lý do đó hết
@@ -399,18 +412,25 @@ def test_set_all_runs_every_registered_set_except_gather_pair(monkeypatch, tmp_p
     fmsg = _fake_multi_source_gather_eval(coverage=0.0, fabricated_number=9)
     monkeypatch.setitem(eval_gate.EVAL_FN, "multi_source_gather", fmsg)
 
+    # localize cũng bị loại khỏi "all" (chưa có baseline, gate trả True vô
+    # điều kiện) — cùng lý do gather/multi_source_gather ở trên.
+    flocalize = _fake_localize_eval(acc=1.0, fact_loss=0)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "localize", flocalize)
+
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == \
-        set(eval_gate.EVAL_FN) - {"gather", "multi_source_gather"}
+        set(eval_gate.EVAL_FN) - {"gather", "multi_source_gather", "localize"}
     assert "sop_select" in result.detail
     assert "gather" not in result.detail
     assert "multi_source_gather" not in result.detail
+    assert "localize" not in result.detail
     assert result.exit_code == PASS
     for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
     assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
     assert fmsg.calls == [], "multi_source_gather KHÔNG được chạy dưới --set all"
+    assert flocalize.calls == [], "localize KHÔNG được chạy dưới --set all"
 
 
 def test_set_sop_select_still_runs_standalone(monkeypatch):
