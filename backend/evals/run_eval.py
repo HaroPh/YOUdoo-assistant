@@ -596,6 +596,17 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
 
     Gọi thẳng từng prompt với một câu hỏi, không dựng graph: thứ đang đo là
     khối LANGUAGE_RULE, không phải định tuyến.
+
+    RAG_SYNTHESIS_PROMPT là NGOẠI LỆ bắt buộc: gọi bare (không TÀI LIỆU) thì
+    prompt LUÔN trả đúng một hằng số SENTINEL ("KHÔNG_ĐỦ_THÔNG_TIN", xem
+    synthesis.py) bất kể câu hỏi ngôn ngữ nào — không phải văn xuôi, không có
+    "ngôn ngữ" để đo, và trước khi `looks_vietnamese()` có ranh giới `\\b`
+    (Task 6 fix round 1), ca "vi" tình cờ khớp ĐÚNG chỉ vì "không" là chuỗi
+    con thô của "KHÔNG_ĐỦ..." — không phải model thật sự viết tiếng Việt.
+    Bơm TÀI LIỆU thật (đúng hình dạng synthesize(), cùng topic
+    chinh_sach_hoan_hang mà 2 câu hỏi LANGUAGE_CASES đã nhắm tới) để model có
+    nội dung thật để trả lời bằng văn xuôi — đây cũng chính là ca thật sự
+    kiểm được rủi ro trích dẫn danh từ riêng tiếng Việt mà spec §2.4 nói tới.
     """
     from src.agents import prompts as prompts_mod
     lat: list[float] = []
@@ -603,8 +614,14 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
     async def call(case):
         prompt_name, question, want = case
         system = getattr(prompts_mod, prompt_name)
+        if prompt_name == "RAG_SYNTHESIS_PROMPT":
+            chunks = fixtures.load_chunks("chinh_sach_hoan_hang")
+            human = (f"TÀI LIỆU:\n{_format_context(chunks)}"
+                     f"\n\nCÂU HỎI: {question}")
+        else:
+            human = question
         resp, ms = await _timed(llm.ainvoke(
-            [SystemMessage(content=system), HumanMessage(content=question)]))
+            [SystemMessage(content=system), HumanMessage(content=human)]))
         lat.append(ms)
         body = (resp.content or "").strip()
         got = "vi" if looks_vietnamese(body) else "en"
