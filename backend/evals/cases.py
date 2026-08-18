@@ -834,3 +834,15 @@ LOCALIZE_CASES = [
     ('Sản phẩm Large Cabinet (ID 108) của Wood Corner đã hết hạn bảo hành từ '
      '30/06/2026.', "en"),
 ]
+
+# ── LANGUAGE_CASES ───────────────────────────────────────────────────────────
+# (tên prompt, câu hỏi, ngôn ngữ kỳ vọng của CÂU TRẢ LỜI).
+# Đo tầng prompt, KHÔNG đo tầng điều phối (đó là LOCALIZE_CASES).
+LANGUAGE_CASES = [
+    ("CHITCHAT_PROMPT", "hi, who are you?", "en"),
+    ("CHITCHAT_PROMPT", "chào bạn, bạn là ai?", "vi"),
+    ("RAG_SYNTHESIS_PROMPT", "what is the return policy?", "en"),
+    ("RAG_SYNTHESIS_PROMPT", "chính sách hoàn hàng là gì?", "vi"),
+    ("FUSE_PROMPT", "does order S00165 meet the delivery SLA?", "en"),
+    ("FUSE_PROMPT", "đơn S00165 có đáp ứng SLA giao hàng không?", "vi"),
+]

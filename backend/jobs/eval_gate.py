@@ -56,7 +56,8 @@ ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitcha
                 # chạy CẢ HAI nên vẫn đúng một role.
                 "multi_source_gather": "fusion",
                 "gather": "fusion",
-                "localize": "evaluator"}
+                "localize": "evaluator",
+                "language": "chitchat"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
            "read": run_eval.eval_read, "synthesis": run_eval.eval_synthesis,
@@ -64,7 +65,8 @@ EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "sop_select": run_eval.eval_sop_select,
            "gather": run_eval.eval_gather,
            "multi_source_gather": run_eval.eval_multi_source_gather,
-           "localize": run_eval.eval_localize}
+           "localize": run_eval.eval_localize,
+           "language": run_eval.eval_language}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -129,6 +131,11 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # đo nào để biết ngưỡng hợp lý. Số vào báo cáo để người đọc tự đánh
         # giá. Siết thành ngưỡng thật khi đủ số đo.
         return True
+    if set_name == "language":
+        # Gate TUYỆT ĐỐI: đây là thuộc tính nhị phân (đúng ngôn ngữ hay không),
+        # không phải phép đo chất lượng tương đối. Trả lời sai ngôn ngữ là hỏng
+        # hẳn với người dùng đó, không phải "kém hơn hôm qua".
+        return result["acc"] == 1.0
     if set_name == "intent":
         return result["acc"] >= base["acc"]
     return (result["false_confirm"] == 0
@@ -154,8 +161,11 @@ def run(args) -> JobResult:
         # True vô điều kiện nên để trong "all" chỉ tạo PASS giả.
         # localize CŨNG bị loại, cùng lý do: gate trả True vô điều kiện nên để trong
         # "all" sẽ chỉ tạo PASS giả mà không đo được gì thật.
+        # language CŨNG bị loại: gate tuyệt đối (acc == 1.0), không có baseline,
+        # để trong "all" sẽ chỉ tạo PASS/FAIL giả mà không gác được bất kỳ thứ
+        # gì thật — mặc dù lý do khác (nhị phân) chứ không phải "gác nhẹ".
         sets = [s for s in EVAL_FN
-                if s not in ("gather", "multi_source_gather", "localize")]
+                if s not in ("gather", "multi_source_gather", "localize", "language")]
     else:
         sets = [args.set]
     detail, any_fail = {}, False

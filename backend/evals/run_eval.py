@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
-                         LOCALIZE_CASES, MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
+                         LANGUAGE_CASES, LOCALIZE_CASES, MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
                          MULTI_SOURCE_GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
@@ -562,6 +562,56 @@ async def eval_localize(llm, pace: float = 0.0, checkpoint_path=None):
     return {"set": "localize", "n": n,
             "acc": (n - len(fails) - len(errors)) / n if n else 0.0,
             "fact_loss": len(fails),
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
+# Hư từ tiếng Việt. CỐ Ý không dùng dấu thanh: tên tài liệu/sản phẩm/đối tác
+# tiếng Việt được phép (và phải) giữ nguyên trong câu trả lời tiếng Anh — đếm
+# dấu thanh làm bộ dò báo động giả trên chính phần trích dẫn nguồn (đo được ở
+# spike 2026-08-18).
+_VI_FUNCTION_WORDS = re.compile(
+    r"(của|và|là|cho|không|được|với|các|những|này|tôi|bạn|mình|hãy|"
+    r"nếu|theo|khi|đã|sẽ|có thể|vui lòng|từ)", re.IGNORECASE)
+
+
+def looks_vietnamese(text: str) -> bool:
+    """Câu trả lời được VIẾT bằng tiếng Việt?
+
+    Chấm trên HƯ TỪ chứ không trên dấu thanh: một câu tiếng Anh trích tên tài
+    liệu "Quy trình nhập kho" là ĐÚNG, không phải lỗi.
+    """
+    return bool(_VI_FUNCTION_WORDS.search(text or ""))
+
+
+async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
+    """Câu trả lời có theo ngôn ngữ người dùng không — đo tầng PROMPT.
+
+    Gọi thẳng từng prompt với một câu hỏi, không dựng graph: thứ đang đo là
+    khối LANGUAGE_RULE, không phải định tuyến.
+    """
+    from src.agents import prompts as prompts_mod
+    lat: list[float] = []
+
+    async def call(case):
+        prompt_name, question, want = case
+        system = getattr(prompts_mod, prompt_name)
+        resp, ms = await _timed(llm.ainvoke(
+            [SystemMessage(content=system), HumanMessage(content=question)]))
+        lat.append(ms)
+        body = (resp.content or "").strip()
+        got = "vi" if looks_vietnamese(body) else "en"
+        if got == want:
+            return None
+        return {"prompt": prompt_name, "question": question,
+                "want": want, "got": got, "body": body[:160]}
+
+    fails, errors = await run_resilient(LANGUAGE_CASES, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(LANGUAGE_CASES)
+    p50, p95 = _percentiles(lat)
+    return {"set": "language", "n": n,
+            "acc": (n - len(fails) - len(errors)) / n if n else 0.0,
             "lat_p50": p50, "lat_p95": p95,
             "fails": fails, "errors": errors}
 

@@ -221,6 +221,16 @@ def _fake_localize_eval(acc=1.0, fact_loss=0, n=7):
     return fn
 
 
+def _fake_language_eval(acc=1.0, n=6):
+    async def fn(llm, pace=0.0, checkpoint_path=None):
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
+        fails = []
+        return {"set": "language", "n": n, "acc": acc,
+                "lat_p50": 600, "lat_p95": 1200, "fails": fails, "errors": []}
+    fn.calls = []
+    return fn
+
+
 def test_chitchat_zero_violations_passes(monkeypatch):
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -347,25 +357,30 @@ def test_planner_dangerous_misroute_fails_even_with_perfect_acc(monkeypatch, tmp
     assert result.detail["planner"]["gate"] == "FAIL"
 
 
-def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch, tmp_path):
+def test_set_all_runs_every_registered_set_except_quad_light_gate(monkeypatch, tmp_path):
     """--set all phải chạy TẤT CẢ set đã đăng ký, TRỪ `gather`,
-    `multi_source_gather`, và `localize` (gate của chúng trả True vô điều kiện
-    nên để trong "all" chỉ tạo PASS giả).
+    `multi_source_gather`, `localize`, và `language` (gate của chúng không theo
+    ngưỡng baseline nên để trong "all" chỉ tạo PASS/FAIL giả mà không gác được
+    thứ gì thật).
 
     `sop_select` ĐÃ QUAY LẠI "all" (2026-08-17): nó bị loại 2026-07-31 vì cổng
     tuyệt đối (acc == 1.0) biết trước FAIL nên sẽ đỏ vĩnh viễn; lý do đó hết
     khi cổng về khuôn chung (hijack==0 + acc>=baseline). Để nó ngoài "all"
     thêm nữa nghĩa là hàng rào an toàn định tuyến tiếp tục không ai gác.
+    Bốn set KHÔNG nằm trong "all": gather, multi_source_gather, localize,
+    language — tất cả đều có gate không theo baseline nên để trong "all"
+    chỉ tạo PASS/FAIL giả mà không gác được thứ gì thật.
 
     Bẫy thật (nhiều lần: Task 2's fix round, rồi TÁI PHÁT khi Task 3/4/5 thêm
     read/synthesis/multi_source, rồi TÁI PHÁT LẦN NỮA ở plan
     2026-08-04-multi-source-gather-eval Task 3 khi multi_source_gather ra
-    đời — cùng bị loại khỏi "all" như gather/sop_select nên assertion hard-code
-    3 tên phải theo kịp) mà quên patch vào test này — nếu 1 set không được
-    patch, hàm eval THẬT sẽ chạy, lỗi (thiếu LLM/baseline thật), bị run()'s
-    except nuốt mất, và assertion cũ (chỉ check 4 key cố định) vẫn qua dù set
-    đó CHƯA BAO GIỜ thực sự chạy thành công. Assert bằng
-    set(eval_gate.EVAL_FN) - {"sop_select", "gather", "multi_source_gather"}
+    đời, rồi TÁI PHÁT LẦN THỨ BA ở plan 2026-08-18-multilingual-vi-en Task 6
+    khi language ra đời — cùng bị loại khỏi "all" nên assertion hard-code
+    cứng danh sách tên phải theo kịp) mà quên patch vào test này — nếu 1 set
+    không được patch, hàm eval THẬT sẽ chạy, lỗi (thiếu LLM/baseline thật), bị
+    run()'s except nuốt mất, và assertion cũ (chỉ check 4 key cố định) vẫn qua
+    dù set đó CHƯA BAO GIỜ thực sự chạy thành công. Assert bằng
+    set(eval_gate.EVAL_FN) - {"gather", "multi_source_gather", "localize", "language"}
     (không phải danh sách cứng ngoài các tên bị loại) + exit_code + mỗi fake
     gọi đúng 1 lần, để không tái phát."""
     fi, fc = _patch(monkeypatch)
@@ -417,20 +432,28 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     flocalize = _fake_localize_eval(acc=1.0, fact_loss=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "localize", flocalize)
 
+    # language cũng bị loại khỏi "all" (gate tuyệt đối acc==1.0, không có
+    # baseline) — lý do khác nhưng kết quả y hệt: để trong "all" chỉ tạo
+    # PASS/FAIL giả mà không gác được bất kỳ thứ gì thật.
+    flanguage = _fake_language_eval(acc=1.0)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "language", flanguage)
+
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == \
-        set(eval_gate.EVAL_FN) - {"gather", "multi_source_gather", "localize"}
+        set(eval_gate.EVAL_FN) - {"gather", "multi_source_gather", "localize", "language"}
     assert "sop_select" in result.detail
     assert "gather" not in result.detail
     assert "multi_source_gather" not in result.detail
     assert "localize" not in result.detail
+    assert "language" not in result.detail
     assert result.exit_code == PASS
     for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
     assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
     assert fmsg.calls == [], "multi_source_gather KHÔNG được chạy dưới --set all"
     assert flocalize.calls == [], "localize KHÔNG được chạy dưới --set all"
+    assert flanguage.calls == [], "language KHÔNG được chạy dưới --set all"
 
 
 def test_set_sop_select_still_runs_standalone(monkeypatch):
