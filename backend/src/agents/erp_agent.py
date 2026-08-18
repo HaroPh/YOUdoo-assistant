@@ -15,6 +15,8 @@ from psycopg_pool import AsyncConnectionPool
 from .graph import build_graph
 from .confirmation import CONFIRM, UNCLEAR, classify_confirmation
 from .disambiguation import parse_selection
+from .language import EN, VI, detect_lang
+from .localize import localize
 from .models import make_llms
 from . import roles as roles_mod
 from src.llm import tracing
@@ -186,6 +188,43 @@ class ERPAgent:
 
     async def chat(self, messages: list[dict], thread_id: str | None = None,
                    reset_if_fresh: bool = False, role: str = "admin") -> str:
+        """Lớp bọc: chạy lượt chat rồi đưa câu trả lời qua localize.
+
+        Bọc thay vì vá từng `return`: _chat_inner có SÁU đường ra (câu nhắc
+        nhập, từ chối vai, hỏi-lại, RECURSION_MSG, question của interrupt,
+        message cuối) và những đường thêm sau này sẽ không ai nhớ vá.
+
+        `lang` suy từ TOÀN BỘ tin nhắn người dùng trong lượt này, không chỉ tin
+        nhắn mới nhất: lượt trả lời xác nhận thường chỉ là "yes"/"1" — quá ngắn
+        để nhận diện. Client thật (Open WebUI) gửi đủ lịch sử mỗi lượt, nên câu
+        hỏi tiếng Anh mở đầu vẫn nằm trong `messages` và quyết đúng ngôn ngữ.
+
+        Chỉ cần MỘT tin nhắn tiếng Anh là cả lượt tính là "en": detect_lang đã
+        fail an toàn về "vi" (đòi có hư từ tiếng Anh VÀ không có dấu tiếng
+        Việt), nên một chữ lạc không đủ kích hoạt.
+
+        GIỚI HẠN CÒN LẠI, có ghi: client script chỉ gửi đúng một tin nhắn mỗi
+        lượt (kiểu `{"session_id": ..., "messages": [{"role": "user",
+        "content": "yes"}]}`) sẽ mất ngôn ngữ ở lượt xác nhận → rơi về "vi".
+        Đó là chiều an toàn (giữ đúng hành vi hôm nay), không phải lỗi.
+
+        KHÔNG BAO GIỜ để lớp dịch làm hỏng một lượt chat: mọi lỗi → câu gốc.
+        """
+        answer = await self._chat_inner(messages, thread_id=thread_id,
+                                        reset_if_fresh=reset_if_fresh,
+                                        role=role)
+        lang = VI
+        for m in messages or []:
+            if m.get("role") == "user" and detect_lang(m.get("content")) == EN:
+                lang = EN
+                break
+        try:
+            return await localize(answer, lang, self._llms["evaluator"])
+        except Exception:                                   # noqa: BLE001
+            return answer
+
+    async def _chat_inner(self, messages: list[dict], thread_id: str | None = None,
+                          reset_if_fresh: bool = False, role: str = "admin") -> str:
         """
         messages: list of {"role", "content"} dicts (user/assistant).
         thread_id: stable ID per conversation — needed for interrupt/resume.
