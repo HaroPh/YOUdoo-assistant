@@ -102,3 +102,19 @@ async def test_llm_tra_rong_thi_ROI_VE_BAN_GOC():
                 content = "   "
             return R()
     assert await localize(GOC, "en", LLMRong()) == GOC
+
+
+def test_ma_gach_noi_khac_nhau_tao_fact_khac_nhau():
+    """Hồi quy: E-COM07 vs F-COM07 phải tạo fact set khác nhau để gate phân biệt."""
+    facts_e = extract_facts("E-COM07")
+    facts_f = extract_facts("F-COM07")
+    assert facts_e != facts_f
+    assert "E-COM07" in facts_e
+    assert "F-COM07" in facts_f
+
+
+def test_hoan_doi_ngay_thang_nam_thi_truot():
+    """Hồi quy: ngày dạng D/M/YYYY là token nguyên, hoán đổi ngày/tháng bị bắt."""
+    src = "Thực hiện ngày 3/4/2026"
+    out_hoandoi = "Perform on 4/3/2026"  # hoán đổi ngày/tháng → ngày/tháng khác
+    assert facts_survived(src, out_hoandoi) is False

@@ -21,12 +21,23 @@ _VI_CHARS = re.compile(
     r"óòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]")
 
 # SỰ VIỆC không được phép đổi:
+#   - ngày dạng D/M/YYYY là MỘT token nguyên (không tách rời ngày/tháng/năm)
 #   - mã chứng từ có gạch chéo: WH/OUT/00001, INV/2026/00004
-#   - mã dạng chữ+số: P00003, S00012, E-COM07
+#   - mã dạng chữ+số: P00003, S00012, E-COM07, F-COM07
 #   - mọi cụm chữ số: 255, 25.5, 10.0
 # Cố ý RỘNG: thà bắt nhầm một token vô hại (bản dịch giữ nguyên nó thì vẫn
 # qua) còn hơn bỏ sót một con số người dùng sắp duyệt.
-_FACT = re.compile(r"[A-Z]{2,}/[A-Z0-9/]+|[A-Za-z]+-?\d[\w/-]*|\d[\d.,]*")
+#
+# LƯU Ý GIỚI HẠN: cổng kiểm KHÔNG bắt được sự hoán đổi giữa hai số độc lập
+# không phải ngày (ví dụ: số lượng vs. đơn giá), vì dùng set-based comparison
+# thay vì paired-label checking. Rủi ro này được chấp nhận vì: (a) localize()
+# chỉ gọi khi lang=="en" VÀ text chứa dấu tiếng Việt (hẹp); (b) thất bại luôn
+# → lùi về Việt, không bao giờ "hiển thị bản dịch chưa đọc"; (c) người dùng
+# vẫn đọc trước duyệt; (d) trước đây không có dịch nên localize() là thêm-lớp-
+# an-toàn chứ không hồi quy.
+_FACT = re.compile(
+    r"\d{1,2}/\d{1,2}/\d{4}|[A-Z]{2,}/[A-Z0-9/]+|"
+    r"[A-Za-z]+(?:-[A-Za-z]+)*-?\d[\w/-]*|\d[\d.,]*")
 
 TRANSLATE_PROMPT = (
     "Translate the message below into {target}. Keep EVERY number, amount, "
