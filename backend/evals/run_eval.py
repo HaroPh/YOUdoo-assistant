@@ -919,7 +919,8 @@ async def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",
-                             "synthesis", "multi_source", "sop_select"],
+                             "synthesis", "multi_source", "sop_select",
+                             "language", "localize"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
@@ -937,7 +938,8 @@ async def main(argv=None):
         _FN = {"intent": eval_intent, "confirm": eval_confirm,
                "chitchat": eval_chitchat, "planner": eval_planner,
                "read": eval_read, "synthesis": eval_synthesis,
-               "multi_source": eval_multi_source, "sop_select": eval_sop_select}
+               "multi_source": eval_multi_source, "sop_select": eval_sop_select,
+               "language": eval_language, "localize": eval_localize}
         kwargs = {"pace": args.pace}
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
