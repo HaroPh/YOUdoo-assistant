@@ -29,6 +29,14 @@ Sửa bằng cách: RoutedChatModel tự dựng span RIÊNG (routed_span), giữ
 chiếu trực tiếp, gắn metadata thẳng lên đối tượng đó (annotate_span) — không
 tra "current" ở đâu cả.
 
+ĐÃ KHẮC PHỤC 2026-08-18 (with_route_metadata): thông tin định tuyến nay đi
+kèm `config["metadata"]["route"]` xuống lệnh gọi model, nên CallbackHandler
+gắn nó lên đúng observation GENERATION BÊN TRONG trace hội thoại. Nghiệm thu
+sống qua Langfuse thật: 5/5 generation của một lượt chat mang metadata, cùng
+traceId với hội thoại. Đoạn dưới mô tả giới hạn của routed_span() — vẫn đúng
+với riêng span đó, và span đó GIỮ LẠI vì nó mang phần kế toán SAU lượt gọi
+(actual_tokens/discarded_tokens/attempts) mà config không mang được.
+
 GIỚI HẠN ĐÃ BIẾT (xác nhận bằng chạy sống 2026-07-30, KHÔNG như dự đoán ban
 đầu): span mới KHÔNG lồng làm con của cây trace hội thoại — nó xuất hiện
 như MỘT TRACE GỐC RIÊNG (parentObservationId=null, traceId khác trace
@@ -37,13 +45,10 @@ cũng dựa vào "current span" ambient (qua start_as_current_observation()),
 nên chịu ĐÚNG loại giới hạn context-propagation nói trên — không chỉ riêng
 update_current_span() mới bị. Metadata VẪN tra cứu đúng, đủ field qua API/UI
 Langfuse (tìm theo tên span "route:<role>"), chỉ KHÔNG cùng trace với hội
-thoại. Muốn khắc phục triệt để: dùng run_id/parent_run_id TƯỜNG MINH (tham
-số hàm callback, không phải context) — ví dụ tiêm role/alias/provider/…
-thẳng vào config["metadata"] trước khi gọi self._client(...).ainvoke(), để
-CallbackHandler của Langfuse tự gắn field đó lên ĐÚNG span GENERATION nó đã
-tạo bên trong trace thật (cơ chế parent-linkage của chính SDK, không đi qua
-ambient context) — chưa làm ở lần sửa này, xem báo cáo Task 8 mục "Bước 7"
-để biết đầy đủ."""
+thoại. Cách khắc phục đã ghi sẵn ở đây từ 2026-07-30 — tiêm
+role/alias/provider thẳng vào config["metadata"] để CallbackHandler tự gắn
+lên đúng GENERATION nó tạo trong trace thật — nay ĐÃ LÀM, xem
+with_route_metadata() ngay dưới."""
 import logging
 import os
 from contextlib import contextmanager
@@ -109,6 +114,53 @@ def _metadata(decision, result) -> dict:
         "attempts": [(a.alias, (a.error or "")[:200])
                      for a in getattr(result, "attempts", ())],
     }
+
+
+def with_route_metadata(config, decision):
+    """BẢN SAO của `config` có thêm metadata định tuyến của LƯỢT GỌI NÀY.
+
+    Đây là cách khắc phục GIỚI HẠN ĐÃ BIẾT nêu ở docstring module: span do
+    `routed_span()` dựng rơi ra thành một TRACE GỐC RIÊNG, không nằm trong cây
+    trace hội thoại, vì cả nó lẫn `update_current_span()` đều dựa vào "current
+    span" AMBIENT — thứ không lan qua được `loop.run_in_executor` mà LangChain
+    dùng để dispatch callback bất đồng bộ.
+
+    Đường này KHÔNG đụng tới ambient context: `CallbackHandler` của Langfuse đã
+    nằm sẵn trong `config["callbacks"]` (ERPAgent gắn lúc setup) và tự tạo
+    observation GENERATION BÊN TRONG trace hội thoại thật; metadata trong
+    `config` được chính nó đọc và gắn lên đúng observation đó. Tức parent
+    linkage đi qua THAM SỐ HÀM CALLBACK — cơ chế của chính SDK — chứ không qua
+    context.
+
+    Chỉ mang được các sự kiện TRƯỚC lượt gọi (vai, model, vì sao chọn nó). Số
+    token là sự kiện SAU, và Langfuse tự ghi chúng lên generation của nó theo
+    chuẩn `usage`; phần kế toán đầy đủ (kể cả `discarded_tokens`) vẫn nằm ở
+    `routed_span()`/`annotate_span()`. Hai chỗ có chủ đích, không phải trùng
+    lặp bỏ quên.
+
+    Gom dưới MỘT khoá "route" thay vì rải khoá phẳng: metadata của Langfuse có
+    những khoá mang nghĩa riêng (`langfuse_session_id`, …) và người gọi cũng có
+    thể đã đặt metadata của họ — lồng một cấp thì không thể va nhau.
+
+    KHÔNG sửa dict của người gọi: LangGraph tái dùng một config giữa các node,
+    sửa tại chỗ là rò rỉ metadata lượt này sang lượt khác.
+
+    Không bao giờ ném (bất biến toàn module): hỏng thì trả nguyên config vào.
+    """
+    try:
+        out = dict(config or {})
+        meta = dict(out.get("metadata") or {})
+        meta["route"] = {
+            "role": decision.role,
+            "alias": decision.spec.alias,
+            "provider": decision.spec.provider,
+            "upstream": decision.spec.upstream,
+            "fallback_depth": decision.fallback_depth,
+        }
+        out["metadata"] = meta
+        return out
+    except Exception:
+        return config
 
 
 @contextmanager

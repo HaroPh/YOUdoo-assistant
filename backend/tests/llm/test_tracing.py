@@ -233,3 +233,44 @@ def test_routed_span_gan_dung_span_lam_cha_qua_otel_that(monkeypatch):
     budget_verdict = json.loads(
         attrs["langfuse.observation.metadata.budget_verdict"])
     assert budget_verdict == [["groq-gpt-oss-20b", "cooldown"]]
+
+
+# ── metadata định tuyến đi theo config, để nằm CÙNG trace hội thoại ──────────
+#
+# ⚠️ GIỚI HẠN CỦA CHÍNH NHÓM TEST NÀY, ĐỌC TRƯỚC KHI TIN NÓ: thiết kế cũ
+# (update_current_span) có ĐỦ test mock và tất cả đều xanh, trong khi production
+# hỏng 100% — vì không test nào chạy qua đường dispatch callback BẤT ĐỒNG BỘ
+# thật của LangChain (xem docstring module tracing.py). Nhóm test dưới đây chỉ
+# khẳng định HÌNH DẠNG config, KHÔNG khẳng định Langfuse gắn được metadata vào
+# đúng trace. Điều đó chỉ nghiệm thu sống mới nói được.
+
+
+def _decision():
+    return RouteDecision(
+        role="router", spec=spec_for("gemini-3.1-flash-lite"),
+        fallback_depth=0, skipped=(), base_tokens=100)
+
+
+def test_them_metadata_dinh_tuyen_khong_sua_config_goc():
+    """LangGraph TÁI DÙNG một dict config giữa các node — sửa tại chỗ là rò rỉ
+    metadata của lượt gọi này sang lượt khác."""
+    goc = {"callbacks": ["handler"], "metadata": {"co_san": 1}}
+    ra = tracing.with_route_metadata(goc, _decision())
+    assert goc == {"callbacks": ["handler"], "metadata": {"co_san": 1}}
+    assert ra["callbacks"] == ["handler"]
+    assert ra["metadata"]["co_san"] == 1
+    assert ra["metadata"]["route"]["alias"] == "gemini-3.1-flash-lite"
+    assert ra["metadata"]["route"]["role"] == "router"
+
+
+def test_them_metadata_dinh_tuyen_chiu_duoc_config_rong():
+    ra = tracing.with_route_metadata(None, _decision())
+    assert ra["metadata"]["route"]["provider"] == "google"
+
+
+def test_them_metadata_dinh_tuyen_khong_bao_gio_nem():
+    """Bất biến toàn module: một lượt chat không bao giờ vỡ vì lỗi tracing."""
+    class Vo:
+        def __getattr__(self, ten):
+            raise RuntimeError("hỏng")
+    assert tracing.with_route_metadata({"a": 1}, Vo()) == {"a": 1}

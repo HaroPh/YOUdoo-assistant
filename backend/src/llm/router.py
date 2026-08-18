@@ -323,7 +323,9 @@ class Router:
                 break
             try:
                 response = self._client(decision.spec, tools, tool_kwargs).invoke(
-                    messages, config=config, **kwargs)
+                    messages,
+                    config=tracing.with_route_metadata(config, decision),
+                    **kwargs)
             except Exception as exc:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
@@ -386,7 +388,9 @@ class Router:
             try:
                 response = await self._client(
                     decision.spec, tools, tool_kwargs).ainvoke(
-                        messages, config=config, **kwargs)
+                        messages,
+                        config=tracing.with_route_metadata(config, decision),
+                        **kwargs)
             except Exception as exc:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)

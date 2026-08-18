@@ -171,13 +171,24 @@ def test_last_decision_khong_ro_ri_giua_hai_request_dong_thoi(clock):
 
 def test_config_duoc_chuyen_tiep_xuong_client(clock):
     """config là đường LangChain lan callback/tag/metadata xuống runnable con —
-    đúng đường handler Langfuse của kế hoạch C sẽ dùng. Nuốt nó là làm hỏng
-    tracing một cách âm thầm."""
+    đúng đường handler Langfuse dùng. Nuốt nó là làm hỏng tracing âm thầm.
+
+    Từ 2026-08-17 router CÒN THÊM metadata định tuyến vào bản sao config
+    (tracing.with_route_metadata) để thông tin "vì sao lượt này chạy model
+    nào" nằm CÙNG trace hội thoại thay vì rơi ra một trace gốc riêng. Nên
+    khẳng định đúng ý định gốc — không mất gì của người gọi — chứ không đòi
+    giống hệt nữa."""
     client = FakeChatClient([fake_ai("ok")])
     llm = RoutedChatModel(_router(clock, client), "read")
     cau_hinh = {"tags": ["thu-nghiem"], "metadata": {"phien": "abc"}}
     llm.invoke(MSGS, config=cau_hinh)
-    assert client.configs[-1] == cau_hinh
+
+    da_gui = client.configs[-1]
+    assert da_gui["tags"] == ["thu-nghiem"]
+    assert da_gui["metadata"]["phien"] == "abc"      # không nuốt của người gọi
+    assert da_gui["metadata"]["route"]["role"] == "read"
+    # dict của người gọi KHÔNG bị sửa tại chỗ (LangGraph tái dùng config)
+    assert cau_hinh == {"tags": ["thu-nghiem"], "metadata": {"phien": "abc"}}
 
 
 def test_bind_tools_giu_lai_kwargs_phu(clock):
