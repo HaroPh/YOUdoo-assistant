@@ -40,7 +40,7 @@ def detect_lang(text) -> str:
     s = (text or "").strip()
     if not s:
         return VI
-    if _VI_CHARS.search(s):
+    if _VI_CHARS.search(s.lower()):
         return VI
     words = set(_WORD.findall(s.lower()))
     return EN if words & _EN_WORDS else VI
