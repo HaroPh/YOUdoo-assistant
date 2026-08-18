@@ -442,6 +442,16 @@ MULTI_SOURCE_DERIVED_DIGITS: dict[tuple[str, str], frozenset[str]] = {
         # 30 ngày = 31/07 (không tràn sang tháng 8); 31/07 + 1 ngày tràn
         # sang tháng 8 → 01/08.
         frozenset({"31", "08"}),
+    # Task 7 của đợt đa ngôn ngữ (2026-08-18), chạy gate live: model liệt kê
+    # 3 mức chiết khấu theo cấp trong lúc từ chối trả lời dứt khoát (thiếu
+    # thông tin cấp khách hàng) — "(0%, 5% hoặc 10%)". "5%"/"10%" đã có
+    # literal trong chunk; "0%" suy đúng từ câu "Khách hàng cấp Thường
+    # không áp dụng chiết khấu ngoài bảng giá niêm yết" (chunk 1, prose,
+    # không phải chữ số) — xác minh bằng tay: "không áp dụng chiết khấu" =
+    # 0%. Tái lập 2/2 lần chạy, cùng nguyên văn.
+    ("bang_gia_chiet_khau",
+     "Azure Interior đặt 50 Large Cabinet được chiết khấu bao nhiêu?"):
+        frozenset({"0"}),
 }
 # ── multi_source set (SP-0) ──────────────────────────────────────────────────
 # (topic fixture, erp_block đóng băng, câu hỏi, dữ kiện TÀI LIỆU kỳ vọng,
