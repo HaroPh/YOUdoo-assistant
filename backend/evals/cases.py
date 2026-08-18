@@ -344,11 +344,17 @@ SYNTHESIS_CASES = [
     # chinh_sach_hoan_hang ← policy.docx "Chính sách hoàn hàng"
     ("chinh_sach_hoan_hang", "Khách hàng được hoàn hàng trong bao lâu kể từ ngày mua?",
      "answerable", "30 ngày"),
-    # tuple: "không được hoàn trả" (nguyên văn chunk) + phương án model THẬT
-    # đã diễn giải (chạy gate lần 1, xác nhận ổn định ở lần chạy lại riêng).
+    # tuple: "không được hoàn trả" (nguyên văn chunk) + các phương án model
+    # THẬT đã diễn giải (mỗi phương án chạy gate ít nhất 2 lần, xác nhận ổn
+    # định trước khi thêm — không đoán trước). Phương án thứ 3 quan sát được
+    # ở Task 7 của đợt đa ngôn ngữ (2026-08-18), sau khi RAG_SYNTHESIS_PROMPT
+    # được thêm khối LANGUAGE_RULE ở cuối — model đổi cách diễn đạt câu trả
+    # lời (nội dung vẫn đúng, có căn cứ, NGUỒN_DÙNG: 4) nhưng không còn khớp
+    # 2 phương án cũ; tái lập 2/2 lần chạy, cùng nguyên văn.
     ("chinh_sach_hoan_hang", "Hàng giảm giá có được hoàn trả không?",
      "answerable", ("không được hoàn trả",
-                    "không được áp dụng chính sách hoàn trả")),
+                    "không được áp dụng chính sách hoàn trả",
+                    "không được phép hoàn trả")),
     # chinh_sach_thanh_toan ← payment_policy.docx "Chính sách thanh toán và công nợ"
     ("chinh_sach_thanh_toan", "Thời hạn thanh toán mặc định là bao nhiêu ngày?",
      "answerable", "30 ngày"),
