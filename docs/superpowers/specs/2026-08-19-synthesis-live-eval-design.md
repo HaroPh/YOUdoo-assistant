@@ -223,3 +223,65 @@ Một cặp bẫy bị LOẠI vì đo ra là không phân biệt được: Đi�
 chung các con số 03/12/30/36/45, hỏi phía nào cũng ra "45 ngày". Thay bằng
 chiều ngược lại với "05 ngày làm việc liên tục" vốn chỉ có ở Điều 36 — và
 chính ca thay thế này là ca duy nhất bắt được reranker ở §9.2.
+
+## 10. Phép đo chỉ-báo trên `gemini-3.5-flash-lite` (2026-08-19)
+
+Hạn mức ngày của `gemini-3.1-flash-lite` cạn (500/500) sau đợt P3a, nên bộ 28
+ca (sau khi thêm 8 ca bẫy cùng-tệp) được chạy thử trên `gemini-3.5-flash-lite`
+— ví hạn mức riêng, 0/500.
+
+| Số đo | Giá trị |
+|---|---|
+| `fact_acc` | 0,9583 |
+| `refusal_acc` | 0,9643 |
+| `citation_acc` | 1,0000 |
+| `deep_chunk` fact | 1,0000 (n=10) |
+| `distractor` fact | **0,9286** (n=14) |
+
+**KHÔNG ghi baseline cho model này, có chủ đích.** Baseline tra theo tên model,
+nên một file `baseline-gemini-3.5-flash-lite-synthesis_live.json` sẽ khiến
+người sau chạy cổng bằng 3.5 mỗi khi 3.1 cạn — tức pass một cổng trên cấu hình
+mà **không vai nào chạy**. Vai `synthesis` của production dùng
+`gemini-3.1-flash-lite` (catalog `CHAINS`). Con số ở đây là **chỉ báo**, không
+phải mốc.
+
+Cũng vì thế không được đọc nó như "P3a làm chất lượng đổi thế nào": đổi cùng
+lúc hai biến (model VÀ số ca 20→28) thì không quy được cho biến nào.
+
+### 10.1 Ca bẫy cùng-tệp làm đúng việc của nó, ngay lượt đầu
+
+Ca trượt: *"bảo hiểm xã hội TỰ NGUYỆN thì mức hưởng một lần mỗi năm đóng bằng
+bao nhiêu?"*
+
+| | |
+|---|---|
+| Điều 102 (đúng, chế độ **tự nguyện**) | "Bằng **1,5 lần** của mức bình quân **thu nhập** tháng" |
+| Model trả lời | "1,5 **tháng** mức bình quân **tiền lương** tháng" |
+| Model dẫn nguồn | **Điều 70** — mục cạnh tranh, chế độ **bắt buộc** |
+
+Câu hỏi nêu rõ "TỰ NGUYỆN"; model lấy từ điều của chế độ bắt buộc. Và vì hai
+điều nằm **cùng một tệp**, `citation_acc` vẫn chấm ĐẠT (tên tệp khớp) — chỉ
+`fact_acc` bắt được.
+
+Đây chính xác là điểm mù mà 8 ca bẫy cùng-tệp sinh ra để phơi bày, và nó phơi
+bày ngay ở lượt chạy đầu tiên. Trước đợt thêm ca, bộ này chỉ có ĐÚNG MỘT ca
+cùng-tệp.
+
+### 10.2 Một khác biệt về tuân thủ prompt, không phải lỗi hệ thống
+
+Ca `insufficient` "giá cổ phiếu công ty hôm nay là bao nhiêu?" trượt
+`refusal_acc`: model **từ chối đúng** về nội dung ("tài liệu hiện tại không
+cung cấp thông tin…") nhưng KHÔNG phát sentinel `KHÔNG_ĐỦ_THÔNG_TIN`, nên
+`synthesize()` không trả `GUARD_MSG` và bộ chấm tính là không từ chối.
+
+Kết quả người dùng thấy vẫn đúng; thứ hỏng là **hợp đồng máy-đọc**. Đây là
+thuộc tính của `gemini-3.5-flash-lite`, chưa quan sát thấy ở
+`gemini-3.1-flash-lite`. Ghi lại để nếu sau này có ai đề xuất đổi vai
+`synthesis` sang 3.5 thì biết có món này phải đo trước.
+
+### 10.3 Việc còn nợ
+
+Baseline `synthesis_live` trên `gemini-3.1-flash-lite` **chưa ghi lại** và nay
+lỗi thời hai lần: một vì P3a đổi corpus, một vì bộ ca 20→28. Phải chạy lại khi
+hạn mức reset — và đó mới là lượt đo trả lời được câu "trần 1,0 đã bị phá
+chưa" cho cấu hình thật.
