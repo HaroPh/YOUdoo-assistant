@@ -229,3 +229,71 @@ Chưa đổi mặc định vì spec §9 chốt plan này **không đụng produc
 dìm đúng nhóm câu diễn đạt khác? Cảnh báo cỡ mẫu: `hard` chỉ n=17, nên
 −0,102 MRR tương đương 1–2 câu đổi hạng. Cần mở rộng nhóm `hard` trước khi
 kết luận mạnh hơn.
+
+> **Câu hỏi mở nêu ở đây ĐÃ ĐƯỢC TRẢ LỜI cùng ngày — xem §11.** Giữ nguyên
+> mục này làm bản ghi trạng thái tại thời điểm sinh baseline.
+
+## 11. Vì sao rerank dìm nhóm `hard` — spike 2026-08-19
+
+Chạy lại golden set hai chiều, ghi hạng của nhãn đúng cho **từng câu**.
+
+### 11.1 Là quy luật, không phải nhiễu — nhưng "rerank kém" là kết luận SAI
+
+| Hạng | n | tệ đi | tốt lên | không đổi |
+|---|---|---|---|---|
+| easy | 31 | 1 | 4 | 26 |
+| hard | 17 | **6** | 4 | 7 |
+| trap | 8 | 1 | 1 | 6 |
+
+Hồi quy lan trên nhóm `hard` (6/17) chứ không dồn vào 1–2 câu, nên không thể
+gạt đi là nhiễu. Nhưng ba ca tệ nhất có **ba nguyên nhân khác nhau**, và chỉ
+một thuộc về reranker.
+
+**(a) Reranker không phân biệt quy tắc với ngoại lệ của chính nó.**
+*"công ty muốn cho nhân viên nghỉ việc thì cần căn cứ gì?"* (hạng 1 → 10).
+Nhãn đúng: `Điều 36. Quyền đơn phương chấm dứt HĐLĐ của người sử dụng lao
+động`. Rerank đưa lên hạng 2: `Điều 37. Trường hợp người sử dụng lao động
+KHÔNG được thực hiện quyền đơn phương chấm dứt`. Cross-encoder bám cụm từ
+pháp lý dùng chung và chọn **điều phủ định**. Đây là điểm yếu thật, và giải
+thích vì sao câu `hard` (diễn đạt dân dã: "công ty", "nghỉ việc") chịu thiệt
+nhiều hơn câu `easy`.
+
+**(b) Rác từ ingest chiếm hạng 1 — lỗi P3 tràn vào rerank.**
+*"trường hợp nào được miễn thuế xuất nhập khẩu?"* (hạng 7 → 12). Hạng 1 và 3
+đều là `"Điều ước quốc tế mà Cộng hòa xã hội chủ nghĩa Việt Nam là..."` —
+đúng loại mảnh câu mà `_HEADING_RE` nhận nhầm làm mục (§3). Reranker không
+sai; nó bị cho ăn rác. Đây là bằng chứng THẬT đầu tiên cho thấy lỗi ingest
+gây hại đo được, không còn là mối lo lý thuyết.
+
+**(c) Nhãn của golden set quá hẹp.**
+*"một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là gì?"* (hạng 3 → 7).
+Rerank đưa lên `Điều 309/311/315` Luật Thương mại (*hậu quả pháp lý của tạm
+ngừng / đình chỉ hợp đồng*) — **câu trả lời hợp lý**, nhưng nhãn chỉ chấp
+nhận Bộ luật Dân sự. Lỗi ở bộ đo, không phải ở retriever.
+
+### 11.2 Phát hiện phụ: 20% ô ngữ cảnh đang lãng phí vì trùng lặp
+
+Top-6 chỉ chứa **4,80/6 mục phân biệt** trung bình, và **20/56 câu có ≤4 mục
+phân biệt** — nhiều chunk của cùng một Điều chiếm nhiều ô. Ví dụ ca (a):
+`Điều 42` ở hạng 1 *và* 4, `Điều 99` ở hạng 3 *và* 6, nên LLM thực tế chỉ
+thấy 4 mục.
+
+Rerank **không** phải nguyên nhân: bật 4,80 vs tắt 4,73 mục phân biệt — bật
+còn nhỉnh hơn. Nguyên nhân nằm ở chỗ pipeline chưa có bước khử trùng lặp nào
+theo mục.
+
+### 11.3 Kết luận: KHÔNG đổi `RAG_RERANK_ENABLED`
+
+Bằng chứng không ủng hộ "rerank có hại". Nó hoà hoặc thắng ở `easy` và
+`trap`, và 2 trong 3 ca hồi quy nặng nhất có nguyên nhân **nằm ngoài
+reranker**. Tắt nó là chữa sai chỗ.
+
+Thứ tự việc tiếp theo, đã ĐỔI so với bảng cuối plan dựa trên dữ liệu này:
+
+1. **Khử trùng lặp theo mục trong top-k** — rẻ, cơ học, thu lại ~20% ô ngữ
+   cảnh. Không phụ thuộc câu hỏi nào còn mở.
+2. **P3 dọn rác ingest** — nay có bằng chứng nó chiếm hạng 1 của câu thật.
+3. **Sửa nhãn ca (c)** và soát lại golden set cho câu có nhiều văn bản trả
+   lời được.
+4. *Sau đó* mới quay lại "reranker có phân biệt được quy tắc với ngoại lệ
+   không" — pool sạch rồi thì phép đo mới có nghĩa.
