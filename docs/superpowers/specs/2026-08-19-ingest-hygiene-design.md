@@ -26,7 +26,7 @@ thật**, làm nửa sau mất breadcrumb đúng.
 
 ## 2. Phạm vi
 
-**Trong phạm vi:** lọc rác trang theo tần suất; sửa `_HEADING_RE` khỏi khớp
+**Trong phạm vi:** lọc rác trang theo tần suất **và vị trí rìa**; sửa `_HEADING_RE` khỏi khớp
 tham chiếu giữa câu; PDF 0 block báo lỗi lớn tiếng; re-index; đo bằng cả hai
 bộ eval.
 
