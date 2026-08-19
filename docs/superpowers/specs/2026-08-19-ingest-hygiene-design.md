@@ -159,3 +159,91 @@ hai bộ phải chạy lại sau re-index và phải xanh; đó là phép kiểm
 
 **Baseline cũ mất nghĩa.** Sau re-index, baseline `retrieval` và
 `synthesis_live` phải ghi lại. Ghi đè chỉ khi cổng §7 đã qua.
+
+## 9. Kết quả (2026-08-19)
+
+Re-index mất 3m58s, `ingested: 17, skipped: 0, chunks: 3249`.
+
+### 9.1 Số đo cơ học — đạt hoàn toàn
+
+| Chỉ số | Trước | Sau |
+|---|---|---|
+| chunk chứa `about:blank` | 727 | **0** |
+| mục là mảnh câu | 15 | **0** |
+| tổng chunk | 3.300 | 3.249 |
+| tài liệu | 17 | 17 |
+
+**Test hợp đồng của cả hai bộ eval sau re-index: XANH.** `chunk_index` đổi hết
+mà không nhãn nào trôi — quyết định neo theo `(tệp, mục)` hồi P0 §4 trả cổ
+tức đúng như dự đoán.
+
+### 9.2 `retrieval` — cổng ĐẠT, cải thiện thật
+
+| Số đo | Trước | Sau | delta |
+|---|---|---|---|
+| `recall_at_20` | 1,0000 | 1,0000 | 0 |
+| `recall_at_6` | 0,9196 | **0,9375** | **+0,0179** |
+| `mrr` | 0,8253 | **0,8416** | **+0,0163** |
+| `easy` mrr | 0,9285 | **0,9581** | **+0,0296** |
+| `hard` / `trap` mrr | — | không đổi | 0 |
+
+Đây là thay đổi ĐẦU TIÊN trong loạt P có delta dương đo được. Baseline đã ghi
+lại.
+
+### 9.3 `synthesis_live` — cổng TRƯỢT, một ca, ổn định 3/3 lượt
+
+| Số đo | Trước | Sau |
+|---|---|---|
+| `fact_acc` | 1,0000 | **0,9375** |
+| `refusal_acc` | 1,0000 | 1,0000 |
+| `citation_acc` | 1,0000 | **0,9375** |
+
+Ca trượt: *"bộ luật dân sự quy định mức phạt vi phạm hợp đồng thế nào?"*
+(`distractor`, nhãn `boluat-danssu.pdf › Điều 418`, mục cạnh tranh
+`Điều 301` của `boluat-thuongmai.pdf`).
+
+Truy xuất ĐÚNG — Điều 418 ở hạng 1, Điều 301 hạng 2. Hỏng ở tầng sinh.
+
+Câu trả lời thật: *"mức phạt vi phạm hợp đồng do các bên tự thỏa thuận. Tuy
+nhiên, mức phạt này **không được vượt quá 8%** giá trị phần nghĩa vụ hợp đồng
+bị vi phạm…"*, dẫn nguồn **chỉ** `Điều 301 (boluat-thuongmai.pdf)`.
+
+**Câu trả lời này SAI về nội dung, không chỉ khác cách diễn đạt.** Câu hỏi nêu
+đích danh Bộ luật Dân sự; Điều 418 khoản 2 nói mức phạt do các bên thỏa
+thuận, **không có trần**. Trần 8% là của Luật Thương mại Điều 301 — chính mục
+cạnh tranh. Vậy cả `fact_ok=False` lẫn `citation_ok=False` đều là phán quyết
+ĐÚNG cho một câu trả lời sai.
+
+> **Ghi lại một nhận định đã rút:** báo cáo đầu tiên mô tả `fact_ok` là "lỗi
+> đo, chuỗi `expect` quá dài nên diễn đạt lại thì trượt oan", và đề nghị rút
+> ngắn `expect`. Sai — nhận định đó đưa ra trước khi đọc kỹ nội dung. Nới
+> `expect` ở đây chính là uốn thước đo để nó chấp nhận một câu trả lời sai.
+> KHÔNG sửa `expect`; giữ ca trượt.
+
+### 9.4 Nguyên nhân, đo được ở tầng reranker (không cần LLM)
+
+Điểm cross-encoder cho cùng câu hỏi:
+
+| Chunk | Điểm | Cách mục đúng |
+|---|---|---|
+| Điều 418 (đúng) | +3,2988 | — |
+| Điều 301 **sạch** (sau P3a) | +3,0020 | **0,2969** |
+| Điều 301 **có rác** (trước P3a) | +2,2910 | **1,0078** |
+
+**Rác từng đóng vai một bộ phân biệt tình cờ.** Gỡ nó làm mục cạnh tranh mạnh
+lên +0,71 điểm, khiến biên giữa mục đúng và mục cạnh tranh sụp từ 1,01 xuống
+0,30 — mất 70%. Mục đúng vẫn thắng thứ hạng, nhưng model đứng trước hai đoạn
+đều sạch và điểm gần bằng nhau thì trộn cả hai.
+
+### 9.5 Kết luận và việc mở
+
+P3a **đúng về nguyên tắc**: rác không được phép là thứ chịu lực. Việc gỡ nó
+đã **phơi ra** một điểm yếu vốn có chứ không tạo ra điểm yếu mới — biên phân
+biệt thật giữa Điều 418 và Điều 301 chỉ là 0,30 điểm, và trước đây nó được
+che bởi một chuỗi rác in ấn.
+
+Việc mở, KHÔNG thuộc P3a: làm sao để hệ thống không nhập trần 8% của Luật
+Thương mại vào câu hỏi Dân sự khi hai điều luật gần nhau. Đó là bài toán của
+tầng truy vấn (P2) hoặc của reranker, không phải của ingest.
+
+`synthesis_live` giữ nguyên baseline cũ, **chưa ghi lại** — cổng trượt.

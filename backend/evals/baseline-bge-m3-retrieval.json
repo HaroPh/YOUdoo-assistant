@@ -6,19 +6,19 @@
     "hybrid-rrf+rerank"
   ],
   "recall_at_20": 1.0,
-  "recall_at_6": 0.9196,
-  "mrr": 0.8253,
-  "chunk_span": 2.39,
+  "recall_at_6": 0.9375,
+  "mrr": 0.8416,
+  "chunk_span": 2.55,
   "by_difficulty": {
     "easy": {
       "n": 31,
       "recall_at_20": 1.0,
-      "mrr": 0.9285
+      "mrr": 0.9581
     },
     "hard": {
       "n": 17,
       "recall_at_20": 1.0,
-      "mrr": 0.6136
+      "mrr": 0.6135
     },
     "trap": {
       "n": 8,
@@ -26,8 +26,8 @@
       "mrr": 0.875
     }
   },
-  "lat_p50": 460,
-  "lat_p95": 553,
+  "lat_p50": 612,
+  "lat_p95": 765,
   "fails": [],
   "errors": []
 }
