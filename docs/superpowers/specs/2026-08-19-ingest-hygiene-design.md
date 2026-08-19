@@ -50,17 +50,26 @@ nào xuất hiện trên ≥60% số trang của tài liệu.
 là hai chuỗi khác nhau; đếm trần thì mỗi cái chỉ 1 trang và bộ lọc bỏ sót.
 Chuẩn hoá xong, cả hai thành `about:blank #/#`.
 
-Đo trên `boluat-danssu.pdf` (164 trang), sau chuẩn hoá:
+**Và tần suất một mình là CHƯA ĐỦ.** Quét cả 9 tệp (bản đầu của spec này chỉ
+đo `boluat-danssu.pdf` rồi kết luận "vực rộng 23 lần" — sai vì cỡ mẫu 1):
 
-| Dòng | Số trang xuất hiện |
-|---|---|
-| `about:blank #/#` | 164 |
-| `#:# #/#/# about:blank` | 164 |
-| `khác.` | 7 |
-| `#. Theo thỏa thuận của các bên.` | 7 |
+| | tần suất theo trang | nằm ở **rìa trang** |
+|---|---|---|
+| 18 nhóm rác (2 nhóm × 9 tệp) | **100%** | **100%** |
+| `# #.#` — dương tính giả | 48% | 15% |
 
-Khoảng cách 164 vs 7 — hơn 23 lần. Ngưỡng 60% nằm giữa một vực rộng, không
-phải một con số tinh chỉnh mong manh.
+`# #.#` là **hàng bảng mã HS** trong phụ lục `luat-thuexuatnhapkhau.pdf`:
+nhiều hàng KHÁC NHAU bị chuẩn hoá chữ số gộp chung một nhóm, đẩy tần suất lên
+48%. Đó đúng là cơ chế hỏng §8 lo tới, và với ngưỡng 60% thì nó chỉ thoát nhờ
+12 điểm phần trăm — quá mỏng để tin.
+
+Vì thế điều kiện là **VÀ**, không phải hoặc: một dòng bị loại khi
+(a) dạng chuẩn-hoá-chữ-số xuất hiện trên ≥60% số trang, **VÀ**
+(b) ≥90% số lần nó xuất hiện nằm trong 2 dòng đầu hoặc 2 dòng cuối của trang.
+
+Điều kiện (b) có nguyên lý chứ không phải tinh chỉnh: header/footer **theo
+định nghĩa** nằm ở rìa trang, còn hàng bảng nằm giữa. Số đo xác nhận:
+rác 100% ở rìa, hàng bảng 15%.
 
 **Vì sao không khớp mẫu `about:blank`:** đó là dấu vết của *cách in* bộ PDF
 này (print-to-PDF từ trình duyệt). Tài liệu nguồn khác sẽ mang rác khác — số
@@ -137,9 +146,10 @@ có lý do nào để chất lượng đi xuống.
 
 ## 8. Rủi ro
 
-**Bộ lọc tần suất ăn nhầm nội dung thật.** Chốt bằng ngưỡng 60% (dữ liệu cho
-thấy vực giữa 4% và 100%), sàn ≥5 trang, và một test dựng tài liệu giả có
-dòng hợp lệ lặp lại để khẳng định nó KHÔNG bị loại.
+**Bộ lọc ăn nhầm nội dung thật.** Rủi ro này ĐÃ THÀNH HIỆN THỰC ở bản thiết
+kế đầu và được bắt bằng cách mở rộng phép đo từ 1 tệp lên 9 — xem §3. Chốt
+bằng điều kiện kép (tần suất VÀ vị trí rìa), sàn ≥5 trang, và một test dựng
+tài liệu giả có hàng bảng lặp ở GIỮA trang để khẳng định nó KHÔNG bị loại.
 
 **Nhãn eval trôi.** `section_path` của Điều hợp lệ không đổi, nhưng
 `chunk_index` thì đổi hết. Cả hai bộ eval đã neo theo `(tệp, mục)` chứ không
