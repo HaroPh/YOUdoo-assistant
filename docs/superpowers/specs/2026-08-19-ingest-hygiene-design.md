@@ -247,3 +247,44 @@ Thương mại vào câu hỏi Dân sự khi hai điều luật gần nhau. Đó
 tầng truy vấn (P2) hoặc của reranker, không phải của ingest.
 
 `synthesis_live` giữ nguyên baseline cũ, **chưa ghi lại** — cổng trượt.
+
+## 10. Bổ sung 2026-08-19: hồi quy §9.3 là ĐẶC THÙ CỦA MODEL
+
+Chạy đúng ca trượt của §9.3 trên `gemini-3.5-flash-lite`, giữ nguyên mọi thứ
+khác (cùng corpus sau P3a, cùng đối tượng `RetrievalResult` nên truy xuất cố
+định, cùng prompt):
+
+| Model | Kết quả, 3 lượt | Dẫn nguồn |
+|---|---|---|
+| `gemini-3.1-flash-lite` (production) | **3/3 SAI** | Điều 301 — mục cạnh tranh |
+| `gemini-3.5-flash-lite` | **3/3 ĐÚNG** | Điều 418 — mục đúng |
+
+Model là biến DUY NHẤT. Suy ra hồi quy ở §9.3 không phải khiếm khuyết của
+corpus hay của việc dọn rác — nó là **điểm yếu phân biệt của
+`gemini-3.1-flash-lite`**, thứ trước đây được che bởi chuỗi rác in ấn đóng vai
+bộ phân biệt tình cờ (§9.4: biên rerank sụp 1,01 → 0,30 sau khi dọn).
+
+### 10.1 Kết luận cuối về P3a
+
+Cả ba phần đều đứng vững:
+- Cơ học: rác 727 → 0, mảnh câu 15 → 0.
+- `retrieval`: cổng ĐẠT, cải thiện thật.
+- `synthesis_live`: hồi quy có thật **nhưng thuộc về model**, không thuộc về
+  ingest. Dọn rác vẫn đúng — rác không được phép chịu lực.
+
+### 10.2 Dữ kiện cho một quyết định CHƯA đến hạn
+
+Đây là dữ kiện đầu tiên cho câu hỏi "vai `synthesis` có nên đổi sang
+`gemini-3.5-flash-lite` không". Nhưng nó là **một cuộc trao đổi, không phải
+thắng rõ ràng**:
+
+| | 3.1-flash-lite | 3.5-flash-lite |
+|---|---|---|
+| Phân biệt hai Điều gần nhau (§9.3) | sai 3/3 | đúng 3/3 |
+| Phát sentinel `KHÔNG_ĐỦ_THÔNG_TIN` | đúng | **sai** 1 ca (spec synthesis_live §10.2) |
+| Ví hạn mức | riêng (fusion+synthesis) | đã gánh planner+read |
+
+Đổi sang 3.5 sẽ dồn **ba vai** vào một ví 500/ngày — lật lại quyết định
+2026-08-13 ("chia tải qua hai ví thay vì chất đống lên một"), và hôm nay vừa
+chứng minh một ví 500/ngày cạn thật. Cần một đợt đo riêng, không phải một dòng
+sửa.
