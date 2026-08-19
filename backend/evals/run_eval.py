@@ -23,8 +23,12 @@ from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
 from evals import fixtures
+from evals.matching import _norm, _grounded_match
 from evals.retrieval_cases import RETRIEVAL_CASES
 from evals.retrieval_score import label_of, score_one
+from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
+from evals.synthesis_live_score import score_answer
+from src.agents.synthesis import synthesize as _synthesize
 from src.rag.retrieve import retrieve as _retrieve
 from src.rag.config import TOP_N as _TOP_N, TOP_K as _TOP_K
 from src.agents import roles
@@ -121,45 +125,6 @@ async def _timed(coro) -> tuple[object, float]:
     start = time.perf_counter()
     result = await coro
     return result, (time.perf_counter() - start) * 1000.0
-
-
-def _norm(v) -> str:
-    return str(v).strip().casefold()
-
-
-def _grounded_match(expect: str | tuple[str, ...], body: str) -> bool:
-    """eval_synthesis(): body coi là "khớp căn cứ" với `expect` nếu khớp
-    NGUYÊN VĂN — hoặc, nếu `expect` là một tuple nhiều chuỗi, khớp NGUYÊN
-    VĂN với BẤT KỲ chuỗi nào trong đó. Mỗi phương án trong tuple là một cách
-    diễn giải THẬT đã quan sát được từ model (ghi nhận từng trường hợp cụ
-    thể, có dẫn chứng), KHÔNG phải suy luận ngữ nghĩa/mờ chung chung.
-
-    Lịch sử (SP-1C1, chạy gate thật): bản đầu của hàm này thử "nới lỏng
-    chung" bằng khớp-theo-thứ-tự-từ có giới hạn khoảng cách chèn — review
-    độc lập (2 vòng) liên tục tìm được câu trả lời SAI (đảo cực tính qua một
-    mệnh đề rào đón ngắn kiểu "Không sao, ... vẫn được hoàn trả") vẫn lọt
-    qua bất kể rào được siết chặt tới đâu, vì bản chất khớp-theo-thứ-tự
-    không phân biệt được "không" thuộc về phủ định thật hay một mệnh đề phụ
-    không liên quan đứng trước. Kết luận: một heuristic mờ áp dụng chung cho
-    MỌI expect không phải hướng an toàn — thay bằng danh sách các phương án
-    khớp NGUYÊN VĂN, chỉ áp dụng cho ĐÚNG case đã quan sát được diễn giải
-    (xem `SYNTHESIS_CASES` trong cases.py: case "không được hoàn trả" có
-    thêm phương án "không được áp dụng chính sách hoàn trả"). Mỗi phương án
-    vẫn là so khớp nguyên văn — không có logic mờ nào. Tập chấp nhận CHỈ mở
-    rộng đúng bằng các câu chứa nguyên văn phương án 2 (không mở rộng theo
-    thứ tự/khoảng cách từ như 2 bản trước) — không có LOẠI bề mặt lọt sai
-    mới nào so với hành vi CŨ, dù tập chấp nhận về mặt tập hợp có to hơn.
-
-    Mất mát đã biết và chấp nhận: một diễn giải KHÁC (chưa từng quan sát,
-    không nằm trong danh sách phương án) sẽ vẫn trượt — và vì gate synthesis
-    so `grounded_acc >= 1.0` (baseline đã đạt 12/12), MỘT case trượt là gate
-    ĐỎ ngay, không phải tín hiệu mềm. Cần thêm phương án mới nếu/khi diễn
-    giải mới xuất hiện thật ở một lượt chạy gate sau, cùng cách xử lý Task 6
-    đã áp dụng cho `multi_source` (ghi nhận từng trường hợp cụ thể có dẫn
-    chứng, không đoán trước)."""
-    alts = expect if isinstance(expect, tuple) else (expect,)
-    b = _norm(body)
-    return any(_norm(alt) in b for alt in alts)
 
 
 # Chuẩn hoá 1 lần — dangerous_misroute phải khớp case/whitespace-insensitive
@@ -974,15 +939,15 @@ async def eval_multi_source_gather(llm, pace: float = 0.0, checkpoint_path=None)
 
 async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
                          rerank: bool = True):
-    """Do TANG TRUY XUAT tren corpus that - KHONG goi LLM lan nao.
+    """Đo TẦNG TRUY XUẤT trên corpus thật — KHÔNG gọi LLM lần nào.
 
-    Khac moi bo eval khac o dung diem nay: `synthesis` va `multi_source` nap
-    fixtures.load_chunks(), tuc retriever bi bypass va chung do LLM tren ngu
-    canh hoan hao. Do la ly do reranker chet 6 tuan ma khong so do nao nhuc
-    nhich. Bo nay goi retrieve() that.
+    Khác mọi bộ eval khác ở đúng điểm này: `synthesis` và `multi_source` nạp
+    fixtures.load_chunks(), tức retriever bị bypass và chúng đo LLM trên ngữ
+    cảnh hoàn hảo. Đó là lý do reranker chết 6 tuần mà không số đo nào nhúc
+    nhích. Bộ này gọi retrieve() thật.
 
-    rerank=False dat RAG_RERANK_ENABLED=0 cho ca luot chay - chan doi chung
-    cua rerank_delta (spec 2026-08-19 6).
+    rerank=False đặt RAG_RERANK_ENABLED=0 cho cả lượt chạy — chân đối chứng
+    của rerank_delta (spec §6).
     """
     lat: list[float] = []
     per_case: list[dict] = []
@@ -991,15 +956,15 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
 
     async def call(case):
         question, expected, difficulty = case
-        # k=_TOP_N, KHONG phai mac dinh _TOP_K: retrieve() cat con k TRUOC khi
-        # tra ve (retrieve.py compress()), nen goi mac dinh thi result.chunks
-        # chi co 6 phan tu va "recall@20" se cham tren dung 6 chunk do - do
-        # chinh no duoi mot cai ten khac. Ban dau tu dinh nghia sai cho nay;
-        # phep kiem bat bien o Step 5 bat duoc (recall@20 doi khi bat/tat
-        # rerank, dieu khong the xay ra neu do dung pool).
+        # k=_TOP_N, KHÔNG phải mặc định _TOP_K: retrieve() cắt còn k TRƯỚC khi
+        # trả về (retrieve.py compress()), nên gọi mặc định thì result.chunks
+        # chỉ có 6 phần tử và "recall@20" sẽ chấm trên đúng 6 chunk đó — là
+        # recall@6 dưới một cái tên khác. Ban đầu tự định nghĩa sai chỗ này;
+        # phép kiểm bất biến bắt được (recall@20 đổi khi bật/tắt rerank, điều
+        # không thể xảy ra nếu đo đúng pool).
         #
-        # An toan vi compress() chi la phep cat tien to: 6 chunk dau cua luot
-        # k=20 giong HET production k=6. Khong doi mot dong production nao.
+        # An toàn vì compress() chỉ là phép cắt tiền tố: 6 chunk đầu của lượt
+        # k=20 giống HỆT production k=6. Không đổi một dòng production nào.
         result, ms = await _timed(
             asyncio.to_thread(_retrieve, question, _TOP_N))
         lat.append(ms)
@@ -1038,8 +1003,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
                             "recall_at_20": round(_avg("recall_at_pool", rows), 4),
                             "mrr": round(_avg("reciprocal_rank", rows), 4)}
 
-    # chunk_span: nhan phu trung binh bao nhieu chunk trong KET QUA. Tang len
-    # nghia la neo (tep, muc) dang mat suc phan giai (spec 4).
+    # chunk_span: nhãn phủ trung bình bao nhiêu chunk trong KẾT QUẢ. Tăng lên
+    # nghĩa là neo (tệp, mục) đang mất sức phân giải (spec §4).
     span = sum(len(r["hit_ranks"]) for r in per_case) / m
 
     p50, p95 = _percentiles(lat)
@@ -1054,12 +1019,77 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
             "fails": fails, "errors": errors}
 
 
+async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None):
+    """Đo chuỗi TRẢ LỜI TÀI LIỆU đầu-cuối: retrieve() thật → synthesize() thật.
+
+    Khác `synthesis` ở đúng một điểm, và đó là điểm quan trọng nhất:
+    `synthesis` nạp fixtures.load_chunks() nên retriever bị bypass, còn bộ này
+    gọi retrieve() thật trên corpus thật. Đó là lý do reranker chết 6 tuần mà
+    không số đo nào nhúc nhích (spec 2026-08-19 §1).
+
+    Gọi ĐÚNG synthesize() của production, không mirror hình dạng prompt. Bài
+    học SP-2a: eval_intent mirror hợp đồng ở module khác, hợp đồng đổi, acc rơi
+    0,870 → 0,148 và không ai nghi ngờ vì lỗi trông y hệt lỗi chất lượng model.
+    """
+    lat: list[float] = []
+    per_case: list[dict] = []
+
+    async def call(case):
+        question, kind, expect, source = case[0], case[1], case[2], case[3]
+        expect = tuple(expect) if isinstance(expect, list) else expect
+        result = await asyncio.to_thread(_retrieve, question)
+        answer, ms = await _timed(_synthesize(question, result, llm))
+        lat.append(ms)
+        score = score_answer(answer, kind, expect, source)
+        per_case.append({"kind": kind, **score})
+        if all(v is not False for v in score.values()):
+            return None
+        return {"question": question, "kind": kind, "expect": expect,
+                "expect_source": source, "answer": answer[:400], **score}
+
+    # Chỉ 4 trường đầu của Case đi vào phép đo; `section`/`rival` là dữ liệu
+    # cho test hợp đồng, không thuộc bài toán chấm điểm. expect dạng tuple →
+    # list cho JSON-serializable, vì run_resilient ghi item vào error-record
+    # và checkpoint.
+    items = [[c.question, c.kind,
+              list(c.expect) if isinstance(c.expect, tuple) else c.expect,
+              c.source] for c in SYNTHESIS_LIVE_CASES]
+    fails, errors = await run_resilient(items, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+
+    def _acc(key: str, rows):
+        """None = KHÔNG ÁP DỤNG cho nhóm này, không phải "trượt sạch".
+
+        Trả 0.0 ở đây từng làm by_kind["insufficient"] in fact_acc=0.0 — đọc
+        y hệt một nhóm hỏng hoàn toàn, trong khi nhóm đó vốn không có sự kiện
+        nào để chấm."""
+        vals = [r[key] for r in rows if r[key] is not None]
+        return round(sum(vals) / len(vals), 4) if vals else None
+
+    by_kind = {}
+    for k in ("deep_chunk", "distractor", "insufficient"):
+        rows = [r for r in per_case if r["kind"] == k]
+        by_kind[k] = {"n": len(rows), "fact_acc": _acc("fact_ok", rows),
+                      "refusal_acc": _acc("refusal_ok", rows),
+                      "citation_acc": _acc("citation_ok", rows)}
+
+    p50, p95 = _percentiles(lat)
+    return {"set": "synthesis_live", "n": len(SYNTHESIS_LIVE_CASES),
+            "fact_acc": _acc("fact_ok", per_case),
+            "refusal_acc": _acc("refusal_ok", per_case),
+            "citation_acc": _acc("citation_ok", per_case),
+            "by_kind": by_kind,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
 async def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",
                              "synthesis", "multi_source", "sop_select",
-                             "language", "localize", "retrieval"],
+                             "language", "localize", "retrieval",
+                             "synthesis_live"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
@@ -1082,16 +1112,22 @@ async def main(argv=None):
                "read": eval_read, "synthesis": eval_synthesis,
                "multi_source": eval_multi_source, "sop_select": eval_sop_select,
                "language": eval_language, "localize": eval_localize,
-               "retrieval": eval_retrieval}
+               "retrieval": eval_retrieval,
+               "synthesis_live": eval_synthesis_live}
         kwargs = {"pace": args.pace}
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
         if args.set == "retrieval":
-            # KHONG dung LLM: bo nay thuan truy xuat. _llm() goi
-            # chain_for("retrieval") ma "retrieval" khong nam trong
-            # catalog.ROLES -> no ngay neu di duong chung.
+            # KHÔNG dựng LLM: bộ này thuần truy xuất. _llm() gọi
+            # chain_for("retrieval") mà "retrieval" không nằm trong
+            # catalog.ROLES → nổ ngay nếu đi đường chung.
             kwargs["rerank"] = not args.no_rerank
             result = await eval_retrieval(**kwargs)
+        elif args.set == "synthesis_live":
+            # "synthesis_live" KHÔNG nằm trong catalog.ROLES; production chạy
+            # rag_node bằng llms["synthesis"], nên dùng đúng vai đó.
+            result = await eval_synthesis_live(_llm(args.model, role="synthesis"),
+                                               **kwargs)
         else:
             result = await _FN[args.set](_llm(args.model, role=args.set), **kwargs)
     except Exception as e:   # noqa: BLE001 — hạ tầng LLM sập (key/model/router hỏng)

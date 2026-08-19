@@ -142,3 +142,84 @@ Không đụng `eval_synthesis` cũ: nó vẫn có giá trị riêng — cô l�
 retriever, nên khi hai bộ lệch nhau thì chỉ ra được lỗi nằm ở tầng nào.
 
 Không đổi production. Không giải P1–P4. Không đụng `RAG_RERANK_ENABLED`.
+
+## 9. Nghiệm thu độ nhạy (2026-08-19)
+
+Baseline (`RAG_SECTION_CAP` không tồn tại, rerank bật): `fact_acc = 1,0000`,
+`refusal_acc = 1,0000`, `citation_acc = 1,0000`, 20/20, p50/p95 =
+3284/11656 ms.
+
+### 9.1 Phép đo theo §6: nhánh `rag-section-cap-parked`
+
+| Số đo | cap=1 | cap=0 | delta |
+|---|---|---|---|
+| `fact_acc` | 1,0000 | 1,0000 | 0 |
+| `refusal_acc` | 1,0000 | 1,0000 | 0 |
+| `citation_acc` | 1,0000 | 1,0000 | 0 |
+
+`deep_chunk` và `distractor` đều 1,0000 ở cả hai chiều. **Không một số đo nào
+nhúc nhích** — đúng kết quả mà §6 đã chốt trước là phải ghi nguyên như nó là.
+
+### 9.2 Phép dò phân định: bộ eval có nhạy không?
+
+Kết quả §9.1 có hai cách đọc — bộ eval vô cảm, hoặc khử trùng lặp thật sự
+không ảnh hưởng. Phân định bằng cách tắt reranker, một thay đổi truy xuất
+biết chắc là có thật:
+
+| Cấu hình | `fact_acc` | `distractor` fact | ca trượt |
+|---|---|---|---|
+| rerank BẬT | 1,0000 | 1,0000 | — |
+| rerank TẮT | **0,9375** | **0,8333** | "nhân viên tự ý bỏ việc bao nhiêu ngày thì công ty được đơn phương chấm dứt hợp đồng?" |
+
+Chạy 3 lượt độc lập: **cùng con số, cùng một ca**, không phải nhiễu lấy mẫu.
+
+**Kết luận: bộ eval NHẠY với tầng truy xuất.** Nó làm được đúng việc mà
+`recall@6` không làm được, và ca nó bắt được là ca `distractor` khó nhất —
+Điều 35 vs Điều 36 nằm CÙNG một tệp nên `citation_acc` mù, sức phân biệt hoàn
+toàn dựa vào `expect` chỉ có ở Điều 36.
+
+Suy ra §9.1 là kết luận về **khử trùng lặp**, không phải về bộ đo: trần theo
+mục **không thay đổi chất lượng câu trả lời** trên 20 ca này.
+
+### 9.3 Hệ quả
+
+**Nhánh `rag-section-cap-parked`: vẫn park, và nay có lý do đo được.** Hai
+thước đo độc lập (P0 `recall@6`/`mrr`, và bộ này `fact/refusal/citation`) đều
+không phân biệt được nó với việc không làm gì. Chưa merge. Muốn hồi sinh thì
+phải nêu được một ca mà nó cải thiện — không có ca đó thì đây là code không
+có lý do tồn tại.
+
+**Một phát hiện phụ đáng ghi**: đây là bằng chứng ĐẦU TIÊN cho thấy
+cross-encoder rerank giúp được điều gì đó **đo được ở tầng câu trả lời**. Nó
+không mâu thuẫn với §11 của spec P0 (rerank hại nhóm `hard` về MRR) — hai bộ
+ca khác nhau, hai số đo khác nhau — nhưng nó làm bức tranh cân hơn: rerank
+cứu đúng ca "hai điều luật gần giống trong cùng một văn bản", loại ca mà xếp
+hạng RRF thuần không phân biệt nổi.
+
+### 9.4 Giới hạn phải nhớ
+
+Baseline chạm trần 1,0 ở cả ba số đo. Nghĩa là bộ này hiện là **máy dò hồi
+quy**, không phải máy so hai phương án tốt: mọi thay đổi chỉ có thể làm nó
+tụt hoặc đứng yên, không thể làm nó tăng. Muốn đo cải thiện thì phải thêm ca
+khó hơn — và ca khó phải khó ở chỗ NGỮ CẢNH, không phải khó ở chỗ diễn đạt
+(xem §9.5).
+
+### 9.5 Bài học đã trả giá: `expect` dài là sai
+
+Lượt chạy thật đầu tiên cho `fact_acc = 0,50`, và **cả 8 ca trượt đều là câu
+trả lời ĐÚNG** — chỉ khác hư từ: "được" → "sẽ được", "kết thúc họp" → "kết
+thúc cuộc họp", "không quá 8%" → "không được vượt quá 8%".
+
+Nguyên nhân: `expect` được chọn DÀI để thoả ràng buộc "duy nhất một tệp". Hai
+yêu cầu "duy nhất" và "bền với diễn đạt" chống nhau trong cùng một trường.
+
+Cách sửa đã áp dụng — tách hai mối lo:
+- `citation_acc` lo **đúng văn bản** (footer phải nêu đúng tệp);
+- `expect` chỉ lo **đúng sự kiện**, dùng chuỗi ngắn nhất mang tính phân biệt;
+- sức phân biệt của ca bẫy chuyển sang trường `rival`, kèm test hợp đồng
+  "expect phải VẮNG MẶT trong mục cạnh tranh".
+
+Một cặp bẫy bị LOẠI vì đo ra là không phân biệt được: Điều 35 vs Điều 36 dùng
+chung các con số 03/12/30/36/45, hỏi phía nào cũng ra "45 ngày". Thay bằng
+chiều ngược lại với "05 ngày làm việc liên tục" vốn chỉ có ở Điều 36 — và
+chính ca thay thế này là ca duy nhất bắt được reranker ở §9.2.
