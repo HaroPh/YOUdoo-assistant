@@ -23,6 +23,10 @@ from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
 from evals import fixtures
+from evals.retrieval_cases import RETRIEVAL_CASES
+from evals.retrieval_score import label_of, score_one
+from src.rag.retrieve import retrieve as _retrieve
+from src.rag.config import TOP_N as _TOP_N, TOP_K as _TOP_K
 from src.agents import roles
 from src.agents.prompts import CHITCHAT_PROMPT
 from src.agents.confirmation import _LLM_PROMPT
@@ -968,12 +972,94 @@ async def eval_multi_source_gather(llm, pace: float = 0.0, checkpoint_path=None)
             "fails": fails, "errors": errors}
 
 
+async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
+                         rerank: bool = True):
+    """Do TANG TRUY XUAT tren corpus that - KHONG goi LLM lan nao.
+
+    Khac moi bo eval khac o dung diem nay: `synthesis` va `multi_source` nap
+    fixtures.load_chunks(), tuc retriever bi bypass va chung do LLM tren ngu
+    canh hoan hao. Do la ly do reranker chet 6 tuan ma khong so do nao nhuc
+    nhich. Bo nay goi retrieve() that.
+
+    rerank=False dat RAG_RERANK_ENABLED=0 cho ca luot chay - chan doi chung
+    cua rerank_delta (spec 2026-08-19 6).
+    """
+    lat: list[float] = []
+    per_case: list[dict] = []
+    prev = os.environ.get("RAG_RERANK_ENABLED")
+    os.environ["RAG_RERANK_ENABLED"] = "1" if rerank else "0"
+
+    async def call(case):
+        question, expected, difficulty = case
+        # k=_TOP_N, KHONG phai mac dinh _TOP_K: retrieve() cat con k TRUOC khi
+        # tra ve (retrieve.py compress()), nen goi mac dinh thi result.chunks
+        # chi co 6 phan tu va "recall@20" se cham tren dung 6 chunk do - do
+        # chinh no duoi mot cai ten khac. Ban dau tu dinh nghia sai cho nay;
+        # phep kiem bat bien o Step 5 bat duoc (recall@20 doi khi bat/tat
+        # rerank, dieu khong the xay ra neu do dung pool).
+        #
+        # An toan vi compress() chi la phep cat tien to: 6 chunk dau cua luot
+        # k=20 giong HET production k=6. Khong doi mot dong production nao.
+        result, ms = await _timed(
+            asyncio.to_thread(_retrieve, question, _TOP_N))
+        lat.append(ms)
+        ranked = [label_of(c) for c in result.chunks]
+        score = score_one(ranked, {tuple(x) for x in expected},
+                          k_pool=_TOP_N, k_final=_TOP_K)
+        per_case.append({"question": question, "difficulty": difficulty,
+                         "method": result.method, **score})
+        if score["recall_at_pool"] > 0:
+            return None
+        return {"question": question, "difficulty": difficulty,
+                "expected": [list(x) for x in expected], "got": ranked[:6],
+                "method": result.method}
+
+    try:
+        fails, errors = await run_resilient(
+            [(q, [list(x) for x in sorted(e)], d) for q, e, d in RETRIEVAL_CASES],
+            call, pace=pace, checkpoint_path=checkpoint_path)
+    finally:
+        if prev is None:
+            os.environ.pop("RAG_RERANK_ENABLED", None)
+        else:
+            os.environ["RAG_RERANK_ENABLED"] = prev
+
+    n = len(RETRIEVAL_CASES)
+    m = len(per_case) or 1
+
+    def _avg(key: str, rows=None) -> float:
+        rows = per_case if rows is None else rows
+        return sum(r[key] for r in rows) / len(rows) if rows else 0.0
+
+    by_difficulty = {}
+    for d in ("easy", "hard", "trap"):
+        rows = [r for r in per_case if r["difficulty"] == d]
+        by_difficulty[d] = {"n": len(rows),
+                            "recall_at_20": round(_avg("recall_at_pool", rows), 4),
+                            "mrr": round(_avg("reciprocal_rank", rows), 4)}
+
+    # chunk_span: nhan phu trung binh bao nhieu chunk trong KET QUA. Tang len
+    # nghia la neo (tep, muc) dang mat suc phan giai (spec 4).
+    span = sum(len(r["hit_ranks"]) for r in per_case) / m
+
+    p50, p95 = _percentiles(lat)
+    return {"set": "retrieval", "n": n, "rerank": rerank,
+            "methods_seen": sorted({r["method"] for r in per_case}),
+            "recall_at_20": round(_avg("recall_at_pool"), 4),
+            "recall_at_6": round(_avg("recall_at_final"), 4),
+            "mrr": round(_avg("reciprocal_rank"), 4),
+            "chunk_span": round(span, 2),
+            "by_difficulty": by_difficulty,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
 async def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",
                              "synthesis", "multi_source", "sop_select",
-                             "language", "localize"],
+                             "language", "localize", "retrieval"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
@@ -985,6 +1071,9 @@ async def main(argv=None):
     ap.add_argument("--pace", type=float, default=0.0,
                     help="giây giãn cách giữa 2 call (suy từ catalog: "
                          "(60/rpm)*1.2 cho model đang ghim — vd rpm=15 → ~4.8)")
+    ap.add_argument("--no-rerank", action="store_true",
+                    help="chi voi --set retrieval: chay chan doi chung "
+                         "RAG_RERANK_ENABLED=0 de tinh rerank_delta")
     args = ap.parse_args(argv)
 
     try:
@@ -992,11 +1081,19 @@ async def main(argv=None):
                "chitchat": eval_chitchat, "planner": eval_planner,
                "read": eval_read, "synthesis": eval_synthesis,
                "multi_source": eval_multi_source, "sop_select": eval_sop_select,
-               "language": eval_language, "localize": eval_localize}
+               "language": eval_language, "localize": eval_localize,
+               "retrieval": eval_retrieval}
         kwargs = {"pace": args.pace}
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
-        result = await _FN[args.set](_llm(args.model, role=args.set), **kwargs)
+        if args.set == "retrieval":
+            # KHONG dung LLM: bo nay thuan truy xuat. _llm() goi
+            # chain_for("retrieval") ma "retrieval" khong nam trong
+            # catalog.ROLES -> no ngay neu di duong chung.
+            kwargs["rerank"] = not args.no_rerank
+            result = await eval_retrieval(**kwargs)
+        else:
+            result = await _FN[args.set](_llm(args.model, role=args.set), **kwargs)
     except Exception as e:   # noqa: BLE001 — hạ tầng LLM sập (key/model/router hỏng)
         print(f"INFRA ERROR: {e}"); sys.exit(2)
 
