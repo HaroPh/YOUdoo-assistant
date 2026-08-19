@@ -66,3 +66,79 @@ def test_money_and_hs_code_lines_are_not_headings(monkeypatch):
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
     blocks = parse.parse_pdf("x.pdf")
     assert all(b["heading_level"] is None for b in blocks)
+
+
+# ── Lọc rác header/footer trang (spec 2026-08-19 §3) ─────────────────────────
+# 727/3256 chunk PDF (22%) đang mang chuỗi kiểu
+# "22:47 13/7/26 about:blank about:blank 1/164" NẰM GIỮA nội dung — nó đi vào
+# embedding, ts_vector, cặp cho reranker và ngữ cảnh gửi LLM.
+from src.rag.parse import _normalize_digits, detect_page_furniture
+
+
+def _fake_pages(n, *, header=True, footer=True, middle_table=False):
+    """n trang: [header] + 5 dòng thân + [footer].
+
+    Thân PHẢI đủ 5 dòng. Với edge=2 tính từ CẢ HAI đầu, một trang 3 dòng thì
+    mọi dòng đều nằm ở rìa và "khác." sẽ bị nhận nhầm là rác."""
+    pages = []
+    for i in range(1, n + 1):
+        body = [f"Điều {i}. Nội dung riêng của trang {i}",
+                "Câu mở đoạn không lặp lại.",
+                "khác.",                       # lặp mọi trang, nhưng ở GIỮA
+                "Câu tiếp theo cũng không lặp.",
+                f"Đoạn kết riêng của trang {i}."]
+        if middle_table:
+            body.insert(2, f"{i} {i}.{i}")     # hàng bảng, cũng ở GIỮA
+        lines = (["22:47 13/7/26 about:blank"] if header else []) + body
+        if footer:
+            lines.append(f"about:blank {i}/{n}")
+        pages.append(lines)
+    return pages
+
+
+def test_normalize_digits_gop_cac_bien_the_so_trang():
+    # Mấu chốt: "about:blank 5/164" và "about:blank 6/164" là hai chuỗi khác
+    # nhau; đếm trần thì mỗi cái chỉ 1 trang và bộ lọc bỏ sót hoàn toàn.
+    assert _normalize_digits("about:blank 5/164") == _normalize_digits("about:blank 6/164")
+    assert _normalize_digits("about:blank 5/164") == "about:blank #/#"
+
+
+def test_detect_bat_duoc_ca_header_lan_footer():
+    got = detect_page_furniture(_fake_pages(20))
+    assert _normalize_digits("about:blank 1/20") in got
+    assert _normalize_digits("22:47 13/7/26 about:blank") in got
+
+
+def test_detect_khong_an_dong_than_bai_lap_lai():
+    # "khác." lặp ở MỌI trang nhưng nằm giữa → không phải rác trang.
+    got = detect_page_furniture(_fake_pages(20))
+    assert "khác." not in got
+
+
+def test_detect_khong_an_hang_bang_o_giua_trang():
+    # Ca dương-tính-giả THẬT đã đo được: "# #.#" là hàng bảng mã HS trong phụ
+    # lục luat-thuexuatnhapkhau.pdf — nhiều hàng KHÁC NHAU bị chuẩn hoá gộp
+    # chung, đẩy tần suất lên 48%. Chỉ điều kiện vị-trí-rìa mới loại được nó.
+    got = detect_page_furniture(_fake_pages(20, middle_table=True))
+    assert "# #.#" not in got
+
+
+def test_detect_bo_qua_tai_lieu_qua_ngan():
+    # Tài liệu 2 trang: một dòng hợp lệ lặp ở cả hai trang đã là 100%.
+    assert detect_page_furniture(_fake_pages(2)) == set()
+
+
+def test_detect_khong_an_dong_chi_o_ria_mot_vai_trang():
+    # Xuất hiện ở rìa nhưng chỉ trên 3/20 trang → dưới ngưỡng tần suất.
+    pages = _fake_pages(20, header=False, footer=False)
+    for i in range(3):
+        pages[i].append("Ghi chú cuối trang hiếm gặp.")
+    assert "Ghi chú cuối trang hiếm gặp." not in detect_page_furniture(pages)
+
+
+def test_detect_tra_ve_dang_da_chuan_hoa():
+    # Hợp đồng đầu ra: caller so bằng _normalize_digits(line), nên tập trả về
+    # phải là dạng ĐÃ chuẩn hoá — không còn chữ số nào.
+    got = detect_page_furniture(_fake_pages(20))
+    assert got, "phải bắt được ít nhất một dòng rác"
+    assert not any(ch.isdigit() for g in got for ch in g)

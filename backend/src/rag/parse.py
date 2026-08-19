@@ -14,6 +14,56 @@ _HEADING_RE = re.compile(
     r"|^\s*\d+\.\d{1,2}(\.\d{1,2})*(?!\d)[\.\)]?\s+\S")
 
 
+_DIGITS_RE = re.compile(r"\d+")
+
+
+def _normalize_digits(text: str) -> str:
+    """Thay mọi chuỗi chữ số bằng '#'.
+
+    Không có bước này thì bộ lọc tần suất bỏ sót hoàn toàn: 'about:blank 5/164'
+    và 'about:blank 6/164' là hai chuỗi khác nhau, mỗi cái chỉ xuất hiện đúng
+    một trang."""
+    return _DIGITS_RE.sub("#", text)
+
+
+def detect_page_furniture(pages: list[list[str]], *, min_pages: int = 5,
+                          page_ratio: float = 0.6, edge_ratio: float = 0.9,
+                          edge: int = 2) -> set[str]:
+    """Dạng-đã-chuẩn-hoá của các dòng là header/footer trang.
+
+    Điều kiện KÉP, không phải hoặc (spec 2026-08-19-ingest-hygiene §3):
+      (a) xuất hiện trên >= page_ratio số trang, VÀ
+      (b) >= edge_ratio số lần xuất hiện nằm trong `edge` dòng đầu hoặc cuối
+          của trang.
+
+    Vì sao cần (b): chuẩn hoá chữ số gộp NHIỀU hàng bảng khác nhau thành một
+    nhóm. Đo thật trên luat-thuexuatnhapkhau.pdf: nhóm '# #.#' (hàng bảng mã
+    HS) đạt 48% số trang — chỉ thoát ngưỡng 60% nhờ 12 điểm phần trăm, quá
+    mỏng để tin. Với (b) thì nó ra 15% và bị loại dứt khoát, trong khi 18 nhóm
+    rác thật của 9 tệp đều đạt 100%/100%.
+
+    Vì sao không khớp mẫu 'about:blank': đó là dấu vết của CÁCH IN bộ PDF này
+    (print-to-PDF từ trình duyệt). Tài liệu nguồn khác mang rác khác; tần suất
+    bắt được cả loại chưa gặp, khớp mẫu cứng thì không.
+    """
+    n_pages = len(pages)
+    if n_pages < min_pages:
+        return set()
+    seen_pages: dict[str, set[int]] = {}
+    at_edge: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for pageno, lines in enumerate(pages):
+        for i, text in enumerate(lines):
+            key = _normalize_digits(text)
+            seen_pages.setdefault(key, set()).add(pageno)
+            total[key] = total.get(key, 0) + 1
+            if i < edge or i >= len(lines) - edge:
+                at_edge[key] = at_edge.get(key, 0) + 1
+    return {key for key, pgs in seen_pages.items()
+            if len(pgs) / n_pages >= page_ratio
+            and at_edge.get(key, 0) / total[key] >= edge_ratio}
+
+
 def parse_docx(path: str) -> list[dict]:
     """Blocks in order; a heading block carries heading_level (1..n), body carries None."""
     doc = Document(path)
