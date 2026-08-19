@@ -38,7 +38,7 @@ def test_du_so_ca_bay():
     # Ngưỡng cứng, không phải "có là được": ca bẫy là hạng duy nhất phân biệt
     # được "trúng tài liệu" với "trúng ĐÚNG tài liệu".
     n_trap = sum(1 for _q, _e, d in RETRIEVAL_CASES if d == "trap")
-    assert n_trap >= 8, f"chỉ có {n_trap} ca bẫy, spec §7 đòi >=8"
+    assert n_trap >= 16, f"chỉ có {n_trap} ca bẫy"
 
 
 def test_da_so_ca_cham_pdf_luat():

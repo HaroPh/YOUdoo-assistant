@@ -127,6 +127,57 @@ SYNTHESIS_LIVE_CASES: list[Case] = [
          "distractor", "300 triệu đồng", _GTGT, "Điều 15. Hoàn thuế giá trị gia tăng",
          "Điều 19. Hoàn thuế"),
 
+    # ── Bẫy CÙNG MỘT TỆP (thêm 2026-08-19) ───────────────────────────────
+    # Loại ca nhạy nhất đã biết: hai Điều TRÙNG (hoặc gần trùng) tiêu đề nằm
+    # trong CÙNG một văn bản. citation_acc mù hoàn toàn ở đây vì nó chỉ so tên
+    # tệp, nên sức phân biệt dồn hết vào nội dung. Đây là loại ca duy nhất
+    # từng bắt được cả reranker (tắt rerank → trượt đúng ca này) lẫn P3a (biên
+    # phân biệt sụp 70%), và trước đợt này bộ chỉ có ĐÚNG MỘT ca như vậy.
+    #
+    # Khai thác từ corpus: 575 cặp Điều gần trùng tiêu đề trong cùng tệp, lọc
+    # còn 8 cặp vừa trùng tiêu đề VỪA có số liệu riêng ở một bên — điều kiện
+    # thứ hai là bắt buộc, vì cặp dùng chung mọi con số thì fact_acc không
+    # phân biệt được gì (bài học từ cặp Điều 35/36 đã phải loại).
+    #
+    # Câu hỏi PHẢI nêu dấu hiệu phân định (loài vật, chế độ, loại hình công
+    # ty, bên đóng), nếu không thì cả hai Điều đều trả lời được và việc chấm
+    # một bên là đúng trở thành tuỳ tiện.
+
+    Case("bắt được gia súc thất lạc mà trong thời gian nuôi giữ nó sinh con thì người bắt được hưởng bao nhiêu?",
+         "distractor", "50%", _DANSSU,
+         "Điều 231. Xác lập quyền sở hữu đối với gia súc bị thất lạc",
+         "Điều 232. Xác lập quyền sở hữu đối với gia cầm bị thất lạc"),
+    Case("bảo hiểm xã hội TỰ NGUYỆN thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?",
+         "distractor", "1,5 lần", _BHXH,
+         "Điều 102. Hưởng bảo hiểm xã hội một lần",
+         "Điều 70. Hưởng bảo hiểm xã hội một lần"),
+    Case("người lao động không hưởng lương từ bao nhiêu ngày làm việc trong tháng thì không phải đóng bảo hiểm xã hội bắt buộc?",
+         "distractor", "14 ngày", _BHXH,
+         "Điều 33. Mức đóng, phương thức và thời hạn đóng bảo hiểm xã hội "
+         "bắt buộc của người lao động",
+         "Điều 34. Mức đóng, phương thức và thời hạn đóng bảo hiểm xã hội "
+         "bắt buộc của người sử dụng lao động"),
+    Case("lao động nữ MANG THAI HỘ mà thời gian hưởng chế độ thai sản chưa đủ bao nhiêu ngày thì vẫn được hưởng tiếp?",
+         "distractor", "60 ngày", _BHXH,
+         "Điều 54. Chế độ thai sản của lao động nữ mang thai hộ",
+         "Điều 55. Chế độ thai sản của lao động nữ nhờ mang thai hộ"),
+    Case("nghỉ hưu trước tuổi dưới bao lâu thì không bị giảm tỷ lệ hưởng lương hưu?",
+         "distractor", "06 tháng", _BHXH,
+         "Điều 66. Mức lương hưu hằng tháng",
+         "Điều 99. Mức lương hưu hằng tháng"),
+    Case("kiểm soát viên của doanh nghiệp nhà nước phải có ít nhất bao nhiêu năm kinh nghiệm làm việc?",
+         "distractor", "03 năm", _DOANHNGHIEP,
+         "Điều 103. Ban kiểm soát, Kiểm soát viên",
+         "Điều 65. Ban kiểm soát, Kiểm soát viên"),
+    Case("nhiệm kỳ chủ tịch hội đồng thành viên do hội đồng bầu ra tối đa bao lâu?",
+         "distractor", "05 năm", _DOANHNGHIEP,
+         "Điều 56. Chủ tịch Hội đồng thành viên",
+         "Điều 95. Chủ tịch Hội đồng thành viên"),
+    Case("công ty trách nhiệm hữu hạn hai thành viên trở lên đổi vốn điều lệ thì cơ quan đăng ký kinh doanh cập nhật trong bao lâu?",
+         "distractor", "03 ngày", _DOANHNGHIEP,
+         "Điều 68. Tăng, giảm vốn điều lệ",
+         "Điều 87. Tăng, giảm vốn điều lệ"),
+
     # ══ insufficient — ngoài corpus hoàn toàn ════════════════════════════
     Case("giá cổ phiếu công ty hôm nay là bao nhiêu?", "insufficient", "", ""),
     Case("thủ đô nước Pháp là thành phố nào?", "insufficient", "", ""),

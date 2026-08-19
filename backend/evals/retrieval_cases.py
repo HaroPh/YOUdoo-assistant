@@ -244,4 +244,34 @@ RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = [
      # "nhập khẩu" kéo mạnh về luat-thuexuatnhapkhau; nhãn đúng ở luật GTGT
      frozenset({(_GTGT, "Điều 3. Đối tượng chịu thuế")}),
      "trap"),
+
+    # ── Bẫy CÙNG MỘT TỆP (thêm 2026-08-19) ────────────────────────────────
+    # Tám ca dưới đây khó hơn hẳn nhóm bẫy cũ: hai Điều TRÙNG tiêu đề nằm
+    # trong CÙNG một văn bản, nên không thể phân biệt bằng tên tệp — chỉ nội
+    # dung mới tách được. Khai thác từ 575 cặp gần trùng trong cùng tệp, lọc
+    # còn 8 cặp vừa trùng tiêu đề vừa có số liệu riêng ở một bên.
+    ("bắt được gia súc thất lạc mà nó sinh con thì người nuôi giữ được hưởng bao nhiêu?",
+     frozenset({(_DANSSU, "Điều 231. Xác lập quyền sở hữu đối với gia súc bị thất lạc")}),
+     "trap"),
+    ("bảo hiểm xã hội tự nguyện thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?",
+     frozenset({(_BHXH, "Điều 102. Hưởng bảo hiểm xã hội một lần")}),
+     "trap"),
+    ("người lao động nghỉ không lương bao nhiêu ngày trong tháng thì khỏi đóng bảo hiểm xã hội?",
+     frozenset({(_BHXH, "Điều 33. Mức đóng, phương thức và thời hạn đóng bảo hiểm xã hội bắt buộc của người lao động")}),
+     "trap"),
+    ("lao động nữ mang thai hộ hưởng chế độ thai sản chưa đủ bao nhiêu ngày thì được hưởng tiếp?",
+     frozenset({(_BHXH, "Điều 54. Chế độ thai sản của lao động nữ mang thai hộ")}),
+     "trap"),
+    ("nghỉ hưu trước tuổi dưới bao lâu thì không bị trừ tỷ lệ lương hưu?",
+     frozenset({(_BHXH, "Điều 66. Mức lương hưu hằng tháng")}),
+     "trap"),
+    ("kiểm soát viên doanh nghiệp nhà nước cần bao nhiêu năm kinh nghiệm?",
+     frozenset({(_DOANHNGHIEP, "Điều 103. Ban kiểm soát, Kiểm soát viên")}),
+     "trap"),
+    ("chủ tịch hội đồng thành viên do hội đồng bầu thì nhiệm kỳ tối đa bao lâu?",
+     frozenset({(_DOANHNGHIEP, "Điều 56. Chủ tịch Hội đồng thành viên")}),
+     "trap"),
+    ("công ty tnhh hai thành viên trở lên đổi vốn điều lệ thì bao lâu được cập nhật?",
+     frozenset({(_DOANHNGHIEP, "Điều 68. Tăng, giảm vốn điều lệ")}),
+     "trap"),
 ]

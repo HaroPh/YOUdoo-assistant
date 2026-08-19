@@ -38,7 +38,7 @@ def test_du_so_ca_moi_loai():
     from collections import Counter
     n = Counter(c.kind for c in SYNTHESIS_LIVE_CASES)
     assert n["deep_chunk"] >= 10, f"chỉ có {n['deep_chunk']} ca deep_chunk"
-    assert n["distractor"] >= 5, f"chỉ có {n['distractor']} ca distractor"
+    assert n["distractor"] >= 13, f"chỉ có {n['distractor']} ca distractor"
     assert n["insufficient"] >= 4, f"chỉ có {n['insufficient']} ca insufficient"
 
 
