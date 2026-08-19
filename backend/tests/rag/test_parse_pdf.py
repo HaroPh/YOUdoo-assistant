@@ -142,3 +142,35 @@ def test_detect_tra_ve_dang_da_chuan_hoa():
     got = detect_page_furniture(_fake_pages(20))
     assert got, "phải bắt được ít nhất một dòng rác"
     assert not any(ch.isdigit() for g in got for ch in g)
+
+
+# ── _HEADING_RE không được khớp tham chiếu giữa câu (spec §4) ────────────────
+# 15 "mục" trong rag_chunks thực chất là mảnh câu tham chiếu chéo, mỗi mảnh
+# CẮT ĐÔI một Điều thật. Đây là lỗi DUY NHẤT đã chứng minh gây hại đo được:
+# chuỗi "Điều ước quốc tế mà Cộng hòa..." chiếm hạng 1 của một câu hỏi thật.
+import pytest
+
+from src.rag.parse import _HEADING_RE
+
+
+@pytest.mark.parametrize("line", [
+    "Điều 113. Nghỉ hằng năm",
+    "Điều 5. Đối tượng không chịu thuế",
+    "Chương I",
+    "Mục 2. CHẾ ĐỘ THAI SẢN",
+    "1.1 Phạm vi",
+])
+def test_heading_that_van_duoc_nhan(line):
+    assert _HEADING_RE.match(line), f"{line!r} phải là heading"
+
+
+@pytest.mark.parametrize("line", [
+    "Điều 11 của Luật này quy định.",
+    "Điều 133 của Bộ luật này.",
+    "Điều 14 của Luật này;",
+    "Điều 20 của Luật này được giải quyết thông qua một trong những cơ quan sau đây:",
+    "Điều 228 của Bộ luật này.",
+    "Điều ước quốc tế mà Cộng hòa xã hội chủ nghĩa Việt Nam là thành viên.",
+])
+def test_tham_chieu_giua_cau_khong_phai_heading(line):
+    assert not _HEADING_RE.match(line), f"{line!r} KHÔNG được là heading"

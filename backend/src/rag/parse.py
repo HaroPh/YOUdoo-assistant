@@ -9,8 +9,20 @@ import pypdf
 # heading, còn nhóm 3 chữ số là dấu phân cách nghìn ("5.000.000.000 đồng.")
 # hoặc mã HS phụ lục ("2931.9080") — cả ba từng bị nhận nhầm heading khiến
 # chunking nuốt nội dung (spec 2026-07-15-rag-heading-detection-fix).
+#
+# Nhánh `Điều` SIẾT LẠI 2026-08-19 (spec ingest-hygiene §4): trước đây là
+# `^\s*(Chương|Mục|Điều)\b`, nên khớp cả tham chiếu chéo GIỮA câu — "Điều 11
+# của Luật này quy định.", "Điều ước quốc tế mà Cộng hòa..." — sinh ra 15 mục
+# là mảnh câu, mỗi mảnh CẮT ĐÔI một Điều thật. Đây là lỗi ingest DUY NHẤT đã
+# chứng minh gây hại đo được: chuỗi "Điều ước quốc tế..." chiếm hạng 1 của một
+# câu hỏi thật (spec P0 §11.1(b)). Nay `Điều` phải mang dạng "Điều <số>." rồi
+# mới tới tiêu đề.
+#
+# `Chương` và `Mục` GIỮ NGUYÊN: chúng sinh 190 mục trống, nhưng đó là việc của
+# P3b (phân cấp) — đụng vào đây là trộn thêm một biến vào cùng một lần re-index.
 _HEADING_RE = re.compile(
-    r"^\s*(Chương|Mục|Điều)\b"
+    r"^\s*(Chương|Mục)\b"
+    r"|^\s*Điều\s+\d+\s*[\.\-–]\s*\S"
     r"|^\s*\d+\.\d{1,2}(\.\d{1,2})*(?!\d)[\.\)]?\s+\S")
 
 
@@ -84,16 +96,30 @@ def parse_docx(path: str) -> list[dict]:
 
 
 def parse_pdf(path: str) -> list[dict]:
-    """Heuristic headings (no font info): numbered/keyword headings & short ALL-CAPS lines."""
+    """Heuristic headings (no font info): numbered/keyword headings & short ALL-CAPS lines.
+
+    HAI LƯỢT từ 2026-08-19: gom dòng theo trang trước, nhận diện rác
+    header/footer trên toàn tài liệu, rồi mới dựng block. Một lượt thì không
+    thể biết một dòng có lặp trên phần lớn số trang hay không.
+    """
     reader = pypdf.PdfReader(path)
-    blocks: list[dict] = []
-    for pageno, page in enumerate(reader.pages, start=1):
+    pages: list[list[str]] = []
+    for page in reader.pages:
+        lines = []
         for line in (page.extract_text() or "").splitlines():
             # pypdf maps some unrecognized glyphs (e.g. a custom bullet-point
             # font) to U+0000 instead of dropping them; Postgres text columns
             # reject NUL bytes outright, so strip them at the source.
             text = line.replace("\x00", "").strip()
-            if not text:
+            if text:
+                lines.append(text)
+        pages.append(lines)
+
+    furniture = detect_page_furniture(pages)
+    blocks: list[dict] = []
+    for pageno, lines in enumerate(pages, start=1):
+        for text in lines:
+            if _normalize_digits(text) in furniture:
                 continue
             is_heading = bool(_HEADING_RE.match(text)) or (
                 text.isupper() and len(text) <= 80
