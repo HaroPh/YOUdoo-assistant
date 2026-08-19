@@ -30,8 +30,19 @@ def test_percentiles_unsorted_input_is_sorted_first():
 
 @pytest.mark.asyncio
 async def test_timed_returns_result_and_positive_latency():
+    # sleep 50ms nhưng chỉ đòi >= 10ms: biên 5 lần, CÓ CHỦ ĐÍCH.
+    #
+    # Bản cũ ngủ 10ms rồi đòi >= 10.0 — biên BẰNG KHÔNG. Độ phân giải bộ đếm
+    # của Windows là ~15,6ms, nên dưới tải toàn suite `asyncio.sleep` thỉnh
+    # thoảng về sớm hơn ngưỡng vài phần trăm mili-giây và test đỏ ngẫu nhiên
+    # (quan sát được 2026-08-19: đỏ một lần trong lượt chạy đầy đủ, xanh khi
+    # chạy riêng và xanh ở lượt chạy đầy đủ kế tiếp).
+    #
+    # KHÔNG hạ ngưỡng xuống `> 0`: như vậy test chỉ còn chứng minh đồng hồ
+    # chạy, không chứng minh nó đo đúng khoảng thời gian của coro. Giữ ngưỡng
+    # và nới thời gian ngủ thì khẳng định vẫn có nghĩa, chỉ tốn thêm 40ms.
     async def work():
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)
         return "xong"
     result, ms = await run_eval._timed(work())
     assert result == "xong"
