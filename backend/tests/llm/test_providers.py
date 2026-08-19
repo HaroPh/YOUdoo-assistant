@@ -144,3 +144,27 @@ def test_temperature_luon_bang_khong_ca_hai_loai_client(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "k")
     assert client_for(GEMINI).temperature == 0
     assert client_for(GROQ).temperature == 0
+
+
+# ─── max_retries: SDK KHÔNG được tự thử lại (2026-08-19) ────────────────────
+# Đo được: gemini-3.1-flash-lite cạn trần NGÀY, một lượt gọi mất 33,4s với
+# max_retries=6 (mặc định của thư viện) so với 0,4s với max_retries=0 — tức
+# SDK bắn lại nhiều lần. Mỗi lần bắn lại ĐỐT THÊM hạn mức mà sổ ngân sách
+# KHÔNG ghi (Router._finish chỉ chạy trên phản hồi thành công). Hệ quả đo
+# được ngày 2026-08-19: llm_usage ghi 179 lượt/24h trong khi Google tính
+# 500/500 cho cùng model.
+#
+# Ba lớp thử lại chồng nhau, và lớp SDK là lớp DUY NHẤT mù: nó không phân
+# biệt 429-trần-phút (đáng chờ) với 429-trần-ngày (vô vọng), không biết còn
+# mắt xích nào để tụt xuống, và không ghi sổ. Router (chuỗi fallback +
+# cooldown) và run_resilient của evals đều biết cả ba thứ đó.
+#
+# Test chống TRÔI: mặc định của thư viện có thể đổi giữa các bản nâng cấp.
+# Không chốt tường minh thì một lần `pip install -U` là hạn mức lại lặng lẽ
+# bốc hơi.
+
+@pytest.mark.parametrize("spec", [GEMINI, GEMMA, GROQ, OR_LING],
+                         ids=lambda s: s.alias)
+def test_client_khong_de_sdk_tu_thu_lai(monkeypatch, spec):
+    monkeypatch.setenv(ENV_KEYS[spec.provider], "khoa-gia-cho-test")
+    assert client_for(spec).max_retries == 0

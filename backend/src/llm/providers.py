@@ -26,6 +26,30 @@ BASE_URLS = {
     "openrouter": "https://openrouter.ai/api/v1",
 }
 
+# SDK KHÔNG được tự thử lại (2026-08-19). Đặt TƯỜNG MINH cho cả hai nhánh:
+# ChatGoogleGenerativeAI mặc định 6, ChatOpenAI mặc định None (rơi về mặc định
+# của SDK OpenAI). Cả hai đều là thử-lại-mù.
+#
+# VÌ SAO 0 CHỨ KHÔNG PHẢI 1-2. Có BA lớp thử lại chồng nhau:
+#   1. SDK          — 6 (Google) / 2 (OpenAI)
+#   2. Router       — chuỗi fallback + cooldown, hoặc 1 lần nếu ghim
+#   3. run_resilient — 2, ở đường eval
+# Lớp SDK là lớp DUY NHẤT mù: nó không phân biệt 429-trần-phút (đáng chờ) với
+# 429-trần-ngày (vô vọng), không biết còn mắt xích nào để tụt xuống, và không
+# ghi sổ ngân sách. Lớp 2 và 3 biết cả ba thứ đó.
+#
+# TÁC HẠI ĐO ĐƯỢC 2026-08-19: mỗi lần SDK bắn lại ĐỐT THÊM hạn mức mà
+# Router._finish() KHÔNG ghi (nó chỉ chạy trên phản hồi thành công). Kết quả:
+# llm_usage ghi 179 lượt/24h trong khi Google tính 500/500 cho cùng model. Đó
+# là vòng luẩn quẩn — càng gần trần càng nhiều 429, mỗi 429 đẻ 6 lần bắn lại,
+# mỗi lần bắn lại đốt thêm hạn mức. Sổ ngân sách tồn tại để chặn TRƯỚC khi
+# chạm trần nhà cung cấp, và nó không thấy được phần lớn lượng tiêu thụ thật.
+#
+# Đo trên model đã cạn trần ngày: max_retries=0 hỏng sau 0,4s; max_retries=6
+# mất 33,4s. 33 giây đó là thời gian ngồi thử lại một hạn mức NGÀY — thứ không
+# hồi trong vài chục giây — thay vì tụt ngay sang mắt xích kế của chuỗi.
+MAX_RETRIES = 0
+
 ENV_KEYS = {
     "google": "GOOGLE_API_KEY",
     "groq": "GROQ_API_KEY",
@@ -94,6 +118,7 @@ def client_for(spec: ModelSpec):
             temperature=0,
             timeout=spec.timeout_s,
             max_output_tokens=spec.max_output_tokens,
+            max_retries=MAX_RETRIES,  # xem chú thích ở MAX_RETRIES
         )
     return ChatOpenAI(
         model=spec.model_id,          # ID GỐC của nhà cung cấp, không phải alias
@@ -102,4 +127,5 @@ def client_for(spec: ModelSpec):
         temperature=0,
         timeout=spec.timeout_s,
         max_tokens=spec.max_output_tokens,
+        max_retries=MAX_RETRIES,      # xem chú thích ở MAX_RETRIES
     )
