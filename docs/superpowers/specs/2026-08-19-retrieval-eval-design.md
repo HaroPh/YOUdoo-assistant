@@ -271,16 +271,23 @@ Rerank đưa lên `Điều 309/311/315` Luật Thương mại (*hậu quả phá
 ngừng / đình chỉ hợp đồng*) — **câu trả lời hợp lý**, nhưng nhãn chỉ chấp
 nhận Bộ luật Dân sự. Lỗi ở bộ đo, không phải ở retriever.
 
-### 11.2 Phát hiện phụ: 20% ô ngữ cảnh đang lãng phí vì trùng lặp
+### 11.2 Phát hiện phụ: top-6 chứa 4,80 mục phân biệt
 
-Top-6 chỉ chứa **4,80/6 mục phân biệt** trung bình, và **20/56 câu có ≤4 mục
-phân biệt** — nhiều chunk của cùng một Điều chiếm nhiều ô. Ví dụ ca (a):
-`Điều 42` ở hạng 1 *và* 4, `Điều 99` ở hạng 3 *và* 6, nên LLM thực tế chỉ
-thấy 4 mục.
+> **SỬA LẠI 2026-08-19, cùng ngày.** Bản đầu của mục này đặt tiêu đề "20% ô
+> ngữ cảnh đang lãng phí vì trùng lặp" và gọi đó là phát hiện đáng giá hơn cả
+> câu hỏi gốc. **Chữ "lãng phí" là suy diễn, không phải số đo — và nó sai.**
+> Đã thử sửa và đo, kết quả ở §11.4. Giữ mục này để thấy quan sát nào là
+> thật và diễn giải nào là thêm vào.
+
+Số đo (thật): top-6 chứa **4,80/6 mục phân biệt** trung bình, và **20/56 câu
+có ≤4 mục phân biệt**. Ví dụ ca (a): `Điều 42` ở hạng 1 *và* 4, `Điều 99` ở
+hạng 3 *và* 6.
 
 Rerank **không** phải nguyên nhân: bật 4,80 vs tắt 4,73 mục phân biệt — bật
-còn nhỉnh hơn. Nguyên nhân nằm ở chỗ pipeline chưa có bước khử trùng lặp nào
-theo mục.
+còn nhỉnh hơn.
+
+Diễn giải (đã bị bác ở §11.4): rằng các ô đó "lãng phí" và pipeline cần một
+bước khử trùng lặp theo mục.
 
 ### 11.3 Kết luận: KHÔNG đổi `RAG_RERANK_ENABLED`
 
@@ -290,10 +297,59 @@ reranker**. Tắt nó là chữa sai chỗ.
 
 Thứ tự việc tiếp theo, đã ĐỔI so với bảng cuối plan dựa trên dữ liệu này:
 
-1. **Khử trùng lặp theo mục trong top-k** — rẻ, cơ học, thu lại ~20% ô ngữ
-   cảnh. Không phụ thuộc câu hỏi nào còn mở.
-2. **P3 dọn rác ingest** — nay có bằng chứng nó chiếm hạng 1 của câu thật.
-3. **Sửa nhãn ca (c)** và soát lại golden set cho câu có nhiều văn bản trả
+1. ~~Khử trùng lặp theo mục trong top-k~~ — **ĐÃ THỬ VÀ PARK, xem §11.4.**
+2. **Eval sinh câu trả lời chạy qua retrieval THẬT** — nay là việc chặn, xem
+   §11.4.
+3. **P3 dọn rác ingest** — nay có bằng chứng nó chiếm hạng 1 của câu thật.
+4. **Sửa nhãn ca (c)** và soát lại golden set cho câu có nhiều văn bản trả
    lời được.
-4. *Sau đó* mới quay lại "reranker có phân biệt được quy tắc với ngoại lệ
+5. *Sau đó* mới quay lại "reranker có phân biệt được quy tắc với ngoại lệ
    không" — pool sạch rồi thì phép đo mới có nghĩa.
+
+## 12. Khử trùng lặp theo mục: đã thử, đã đo, đã PARK
+
+Viết `compress()` thành trần-theo-mục-có-bù (thay cho `chunks[:k]` thuần),
+cộng 10 unit test. Code chạy được, 1731 test mặc định xanh. Đo trên chính
+golden set 56 câu:
+
+| cap | recall@6 | mrr | mục/6 | câu ≤4 mục |
+|---|---|---|---|---|
+| 0 (cũ) | 0.9196 | 0.8182 | 4.80 | 20 |
+| 1 | 0.9196 | 0.8182 | 6.00 | 0 |
+| 2 | 0.9196 | 0.8182 | 5.12 | 16 |
+| 3 | 0.9196 | 0.8182 | 4.95 | 20 |
+
+**`recall@6` và `mrr` không đổi một chữ số nào ở cả bốn cấu hình.** Không
+phải "tăng nhẹ" — bằng hệt.
+
+### 12.1 Hai điều học được
+
+**(a) Bộ đo mù với cả mặt lợi, không chỉ mặt hại.** §11.2 dự đoán bộ đo
+không thấy được mặt hại (bỏ mất chunk chứa câu trả lời của một Điều dài) vì
+nhãn không đổi. Thực tế nó cũng không thấy mặt lợi: `recall@20 = 1.0` nên
+nhãn đúng luôn nằm trong pool, nhưng bù thêm ~1,2 mục vào top-6 **không cứu
+được ca nào**. Suy ra 8% ca trượt có nhãn đúng nằm sâu hơn nhiều, không ở
+biên 7–8.
+
+**(b) Tiền đề "ô lãng phí" là SAI.** Hai chunk cùng một Điều **không phải
+bản trùng**. `chunking.py` chỉ chia một mục thành nhiều chunk khi mục đó
+dài, nên chúng mang **nội dung khác nhau của cùng điều luật**. "6 ô chứa 4,8
+mục" không phải lãng phí — giữ thêm một mảnh của đúng điều luật thường có
+giá trị hơn mảnh đầu của một điều không liên quan. Chữ "trùng lặp" trong
+§11.2 là cách gọi sai, và nó là toàn bộ động cơ của thay đổi này.
+
+### 12.2 Quyết định
+
+Park trên nhánh `rag-section-cap-parked` (commit `de7d23c`), **không merge**.
+Code và test giữ nguyên để khỏi viết lại; thứ thiếu là bằng chứng, không
+phải code.
+
+### 12.3 Việc chặn tiếp theo: eval sinh chạy qua retrieval thật
+
+Thứ duy nhất đo được lợi/hại của mọi thay đổi ở tầng `compress()` là **chất
+lượng câu trả lời**, không phải hạng của nhãn. Hiện `eval_synthesis` nạp
+`fixtures.load_chunks()` — chunk đóng băng, retriever bị bypass — nên nó
+không thể thấy gì.
+
+Đây cũng chính là lỗ hổng chặn P4 (thay `compress()`, sửa `passes_floor`).
+Vì thế nó lên trước P1/P2/P3 trong thứ tự việc.
