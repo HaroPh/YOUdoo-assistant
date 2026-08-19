@@ -22,6 +22,26 @@ langchain-mcp-adapters==0.3.0
 # tương thích cho cả phía client (venv này) lẫn phía server.
 mcp==1.28.0
 pgvector==0.4.1
+# ─── Cross-encoder reranker (2026-08-19) ────────────────────────────────────
+# ĐẢO quyết định 2026-07-12 ("không ghim torch/transformers, production không
+# cần dep nặng"). Lý do đảo: trong venv thật hai gói này không có, nên _load()
+# ném ModuleNotFoundError → fail-open nuốt → reranker CHẾT 100% im lặng kể từ
+# lúc port sang Youdoo. Đo 2026-08-19: retrieve() trên corpus 3300 chunk trả
+# method="hybrid-rrf" (không "+rerank"). Một tính năng chỉ tồn tại khi dep của
+# nó tồn tại — để ngoài requirements là để nó chết.
+#
+# Bản +cu128 CHỦ Ý, không phải bản CPU mặc định: máy dev có RTX 5060 Ti
+# (sm_120/Blackwell) và chỉ build cu128 mới có kernel cho kiến trúc này —
+# đã xác nhận sm_120 nằm trong torch.cuda.get_arch_list().
+# Đo thật, 20 cặp, model đã nóng:  GPU 21ms  |  CPU 987ms  (47×).
+# Trên CPU reranker cộng ~1s vào MỌI câu hỏi tài liệu; trên GPU nó gần như
+# miễn phí. Đó là chỗ ~2.5GB wheel mua được.
+#
+# Máy không NVIDIA vẫn chạy được: _resolve_device() lùi về "cpu" (hoặc ép
+# bằng RERANK_DEVICE=cpu), và wheel cu128 vẫn import bình thường.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128
+transformers==5.15.0
 pypdf==5.1.0
 python-docx==1.1.2
 openpyxl==3.1.5

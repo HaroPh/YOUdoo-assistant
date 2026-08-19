@@ -90,6 +90,47 @@ def test_score_count_mismatch_fails_open(monkeypatch):
     assert reranker._state["model"] is False
 
 
+# ── chọn thiết bị (GPU, 2026-08-19) ──────────────────────────────────────────
+# Quyết định 2026-07-12 ghi "torch build +cpu — CUDA không tồn tại trong env
+# này". Tiền đề đó nay SAI: máy dev có RTX 5060 Ti (sm_120) và chủ dự án đã
+# cấp GPU cho project này. _resolve_device() là chỗ DUY NHẤT quyết định thiết
+# bị, để phép đo đối chứng CPU-vs-GPU chỉ cần đổi một biến môi trường.
+
+
+def test_resolve_device_auto_prefers_cuda(monkeypatch):
+    monkeypatch.delenv("RERANK_DEVICE", raising=False)
+    monkeypatch.setattr(reranker, "_cuda_available", lambda: True)
+    assert reranker._resolve_device() == "cuda"
+
+
+def test_resolve_device_auto_falls_back_to_cpu(monkeypatch):
+    # Không có CUDA → cpu, KHÔNG raise. Đây là đường mà mọi máy không GPU đi.
+    monkeypatch.delenv("RERANK_DEVICE", raising=False)
+    monkeypatch.setattr(reranker, "_cuda_available", lambda: False)
+    assert reranker._resolve_device() == "cpu"
+
+
+def test_resolve_device_env_forces_cpu_even_with_cuda(monkeypatch):
+    # BẮT BUỘC phải có: không ép được CPU thì không đo được delta GPU-vs-CPU,
+    # mà đó chính là con số biện minh cho việc ghim torch CUDA ~2.5GB.
+    monkeypatch.setenv("RERANK_DEVICE", "cpu")
+    monkeypatch.setattr(reranker, "_cuda_available", lambda: True)
+    assert reranker._resolve_device() == "cpu"
+
+
+def test_resolve_device_cuda_probe_error_falls_back_to_cpu(monkeypatch):
+    # torch cài lỗi/thiếu kernel cho sm_120 → is_available() có thể ném chứ
+    # không chỉ trả False. Vẫn phải ra "cpu", không được để lỗi thoát lên
+    # score_pairs và cắm sentinel hỏng vĩnh viễn.
+    monkeypatch.delenv("RERANK_DEVICE", raising=False)
+
+    def boom():
+        raise RuntimeError("CUDA driver mismatch")
+
+    monkeypatch.setattr(reranker, "_cuda_available", boom)
+    assert reranker._resolve_device() == "cpu"
+
+
 @pytest.mark.skipif(not os.environ.get("RUN_RERANK_MODEL"),
                     reason="tải model 2.3GB — chạy tay: set RUN_RERANK_MODEL=1")
 def test_real_model_scores_relevance(monkeypatch):
