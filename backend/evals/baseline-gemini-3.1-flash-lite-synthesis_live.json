@@ -1,0 +1,31 @@
+{
+  "set": "synthesis_live",
+  "n": 20,
+  "fact_acc": 1.0,
+  "refusal_acc": 1.0,
+  "citation_acc": 1.0,
+  "by_kind": {
+    "deep_chunk": {
+      "n": 10,
+      "fact_acc": 1.0,
+      "refusal_acc": 1.0,
+      "citation_acc": 1.0
+    },
+    "distractor": {
+      "n": 6,
+      "fact_acc": 1.0,
+      "refusal_acc": 1.0,
+      "citation_acc": 1.0
+    },
+    "insufficient": {
+      "n": 4,
+      "fact_acc": null,
+      "refusal_acc": 1.0,
+      "citation_acc": null
+    }
+  },
+  "lat_p50": 2231,
+  "lat_p95": 6501,
+  "fails": [],
+  "errors": []
+}
