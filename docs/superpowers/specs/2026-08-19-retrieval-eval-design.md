@@ -161,3 +161,71 @@ hay bất kỳ đường chạy thật nào.
 Lý do: mọi thay đổi P1–P4 sau này cần một điểm mốc **đo trên hành vi hiện
 tại**. Sửa production trong cùng plan sẽ làm baseline mất nghĩa ngay khi
 sinh ra.
+
+## 10. Kết quả đo (baseline đầu tiên, 2026-08-19)
+
+Corpus 3.300 chunk / 17 tài liệu, embedding `bge-m3`, n=56 câu, `TOP_N=20`,
+`TOP_K=6`. Độ trễ p50/p95 = 460/553 ms.
+
+| Số đo | rerank BẬT | rerank TẮT | delta |
+|---|---|---|---|
+| `recall_at_20` | 1.0000 | 1.0000 | 0.0000 ✅ bất biến giữ |
+| `recall_at_6` | 0.9196 | 0.9405 | **−0.0209** |
+| `mrr` | 0.8253 | 0.8269 | −0.0016 |
+
+Theo hạng độ khó:
+
+| Hạng | n | recall@20 (bật/tắt) | mrr bật | mrr tắt | delta mrr |
+|---|---|---|---|---|---|
+| easy | 31 | 1.0000 / 1.0000 | 0.9285 | 0.8753 | **+0.0532** |
+| hard | 17 | 1.0000 / 1.0000 | 0.6136 | 0.7158 | **−0.1022** |
+| trap | 8 | 1.0000 / 1.0000 | 0.8750 | 0.8750 | 0.0000 |
+
+### 10.1 Ba kết luận
+
+**(a) Tầng một KHÔNG phải nút thắt.** `recall@20 = 1.0000` — hybrid
+dense+sparse tìm đúng tài liệu cho cả 56/56 câu trong 20 ứng viên. Mọi giả
+thuyết kiểu "cần embedding tốt hơn để tìm ra tài liệu" bị bác trên corpus
+này. Việc hoãn nâng cấp embedding (2026-08-19) là đúng, và nay có số đo
+chống lưng chứ không chỉ là lập luận.
+
+**(b) Cross-encoder rerank hiện KHÔNG đáng đồng tiền — nhưng vì chất lượng,
+không phải vì chi phí.** Chi phí chỉ 21ms trên GPU, không đáng kể. Vấn đề là
+nó làm `recall_at_6` **tụt 2,1 điểm phần trăm** và MRR đi ngang. Tách theo
+hạng thì thấy hai chiều ngược nhau: nó **giúp** câu `easy` (+0,053 MRR) và
+**hại** câu `hard` (−0,102 MRR) — đúng ngược với lý do người ta dùng
+cross-encoder.
+
+**(c) Golden set này đã cạn dư địa ở `recall@20`.** Bằng 1,0 nghĩa là không
+thay đổi nào của P1/P2/P3 có thể cải thiện số đó — nó chỉ còn phân giải được
+qua `recall_at_6` và `mrr`. Đây là hạn chế thật của bộ đo, phải nói ra: muốn
+đo tầng một thì cần câu khó hơn (hỏi bắc cầu nhiều văn bản, hỏi bằng thuật
+ngữ dân dã không xuất hiện trong luật).
+
+### 10.2 Giả thuyết đã BÁC — đừng điều tra lại
+
+Nghi ngờ đầu tiên cho (b) là `RERANK_MAX_LENGTH=512` cắt mất phần liên quan,
+vì tokenizer XLM-R sinh nhiều token hơn `cl100k` cho tiếng Việt. **Sai.** Đo
+trên cả 3.300 chunk qua đúng tokenizer của `bge-reranker-v2-m3`:
+
+```
+XLM-R tokens : p50=138  p90=217  p99=364  max=1581
+vượt 512     : 11 chunk (0,3%)
+```
+
+Cắt ngắn không phải nguyên nhân.
+
+### 10.3 Quyết định về `torch==2.11.0+cu128`
+
+**Giữ dep, nhưng "bật rerank mặc định" trở thành câu hỏi mở.**
+
+Giữ vì: (i) chi phí thật là 21ms/truy vấn, không phải lý do để gỡ; (ii) nay
+đã có thước đo nên mọi thay đổi rerank sau này đo được; (iii) kill-switch
+`RAG_RERANK_ENABLED` hoạt động đúng, đã kiểm cả hai chiều.
+
+Chưa đổi mặc định vì spec §9 chốt plan này **không đụng production** — đổi
+`RAG_RERANK_ENABLED` mặc định sẽ làm chính baseline vừa sinh mất nghĩa. Việc
+đó thuộc plan sau, và plan đó cần trả lời trước: vì sao cross-encoder lại
+dìm đúng nhóm câu diễn đạt khác? Cảnh báo cỡ mẫu: `hard` chỉ n=17, nên
+−0,102 MRR tương đương 1–2 câu đổi hạng. Cần mở rộng nhóm `hard` trước khi
+kết luận mạnh hơn.
