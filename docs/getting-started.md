@@ -176,17 +176,20 @@ backend.
    python -m src.rag.ingest src/rag/seed
    ```
 
-   Timing depends heavily on which Ollama instance is embedding: the
-   3m55s figure below was measured on a GPU-backed Ollama. The
-   `youdoo-ollama` container this repo now runs (see
-   `docs/superpowers/specs/2026-08-06-rag-ollama-isolation-design.md`) is
-   deliberately CPU-only, so expect this step to take substantially
-   longer on a fresh setup — plan for tens of minutes, not 4. One-time —
-   `ingest_path` skips files whose content hash hasn't changed, so
-   re-running later is fast and safe.
+   Expect roughly 4 minutes for the full 17-document, ~3,300-chunk seed
+   corpus. One-time — `ingest_path` skips files whose content hash hasn't
+   changed, so re-running later is fast and safe.
 
-   (Historical measurement, GPU-backed Ollama: 3m55s for the full
-   17-document, ~3,300-chunk seed corpus.)
+   As of 2026-08-19 `youdoo-ollama` is GPU-backed. It was deliberately
+   CPU-only from 2026-08-06 to avoid competing for VRAM with the Ollama
+   instance in `D:\Project`; that constraint was dropped once the project
+   owner confirmed the two projects are never run at the same time. If
+   you *do* run both, stop the other project's containers first — this
+   machine has 8 GB of VRAM and the budget below assumes it is not shared.
+
+   VRAM budget: `bge-m3` ~0.7 GB (in the container) plus the
+   `bge-reranker-v2-m3` cross-encoder ~1.2 GB (in the backend venv on the
+   **host**, not in any container) — about 2 GB of 8 GB.
 
 ## Every time you start
 

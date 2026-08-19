@@ -9,7 +9,16 @@ TIKTOKEN_ENCODING = "cl100k_base"
 # Embedding (external, via Ollama)
 EMBED_MODEL = "bge-m3"
 EMBED_DIM = 1024
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11435")
+# 127.0.0.1 CHỨ KHÔNG PHẢI localhost — khác biệt đo được, không phải khẩu vị.
+# docker-compose bind cổng ở "127.0.0.1:11435:11434", tức CHỈ IPv4. Trên
+# Windows "localhost" phân giải ra ::1 trước, httpx thử IPv6 rồi mới lùi về
+# IPv4 — mỗi lời gọi embed trả giá ~2 GIÂY cho cú thử hỏng đó.
+# Đo 2026-08-19, cùng payload, 3 lượt mỗi bên:
+#     http://localhost:11435  → 2498 / 2300 / 2312 ms
+#     http://127.0.0.1:11435  →  271 /  291 /  269 ms
+# Giá này áp lên MỌI truy vấn RAG (rag_node và gather_docs đều gọi retrieve()
+# → embed_query), và nó lớn gấp ~30 lần toàn bộ chi phí rerank trên GPU.
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11435")
 
 # Store
 RAG_DB_DSN = os.environ.get("DATABASE_URL",
@@ -21,6 +30,9 @@ TOP_N = 20      # candidates per retriever before fusion
 TOP_K = 6       # final chunks returned
 RRF_K = 60      # RRF constant
 
-# Rerank (cross-encoder, CPU-only — spec 2026-07-12-rag-reranker)
+# Rerank (cross-encoder — spec 2026-07-12-rag-reranker; GPU 2026-08-19)
 RERANK_MODEL = "BAAI/bge-reranker-v2-m3"
 RERANK_MAX_LENGTH = 512
+# "auto" = cuda nếu dò được, không thì cpu. Đặt "cpu" để đo đối chứng.
+# Giá trị này chỉ là MẶC ĐỊNH — reranker._resolve_device() đọc env mỗi lần gọi.
+RERANK_DEVICE = os.environ.get("RERANK_DEVICE", "auto")
