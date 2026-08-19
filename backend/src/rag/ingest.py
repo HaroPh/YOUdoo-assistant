@@ -13,6 +13,14 @@ from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
 _EXT = {".pdf": "text", ".docx": "text", ".xlsx": "xlsx"}
 
 
+class IngestError(RuntimeError):
+    """Tệp được nhận nhưng không sinh được chunk nào.
+
+    Trước 2026-08-19 ca này trả {"skipped": 1} im lặng, nên một PDF scan
+    (không có lớp text) vắng mặt khỏi corpus mà không ai biết — cùng lớp lỗi
+    với reranker chết im lặng 6 tuần. Hỏng lớn tiếng còn hơn thiếu âm thầm."""
+
+
 def segment_vi(text: str) -> str:
     """pyvi word segmentation; the SAME transform is used at ingest and query time."""
     return ViTokenizer.tokenize(text)
@@ -56,7 +64,11 @@ def _ingest_file(path: str, conn) -> dict:
 
     chunks = _chunks_for(path, kind, doc_id)
     if not chunks:
-        return {"ingested": 0, "skipped": 1, "chunks": 0}
+        raise IngestError(
+            f"{path}: tệp được nhận ({kind}) nhưng không sinh được chunk nào. "
+            f"Với PDF, nguyên nhân thường gặp là bản scan không có lớp text — "
+            f"cần OCR trước khi ingest. KHÔNG bỏ qua âm thầm: tài liệu sẽ vắng "
+            f"mặt khỏi corpus mà không ai biết.")
 
     # Embed BEFORE any DB write — if Ollama is down no orphan rows are created
     # Embed/ts_vector trên crumb + body (index_text) — tìm được theo heading
