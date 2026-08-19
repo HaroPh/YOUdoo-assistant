@@ -30,6 +30,18 @@ TOP_N = 20      # candidates per retriever before fusion
 TOP_K = 6       # final chunks returned
 RRF_K = 60      # RRF constant
 
+# Trần số chunk mỗi MỤC được vào kết quả cuối (spec 2026-08-19 §11.2).
+# Đo trên golden set 56 câu: top-6 chỉ có 4,80/6 mục phân biệt, 20/56 câu có
+# <=4 — tức ~20% ô ngữ cảnh gửi cho LLM là bản trùng của cùng một Điều.
+#
+# Vì sao 2 chứ không phải 1: chunk_span baseline = 2,39, tức câu trả lời đúng
+# thường trải trên hơn 2 chunk cùng mục. cap=1 sẽ bỏ đói một Điều dài xuống
+# còn một mảnh, và bộ đo hiện tại KHÔNG THẤY được mặt hại đó (recall/mrr chấm
+# trên nhãn, mà nhãn không đổi khi bỏ bớt chunk trùng mục). Chọn thận trọng.
+#
+# <=0 hoặc giá trị lạ = tắt hẳn việc chặn trần, quay về cắt tiền tố như cũ.
+RAG_SECTION_CAP = int(os.environ.get("RAG_SECTION_CAP", "2") or 2)
+
 # Rerank (cross-encoder — spec 2026-07-12-rag-reranker; GPU 2026-08-19)
 RERANK_MODEL = "BAAI/bge-reranker-v2-m3"
 RERANK_MAX_LENGTH = 512

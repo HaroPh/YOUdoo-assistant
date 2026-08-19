@@ -2,7 +2,8 @@ import dataclasses
 
 from . import db as _db
 from . import reranker
-from .config import TOP_N, TOP_K, RRF_K, RAG_SCHEMA
+from .config import (TOP_N, TOP_K, RRF_K, RAG_SCHEMA,
+                     RAG_SECTION_CAP as SECTION_CAP)
 from .embed import embed_query
 from .ingest import segment_vi
 from .chunking import index_text
@@ -68,8 +69,47 @@ def rerank(query: str, chunks: list[Chunk]) -> tuple[list[Chunk], bool]:
     return reordered, True
 
 
+def _section_key(c: Chunk) -> tuple[str, str]:
+    """Khoá gom nhóm: CẶP (tệp, mục). Cùng định nghĩa mà bộ đo dùng
+    (evals/retrieval_score.label_of) — một khái niệm, không hai bản.
+
+    Phải là cặp chứ không phải mục đơn: "Điều 3. Giải thích từ ngữ" có 32
+    chunk nằm rải nhiều luật khác nhau, khoá bằng mục đơn sẽ gộp nhầm hai
+    văn bản thành một."""
+    return (c.source_file, c.section_path or c.sheet or "")
+
+
 def compress(query: str, chunks: list[Chunk], k: int) -> list[Chunk]:
-    return chunks[:k]  # Phase 2: top-k selection (extractive slot)
+    """Chọn k chunk cuối, chặn trần số chunk mỗi MỤC và BÙ từ sâu trong pool.
+
+    Trước 2026-08-19 đây là `chunks[:k]` thuần, nên nhiều chunk của cùng một
+    Điều chiếm nhiều ô trong 6 ô gửi cho LLM. Đo trên golden set 56 câu:
+    4,80/6 mục phân biệt, 20/56 câu có <=4 (spec §11.2).
+
+    Vẫn trả về ĐỦ k chunk — chỉ lấy thêm từ sâu trong pool thay vì nhận bản
+    trùng. Nếu pool không đủ mục phân biệt thì lượt bù thứ hai lấp nốt bằng
+    chính các chunk đã bị chặn: thà có bản trùng còn hơn bỏ đói ngữ cảnh.
+
+    SECTION_CAP <= 0 → quay về hành vi cũ. Đây là fail-safe cho cú gõ nhầm
+    env, cùng triết lý fail-open của reranker: cấu hình hỏng không được biến
+    retrieval thành rỗng."""
+    if SECTION_CAP <= 0 or not chunks:
+        return chunks[:k]
+    picked: list[Chunk] = []
+    held: list[Chunk] = []
+    seen: dict[tuple[str, str], int] = {}
+    for c in chunks:
+        key = _section_key(c)
+        if seen.get(key, 0) < SECTION_CAP:
+            seen[key] = seen.get(key, 0) + 1
+            picked.append(c)
+            if len(picked) == k:
+                return picked
+        else:
+            held.append(c)
+    # Pool thiếu mục phân biệt — lấp nốt bằng các chunk đã bị chặn, giữ nguyên
+    # thứ hạng gốc của chúng.
+    return (picked + held)[:k]
 
 
 def retrieve(query: str, k: int = TOP_K, conn=None,

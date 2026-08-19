@@ -283,3 +283,104 @@ def test_rerank_recovers_doc_when_bare_query_lacks_context(clean_tables, monkeyp
     with_aux = r.retrieve("SLA", k=2, conn=clean_tables,
                           aux_queries=("SLA giao hang khan cap",))
     assert with_aux.chunks[0].doc_id == "RIGHT"  # concatenation recovers it
+
+
+# ── compress(): trần theo mục có bù (2026-08-19) ──────────────────────────────
+# Trước đây compress() là chunks[:k] thuần, không có gì ngăn nhiều chunk của
+# CÙNG một Điều chiếm nhiều ô trong 6 ô gửi cho LLM. Đo trên golden set thật:
+# top-6 chỉ có 4,80/6 mục phân biệt, 20/56 câu có <=4 — tức ~20% ô ngữ cảnh là
+# bản trùng (spec 2026-08-19 §11.2).
+#
+# LƯU Ý VỀ BỘ ĐO: recall@6/mrr chấm trên NHÃN, nên khử trùng lặp chỉ có thể làm
+# chúng tăng hoặc giữ nguyên — theo cấu tạo, không phải theo chất lượng. Mặt
+# hại thật (một Điều dài bị chia 3 chunk, ta chỉ đưa 1, phần chứa câu trả lời
+# nằm ở chunk bị bỏ) thì bộ đo MÙ hoàn toàn. Đó là lý do cap mặc định phải
+# thận trọng, không chọn theo số.
+
+def _chunk(chunk_id, source_file, section_path, *, sheet=None, rank=0):
+    from src.rag.types import Chunk
+    return Chunk(chunk_id=chunk_id, doc_id="d", source_file=source_file,
+                 doc_title="T", section_path=section_path, page=None, sheet=sheet,
+                 row_range=None, text=f"t{chunk_id}", dense_score=None,
+                 sparse_score=None, rrf_score=0.0, rank=rank)
+
+
+def test_compress_backfills_from_deeper_pool_when_capped(monkeypatch):
+    # Pool: A,A,A,B,C — cap=1 phải trả về A,B,C chứ không phải A,A,A.
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 1)
+    pool = [_chunk(1, "f.pdf", "A"), _chunk(2, "f.pdf", "A"), _chunk(3, "f.pdf", "A"),
+            _chunk(4, "f.pdf", "B"), _chunk(5, "f.pdf", "C")]
+    got = r.compress("q", pool, 3)
+    assert [c.chunk_id for c in got] == [1, 4, 5]
+
+
+def test_compress_keeps_highest_ranked_chunk_of_each_section(monkeypatch):
+    # Giữ bản ĐẦU TIÊN của mỗi mục — pool đã xếp hạng, nên bản đầu là bản tốt
+    # nhất. Giữ bản sau là âm thầm hạ chất lượng.
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 1)
+    pool = [_chunk(9, "f.pdf", "A"), _chunk(1, "f.pdf", "A"), _chunk(4, "f.pdf", "B")]
+    got = r.compress("q", pool, 2)
+    assert [c.chunk_id for c in got] == [9, 4]
+
+
+def test_compress_cap_two_allows_two_chunks_of_same_section(monkeypatch):
+    # Điều dài bị chia nhiều chunk vẫn được vào 2 ô — đây chính là lý do mặc
+    # định KHÔNG phải cap=1 (chunk_span baseline = 2,39).
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 2)
+    pool = [_chunk(1, "f.pdf", "A"), _chunk(2, "f.pdf", "A"), _chunk(3, "f.pdf", "A"),
+            _chunk(4, "f.pdf", "B")]
+    got = r.compress("q", pool, 3)
+    assert [c.chunk_id for c in got] == [1, 2, 4]
+
+
+def test_compress_same_section_path_in_different_files_not_merged(monkeypatch):
+    # "Điều 3. Giải thích từ ngữ" có 32 chunk nằm rải NHIỀU luật khác nhau.
+    # Khoá phải là CẶP (tệp, mục); khoá bằng mục đơn sẽ gộp nhầm hai văn bản.
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 1)
+    pool = [_chunk(1, "luat-a.pdf", "Điều 3"), _chunk(2, "luat-b.pdf", "Điều 3")]
+    got = r.compress("q", pool, 2)
+    assert [c.chunk_id for c in got] == [1, 2]
+
+
+def test_compress_xlsx_keyed_by_sheet(monkeypatch):
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 1)
+    pool = [_chunk(1, "g.xlsx", None, sheet="S1"), _chunk(2, "g.xlsx", None, sheet="S1"),
+            _chunk(3, "g.xlsx", None, sheet="S2")]
+    got = r.compress("q", pool, 2)
+    assert [c.chunk_id for c in got] == [1, 3]
+
+
+def test_compress_falls_back_to_prefix_cut_when_pool_lacks_distinct_sections(monkeypatch):
+    # Pool toàn MỘT mục: không có gì để bù. Phải vẫn trả đủ k, KHÔNG trả 1
+    # chunk — thà có bản trùng còn hơn bỏ đói ngữ cảnh của LLM.
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 1)
+    pool = [_chunk(i, "f.pdf", "A") for i in range(1, 6)]
+    got = r.compress("q", pool, 3)
+    assert [c.chunk_id for c in got] == [1, 2, 3]
+
+
+def test_compress_cap_larger_than_pool_is_old_behaviour(monkeypatch):
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 99)
+    pool = [_chunk(1, "f.pdf", "A"), _chunk(2, "f.pdf", "A"), _chunk(3, "f.pdf", "B")]
+    assert r.compress("q", pool, 2) == pool[:2]
+
+
+def test_compress_invalid_cap_never_empties_result(monkeypatch):
+    # cap=0 do gõ nhầm env: KHÔNG được biến retrieval thành rỗng. Fail-safe về
+    # hành vi cũ, cùng triết lý fail-open của reranker.
+    from src.rag import retrieve as r
+    monkeypatch.setattr(r, "SECTION_CAP", 0)
+    pool = [_chunk(1, "f.pdf", "A"), _chunk(2, "f.pdf", "A"), _chunk(3, "f.pdf", "B")]
+    assert r.compress("q", pool, 2) == pool[:2]
+
+
+def test_compress_empty_pool():
+    from src.rag import retrieve as r
+    assert r.compress("q", [], 6) == []
