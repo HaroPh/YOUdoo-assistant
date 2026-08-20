@@ -219,9 +219,24 @@ async def synthesize(query: str, result, llm, memory: str = "") -> str:
     footer is built, not just trusted from the LLM's marker self-report.
 
     `memory`: rendered user-memory block (render_memory_block), prepended to
-    the system prompt when non-empty. Default "" keeps every existing call
-    site (nodes.rag_node passes the real value; evals and older tests omit
-    it) working unchanged.
+    the system prompt when non-empty.
+
+    PRODUCTION KHONG TRUYEN THAM SO NAY. rag_node tung truyen (merge 953ae58)
+    nhung day noi da bi CAT ngay 2026-08-20 (ce2704b) sau khi do: khoi ky uc
+    tren duong tra loi tai lieu khong loai fact nao duong — giong dieu pha hop
+    dong guard (refusal_acc 1,0 -> 0,9643), ep dinh dang mat 8,3% fact_acc,
+    fact noi dung bi bo qua dung thiet ke. Chi tiet + so do:
+    docs/superpowers/specs/2026-08-20-memory-synthesis-eval.md §3, §7.
+    Quyet dinh duoc chan troi CA HAI CHIEU boi
+    test_rag_node_KHONG_nap_khoi_ky_uc.
+
+    Tham so giu lai lam DAY BAY: ba chan `--memory` cua bo synthesis_live goi
+    thang vao day de do lai thiet hai neu ai do noi lai ky uc vao duong tai
+    lieu. Do la cho goi DUY NHAT hom nay.
+
+    Ky uc VAN hieu luc day du o erp_node (nodes.py:49), chitchat (nodes.py:148)
+    va fuse_answer (fanout.py:202) — chi duong tra loi tai lieu THUAN la khong
+    nhan.
     """
     if result.is_empty() or not passes_floor(result):
         return GUARD_MSG
