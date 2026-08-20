@@ -24,13 +24,13 @@ import sys
 import uuid
 
 import pytest
-from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from src.agents.erp_agent import ERPAgent
 from src.agents.state import ERPAgentState
 from src.agents.routing import replying_to_write_suggestion
 
@@ -63,14 +63,22 @@ def _pool():
 
 
 async def _invoke_fresh(graph, messages: list[dict], config: dict):
-    """BẢN SAO NGUYÊN VĂN của erp_agent.ERPAgent._invoke_fresh.
+    """Gọi THẲNG erp_agent.ERPAgent._invoke_fresh THẬT — không giữ bản sao.
 
-    Giữ y hệt (kể cả việc `messages` là list dict thuần {"role","content"} như
-    main.py._filter_messages trả ra) — đây chính là thứ đã xoá sạch cơ chế cũ,
-    nên test mà đi đường khác thì không đo gì cả.
+    Bản sao từng có ở đây (docstring tự nhận "BẢN SAO NGUYÊN VĂN") đã LỆCH
+    khỏi production: production thêm `"user_memory": memory_block` vào
+    payload ainvoke (đợt ký ức xuyên phiên L2) mà bản sao không hề cập nhật
+    theo — đúng cảnh báo đầu file "test mà đi đường khác thì không đo gì cả",
+    lần này áp lên chính test này. Gọi thẳng hàm thật để KHÔNG CÒN đường nào
+    lệch được nữa.
+
+    `self=None` an toàn: thân hàm `_invoke_fresh` không hề đụng tới `self`
+    (không đọc self._pool, self._llms, ...), chỉ dùng đúng bốn tham số
+    messages/config/graph/memory_block — xác nhận bằng đọc mã nguồn, không
+    phải giả định. `messages` vẫn là list dict thuần {"role","content"} như
+    main.py._filter_messages trả ra, giữ nguyên khuôn gọi thật.
     """
-    reset = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *messages]
-    return await graph.ainvoke({"messages": reset}, config=config)
+    return await ERPAgent._invoke_fresh(None, messages, config, graph)
 
 
 def _u(text: str) -> dict:
@@ -272,7 +280,6 @@ async def test_luot_chat_that_nap_khoi_ky_uc_that_vao_system_prompt():
     _skip_guard()
     from unittest.mock import MagicMock
 
-    from src.agents.erp_agent import ERPAgent
     from src.agents.graph import build_graph
     from src.agents.user_memory import save_fact
     from src.llm.catalog import ROLES

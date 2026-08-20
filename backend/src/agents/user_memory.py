@@ -38,13 +38,27 @@ def normalize_key(raw: str) -> str:
 #   - có gạch chéo VÀ có chữ số: INV/2026/00004, WH/OUT/00001
 #   - sổ nhật ký Odoo CÓ CHỮ SỐ ngay ở đoạn đầu: BNK1/2026/00001,
 #     PBNK1/2026/00001, CSH1/2026/00007 — final review đo được đoạn đầu
-#     "[A-Z]{2,}" (chỉ chữ) để lọt cả ba, vì post_invoice/register_payment
-#     làm vai đọc thấy đúng những tên sổ này.
-# Ranh giới cố ý: "WH/Stock" (không chữ số) là tên KHO — một quy ước, cho qua.
-# "WH/OUT/00001" (có chữ số) là MỘT phiếu cụ thể — chặn.
-_DOC_CODE = re.compile(r"\b[A-Z]{1,4}-?[A-Z]{0,4}\d{2,}\b|"
-                       r"\b[A-Z][A-Z0-9]*(?:/[A-Z0-9]+)*/\d+\b",
-                       re.IGNORECASE)
+#     "[A-Z]{2,}" (chỉ chữ) cho đoạn đầu để lọt cả ba, vì post_invoice/
+#     register_payment làm vai đọc thấy đúng những tên sổ này.
+#
+# RANH GIỚI DẠNG GẠCH CHÉO — cấu trúc, không phải danh sách tiền tố:
+# Nhánh gạch chéo cũ ("một gạch chéo + số ở cuối là đủ") vô tình CHẶN LUÔN
+# quy ước đời thường có dạng CHỮ/SỐ mà người dùng có thể muốn ghi nhớ thật:
+# Q3/2026, T2/2026, KPI/2026, HR/2026, VN/84, ISO/9001 — không cái nào là
+# bản ghi ERP cụ thể. Gom lại từ MỌI mã chứng từ dạng gạch chéo thật trong
+# repo này thì thấy một mã Odoo thật luôn rơi vào một trong hai hình:
+#   - ≥2 dấu gạch chéo, khuôn PREFIX/NĂM/SỐ hoặc PREFIX/LOẠI/SỐ:
+#     INV/2026/00004, WH/OUT/00001, BNK1/2026/00001
+#   - đúng 1 dấu gạch chéo nhưng đoạn số cuối ZERO-PADDED: INV/0001
+# Quy ước đời thường không thoả cái nào trong hai: đoạn cuối của nó là một
+# năm hoặc số thường (2026, 84, 9001), không phải số đếm lấp đầy 0. Đây là
+# RANH GIỚI CẤU TRÚC nên không cần liệt kê tiền tố — không phải whitelist
+# "INV/WH/BNK1 thì chặn, Q3/KPI thì cho qua" mà sẽ luôn thiếu tiền tố mới.
+_DOC_CODE = re.compile(
+    r"\b[A-Z]{1,4}-?[A-Z]{0,4}\d{2,}\b"
+    r"|\b[A-Z][A-Z0-9]*(?:/[A-Z0-9]+)+/\d+\b"
+    r"|\b[A-Z][A-Z0-9]*/0\d+\b",
+    re.IGNORECASE)
 
 
 def is_document_code(value: str) -> bool:
@@ -122,13 +136,24 @@ async def save_fact(pool, user_id: str, key: str, value: str,
             # AND user_id = %s dưới đây làm bất biến "không lộ ký ức sang
             # người khác" GREPPABLE thay vì chỉ ĐÚNG NHỜ id đến từ subquery
             # đã lọc user_id — an toàn hôm nay, nhưng chỉ đọc code mới thấy.
+            #
+            # `superseded_by = id` (TỰ TRỎ VÀO CHÍNH NÓ), KHÔNG PHẢI `new_id`
+            # (debt sweep): fact bị đẩy văng vì VƯỢT TRẦN không hề liên quan
+            # gì tới fact vừa ghi — trước đây cột này trỏ vào `new_id` khiến
+            # vệt kiểm toán tuyên bố sai, VD "xung_ho đã bị kho_chinh thay
+            # thế" trong khi hai fact không cùng key. `id` là chính cột của
+            # dòng đang UPDATE nên Postgres đọc được ngay trong SET — không
+            # cần subquery riêng. Tự trỏ là đúng khuôn "biến mất, không có
+            # thay thế" mà forget_fact đã dùng (xem UPDATE ... SET
+            # superseded_by = id bên dưới) — chiều loại bỏ (offset MEMORY_CAP,
+            # cũ nhất trước) KHÔNG đổi, chỉ đổi CÁI GÌ được ghi vào cột.
             await conn.execute(
-                "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
+                "UPDATE user_memory SET superseded_by = id, superseded_at = now() "
                 "WHERE user_id = %s AND id IN "
                 "      (SELECT id FROM user_memory "
                 "       WHERE user_id = %s AND superseded_by IS NULL "
                 "       ORDER BY id DESC OFFSET %s)",
-                (new_id, user_id, user_id, MEMORY_CAP))
+                (user_id, user_id, MEMORY_CAP))
 
 
 async def forget_fact(pool, user_id: str, key: str) -> bool:
@@ -178,13 +203,30 @@ _FORGET_LITERAL = f"(?-i:{MEMORY_FORGET_MARKER})"
 #                cùng một dòng không nuốt lẫn nhau.
 #   dấu ':' BẮT BUỘC — xem chú thích GIỚI HẠN bên dưới. Đây là thứ DUY NHẤT
 #                phân biệt marker máy với văn xuôi tiếng Việt bình thường.
+# `_DECO_PREFIX` (debt sweep): model hay tô đậm cả dòng marker
+# ("**GHI_NHỚ: kho chính = WH/Stock**"). Trang trí markdown NGAY TRƯỚC tên
+# marker (`**`, `` ` ``, `"`, `#`, `_`) bị nuốt vào chính match nên `sub("")`
+# xoá luôn, không để lại rác đầu dòng. Trang trí NGAY SAU value nằm trong
+# nhóm capture (đã ở trong phần còn lại của dòng) — `_strip_decoration` bên
+# dưới lo phần đó.
+_DECO_PREFIX = r'[ \t]*[*_`"#]*[ \t]*'
 _NEXT_MARKER = rf'(?=[ \t]*(?:{MEMORY_SAVE_MARKER}|{_FORGET_LITERAL})[ \t]*:|$)'
 _SAVE_RE = re.compile(
-    rf'[ \t]*{MEMORY_SAVE_MARKER}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
+    rf'{_DECO_PREFIX}{MEMORY_SAVE_MARKER}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
     re.IGNORECASE | re.MULTILINE)
 _FORGET_RE = re.compile(
-    rf'[ \t]*{_FORGET_LITERAL}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
+    rf'{_DECO_PREFIX}{_FORGET_LITERAL}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
     re.IGNORECASE | re.MULTILINE)
+
+_DECORATION_CHARS = '*_`"# \t'
+
+
+def _strip_decoration(s: str) -> str:
+    """Bỏ trang trí markdown còn dính ở HAI ĐẦU chuỗi (`**đậm**`, `` `code` ``,
+    dấu ngoặc kép, `#`) cộng khoảng trắng thường — không đụng ký tự bên
+    trong. `str.strip` tự lặp cho tới khi hết ký tự thuộc tập, nên một lần
+    gọi đủ xử lý cả trang trí lẫn khoảng trắng lộ ra sau khi bóc trang trí."""
+    return s.strip(_DECORATION_CHARS)
 
 
 def extract_memory_markers(body: str) -> tuple[str, list[tuple[str, str]], list[str]]:
@@ -208,20 +250,27 @@ def extract_memory_markers(body: str) -> tuple[str, list[tuple[str, str]], list[
     _FORGET_LITERAL tắt IGNORECASE cho riêng QUÊN nên chỉ chữ HOA đúng khuôn
     máy mới khớp; GHI_NHỚ giữ IGNORECASE vì gạch dưới đã đủ phân biệt nó khỏi
     văn xuôi.
+
+    CRLF (debt sweep): chuẩn hoá về "\\n" NGAY ĐẦU hàm. `$` của MULTILINE chỉ
+    khớp trước "\\n", nên câu trả lời CRLF ("...\\r\\n") để lại một "\\r" mồ côi
+    ngay trước chỗ marker vừa bị cắt — người dùng thấy một ký tự vô hình dính
+    ở cuối dòng.
     """
-    text = body or ""
+    text = (body or "").replace("\r\n", "\n").replace("\r", "\n")
     saves: list[tuple[str, str]] = []
     forgets: list[str] = []
 
     for raw in _SAVE_RE.findall(text):
         key, sep, value = raw.partition("=")
-        if sep and key.strip() and value.strip():
-            saves.append((key.strip(), value.strip()))
+        value = _strip_decoration(value)
+        if sep and key.strip() and value:
+            saves.append((key.strip(), value))
     text = _SAVE_RE.sub("", text)
 
     for raw in _FORGET_RE.findall(text):
-        if raw.strip():
-            forgets.append(raw.strip())
+        raw = _strip_decoration(raw)
+        if raw:
+            forgets.append(raw)
     text = _FORGET_RE.sub("", text)
 
     return text.rstrip(), saves, forgets

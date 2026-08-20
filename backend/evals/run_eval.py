@@ -649,17 +649,23 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
 async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
     """Ký ức có bị ghi vu vơ không — đo tầng PROMPT + cổng phủ quyết.
 
-    Hai chỉ số gác TUYỆT ĐỐI vì đều là hướng nguy hiểm:
+    BA chỉ số gác TUYỆT ĐỐI vì đều là hướng nguy hiểm:
       false_injection — ghi HOẶC XOÁ một fact người dùng không hề khai (một
         GHI_NHỚ hoặc QUÊN bịa ra — final review: chiều QUÊN vốn bị bỏ sót,
         nguy hiểm hơn cả GHI_NHỚ vì nó XOÁ ký ức thật). Ký ức sai KHÔNG báo
-        lỗi, nó chỉ âm thầm làm mọi câu trả lời sau tệ đi.
+        lỗi, nó chỉ âm thầm làm mọi câu trả lời sau tệ đi. Với want="none",
+        một câu trả lời bị CỤT cũng tính vào chỉ số này (xem `truncated` bên
+        dưới) — cụt ở bucket này luôn đi kèm marker giả hoặc marker thật bị
+        cắt lem, cùng họ lỗi với ghi vu vơ.
       leaked_doc_code — mã chứng từ lọt vào ký ức, rồi rò sang cloud chitchat
         ở lượt sau (M5/ADR-009).
-    `recall` và `truncated_answer` chỉ ghi nhận, chưa gác tuyệt đối: recall vì
-    chưa có baseline; truncated_answer vì nó có thể trùng dấu hiệu với
-    false_injection (đã gộp cho want="none") — giữ tách để người đọc thấy
-    NGUYÊN NHÂN khi nó xảy ra ở want="fact"/"blocked".
+      truncated_answer — câu trả lời bị marker CẮT CỤT (`extract_memory_markers`
+        nuốt luôn một phần văn bản dành cho người dùng) ở want="fact"/"blocked"
+        (want="none" đã gộp vào false_injection ở trên, không đếm trùng ở đây).
+        Debt sweep sau merge: trước đó chỉ số này ghi nhận suông, không gác —
+        cụt câu trả lời là dấu hiệu lỗi ranh giới marker bất kể bucket nào,
+        không có lý do để miễn gác riêng hai bucket này.
+    `recall` chỉ ghi nhận, chưa gác tuyệt đối vì chưa có baseline.
     """
     from src.agents import prompts as prompts_mod
     lat: list[float] = []

@@ -75,3 +75,20 @@ async def test_bo_dem_leak_THAT_SU_tang_duoc(monkeypatch):
         _ScriptedLLM("Ừ.\nGHI_NHỚ: đơn quan trọng = đơn hàng mới nhất của Azure"))
     assert r["leaked_doc_code"] == 1
     assert r["fails"][0]["kind"] == "leaked_doc_code"
+
+
+async def test_cau_tra_loi_cut_o_want_fact_cung_bi_tinh_fail(monkeypatch):
+    """Debt sweep: trước đây truncated_answer ở want="fact"/"blocked" chỉ ghi
+    nhận suông (đếm counter, không tạo fails / không gác ở eval_gate.py). Ca
+    này script LLM trả về CHỈ một marker (không câu chữ nào khác) cho một câu
+    hỏi want="fact" — extract_memory_markers cắt sạch, `clean` rỗng dù `body`
+    không rỗng → truncated=True, đồng thời fact vẫn được ghi (stored khác
+    rỗng, nên không lẫn với "missed"). Chứng minh nó giờ tạo một fails entry
+    thật, không chỉ tăng counter suông."""
+    only = [("CHITCHAT_PROMPT", "từ giờ trả lời ngắn gọn", "fact")]
+    monkeypatch.setattr(run_eval, "MEMORY_CASES", only)
+    r = await run_eval.eval_memory(
+        _ScriptedLLM("GHI_NHỚ: do_dai_tra_loi = ngan gon"))
+    assert r["truncated_answer"] == 1
+    assert r["fails"][0]["kind"] == "truncated_answer"
+    assert r["fails"][0]["want"] == "fact"

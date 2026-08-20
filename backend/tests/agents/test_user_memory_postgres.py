@@ -106,3 +106,14 @@ async def test_vuot_tran_thi_bo_fact_cu_nhat_va_giu_fact_moi(pool, user_id):
         cur = await conn.execute(
             "SELECT count(*) FROM user_memory WHERE user_id = %s", (user_id,))
         assert (await cur.fetchone())["count"] == total
+
+        # Debt sweep: fact bị đẩy văng vì VƯỢT TRẦN phải TỰ TRỎ vào chính nó
+        # (id == superseded_by), KHÔNG trỏ vào `new_id` của lần save_fact cuối
+        # cùng — trước đây nó trỏ vào new_id, khiến vệt kiểm toán tuyên bố sai
+        # "key_000 đã bị key_{total-1} thay thế" dù hai fact không cùng key.
+        cur = await conn.execute(
+            "SELECT id, superseded_by FROM user_memory "
+            "WHERE user_id = %s AND fact_key = %s", (user_id, "key_000"))
+        row = await cur.fetchone()
+        assert row["superseded_by"] == row["id"], \
+            "fact bị đẩy văng vì vượt trần phải tự trỏ, không trỏ vào fact khác"

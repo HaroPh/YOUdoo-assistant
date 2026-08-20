@@ -35,6 +35,9 @@ def test_co_dau_va_khong_dau_ra_cung_mot_key():
     # "[A-Z]{2,}" (chỉ chữ) cho đoạn đầu nên lọt cả ba, dù post_invoice /
     # register_payment làm vai đọc thấy đúng những tên sổ này.
     "BNK1/2026/00001", "PBNK1/2026/00001", "CSH1/2026/00007",
+    # Ranh giới cấu trúc (final review, trước merge): >=2 dấu gạch chéo, hoặc
+    # đoạn số cuối zero-padded — cả hai đều là dấu hiệu mã chứng từ thật.
+    "RINV/2026/00003", "INV/0001", "WH/IN/00001",
 ])
 def test_chan_fact_mang_ma_chung_tu_cu_the(value):
     # Marker do LLM phát ra, mà ở erp_read model đang NHÌN THẤY dữ liệu ERP —
@@ -49,6 +52,9 @@ def test_chan_fact_mang_ma_chung_tu_cu_the(value):
     "giao trong 24h",     # có chữ số nhưng không phải mã chứng từ
     "tiếng Anh",
     "khong qua 3 dong", "uu tien don gap trong 48h", "top 10 khach hang",
+    # Quy ước đời thường dạng CHỮ/SỐ: đúng 1 gạch chéo, đoạn cuối là năm/số
+    # thường (không zero-padded) — không thoả ranh giới cấu trúc, cho qua.
+    "Q3/2026", "KPI/2026", "HR/2026", "VN/84", "ISO/9001",
 ])
 def test_cho_qua_fact_noi_ve_loai_hoac_quy_uoc(value):
     assert is_document_code(value) is False

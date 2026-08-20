@@ -60,6 +60,21 @@ async def test_ghi_nho_duoc_luu_va_cong_bo(agent, monkeypatch):
     assert "GHI_NHỚ" not in out          # marker không bao giờ lộ ra
 
 
+async def test_cau_tra_loi_chi_co_marker_khong_de_dong_trong_dau(agent, monkeypatch):
+    """Debt sweep: khi model trả lời CHỈ có marker (không câu chữ nào khác),
+    `clean` rỗng — join thẳng `[clean, *notices]` để lại một dòng trống ở đầu
+    trước dòng công bố. Lọc phần rỗng trước khi join để đóng lỗ đó."""
+    async def fake_inner(*args, **kwargs):
+        return "GHI_NHỚ: kho chính = WH/Stock"
+    monkeypatch.setattr(ERPAgent, "_chat_inner", fake_inner)
+
+    out = await agent.chat([{"role": "user", "content": "kho chính là WH/Stock"}],
+                           thread_id="t1", user_id="u1")
+
+    assert not out.startswith("\n")
+    assert out.startswith(MEMORY_NOTICE_PREFIX)
+
+
 async def test_fact_mang_ma_chung_tu_bi_chan_va_noi_ro(agent, monkeypatch):
     async def fake_inner(*args, **kwargs):
         return "Ừ.\nGHI_NHỚ: đơn quan trọng = P00003"

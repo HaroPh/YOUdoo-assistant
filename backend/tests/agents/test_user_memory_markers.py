@@ -108,6 +108,37 @@ def test_van_xuoi_tieng_viet_co_tu_quen_khong_bi_cat():
         assert saves == [] and forgets == [], prose
 
 
+def test_crlf_khong_de_lai_r_mo_coi():
+    # Debt sweep: "$" của MULTILINE chỉ khớp trước "\n" — câu trả lời CRLF để
+    # lại một "\r" mồ côi ngay trước chỗ marker bị cắt nếu không chuẩn hoá.
+    body = 'Được rồi.\r\nGHI_NHỚ: kho chính = WH/Stock\r\nCòn gì nữa không?'
+    clean, saves, _forgets = extract_memory_markers(body)
+    assert saves == [("kho chính", "WH/Stock")]
+    assert "\r" not in clean
+    # Dòng marker rỗng đi nhưng \n hai bên vẫn còn (cùng hành vi đã ghim ở
+    # test_marker_o_dong_giua_van_duoc_boc) — điều test này ghim là KHÔNG còn
+    # "\r" mồ côi, không phải hình dạng khoảng trắng quanh chỗ cắt.
+    assert clean == "Được rồi.\n\nCòn gì nữa không?"
+
+
+def test_trang_tri_markdown_quanh_marker_bi_bo_ca_hai_dau():
+    # Debt sweep: model hay tô đậm cả dòng marker. Trang trí phải bị bóc khỏi
+    # CẢ value lẫn văn bản còn lại — không để "**" mồ côi lộ ra người dùng,
+    # không để "**" dính vào value lưu vào ký ức.
+    body = 'Được rồi.\n**GHI_NHỚ: kho chính = WH/Stock**\nCòn gì nữa không?'
+    clean, saves, _forgets = extract_memory_markers(body)
+    assert saves == [("kho chính", "WH/Stock")]
+    assert "*" not in clean
+    assert clean == "Được rồi.\n\nCòn gì nữa không?"
+
+
+def test_trang_tri_markdown_quanh_marker_quen():
+    body = 'Đã bỏ.\n**QUÊN: kho chính**'
+    clean, _saves, forgets = extract_memory_markers(body)
+    assert forgets == ["kho chính"]
+    assert "*" not in clean
+
+
 def test_thieu_dau_hai_cham_thi_khong_ghi_va_khong_cat_gioi_han_da_biet():
     """GIỚI HẠN ĐÃ BIẾT, cố ý: thiếu ':' → không ghi gì, và KHÔNG cắt câu.
 

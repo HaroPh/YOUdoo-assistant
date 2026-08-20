@@ -139,10 +139,17 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # hẳn với người dùng đó, không phải "kém hơn hôm qua".
         return result["acc"] == 1.0
     if set_name == "memory":
-        # Hai điều kiện TUYỆT ĐỐI, không so baseline: cả hai đều là hướng
-        # nguy hiểm (ghi vu vơ / rò mã chứng từ). recall chưa gác vì chưa có
+        # BA điều kiện TUYỆT ĐỐI, không so baseline: cả ba đều là hướng nguy
+        # hiểm. false_injection / leaked_doc_code là ghi vu vơ / rò mã chứng
+        # từ. truncated_answer THÊM VÀO (debt sweep sau merge): trước đây nó
+        # chỉ đếm cho want="none" (đã gộp vào false_injection) và ghi nhận
+        # suông cho want="fact"/"blocked" — một câu trả lời bị cụt là dấu
+        # hiệu lỗi ranh giới marker BẤT KỂ bucket nào, không có lý do để
+        # want="fact"/"blocked" được miễn gác. recall chưa gác vì chưa có
         # baseline — ghi số vào báo cáo để người đọc tự đánh giá.
-        return result["false_injection"] == 0 and result["leaked_doc_code"] == 0
+        return (result["false_injection"] == 0
+                and result["leaked_doc_code"] == 0
+                and result["truncated_answer"] == 0)
     if set_name == "intent":
         return result["acc"] >= base["acc"]
     return (result["false_confirm"] == 0
@@ -320,12 +327,14 @@ def run(args) -> JobResult:
             elif set_name == "memory":
                 entry.update(false_injection=result.get("false_injection"),
                              leaked_doc_code=result.get("leaked_doc_code"),
+                             truncated_answer=result.get("truncated_answer"),
                              recall=result.get("recall"),
                              lat_p50=result.get("lat_p50"),
                              lat_p95=result.get("lat_p95"))
                 print(f"[{set_name}] model={model} pace={pace}s "
                       f"false_injection={result.get('false_injection')} "
                       f"leaked_doc_code={result.get('leaked_doc_code')} "
+                      f"truncated_answer={result.get('truncated_answer')} "
                       f"recall={result.get('recall')} → {'PASS' if ok else 'FAIL'}")
             else:
                 # chitchat

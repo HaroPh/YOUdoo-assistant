@@ -282,7 +282,13 @@ class ERPAgent:
                 continue
             if removed:
                 notices.append(f"🗑️ Đã bỏ ghi nhớ: {key}")
-        return "\n\n".join([clean, *notices]) if notices else clean
+        if not notices:
+            return clean
+        # Lọc phần rỗng TRƯỚC khi join: `clean` rỗng khi câu trả lời của model
+        # CHỈ có marker (VD chỉ "GHI_NHỚ: ..." không kèm câu chữ nào khác) —
+        # join thẳng để lại dòng trống ở đầu, người dùng thấy công bố ký ức
+        # bắt đầu bằng một dòng trống vô nghĩa.
+        return "\n\n".join(part for part in [clean, *notices] if part)
 
     async def _chat_inner(self, messages: list[dict], thread_id: str | None = None,
                           reset_if_fresh: bool = False, role: str = "admin",

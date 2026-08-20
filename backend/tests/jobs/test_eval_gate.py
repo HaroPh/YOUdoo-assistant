@@ -231,16 +231,41 @@ def _fake_language_eval(acc=1.0, n=6):
     return fn
 
 
-def _fake_memory_eval(false_injection=0, leaked_doc_code=0, recall=1.0, n=7):
+def _fake_memory_eval(false_injection=0, leaked_doc_code=0, truncated_answer=0,
+                      recall=1.0, n=7):
     async def fn(llm, **kwargs):
         fn.calls.append(kwargs)
         return {"set": "memory", "n": n,
                 "false_injection": false_injection,
                 "leaked_doc_code": leaked_doc_code,
+                "truncated_answer": truncated_answer,
                 "recall": recall,
                 "lat_p50": 1, "lat_p95": 2, "fails": [], "errors": []}
     fn.calls = []
     return fn
+
+
+def test_memory_ba_dem_deu_khong_thi_pass(monkeypatch):
+    fmemory = _fake_memory_eval(false_injection=0, leaked_doc_code=0,
+                                truncated_answer=0)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "memory", fmemory)
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    result = eval_gate.run(_args(set_="memory"))
+    assert result.exit_code == PASS and result.verdict == "PASS"
+    assert result.detail["memory"]["gate"] == "PASS"
+
+
+def test_memory_truncated_answer_khac_khong_thi_fail(monkeypatch):
+    """Debt sweep: truncated_answer giờ là điều kiện gác TUYỆT ĐỐI thứ ba,
+    ngang hàng false_injection/leaked_doc_code — trước đây nó chỉ vào báo
+    cáo, không làm gate FAIL dù khác 0."""
+    fmemory = _fake_memory_eval(false_injection=0, leaked_doc_code=0,
+                                truncated_answer=1)
+    monkeypatch.setitem(eval_gate.EVAL_FN, "memory", fmemory)
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
+    result = eval_gate.run(_args(set_="memory"))
+    assert result.exit_code == GATE_FAIL and result.verdict == "FAIL"
+    assert result.detail["memory"]["truncated_answer"] == 1
 
 
 def test_chitchat_zero_violations_passes(monkeypatch):
@@ -461,9 +486,10 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     flanguage = _fake_language_eval(acc=1.0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "language", flanguage)
 
-    # memory NẰM TRONG "all": hai điều kiện an toàn TUYỆT ĐỐI
-    # (false_injection == 0, leaked_doc_code == 0), đúng tiền lệ chitchat và
-    # language. Không thêm vào tập loại trừ.
+    # memory NẰM TRONG "all": ba điều kiện an toàn TUYỆT ĐỐI (false_injection
+    # == 0, leaked_doc_code == 0, truncated_answer == 0 — cái thứ ba thêm ở
+    # debt sweep sau merge), đúng tiền lệ chitchat và language. Không thêm
+    # vào tập loại trừ.
     fmemory = _fake_memory_eval()
     monkeypatch.setitem(eval_gate.EVAL_FN, "memory", fmemory)
 
