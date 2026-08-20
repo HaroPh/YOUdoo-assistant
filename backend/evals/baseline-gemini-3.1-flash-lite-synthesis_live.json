@@ -1,9 +1,9 @@
 {
   "set": "synthesis_live",
-  "n": 20,
-  "fact_acc": 1.0,
-  "refusal_acc": 1.0,
-  "citation_acc": 1.0,
+  "n": 28,
+  "fact_acc": 0.875,
+  "refusal_acc": 0.9643,
+  "citation_acc": 0.9167,
   "by_kind": {
     "deep_chunk": {
       "n": 10,
@@ -12,10 +12,10 @@
       "citation_acc": 1.0
     },
     "distractor": {
-      "n": 6,
-      "fact_acc": 1.0,
-      "refusal_acc": 1.0,
-      "citation_acc": 1.0
+      "n": 14,
+      "fact_acc": 0.7857,
+      "refusal_acc": 0.9286,
+      "citation_acc": 0.8571
     },
     "insufficient": {
       "n": 4,
@@ -24,8 +24,39 @@
       "citation_acc": null
     }
   },
-  "lat_p50": 2231,
-  "lat_p95": 6501,
-  "fails": [],
+  "lat_p50": 4603,
+  "lat_p95": 12439,
+  "fails": [
+    {
+      "question": "bộ luật dân sự quy định mức phạt vi phạm hợp đồng thế nào?",
+      "kind": "distractor",
+      "expect": "trừ trường hợp luật liên quan có quy định khác",
+      "expect_source": "boluat-danssu.pdf",
+      "answer": "Theo quy định, mức phạt vi phạm hợp đồng do các bên tự thỏa thuận. Tuy nhiên, mức phạt này không được vượt quá 8% giá trị phần nghĩa vụ hợp đồng bị vi phạm, trừ một số trường hợp đặc biệt theo quy định của luật liên quan.\n\n📄 Nguồn:\n• Điều 301. Mức phạt vi phạm (boluat-thuongmai.pdf, tr.64)",
+      "refusal_ok": true,
+      "fact_ok": false,
+      "citation_ok": false
+    },
+    {
+      "question": "bảo hiểm xã hội TỰ NGUYỆN thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?",
+      "kind": "distractor",
+      "expect": "1,5 lần",
+      "expect_source": "luat-baohiemxahoi.pdf",
+      "answer": "Đối với bảo hiểm xã hội tự nguyện, mức hưởng bảo hiểm xã hội một lần cho mỗi năm đóng được tính như sau:\n\n- Đối với những năm đóng trước năm 2014: Bằng 1,5 tháng mức bình quân tiền lương tháng đóng bảo hiểm xã hội.\n- Lưu ý rằng mức hưởng này không bao gồm số tiền ngân sách nhà nước hỗ trợ đóng bảo hiểm xã hội tự nguyện, trừ một số trường hợp đặc biệt được quy định cụ thể.\n\n📄 Nguồn:\n• Điều 70. Hưởn",
+      "refusal_ok": true,
+      "fact_ok": false,
+      "citation_ok": true
+    },
+    {
+      "question": "công ty trách nhiệm hữu hạn hai thành viên trở lên đổi vốn điều lệ thì cơ quan đăng ký kinh doanh cập nhật trong bao lâu?",
+      "kind": "distractor",
+      "expect": "03 ngày",
+      "expect_source": "luat-doanhnghiep.pdf",
+      "answer": "Không tìm thấy tài liệu liên quan đến câu hỏi này.",
+      "refusal_ok": false,
+      "fact_ok": false,
+      "citation_ok": false
+    }
+  ],
   "errors": []
 }
