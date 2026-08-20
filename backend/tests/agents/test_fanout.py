@@ -105,19 +105,67 @@ async def test_gather_docs_writes_chunks_as_dicts(monkeypatch):
     assert out == {"doc_context": [asdict(c)]}
 
 
+def _aux_cua(args, kwargs):
+    """Rút aux_queries khỏi một lời gọi retrieve(), dù truyền kiểu nào.
+
+    Bản cũ của các test này chỉ đọc `kwargs.get("aux_queries")`, mà production
+    truyền aux ở VỊ TRÍ THỨ TƯ — nên phép chốt luôn thấy None và rỗng nghĩa.
+    Đọc cả hai kiểu để test đo hành vi thật chứ không đo cách gọi."""
+    if "aux_queries" in kwargs:
+        return kwargs["aux_queries"]
+    return args[3] if len(args) > 3 else None
+
+
 async def test_gather_docs_retrieves_with_full_question(monkeypatch):
     """Khác `fusion` cũ (agent tự chọn query, hay truyền từ khoá trần) —
-    fan-out LUÔN truy xuất bằng nguyên câu hỏi, nên aux_queries thành thừa."""
+    fan-out LUÔN truy xuất bằng NGUYÊN câu hỏi người dùng.
+
+    Lượt hỏi trước đi vào aux_queries chứ KHÔNG trộn vào `query` — xem
+    test_gather_docs_truyen_luot_truoc_vao_aux."""
     import src.agents.fanout as fanout
     calls = []
 
-    def fake_retrieve(q, *a, **kw):
-        calls.append((q, kw.get("aux_queries")))
+    def fake_retrieve(*a, **kw):
+        calls.append((a[0], _aux_cua(a, kw)))
         return _result([])
 
     monkeypatch.setattr(fanout, "retrieve", fake_retrieve)
     await fanout.make_gather_docs_node()(_state("Đơn S00042 hoàn được không?"))
-    assert calls == [("Đơn S00042 hoàn được không?", None)]
+    # Lượt đầu: không có ngữ cảnh nào để truyền.
+    assert calls == [("Đơn S00042 hoàn được không?", ())]
+
+
+async def test_gather_docs_truyen_luot_truoc_vao_aux(monkeypatch):
+    """DÂY NỐI phải sống: gather_docs gọi previous_user_turn và đưa kết quả
+    vào aux_queries của retrieve().
+
+    VÌ SAO TEST NÀY TỒN TẠI. Trước 2026-08-20 chỉ có test cho hàm thuần
+    `previous_user_turn()`; không test nào kiểm rằng node THẬT SỰ gọi nó. Đo
+    bằng phép thử gỡ: xoá dây nối khỏi rag_node/gather_docs thì 1785 test vẫn
+    XANH, và bộ eval `multiturn` cũng không bắt được vì nó gọi thẳng
+    retrieve() chứ không đi qua node. Một bản hoà merge cẩu thả ở đúng câu
+    lệnh này sẽ giết âm thầm một tính năng đã đo (recall@6 0,75 → 1,00).
+
+    Cùng lớp lỗi với write-confirmation-ux-fix: cơ chế chết trên production mà
+    mọi test đơn vị vẫn xanh vì không cái nào đi qua đường thật."""
+    import src.agents.fanout as fanout
+    from langchain_core.messages import AIMessage as _AI
+    calls = []
+
+    def fake_retrieve(*a, **kw):
+        calls.append((a[0], _aux_cua(a, kw)))
+        return _result([])
+
+    monkeypatch.setattr(fanout, "retrieve", fake_retrieve)
+    st = _state("còn hàng giảm giá thì sao?")
+    st["messages"] = [HumanMessage(content="chính sách hoàn hàng thế nào?"),
+                      _AI(content="Trong 30 ngày."),
+                      HumanMessage(content="còn hàng giảm giá thì sao?")]
+    await fanout.make_gather_docs_node()(st)
+
+    query, aux = calls[0]
+    assert query == "còn hàng giảm giá thì sao?"          # query KHÔNG bị trộn
+    assert aux == ("chính sách hoàn hàng thế nào?",)      # ngữ cảnh đi lối aux
 
 
 async def test_gather_docs_below_floor_writes_empty(monkeypatch):
