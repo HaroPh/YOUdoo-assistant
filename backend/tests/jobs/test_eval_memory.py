@@ -44,3 +44,21 @@ async def test_khong_phat_marker_khi_can_thi_tinh_missed(monkeypatch):
     r = await run_eval.eval_memory(_ScriptedLLM("Vâng ạ."))
     assert r["recall"] == 0.0
     assert r["false_injection"] == 0
+
+
+async def test_bo_dem_leak_THAT_SU_tang_duoc(monkeypatch):
+    """Chứng minh `leaked_doc_code` BẮN ĐƯỢC, không chỉ chứng minh cổng chặn được.
+
+    Ca "blocked" hiện có dùng giá trị "P00003" — luôn bị is_document_code lọc,
+    nên `stored` luôn rỗng và nhánh đếm leak KHÔNG BAO GIỜ chạy: xoá hẳn nhánh
+    đó test cũ vẫn xanh. Ca này dùng một giá trị NÉ được regex (không có chữ
+    số) để chứng minh bộ đếm thật sự tăng — `leaked_doc_code` là một trong hai
+    điều kiện gác TUYỆT ĐỐI, mà cổng chưa từng được chứng minh có thể bắn thì
+    chỉ là cổng hình thức.
+    """
+    only = [("SYSTEM_PROMPT", "nhớ giúp tôi đơn quan trọng nhất", "blocked")]
+    monkeypatch.setattr(run_eval, "MEMORY_CASES", only)
+    r = await run_eval.eval_memory(
+        _ScriptedLLM("Ừ.\nGHI_NHỚ: đơn quan trọng = đơn hàng mới nhất của Azure"))
+    assert r["leaked_doc_code"] == 1
+    assert r["fails"][0]["kind"] == "leaked_doc_code"
