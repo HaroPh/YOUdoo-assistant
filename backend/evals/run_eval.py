@@ -1116,8 +1116,12 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
         question, kind, expect, source = case[0], case[1], case[2], case[3]
         expect = tuple(expect) if isinstance(expect, list) else expect
         result = await asyncio.to_thread(_retrieve, question)
-        # `memory` đi ĐÚNG đường production: rag_node truyền nó vào
-        # synthesize(), nơi nó được ghép vào ĐẦU RAG_SYNTHESIS_PROMPT.
+        # CẢNH BÁO — từ 2026-08-20 đây KHÔNG còn là đường production.
+        # Chính số đo của ba chân này dẫn tới quyết định CẮT dây nối ký ức ở
+        # rag_node (xem nodes.py::rag_node), nên production chạy `memory=""`.
+        # Ba chân giữ lại làm DÂY BẪY: nếu ai nối ký ức vào đường tài liệu
+        # lần nữa, chạy lại chỗ này là thấy ngay thiệt hại. Đừng đọc số của
+        # chân khác rỗng như số của production.
         answer, ms = await _timed(
             _synthesize(question, result, llm, memory=memory_block))
         lat.append(ms)

@@ -1,7 +1,6 @@
 # Chân đối chứng ký ức cho bộ `synthesis_live`
 
-Ngày: 2026-08-20. Trạng thái: đã dựng, đã đo, **hai phát hiện chuyển sang tab
-ký ức để quyết bản sửa**.
+Ngày: 2026-08-20. Trạng thái: đã dựng, đã đo, **đã quyết và đã sửa** (§7).
 
 ## 1. Lỗ hổng đo lường
 
@@ -96,3 +95,46 @@ phần giới hạn.
 
 `--pace` bắt buộc (free tier 15 lượt/phút). Số ở §3 đo bằng khoá dự phòng vì
 hạn mức ngày của project chính đã cạn chiều 20/8.
+
+## 7. Quyết định của tab ký ức — CẮT dây nối, không thêm câu ràng
+
+Chốt: **ký ức không còn được ghép vào prompt tổng hợp RAG.** `rag_node` gọi
+`synthesize(query, result, llm)` không kèm `memory`.
+
+**Vì sao không dùng câu ràng đã đo.** Câu ấy chữa được (c) nhưng mở đầu bằng
+*"Ghi nhớ chỉ ảnh hưởng cách xưng hô và giọng điệu"*, trong khi
+`render_memory_block()` cấp cho **cả ba** prompt. Hai trong ba ca `fact` của
+`MEMORY_CASES` là fact NỘI DUNG chứ không phải giọng điệu — `kho chính của tôi
+là WH/Stock`, `đơn khẩn nghĩa là giao trong 24h`. Dán câu đó vào hàm là bảo
+model bỏ qua đúng những fact mà tính năng này sinh ra để lưu. Chữ *"căn cứ thay
+cho tài liệu"* cũng chỉ có nghĩa ở đường RAG. Câu ràng đúng cho MỘT đường,
+không đúng làm phát biểu toàn cục.
+
+**Vì sao cắt hẳn thay vì đặt câu ràng riêng cho đường RAG.** Xâu §3 lại theo
+loại fact thì ký ức trên đường tài liệu **không loại nào dương**: giọng điệu
+phá hợp đồng guard, ép định dạng mất 8,3% fact_acc, fact nội dung bị bỏ qua
+đúng thiết kế nên đóng góp bằng không. Cắt đóng cả (b) lẫn (c) tại gốc, không
+cần phân loại fact bằng heuristic từ khoá (hỏng thì hỏng im lặng), và là lựa
+chọn **duy nhất đã có sẵn số đo** — chân gốc `memory=""` chính là nó: 1,0/1,0/1,0.
+
+**Giá phải trả, nói rõ:** câu trả lời tra cứu tài liệu không xưng hô theo tên
+người dùng và không theo sở thích trình bày. Ký ức giữ **nguyên hiệu lực** ở
+`erp_node` và `chitchat`. Với trợ lý tra cứu luật, tính toàn vẹn của dấu vết
+trích dẫn đắt hơn một lời chào.
+
+**Chống trôi.** `test_rag_node_nap_khoi_ky_uc` bị **đảo chiều** thành
+`test_rag_node_KHONG_nap_khoi_ky_uc` chứ không xoá — một quyết định đã đo cần
+chặn trôi cả hai chiều. Đã chứng minh bằng phép thử ngược: nối lại `memory=`
+thì test đỏ. Test còn kèm `assert llm.system_prompts` vì khẳng định phủ định sẽ
+xanh giả nếu node không gửi prompt nào.
+
+**Ba chân `--memory` giữ nguyên, đổi vai thành DÂY BẪY.** Chúng không còn đo
+đường production; comment trong `run_eval.py` đã sửa để không ai đọc nhầm số
+của chân khác rỗng thành số production. Nối lại ký ức vào đường tài liệu thì
+chạy lại ba chân này là thấy thiệt hại ngay.
+
+**Còn nợ, thuộc tab ký ức:** cả 7 ca `MEMORY_CASES` đều chạy với khối RỖNG
+(một lượt, không fact có sẵn), nên phần phát marker `GHI_NHỚ:`/`QUÊN:` và
+`ĐỀ_XUẤT_GHI` — hai hợp đồng token chính xác còn lại nằm sau khối ký ức — chưa
+bao giờ được đo với khối khác rỗng. §3 chứng minh khối ký ức ĐỦ SỨC lấn một
+chỉ thị định dạng cứng, nên đây là rủi ro thật, chưa đo, không phải lỗi đã biết.

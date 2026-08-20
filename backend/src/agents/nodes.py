@@ -103,14 +103,25 @@ def make_rag_node(llm):
         # không quy được kết quả cho cái nào.
         prev = previous_user_turn(state["messages"])
         try:
-            # Hoà hai nhánh: `aux_queries` (lượt hỏi trước) đến từ main —
-            # đo được multiturn recall@6 0,75→1,00; `memory` đến từ nhánh ký
-            # ức. Lấy nguyên một vế là MẤT LẶNG LẼ một tính năng đã đo, nên
-            # cả hai phải cùng sống ở đây.
+            # `aux_queries` (lượt hỏi trước) đến từ main — đo được multiturn
+            # recall@6 0,75→1,00. GIỮ.
+            #
+            # KÝ ỨC CỐ Ý KHÔNG ĐI VÀO ĐÂY. Bản merge 953ae58 từng truyền
+            # `memory=` vào synthesize(); chân đối chứng của bộ synthesis_live
+            # đo ra cả ba loại fact đều không có lợi trên đường tài liệu
+            # (spec 2026-08-20-memory-synthesis-eval.md §3):
+            #   - xưng hô/giọng điệu: model TỰ VIẾT lời từ chối thay vì phát
+            #     KHÔNG_ĐỦ_THÔNG_TIN ⇒ mất GUARD_MSG, footer trích dẫn vẫn in
+            #     cho câu không trả lời được (refusal_acc 1,0→0,9643, 3/3);
+            #   - ép định dạng: câu trả lời né sang chung chung
+            #     (fact_acc 1,0→0,9167, 3/3);
+            #   - fact mâu thuẫn tài liệu: bị bỏ qua ĐÚNG THIẾT KẾ ⇒ đóng góp 0.
+            # Ký ức vẫn hiệu lực ĐẦY ĐỦ ở erp_node và chitchat (nodes.py:51,
+            # :139) — chỉ câu trả lời tra cứu tài liệu là không nhận.
+            # test_rag_node_KHONG_nap_khoi_ky_uc gác chiều ngược lại.
             result = await asyncio.to_thread(
                 retrieve, query, TOP_K, None, (prev,) if prev else ())
-            answer = await synthesize(query, result, llm,
-                                      memory=state.get("user_memory") or "")
+            answer = await synthesize(query, result, llm)
         except Exception:
             logger.exception("rag_node failed")
             answer = SAFE_MSG

@@ -1,6 +1,6 @@
-"""Cả NĂM chỗ sinh câu trả lời đều phải nạp khối ký ức.
+"""Khối ký ức đi vào ĐÚNG những chỗ đã định — không thiếu, không thừa.
 
-Năm chỗ ghép = năm chỗ có thể quên. Lớp lỗi "danh sách khai báo thiếu âm thầm"
+Mỗi chỗ ghép là một chỗ có thể quên; lớp lỗi "danh sách khai báo thiếu âm thầm"
 đã tái phát 5 lần ở repo này, nên chống trôi bằng TEST chứ không bằng lời hứa.
 
 BỐN → NĂM ngày 2026-08-20: bản đầu đếm bốn và kiểm `synthesize()` ở mức HÀM.
@@ -9,6 +9,13 @@ Nhưng `rag_node` mới là chỗ TRUYỀN ký ức vào hàm đó, và nó khô
 `memory=""` trong rag_node thì 1866 test vẫn XANH — tính năng chết trên đường
 hỏi-đáp tài liệu mà không phép đo nào nhúc nhích. Cùng lớp lỗi đã bắt được
 cùng ngày với dây nối `aux_queries` (xem test_simple_nodes.py).
+
+NĂM → BỐN + MỘT cùng ngày, sau khi ĐO: chỗ thứ năm (`rag_node`) nay CỐ Ý
+không nạp ký ức — chân đối chứng của synthesis_live đo ra ký ức phá hợp đồng
+guard và làm rơi fact_acc trên đường tài liệu, trong khi loại fact còn lại bị
+bỏ qua đúng thiết kế (spec 2026-08-20-memory-synthesis-eval.md). Test của chỗ
+đó bị ĐẢO CHIỀU chứ không xoá: gác một quyết định đã đo cần chặn trôi CẢ HAI
+chiều, và "không nạp" cũng dễ bị vô tình nối lại y như "nạp" dễ bị quên.
 """
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
@@ -106,12 +113,18 @@ async def test_erp_read_nap_khoi_ky_uc(state, monkeypatch):
     assert any(MEMORY_BLOCK in p for p in seen)
 
 
-async def test_rag_node_nap_khoi_ky_uc(state, monkeypatch):
-    """Chỗ thứ NĂM: rag_node phải TRUYỀN ký ức vào synthesize().
+async def test_rag_node_KHONG_nap_khoi_ky_uc(state, monkeypatch):
+    """Chỗ thứ NĂM: rag_node CỐ Ý không truyền ký ức vào synthesize().
 
-    test_synthesize_nap_khoi_ky_uc ở trên chứng minh HÀM tôn trọng tham số.
-    Test này chứng minh NODE thật sự truyền tham số đó — hai chuyện khác nhau,
-    và chỉ chuyện thứ hai mới là thứ người dùng nhận được."""
+    Đây là quyết định đã ĐO, không phải bỏ sót. Ký ức trên đường tài liệu:
+    xưng hô làm model tự viết lời từ chối thay vì phát KHÔNG_ĐỦ_THÔNG_TIN
+    (mất GUARD_MSG, vẫn in footer trích dẫn — refusal_acc 1,0→0,9643, 3/3);
+    ép định dạng làm câu trả lời né chung chung (fact_acc 1,0→0,9167, 3/3);
+    fact mâu thuẫn tài liệu thì bị bỏ qua đúng thiết kế, đóng góp bằng không.
+
+    `synthesize()` VẪN nhận tham số `memory` và test ở trên vẫn gác điều đó —
+    ba chân `--memory` của bộ synthesis_live dùng đường hàm ấy để đo lại thiệt
+    hại nếu có ai nối lại. Cái bị cắt là DÂY NỐI ở node, không phải khả năng."""
     import src.agents.nodes as nodes_mod
     from src.agents.synthesis import SENTINEL
     from src.rag.types import RetrievalResult
@@ -139,4 +152,5 @@ async def test_rag_node_nap_khoi_ky_uc(state, monkeypatch):
     llm = _SentinelLLM()
     st = {**state, "messages": [HumanMessage(content="chính sách hoàn hàng?")]}
     await nodes_mod.make_rag_node(llm)(st)
-    assert any(MEMORY_BLOCK in p for p in llm.system_prompts)
+    assert llm.system_prompts, "node không gửi prompt nào — test tự vô hiệu"
+    assert not any(MEMORY_BLOCK in p for p in llm.system_prompts)
