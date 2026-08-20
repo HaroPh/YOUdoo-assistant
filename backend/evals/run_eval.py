@@ -28,6 +28,7 @@ from evals.retrieval_cases import RETRIEVAL_CASES
 from evals.retrieval_score import label_of, score_one
 from evals.multiturn_cases import MULTITURN_CASES
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
+from evals.memory_presets import MEMORY_PRESETS
 from evals.synthesis_live_score import score_answer
 from src.agents.synthesis import synthesize as _synthesize
 from src.rag.retrieve import retrieve as _retrieve
@@ -1092,7 +1093,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
             "fails": fails, "errors": errors}
 
 
-async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
+                              memory: str | None = None):
     """Đo chuỗi TRẢ LỜI TÀI LIỆU đầu-cuối: retrieve() thật → synthesize() thật.
 
     Khác `synthesis` ở đúng một điểm, và đó là điểm quan trọng nhất:
@@ -1104,6 +1106,9 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None):
     học SP-2a: eval_intent mirror hợp đồng ở module khác, hợp đồng đổi, acc rơi
     0,870 → 0,148 và không ai nghi ngờ vì lỗi trông y hệt lỗi chất lượng model.
     """
+    # `memory` là TÊN chân, không phải khối chữ: kết quả tự mang tên chân nên
+    # một lượt chạy có ký ức không bao giờ bị đọc nhầm thành số của chân gốc.
+    memory_block = MEMORY_PRESETS[memory] if memory else ""
     lat: list[float] = []
     per_case: list[dict] = []
 
@@ -1111,7 +1116,10 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None):
         question, kind, expect, source = case[0], case[1], case[2], case[3]
         expect = tuple(expect) if isinstance(expect, list) else expect
         result = await asyncio.to_thread(_retrieve, question)
-        answer, ms = await _timed(_synthesize(question, result, llm))
+        # `memory` đi ĐÚNG đường production: rag_node truyền nó vào
+        # synthesize(), nơi nó được ghép vào ĐẦU RAG_SYNTHESIS_PROMPT.
+        answer, ms = await _timed(
+            _synthesize(question, result, llm, memory=memory_block))
         lat.append(ms)
         score = score_answer(answer, kind, expect, source)
         per_case.append({"kind": kind, **score})
@@ -1148,6 +1156,9 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None):
 
     p50, p95 = _percentiles(lat)
     return {"set": "synthesis_live", "n": len(SYNTHESIS_LIVE_CASES),
+            # Tên chân đi vào kết quả để một lượt chạy có ký ức không bao giờ
+            # bị đọc nhầm thành số của chân gốc.
+            "memory_preset": memory or "none",
             "fact_acc": _acc("fact_ok", per_case),
             "refusal_acc": _acc("refusal_ok", per_case),
             "citation_acc": _acc("citation_ok", per_case),
@@ -1238,10 +1249,25 @@ async def main(argv=None):
     ap.add_argument("--pace", type=float, default=0.0,
                     help="giây giãn cách giữa 2 call (suy từ catalog: "
                          "(60/rpm)*1.2 cho model đang ghim — vd rpm=15 → ~4.8)")
+    ap.add_argument("--memory", choices=sorted(MEMORY_PRESETS),
+                    help="chi voi --set synthesis_live: chay CHAN DOI CHUNG "
+                         "voi mot khoi ky uc khac rong, de do xem ky uc co "
+                         "lam hong grounding/trich dan khong")
     ap.add_argument("--no-rerank", action="store_true",
                     help="chi voi --set retrieval: chay chan doi chung "
                          "RAG_RERANK_ENABLED=0 de tinh rerank_delta")
     args = ap.parse_args(argv)
+
+    if args.memory and args.set != "synthesis_live":
+        ap.error("--memory chỉ dùng được với --set synthesis_live")
+    if args.memory and args.save_baseline:
+        # Baseline của synthesis_live LÀ chân memory="" — ghi đè nó bằng
+        # số của một chân ký ức là tự tay xoá mốc so sánh, và lượt chạy
+        # sau sẽ so chân gốc với một baseline không phải của nó. Chặn
+        # cứng thay vì tin vào kỷ luật người chạy.
+        ap.error("--memory không đi cùng --save-baseline: baseline của "
+                 "synthesis_live là chân KHÔNG ký ức, ghi đè bằng số của "
+                 "chân có ký ức sẽ xoá mốc so sánh")
 
     try:
         _FN = {"intent": eval_intent, "confirm": eval_confirm,
@@ -1267,7 +1293,7 @@ async def main(argv=None):
             # "synthesis_live" KHÔNG nằm trong catalog.ROLES; production chạy
             # rag_node bằng llms["synthesis"], nên dùng đúng vai đó.
             result = await eval_synthesis_live(_llm(args.model, role="synthesis"),
-                                               **kwargs)
+                                               memory=args.memory, **kwargs)
         else:
             result = await _FN[args.set](_llm(args.model, role=args.set), **kwargs)
     except Exception as e:   # noqa: BLE001 — hạ tầng LLM sập (key/model/router hỏng)
