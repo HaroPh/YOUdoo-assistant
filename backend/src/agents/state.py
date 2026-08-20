@@ -80,3 +80,7 @@ class ERPAgentState(TypedDict):
     erp_facts: str | None         # chân ERP của fan-out `mixed`: dữ kiện thô
                                   # dạng văn bản (KHÔNG phải câu trả lời), hoặc
                                   # "". Cùng vòng đời với doc_context.
+    user_memory: str | None       # khối ký ức đã render, nạp MỘT LẦN ở chat()
+                                  # rồi ghép vào đầu system prompt của 4 node
+                                  # sinh câu trả lời. Đọc-thôi với mọi node —
+                                  # không node nào ghi key này.

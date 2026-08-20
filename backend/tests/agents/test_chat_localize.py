@@ -17,7 +17,7 @@ class _AgentGia(agent_mod.ERPAgent):
         self._localize_calls = []
 
     async def _chat_inner(self, messages, thread_id=None, reset_if_fresh=False,
-                          role="admin"):
+                          role="admin", user_id=None):
         return self._tra_ve
 
 

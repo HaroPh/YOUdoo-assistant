@@ -192,8 +192,12 @@ def make_fuse_answer_node(llm):
                 # ĐỊNH, không giao cho model tự nhận ra.
                 return {"messages": [AIMessage(content=SAFE_MSG)], **clear,
                         "suggested_write": False, "suggested_write_at": anchor}
+            system = FUSE_PROMPT
+            memory = state.get("user_memory")
+            if memory:
+                system = memory + "\n\n" + FUSE_PROMPT
             resp = await llm.ainvoke([
-                SystemMessage(content=FUSE_PROMPT),
+                SystemMessage(content=system),
                 HumanMessage(content=render_fuse_input(
                     chunks, erp_facts, _last_human(state))),
             ])

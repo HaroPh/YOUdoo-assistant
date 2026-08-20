@@ -184,18 +184,26 @@ def passes_floor(result) -> bool:
     )
 
 
-async def synthesize(query: str, result, llm) -> str:
+async def synthesize(query: str, result, llm, memory: str = "") -> str:
     """Grounded answer + citation footer, or GUARD_MSG when nothing answers.
 
     Guard = cheap cosine pre-filter (no LLM on an obviously-empty/off-topic
     retrieval) backed by the LLM answerability sentinel. Citations are
     verified against real chunk content (verify_citations) before the
     footer is built, not just trusted from the LLM's marker self-report.
+
+    `memory`: rendered user-memory block (render_memory_block), prepended to
+    the system prompt when non-empty. Default "" keeps every existing call
+    site (nodes.rag_node passes the real value; evals and older tests omit
+    it) working unchanged.
     """
     if result.is_empty() or not passes_floor(result):
         return GUARD_MSG
+    system = RAG_SYNTHESIS_PROMPT
+    if memory:
+        system = memory + "\n\n" + RAG_SYNTHESIS_PROMPT
     resp = await llm.ainvoke([
-        SystemMessage(content=RAG_SYNTHESIS_PROMPT),
+        SystemMessage(content=system),
         HumanMessage(content=f"TÀI LIỆU:\n{_format_context(result.chunks)}\n\nCÂU HỎI: {query}"),
     ])
     body = (resp.content or "").strip()

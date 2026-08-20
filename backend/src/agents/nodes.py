@@ -44,6 +44,9 @@ def make_erp_read_node(llm, tools):
         wc = state.get("working_context")
         prompt = (render_working_context(wc) + "\n\n" + SYSTEM_PROMPT) \
             if wc else SYSTEM_PROMPT
+        memory = state.get("user_memory")
+        if memory:
+            prompt = memory + "\n\n" + prompt
         agent = _create_agent(llm, tools, system_prompt=prompt)
         result = await agent.ainvoke({"messages": state["messages"]})
         # Return only messages added by the agent (skip the input messages)
@@ -93,7 +96,8 @@ def make_rag_node(llm):
         query = last_human.content
         try:
             result = await asyncio.to_thread(retrieve, query)
-            answer = await synthesize(query, result, llm)
+            answer = await synthesize(query, result, llm,
+                                      memory=state.get("user_memory") or "")
         except Exception:
             logger.exception("rag_node failed")
             answer = SAFE_MSG
@@ -116,7 +120,11 @@ def make_respond_unknown_node(llm):
             (m for m in reversed(state["messages"]) if m.type == "human"), None)
         if last_human is None:
             return {"messages": [AIMessage(content="Xin lỗi, bạn cần hỗ trợ gì?")]}
-        response = await llm.ainvoke([SystemMessage(content=CHITCHAT_PROMPT), last_human])
+        system = CHITCHAT_PROMPT
+        memory = state.get("user_memory")
+        if memory:
+            system = memory + "\n\n" + CHITCHAT_PROMPT
+        response = await llm.ainvoke([SystemMessage(content=system), last_human])
         return {"messages": [response]}
 
     return respond_unknown

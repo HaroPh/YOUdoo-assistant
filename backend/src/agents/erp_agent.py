@@ -20,7 +20,8 @@ from .localize import localize
 from .models import make_llms
 from . import roles as roles_mod
 from .user_memory import (extract_memory_markers, forget_fact, is_document_code,
-                          normalize_key, save_fact)
+                          load_active_facts, normalize_key, render_memory_block,
+                          save_fact)
 from src.llm import tracing
 
 MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
@@ -224,7 +225,7 @@ class ERPAgent:
         """
         answer = await self._chat_inner(messages, thread_id=thread_id,
                                         reset_if_fresh=reset_if_fresh,
-                                        role=role)
+                                        role=role, user_id=user_id)
         answer = await self._apply_memory_markers(answer, user_id, thread_id)
         lang = VI
         for m in messages or []:
@@ -284,7 +285,8 @@ class ERPAgent:
         return "\n\n".join([clean, *notices]) if notices else clean
 
     async def _chat_inner(self, messages: list[dict], thread_id: str | None = None,
-                          reset_if_fresh: bool = False, role: str = "admin") -> str:
+                          reset_if_fresh: bool = False, role: str = "admin",
+                          user_id: str | None = None) -> str:
         """
         messages: list of {"role", "content"} dicts (user/assistant).
         thread_id: stable ID per conversation — needed for interrupt/resume.
@@ -309,12 +311,20 @@ class ERPAgent:
         if self._handler:
             config["callbacks"] = [self._handler]
 
+        memory_block = ""
+        if user_id:
+            try:
+                facts = await load_active_facts(self._pool, user_id)
+                memory_block = render_memory_block(facts)
+            except Exception:                               # noqa: BLE001
+                memory_block = ""     # ký ức hỏng KHÔNG được làm hỏng lượt chat
+
         is_fresh = (reset_if_fresh and thread_id is not None
                     and len(messages) == 1 and messages[0].get("role") == "user")
         try:
             if is_fresh:
                 await self._checkpointer.adelete_thread(tid)
-                result = await self._invoke_fresh(messages, config, graph)
+                result = await self._invoke_fresh(messages, config, graph, memory_block)
             else:
                 # If the thread is parked at a write-confirmation interrupt, this
                 # turn is the user's answer — classify it and resume instead of
@@ -326,7 +336,7 @@ class ERPAgent:
                         # Stale confirmation: discard it (resume=False is a no-op
                         # write, result ignored) and process this turn as fresh.
                         await graph.ainvoke(Command(resume=False), config=config)
-                        result = await self._invoke_fresh(messages, config, graph)
+                        result = await self._invoke_fresh(messages, config, graph, memory_block)
                     else:
                         reply = messages[-1]["content"]
                         decision = await _decide_resume(
@@ -337,7 +347,7 @@ class ERPAgent:
                             return decision
                         result = await graph.ainvoke(decision, config=config)
                 else:
-                    result = await self._invoke_fresh(messages, config, graph)
+                    result = await self._invoke_fresh(messages, config, graph, memory_block)
         except GraphRecursionError:
             # Spike v10b 2026-07-16: subgraph-as-node KHÔNG bị chặn bởi
             # default 25 — trần thật đến từ with_config tại graph wiring.
@@ -392,7 +402,8 @@ class ERPAgent:
             [HumanMessage(content=content)], config=config)
         return response.content
 
-    async def _invoke_fresh(self, messages: list[dict], config: dict, graph):
+    async def _invoke_fresh(self, messages: list[dict], config: dict, graph,
+                            memory_block: str = ""):
         """Run a non-resume turn, overwriting the persisted message channel.
 
         Open WebUI resends the full conversation every turn, so appending it to
@@ -405,11 +416,18 @@ class ERPAgent:
         site (all three pass graph explicitly, already resolved+None-checked by
         the caller), but in a permission system a latent "if unspecified, use
         admin" defaults open — the wrong direction. Fail loudly instead.
+
+        `memory_block` is set on EVERY invoke, not omitted when empty: this is
+        the one path that resets state["messages"] wholesale, so it is also the
+        natural point to (re)set state["user_memory"] to the current turn's
+        freshly-loaded value rather than let a stale one from an earlier turn
+        survive via LangGraph's omit-vs-None channel semantics.
         """
         if graph is None:
             raise ValueError("_invoke_fresh: graph is required (no admin fallback)")
         reset = [RemoveMessage(id=REMOVE_ALL_MESSAGES), *messages]
-        return await graph.ainvoke({"messages": reset}, config=config)
+        return await graph.ainvoke({"messages": reset, "user_memory": memory_block},
+                                   config=config)
 
     async def aclose(self) -> None:
         if self._pool is not None:
