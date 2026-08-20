@@ -246,30 +246,41 @@ class ERPAgent:
         Marker luôn bị cắt kể cả khi không ghi được (thiếu user_id, DB lỗi,
         cổng phủ quyết chặn) — ký hiệu máy-đọc không bao giờ được lọt ra câu
         người dùng đọc.
+
+        MỌI fact ghi được THẬT SỰ đều được công bố: mỗi lời gọi DB có try
+        riêng, nên một fact hỏng giữa chừng không nuốt mất công bố của các
+        fact khác đã ghi thành công trước/sau nó.
         """
         clean, saves, forgets = extract_memory_markers(answer)
         if not saves and not forgets:
             return clean
         notices: list[str] = []
-        try:
-            for raw_key, value in saves:
-                key = normalize_key(raw_key)
-                if not key:
-                    continue
-                if is_document_code(value):
-                    notices.append(f"{MEMORY_BLOCKED_PREFIX} {key} — ký ức chỉ "
-                                   "giữ quy ước, không giữ mã chứng từ cụ thể.")
-                    continue
-                if user_id:
-                    await save_fact(self._pool, user_id, key, value, thread_id)
-                    notices.append(f'{MEMORY_NOTICE_PREFIX} {key} = {value} '
-                                   '— nói "quên đi" nếu sai.')
-            for raw_key in forgets:
-                key = normalize_key(raw_key)
-                if key and user_id and await forget_fact(self._pool, user_id, key):
-                    notices.append(f"🗑️ Đã bỏ ghi nhớ: {key}")
-        except Exception:                                   # noqa: BLE001
-            return clean
+        for raw_key, value in saves:
+            key = normalize_key(raw_key)
+            # Không có user_id thì KHÔNG ghi được gì cả — im lặng hoàn toàn,
+            # kể cả không báo lý do "mã chứng từ", vì đó không phải lý do thật.
+            if not key or not user_id:
+                continue
+            if is_document_code(value):
+                notices.append(f"{MEMORY_BLOCKED_PREFIX} {key} — ký ức chỉ "
+                               "giữ quy ước, không giữ mã chứng từ cụ thể.")
+                continue
+            try:
+                await save_fact(self._pool, user_id, key, value, thread_id)
+            except Exception:                               # noqa: BLE001
+                continue      # fact NÀY hỏng thì bỏ qua NÓ, không bỏ các fact khác
+            notices.append(f'{MEMORY_NOTICE_PREFIX} {key} = {value} '
+                           '— nói "quên đi" nếu sai.')
+        for raw_key in forgets:
+            key = normalize_key(raw_key)
+            if not key or not user_id:
+                continue
+            try:
+                removed = await forget_fact(self._pool, user_id, key)
+            except Exception:                               # noqa: BLE001
+                continue
+            if removed:
+                notices.append(f"🗑️ Đã bỏ ghi nhớ: {key}")
         return "\n\n".join([clean, *notices]) if notices else clean
 
     async def _chat_inner(self, messages: list[dict], thread_id: str | None = None,

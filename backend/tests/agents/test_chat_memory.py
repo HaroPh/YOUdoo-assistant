@@ -111,3 +111,47 @@ async def test_loi_ghi_ky_uc_khong_lam_hong_luot_chat(agent, monkeypatch):
                            thread_id="t1", user_id="u1")
 
     assert "Được rồi." in out             # câu trả lời vẫn tới người dùng
+
+
+async def test_db_hong_giua_chung_van_cong_bo_fact_da_ghi(agent, monkeypatch):
+    """Ghi được mà KHÔNG báo là ghi âm thầm — người dùng không biết để gỡ.
+
+    Ba marker, cái thứ hai làm DB ném: hai cái còn lại phải ghi được VÀ được
+    công bố đầy đủ.
+    """
+    async def flaky_save(pool, user_id, key, value, thread_id):
+        if key == "khoa_hai":
+            raise RuntimeError("DB sập")
+        pool.saved.append((user_id, key, value, thread_id))
+
+    monkeypatch.setattr("src.agents.erp_agent.save_fact", flaky_save)
+
+    async def fake_inner(*args, **kwargs):
+        return ("Được rồi.\nGHI_NHỚ: khoa mot = gia tri mot\n"
+                "GHI_NHỚ: khoa hai = gia tri hai\n"
+                "GHI_NHỚ: khoa ba = gia tri ba")
+    monkeypatch.setattr(ERPAgent, "_chat_inner", fake_inner)
+
+    out = await agent.chat([{"role": "user", "content": "x"}],
+                           thread_id="t1", user_id="u1")
+
+    written = [row[1] for row in agent._pool.saved]
+    assert written == ["khoa_mot", "khoa_ba"]      # fact sau vẫn được thử
+    assert out.count(MEMORY_NOTICE_PREFIX) == 2    # và cả hai đều được công bố
+    assert "GHI_NHỚ" not in out
+
+
+async def test_khong_co_user_id_thi_khong_bao_ly_do_sai(agent, monkeypatch):
+    """Thiếu user_id thì im lặng hoàn toàn — không được báo "chặn vì mã chứng
+    từ", vì lý do thật là không có ai để ghi cho."""
+    async def fake_inner(*args, **kwargs):
+        return "Ừ.\nGHI_NHỚ: đơn quan trọng = P00003"
+    monkeypatch.setattr(ERPAgent, "_chat_inner", fake_inner)
+
+    out = await agent.chat([{"role": "user", "content": "x"}],
+                           thread_id="t1", user_id=None)
+
+    assert agent._pool.saved == []
+    assert MEMORY_BLOCKED_PREFIX not in out
+    assert MEMORY_NOTICE_PREFIX not in out
+    assert "GHI_NHỚ" not in out
