@@ -41,7 +41,10 @@ def test_khoan_single_level_number_is_not_heading(monkeypatch):
     ])
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
     blocks = parse.parse_pdf("x.pdf")
-    assert blocks[0]["heading_level"] == 2          # "Điều ..." vẫn là heading
+    # Cấp 4 = "Điều" trong thang phân cấp (2026-08-20). Ghim số cụ thể
+    # chứ không chỉ "is not None": đổi thang mà không ai hay thì
+    # breadcrumb dựng sai âm thầm — đúng lớp lỗi thang phẳng đã gây ra.
+    assert blocks[0]["heading_level"] == 4          # "Điều ..." vẫn là heading
     assert blocks[1]["heading_level"] is None       # khoản 1 cấp = NỘI DUNG
 
 
@@ -53,8 +56,10 @@ def test_multilevel_numeric_heading_still_detected(monkeypatch):
     fake = _FakeReader(["1.1 Giới thiệu hệ thống\n3.2.1. Cấu hình chi tiết"])
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
     blocks = parse.parse_pdf("x.pdf")
-    assert blocks[0]["heading_level"] == 2
-    assert blocks[1]["heading_level"] == 2
+    # Cấp 5 = sâu nhất: numbering đa cấp là mục con của Điều,
+    # không phải anh em với nó.
+    assert blocks[0]["heading_level"] == 5
+    assert blocks[1]["heading_level"] == 5
 
 
 def test_money_and_hs_code_lines_are_not_headings(monkeypatch):

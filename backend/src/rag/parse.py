@@ -25,6 +25,59 @@ _HEADING_RE = re.compile(
     r"|^\s*Điều\s+\d+\s*[\.\-–]\s*\S"
     r"|^\s*\d+\.\d{1,2}(\.\d{1,2})*(?!\d)[\.\)]?\s+\S")
 
+_CHUONG_RE = re.compile(r"^\s*Chương\b")
+_MUC_RE = re.compile(r"^\s*Mục\b")
+_DIEU_RE = re.compile(r"^\s*Điều\s+\d+\s*[\.\-–]\s*\S")
+
+
+def heading_level(text: str) -> int | None:
+    """Cấp của một dòng tiêu đề, hoặc None nếu không phải tiêu đề.
+
+    TRƯỚC 2026-08-20 mọi tiêu đề đều là cấp 2, tức `Chương`, `Mục` và `Điều`
+    là ANH EM. Vì `chunk_text_blocks` đẩy khỏi stack mọi mục cùng-hoặc-cao-cấp,
+    "Điều 102" hất "Chương VI" ra và section_path thành PHẮNG.
+
+    Tác hại đo được: 27 cặp điều luật trong corpus TRÙNG TIÊU ĐỀ từng chữ, và
+    thứ phân biệt chúng nằm ở chương. Ví dụ đã bắt được trong bộ synthesis_live:
+
+        Điều 70  ← Chương V  — BẢO HIỂM XÃ HỘI BẮT BUỘC
+        Điều 102 ← Chương VI — BẢO HIỂM XÃ HỘI TỰ NGUYỆN
+
+    cả hai cùng tên "Hưởng bảo hiểm xã hội một lần". Hỏi về TỰ NGUYỆN thì cả
+    dense lẫn cross-encoder đều chọn Điều 70, vì từ "tự nguyện" không dính vào
+    văn bản index của Điều 102 — trớ trêu là nó lại nằm trong THÂN Điều 70
+    ("không bao gồm số tiền ngân sách nhà nước hỗ trợ đóng bảo hiểm xã hội tự
+    nguyện"). Đáp án đúng không lọt nổi top-6.
+
+    THANG CẤP và lý do khoảng cách:
+
+        1  Chương
+        2  dòng IN HOA          — tiêu đề của chương nằm ở DÒNG SAU số chương
+                                  ("Chương VI" / "BẢO HIỂM XÃ HỘI TỰ NGUYỆN"),
+                                  và chính nó mang từ phân biệt. Phải nằm GIỮA
+                                  Chương và Mục: để cùng cấp với Mục thì Mục đầu
+                                  tiên sẽ hất nó ra và mất đúng từ đó.
+        3  Mục
+        4  Điều
+        5  numbering đa cấp
+
+    Dòng IN HOA ở cấp 2 còn là hàng rào an toàn: một dòng IN HOA lạc giữa
+    chương (vd "ĐIỀU KHOẢN THI HÀNH" in giữa văn bản) chỉ hất được các Mục,
+    KHÔNG hất được Chương — nên chương vẫn sống sót cho mọi điều phía sau.
+    """
+    if _CHUONG_RE.match(text):
+        return 1
+    if _MUC_RE.match(text):
+        return 3
+    if _DIEU_RE.match(text):
+        return 4
+    if _HEADING_RE.match(text):
+        return 5      # numbering đa cấp "1.1", "3.2.1"
+    if text.isupper() and len(text) <= 80:
+        return 2
+    return None
+
+
 
 _DIGITS_RE = re.compile(r"\d+")
 
@@ -161,11 +214,8 @@ def parse_pdf(path: str) -> list[dict]:
         for text in lines:
             if _normalize_digits(text) in furniture:
                 continue
-            is_heading = bool(_HEADING_RE.match(text)) or (
-                text.isupper() and len(text) <= 80
-            )
             blocks.append({"text": text,
-                           "heading_level": 2 if is_heading else None,
+                           "heading_level": heading_level(text),
                            "page": pageno})
     return blocks
 

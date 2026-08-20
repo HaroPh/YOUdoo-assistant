@@ -95,7 +95,16 @@ SYNTHESIS_LIVE_CASES: list[Case] = [
          "deep_chunk", "ngày thứ mười", _XNK, "Điều 9. Thời hạn nộp thuế"),
     # 34/33
     Case("hàng hóa xuất khẩu chịu mức thuế giá trị gia tăng bao nhiêu?",
-         "deep_chunk", "thuế suất 0%", _GTGT, "Điều 9. Thuế suất"),
+         "deep_chunk",
+         # Phương án 2 GHI NHẬN NGÀY 2026-08-20, có dẫn chứng: sau khi
+         # section_path thành phân cấp, model viết đủ cụm "thuế suất giá
+         # trị gia tăng 0%" thay vì "thuế suất 0%". Chạy lại 3 lượt cho
+         # kết quả GIỐNG HỆT nhau — tất định, không phải dao động, nên
+         # không thể chờ nó tự biến mất. Câu trả lời đúng luật (Điều 9:
+         # thuế suất 0% cho hàng hoá xuất khẩu); chuỗi expect cũ mới là
+         # thứ quá hẹp. Vẫn là khớp NGUYÊN VĂN, không có logic mờ.
+         ("thuế suất 0%", "thuế suất giá trị gia tăng 0%"),
+         _GTGT, "Điều 9. Thuế suất"),
     # 91,93,94 / 90. Chunk đầu nói "8%" (nhóm đối tượng khác) — con số cạnh
     # tranh nằm ngay trong CÙNG một mục, nên ca này bắt cả lỗi lấy nhầm khoản.
     Case("người tham gia theo điểm g đóng bảo hiểm xã hội hằng tháng bao nhiêu phần trăm tiền lương?",

@@ -1,26 +1,26 @@
 {
   "set": "multiturn",
   "n": 12,
-  "recall_at_6_no_ctx": 0.8333,
+  "recall_at_6_no_ctx": 0.75,
   "recall_at_6_with_ctx": 1.0,
   "recall_at_20_no_ctx": 0.9167,
   "recall_at_20_with_ctx": 1.0,
-  "mrr_no_ctx": 0.5893,
-  "mrr_with_ctx": 0.8292,
+  "mrr_no_ctx": 0.5906,
+  "mrr_with_ctx": 0.875,
   "by_kind": {
     "elliptical": {
       "n": 8,
-      "recall_at_6_no_ctx": 0.75,
+      "recall_at_6_no_ctx": 0.625,
       "recall_at_6_with_ctx": 1.0,
-      "mrr_no_ctx": 0.5298,
-      "mrr_with_ctx": 0.9
+      "mrr_no_ctx": 0.5109,
+      "mrr_with_ctx": 0.9375
     },
     "independent": {
       "n": 4,
       "recall_at_6_no_ctx": 1.0,
       "recall_at_6_with_ctx": 1.0,
-      "mrr_no_ctx": 0.7083,
-      "mrr_with_ctx": 0.6875
+      "mrr_no_ctx": 0.75,
+      "mrr_with_ctx": 0.75
     }
   },
   "fails": [],

@@ -3,7 +3,7 @@
 import pytest
 
 from evals.multiturn_cases import MULTITURN_CASES
-from evals.retrieval_score import label_of
+from evals.retrieval_score import label_matches, label_of
 from src.rag import db as _db
 
 
@@ -73,6 +73,6 @@ def test_moi_nhan_khop_chunk_that():
 
     real = {label_of(_Row(r)) for r in rows}
     missing = sorted({lab for c in MULTITURN_CASES for lab in c.expect
-                      if lab not in real})
+                      if not any(label_matches(rl, lab) for rl in real)})
     assert not missing, (
         f"{len(missing)} nhãn không khớp chunk thật nào: {missing[:5]}")
