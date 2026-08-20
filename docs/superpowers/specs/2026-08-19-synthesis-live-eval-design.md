@@ -344,3 +344,70 @@ khi đầu tư thêm vào tầng truy xuất.
 - Đổi vai `synthesis` sang 3.5 sẽ dồn **ba vai** (planner + read + synthesis)
   vào một ví 500/ngày, lật lại quyết định 2026-08-13.
 - Chưa đo 3.5 trên các bộ khác mà vai `synthesis` cũng phục vụ.
+
+## 12. Sửa prompt phân định đối tượng (2026-08-20)
+
+Ba ca trượt ở §11.2 đều là một điểm yếu: đứng trước hai Điều gần trùng, model
+trộn / lấy nhầm / bỏ cuộc. `RAG_SYNTHESIS_PROMPT` **không có quy tắc nào** về
+việc phân định nhiều đoạn cùng chủ đề nhưng khác đối tượng áp dụng.
+
+Thêm ĐÚNG MỘT đoạn, viết HẸP: khi nhiều đoạn cùng chủ đề nhưng khác đối
+tượng/trường hợp (bắt buộc vs tự nguyện, công ty một vs hai thành viên, người
+lao động vs người sử dụng lao động), xác định câu hỏi nhắm đối tượng nào rồi
+CHỈ dùng đoạn đó, KHÔNG gộp số liệu. Kèm câu chốt *"Việc chọn đúng đoạn KHÔNG
+phải lý do để từ chối trả lời"*.
+
+Viết hẹp là có chủ đích: đợt `fuse-prompt-obligation-penalty-fix` đã cho thấy
+**quy tắc rộng gây hồi quy, quy tắc hẹp mới sạch**.
+
+### 12.1 Kết quả — hai lượt độc lập, giống hệt nhau
+
+| Số đo | trước | sau (2 lượt) | delta |
+|---|---|---|---|
+| `fact_acc` | 0,8750 | **0,9583** | **+0,0833** |
+| `refusal_acc` | 0,9643 | **1,0000** | **+0,0357** |
+| `citation_acc` | 0,9167 | **1,0000** | **+0,0833** |
+| `distractor` fact | 0,7857 | **0,9286** | **+0,1429** |
+
+Hai trong ba ca trượt được chữa: ca "trộn hai nguồn" (bê trần 8% của Luật
+Thương mại vào câu hỏi Dân sự) và ca "bỏ cuộc" (trả `GUARD_MSG` dù đáp án ở
+hạng 3).
+
+**Rủi ro dự báo KHÔNG xảy ra.** Tôi lo quy tắc sẽ đẩy model sang từ chối nhiều
+hơn — nó vốn đã bỏ cuộc ở một ca. Ngược lại, `refusal_acc` **tăng** lên 1,0.
+Câu chốt "không phải lý do để từ chối" có thể là thứ giữ được điều đó, nhưng
+đó là suy đoán: không đo riêng câu ấy.
+
+### 12.2 Ca còn trượt — cải thiện một phần, chưa dứt điểm
+
+*"bảo hiểm xã hội TỰ NGUYỆN thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?"*
+
+Model **nay nhận ra có hai chế độ** — nó viết "tiền lương/thu nhập", hedge cả
+hai — nhưng vẫn dùng cách diễn đạt *"1,5 tháng"* của Điều 70 (bắt buộc) thay
+vì *"1,5 lần… thu nhập"* của Điều 102 (tự nguyện). Nó ngập ngừng chứ không
+chọn dứt khoát.
+
+Cần nói thẳng một điểm yếu của phép đo ở đây: hai điều luật nêu **cùng một hệ
+số 1,5**, khác nhau ở cách diễn đạt và ở căn cứ (tiền lương vs thu nhập). Nên
+`expect = "1,5 lần"` đang đo **cách diễn đạt** nhiều hơn đo **con số**. Ca này
+vẫn hợp lệ (nó phân biệt được điều nào được dùng) nhưng nó là ca yếu nhất
+trong 14 ca `distractor`.
+
+### 12.3 Kiểm hồi quy trên bộ dùng chung prompt
+
+`RAG_SYNTHESIS_PROMPT` cũng là prompt của `eval_synthesis` (bộ fixture đóng
+băng). Chạy lại với prompt mới: **`grounded_acc = 1,0000` (12/12),
+`false_answer = 0`, `false_insufficient = 0`.** Không hồi quy.
+
+Baseline `synthesis_live` đã ghi lại theo số mới.
+
+### 12.4 Hệ quả cho câu hỏi đổi model
+
+Trước sửa prompt, `3.1-flash-lite` (0,8750 fact / 0,7857 distractor) thua rõ
+`3.5-flash-lite` (0,9583 / 0,9286). **Sau sửa prompt, 3.1 đạt đúng con số của
+3.5**: 0,9583 / 0,9286.
+
+Nghĩa là khoảng cách giữa hai model ở nhóm khó nhất **không phải năng lực
+model, mà là prompt thiếu một quy tắc**. Lý do chính để cân nhắc đổi sang 3.5
+vì thế yếu đi đáng kể — trong khi cái giá (dồn ba vai vào một ví 500/ngày)
+không đổi.
