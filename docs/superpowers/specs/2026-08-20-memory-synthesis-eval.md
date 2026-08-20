@@ -133,8 +133,43 @@ xanh giả nếu node không gửi prompt nào.
 của chân khác rỗng thành số production. Nối lại ký ức vào đường tài liệu thì
 chạy lại ba chân này là thấy thiệt hại ngay.
 
-**Còn nợ, thuộc tab ký ức:** cả 7 ca `MEMORY_CASES` đều chạy với khối RỖNG
-(một lượt, không fact có sẵn), nên phần phát marker `GHI_NHỚ:`/`QUÊN:` và
-`ĐỀ_XUẤT_GHI` — hai hợp đồng token chính xác còn lại nằm sau khối ký ức — chưa
-bao giờ được đo với khối khác rỗng. §3 chứng minh khối ký ức ĐỦ SỨC lấn một
-chỉ thị định dạng cứng, nên đây là rủi ro thật, chưa đo, không phải lỗi đã biết.
+## 8. Nợ đã đóng: bộ `memory` nay cũng có chân đối chứng
+
+Cả 7 ca `MEMORY_CASES` vốn chạy với khối RỖNG (một lượt, không fact có sẵn),
+trong khi production từ lượt thứ hai trở đi LUÔN có khối khác rỗng. §3 chứng
+minh khối ký ức ĐỦ SỨC lấn một chỉ thị định dạng cứng, nên rủi ro "càng nhiều
+fact thì marker càng dễ tịt" là thật — và nó nhắm đúng cơ chế mà tính năng ký
+ức sống nhờ. Đã dựng chân `--memory` cho bộ này (ghép y hệt production:
+`memory + "
+
+" + prompt`, nodes.py:51/:139) và ĐO.
+
+**Kết quả: không quan sát thấy suy giảm.** `gemini-3.1-flash-lite`, `--pace 4.5`:
+
+| chân | số lượt | false_injection | leaked_doc_code | truncated_answer | recall |
+|---|---|---|---|---|---|
+| gốc (khối rỗng) | 1 | 0 | 0 | 0 | 1,0 |
+| `inert` | 3 | 0 | 0 | 0 | 1,0 |
+| `format` | 2 | 0 | 0 | 0 | 1,0 |
+
+Cộng lại **15/15 ca sinh marker đều phát đúng** khi có khối ký ức khác rỗng, 0
+lượt hỏng. Chân `format` ("luôn trả lời gọn trong đúng 2 đoạn") là chân đáng lo
+nhất — sức ép độ dài đối đầu trực tiếp với việc phải in thêm một dòng marker —
+và nó không nuốt marker lần nào.
+
+**Giới hạn của kết luận này, nói thẳng vì đây là kết quả PHỦ ĐỊNH:** mỗi lượt
+chỉ có 3 ca sinh marker, mỗi chân gieo đúng MỘT fact, và `ĐỀ_XUẤT_GHI` không
+nằm trong bộ ca này (`MEMORY_CASES` không có ca ghi/xác nhận) nên hợp đồng token
+đó vẫn chưa được đo với khối khác rỗng. Một suy giảm tất định như §3 hẳn đã lộ
+ra; một suy giảm xác suất thấp thì cỡ mẫu này không thấy được.
+
+**Lượt thứ ba của `format` bỏ dở: cạn hạn mức NGÀY của khoá dự phòng.** Đã
+phân biệt được với giới hạn phút — chạy lại ở `--pace 9` (~6,7 lượt/phút, thừa
+dưới trần 15) vẫn cooldown. Sổ `llm_usage` không phản ánh chuyện này vì nó chỉ
+ghi lượt THÀNH CÔNG.
+
+**Một khiếm khuyết của chính bộ đo, đã vá:** thông điệp `INFRA ERROR` có dấu
+tiếng Việt làm CHÍNH dòng in lỗi ném `UnicodeEncodeError` trên console cp1252,
+nuốt mất chẩn đoán và đổi exit 2 (đọc được) thành exit 1 trống rỗng — đúng lỗi
+này che mất chữ "cooldown" một lượt. `main()` nay đặt
+`sys.stdout.reconfigure(errors="replace")`.

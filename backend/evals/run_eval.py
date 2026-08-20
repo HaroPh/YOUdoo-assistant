@@ -648,7 +648,8 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
-async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None,
+                      memory: str | None = None):
     """Ký ức có bị ghi vu vơ không — đo tầng PROMPT + cổng phủ quyết.
 
     BA chỉ số gác TUYỆT ĐỐI vì đều là hướng nguy hiểm:
@@ -668,13 +669,28 @@ async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
         cụt câu trả lời là dấu hiệu lỗi ranh giới marker bất kể bucket nào,
         không có lý do để miễn gác riêng hai bucket này.
     `recall` chỉ ghi nhận, chưa gác tuyệt đối vì chưa có baseline.
+
+    CHÂN ĐỐI CHỨNG `--memory`: cả 7 ca vốn chạy với khối ký ức RỖNG (một lượt,
+    không fact có sẵn), trong khi production từ lượt thứ hai trở đi LUÔN có
+    khối khác rỗng ghép vào đầu prompt (nodes.py:51, :139). Sau khi cắt ký ức
+    khỏi đường RAG, hai hợp đồng token chính xác còn lại — `GHI_NHỚ:`/`QUÊN:`
+    và `ĐỀ_XUẤT_GHI` — đều nằm SAU khối đó, tức chính cơ chế mà tính năng ký
+    ức sống nhờ. Bộ synthesis_live đã đo được khối ký ức ĐỦ SỨC lấn một chỉ
+    thị định dạng cứng (model bỏ phát KHÔNG_ĐỦ_THÔNG_TIN), nên rủi ro "càng
+    nhiều fact thì marker càng dễ tịt" là thật và chưa từng được đo. Chân này
+    đo nó: cùng 7 ca, đổi ĐÚNG một biến.
     """
     from src.agents import prompts as prompts_mod
     lat: list[float] = []
+    memory_block = MEMORY_PRESETS[memory] if memory else ""
 
     async def call(case):
         prompt_name, question, want = case
         system = getattr(prompts_mod, prompt_name)
+        # Ghép ĐÚNG như production: erp_node/chitchat làm
+        # `prompt = memory + "\n\n" + prompt` (nodes.py:51, :139).
+        if memory_block:
+            system = memory_block + "\n\n" + system
         resp, ms = await _timed(llm.ainvoke(
             [SystemMessage(content=system), HumanMessage(content=question)]))
         lat.append(ms)
@@ -710,7 +726,8 @@ async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
     p50, p95 = _percentiles(lat)
     want_fact = sum(1 for c in MEMORY_CASES if c[2] == "fact")
     missed = sum(1 for f in fails if f["kind"] == "missed")
-    return {"set": "memory", "n": n,
+    return {"set": "memory", "memory_preset": memory or "none",
+            "n": n,
             "false_injection": sum(1 for f in fails if f["kind"] == "false_injection"),
             "leaked_doc_code": sum(1 for f in fails if f["kind"] == "leaked_doc_code"),
             "truncated_answer": sum(1 for f in fails if f["kind"] == "truncated_answer"),
@@ -1236,6 +1253,12 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
 
 
 async def main(argv=None):
+    # Console Windows mặc định cp1252: một thông điệp lỗi có dấu tiếng Việt
+    # làm CHÍNH dòng in lỗi ném UnicodeEncodeError, nuốt mất chẩn đoán và đổi
+    # exit 2 (INFRA ERROR đọc được) thành exit 1 trống rỗng. Gặp thật khi đo
+    # chân --memory: lỗi thật là "cạn chuỗi ... =cooldown" nhưng không ai thấy.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",
@@ -1254,16 +1277,16 @@ async def main(argv=None):
                     help="giây giãn cách giữa 2 call (suy từ catalog: "
                          "(60/rpm)*1.2 cho model đang ghim — vd rpm=15 → ~4.8)")
     ap.add_argument("--memory", choices=sorted(MEMORY_PRESETS),
-                    help="chi voi --set synthesis_live: chay CHAN DOI CHUNG "
-                         "voi mot khoi ky uc khac rong, de do xem ky uc co "
-                         "lam hong grounding/trich dan khong")
+                    help="voi --set synthesis_live hoac --set memory: chay "
+                         "CHAN DOI CHUNG voi mot khoi ky uc khac rong")
     ap.add_argument("--no-rerank", action="store_true",
                     help="chi voi --set retrieval: chay chan doi chung "
                          "RAG_RERANK_ENABLED=0 de tinh rerank_delta")
     args = ap.parse_args(argv)
 
-    if args.memory and args.set != "synthesis_live":
-        ap.error("--memory chỉ dùng được với --set synthesis_live")
+    if args.memory and args.set not in ("synthesis_live", "memory"):
+        ap.error("--memory chỉ dùng được với --set synthesis_live hoặc "
+                 "--set memory")
     if args.memory and args.save_baseline:
         # Baseline của synthesis_live LÀ chân memory="" — ghi đè nó bằng
         # số của một chân ký ức là tự tay xoá mốc so sánh, và lượt chạy
@@ -1283,6 +1306,8 @@ async def main(argv=None):
                "synthesis_live": eval_synthesis_live,
                "multiturn": eval_multiturn, "memory": eval_memory}
         kwargs = {"pace": args.pace}
+        if args.set == "memory":
+            kwargs["memory"] = args.memory
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
         if args.set in ("retrieval", "multiturn"):
