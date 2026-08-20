@@ -174,7 +174,8 @@ async def chat_completions(req: Request):
                 thread_id = _derive_thread_id(body, messages, headers=req.headers,
                                               role=role)
                 answer = await agent.chat(messages, thread_id=thread_id, role=role,
-                                          reset_if_fresh=not _explicit_session(body))
+                                          reset_if_fresh=not _explicit_session(body),
+                                          user_id=req.headers.get("x-openwebui-user-id"))
     except Exception:
         # Finding 2 (live-test 2026-07-10): a transient failure (cloud LLM
         # hiccup/timeout/rate-limit) here used to propagate uncaught → FastAPI

@@ -19,6 +19,8 @@ from .language import EN, VI, detect_lang
 from .localize import localize
 from .models import make_llms
 from . import roles as roles_mod
+from .user_memory import (extract_memory_markers, forget_fact, is_document_code,
+                          normalize_key, save_fact)
 from src.llm import tracing
 
 MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
@@ -29,6 +31,11 @@ PG_CONN      = os.environ.get(
 RECURSION_MSG = ("Yêu cầu này chạy quá số bước xử lý cho phép nên đã được "
                  "dừng an toàn. Nếu bạn vừa yêu cầu một thao tác ghi, hãy "
                  "kiểm tra lại trạng thái đơn trước khi thử lại.")
+
+# Công bố do CODE chèn, KHÔNG giao cho model nhớ: ghi âm thầm đúng là thứ cần
+# tránh, mà model thì có lượt sẽ quên nói (spec §7).
+MEMORY_NOTICE_PREFIX = "📝 Đã ghi nhớ:"
+MEMORY_BLOCKED_PREFIX = "⚠️ Không ghi nhớ:"
 
 
 def _question_from_interrupts(interrupts) -> str | None:
@@ -187,12 +194,17 @@ class ERPAgent:
                                                  role_cfg=cfg, mcp_all_tools=raw_tools)
 
     async def chat(self, messages: list[dict], thread_id: str | None = None,
-                   reset_if_fresh: bool = False, role: str = "admin") -> str:
-        """Lớp bọc: chạy lượt chat rồi đưa câu trả lời qua localize.
+                   reset_if_fresh: bool = False, role: str = "admin",
+                   user_id: str | None = None) -> str:
+        """Lớp bọc: chạy lượt chat, áp marker ký ức, rồi đưa câu trả lời qua localize.
 
         Bọc thay vì vá từng `return`: _chat_inner có SÁU đường ra (câu nhắc
         nhập, từ chối vai, hỏi-lại, RECURSION_MSG, question của interrupt,
         message cuối) và những đường thêm sau này sẽ không ai nhớ vá.
+
+        Ký ức chạy TRƯỚC localize (xem _apply_memory_markers) để bản dịch
+        không làm hỏng marker, và để dòng công bố cũng được dịch cho người
+        dùng tiếng Anh.
 
         `lang` suy từ TOÀN BỘ tin nhắn người dùng trong lượt này, không chỉ tin
         nhắn mới nhất: lượt trả lời xác nhận thường chỉ là "yes"/"1" — quá ngắn
@@ -213,6 +225,7 @@ class ERPAgent:
         answer = await self._chat_inner(messages, thread_id=thread_id,
                                         reset_if_fresh=reset_if_fresh,
                                         role=role)
+        answer = await self._apply_memory_markers(answer, user_id, thread_id)
         lang = VI
         for m in messages or []:
             if m.get("role") == "user" and detect_lang(m.get("content")) == EN:
@@ -222,6 +235,42 @@ class ERPAgent:
             return await localize(answer, lang, self._llms["evaluator"])
         except Exception:                                   # noqa: BLE001
             return answer
+
+    async def _apply_memory_markers(self, answer: str, user_id: str | None,
+                                    thread_id: str | None) -> str:
+        """Bóc marker, ghi ký ức, chèn dòng công bố. KHÔNG BAO GIỜ ném.
+
+        Chạy TRƯỚC localize() để bản dịch không làm hỏng marker, và để dòng
+        công bố cũng được dịch cho người dùng tiếng Anh.
+
+        Marker luôn bị cắt kể cả khi không ghi được (thiếu user_id, DB lỗi,
+        cổng phủ quyết chặn) — ký hiệu máy-đọc không bao giờ được lọt ra câu
+        người dùng đọc.
+        """
+        clean, saves, forgets = extract_memory_markers(answer)
+        if not saves and not forgets:
+            return clean
+        notices: list[str] = []
+        try:
+            for raw_key, value in saves:
+                key = normalize_key(raw_key)
+                if not key:
+                    continue
+                if is_document_code(value):
+                    notices.append(f"{MEMORY_BLOCKED_PREFIX} {key} — ký ức chỉ "
+                                   "giữ quy ước, không giữ mã chứng từ cụ thể.")
+                    continue
+                if user_id:
+                    await save_fact(self._pool, user_id, key, value, thread_id)
+                    notices.append(f'{MEMORY_NOTICE_PREFIX} {key} = {value} '
+                                   '— nói "quên đi" nếu sai.')
+            for raw_key in forgets:
+                key = normalize_key(raw_key)
+                if key and user_id and await forget_fact(self._pool, user_id, key):
+                    notices.append(f"🗑️ Đã bỏ ghi nhớ: {key}")
+        except Exception:                                   # noqa: BLE001
+            return clean
+        return "\n\n".join([clean, *notices]) if notices else clean
 
     async def _chat_inner(self, messages: list[dict], thread_id: str | None = None,
                           reset_if_fresh: bool = False, role: str = "admin") -> str:
