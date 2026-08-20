@@ -1,7 +1,7 @@
 {
   "set": "synthesis_live",
   "n": 28,
-  "fact_acc": 0.9583,
+  "fact_acc": 1.0,
   "refusal_acc": 1.0,
   "citation_acc": 1.0,
   "by_kind": {
@@ -13,7 +13,7 @@
     },
     "distractor": {
       "n": 14,
-      "fact_acc": 0.9286,
+      "fact_acc": 1.0,
       "refusal_acc": 1.0,
       "citation_acc": 1.0
     },
@@ -24,19 +24,8 @@
       "citation_acc": null
     }
   },
-  "lat_p50": 4818,
-  "lat_p95": 11285,
-  "fails": [
-    {
-      "question": "bảo hiểm xã hội TỰ NGUYỆN thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?",
-      "kind": "distractor",
-      "expect": "1,5 lần",
-      "expect_source": "luat-baohiemxahoi.pdf",
-      "answer": "Đối với bảo hiểm xã hội tự nguyện, mức hưởng bảo hiểm xã hội một lần cho mỗi năm đóng được tính như sau:\n\n- Đối với những năm đóng trước năm 2014: Bằng 1,5 tháng mức bình quân tiền lương/thu nhập làm căn cứ đóng bảo hiểm xã hội.\n- Lưu ý rằng mức hưởng này không bao gồm số tiền ngân sách nhà nước hỗ trợ đóng bảo hiểm xã hội tự nguyện (trừ một số trường hợp đặc biệt được quy định tại khoản 4 Điều 70",
-      "refusal_ok": true,
-      "fact_ok": false,
-      "citation_ok": true
-    }
-  ],
+  "lat_p50": 8181,
+  "lat_p95": 25691,
+  "fails": [],
   "errors": []
 }
