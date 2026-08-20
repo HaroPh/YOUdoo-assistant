@@ -29,6 +29,8 @@ from .synthesis import (SAFE_MSG, _format_context, cite_and_verify,
 from .erp_grounding import verify_erp_grounding
 from ..rag.retrieve import retrieve
 from ..rag.types import Chunk
+from ..rag.config import TOP_K
+from .history import previous_user_turn
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +93,14 @@ def make_gather_docs_node():
         query = _last_human(state)
         if not query:
             return {"doc_context": []}
+        # Cùng lý do với rag_node: lượt hỏi liền trước đi vào aux_queries để
+        # truy xuất thấy được ngữ cảnh của câu hỏi nối tiếp rút gọn.
+        prev = previous_user_turn(state["messages"])
         try:
             # retrieve() là psycopg ĐỒNG BỘ — to_thread giữ event loop rảnh
             # cho chân ERP chạy song song trong cùng superstep.
-            result = await asyncio.to_thread(retrieve, query)
+            result = await asyncio.to_thread(
+                retrieve, query, TOP_K, None, (prev,) if prev else ())
             chunks = ([] if result.is_empty() or not passes_floor(result)
                       else result.chunks)
             doc_context = [chunk_to_dict(c) for c in chunks]

@@ -217,3 +217,49 @@ async def test_erp_read_node_skips_verify_when_no_tools_called(monkeypatch):
     )
     await node(state)
     assert calls == []
+
+
+# ── Ngữ cảnh hội thoại cho truy xuất (2026-08-20) ────────────────────────────
+# rag_node và gather_docs đều lấy DUY NHẤT tin nhắn cuối, nên câu hỏi nối tiếp
+# rút gọn ("trong bao lâu?") đi vào retrieve() trần trụi. Đo trên bộ multiturn:
+# recall@6 0,7500 (không ngữ cảnh) vs 1,0000 (có) — một phần tư câu hỏi nối
+# tiếp không tìm ra tài liệu đúng trong 6 chunk gửi cho LLM.
+
+from langchain_core.messages import AIMessage, HumanMessage
+
+from src.agents.history import previous_user_turn
+
+
+def test_previous_user_turn_bo_qua_cau_tra_loi_cua_tro_ly():
+    # Chỉ lấy lượt NGƯỜI DÙNG. Câu trả lời của trợ lý dài và mang văn phong
+    # tổng hợp; nhúng nó thành truy vấn là đưa nhiễu vào pool.
+    msgs = [HumanMessage(content="chính sách đổi trả thế nào?"),
+            AIMessage(content="Khách hàng được hoàn hàng trong 30 ngày..."),
+            HumanMessage(content="thế còn hàng giảm giá?")]
+    assert previous_user_turn(msgs) == "chính sách đổi trả thế nào?"
+
+
+def test_previous_user_turn_luot_dau_tien_khong_co_ngu_canh():
+    msgs = [HumanMessage(content="chính sách đổi trả thế nào?")]
+    assert previous_user_turn(msgs) == ""
+
+
+def test_previous_user_turn_danh_sach_rong():
+    assert previous_user_turn([]) == ""
+
+
+def test_previous_user_turn_chi_lay_MOT_luot_lien_truoc():
+    # Một lượt, KHÔNG phải N: đó là cấu hình đã đo. Nhiều lượt hơn nghĩa là
+    # nhiều ứng viên hơn tranh 20 chỗ trong pool — chưa đo, và đó chính là cơ
+    # chế đã làm hỏng việc hồi sinh chân sparse.
+    msgs = [HumanMessage(content="câu rất cũ"),
+            HumanMessage(content="câu liền trước"),
+            HumanMessage(content="câu hiện tại")]
+    assert previous_user_turn(msgs) == "câu liền trước"
+
+
+def test_previous_user_turn_bo_qua_noi_dung_rong():
+    msgs = [HumanMessage(content="câu thật"),
+            HumanMessage(content="   "),
+            HumanMessage(content="câu hiện tại")]
+    assert previous_user_turn(msgs) == "câu thật"
