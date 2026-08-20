@@ -7,7 +7,8 @@ from pyvi import ViTokenizer
 from . import db as _db
 from .config import RAG_SCHEMA
 from .embed import EmbeddingError, embed_texts, get_embedder
-from .parse import parse_docx, parse_pdf, parse_xlsx
+from .parse import (extract_effective_date, parse_docx, parse_pdf,
+                    parse_xlsx)
 from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
 
 _EXT = {".pdf": "text", ".docx": "text", ".xlsx": "xlsx"}
@@ -80,9 +81,15 @@ def _ingest_file(path: str, conn) -> dict:
     with conn.transaction():
         if existing:
             conn.execute("DELETE FROM rag_documents WHERE doc_id = %s", (doc_id,))  # cascade
+        # Ngày hiệu lực trích từ TOÀN VĂN, không từ riêng chunk nào: điều
+        # khoản thi hành nằm gần cuối văn bản và rơi vào chunk nào là tuỳ tệp.
+        # NULL là hợp lệ — 8/17 tài liệu trong corpus là tài liệu nghiệp vụ
+        # (.docx/.xlsx), không phải văn bản quy phạm nên không có ngày.
+        eff = extract_effective_date(" ".join(c["chunk_text"] for c in chunks))
         conn.execute(
-            "INSERT INTO rag_documents (doc_id, source_file, content_hash) VALUES (%s, %s, %s)",
-            (doc_id, path, content_hash),
+            "INSERT INTO rag_documents (doc_id, source_file, content_hash, "
+            "effective_date) VALUES (%s, %s, %s, %s)",
+            (doc_id, path, content_hash, eff),
         )
         for c, vec in zip(chunks, vectors):
             conn.execute(

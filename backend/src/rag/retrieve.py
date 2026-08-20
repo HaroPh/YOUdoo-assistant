@@ -8,14 +8,19 @@ from .ingest import segment_vi
 from .chunking import index_text
 from .types import Chunk, RetrievalResult
 
-_COLS = ("id, doc_id, source_file, doc_title, section_path, page, sheet, row_range, chunk_text")
+# `d.effective_date` lấy qua LEFT JOIN: nó thuộc rag_documents chứ không
+# thuộc chunk. LEFT chứ không INNER — tài liệu nghiệp vụ không có ngày, và
+# INNER JOIN sẽ lặng lẽ loại chúng khỏi mọi kết quả truy xuất.
+_COLS = ("c.id, c.doc_id, c.source_file, c.doc_title, c.section_path, c.page, "
+         "c.sheet, c.row_range, c.chunk_text, d.effective_date")
+_FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
 
 def _dense(conn, qvec) -> list[tuple]:
     return conn.execute(
-        f"SELECT {_COLS}, 1 - (embedding <=> %s::vector) AS score "
-        f"FROM rag_chunks WHERE embedding IS NOT NULL "
-        f"ORDER BY embedding <=> %s::vector LIMIT %s",
+        f"SELECT {_COLS}, 1 - (c.embedding <=> %s::vector) AS score "
+        f"FROM {_FROM} WHERE c.embedding IS NOT NULL "
+        f"ORDER BY c.embedding <=> %s::vector LIMIT %s",
         (qvec, qvec, TOP_N),
     ).fetchall()
 
@@ -45,8 +50,8 @@ def _sparse(conn, qseg) -> list[tuple]:
     mỗi chân giữ TOP_N riêng thay vì chia nhau 20 chỗ), chứ không phải sửa
     truy vấn."""
     return conn.execute(
-        f"SELECT {_COLS}, ts_rank(ts_vector, plainto_tsquery('simple', %s)) AS score "
-        f"FROM rag_chunks WHERE ts_vector @@ plainto_tsquery('simple', %s) "
+        f"SELECT {_COLS}, ts_rank(c.ts_vector, plainto_tsquery('simple', %s)) AS score "
+        f"FROM {_FROM} WHERE c.ts_vector @@ plainto_tsquery('simple', %s) "
         f"ORDER BY score DESC LIMIT %s",
         (qseg, qseg, TOP_N),
     ).fetchall()
@@ -122,7 +127,9 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
             pool.append(Chunk(
                 chunk_id=row[0], doc_id=row[1], source_file=row[2], doc_title=row[3],
                 section_path=row[4], page=row[5], sheet=row[6], row_range=row[7],
-                text=row[8], dense_score=e["dense"], sparse_score=e["sparse"],
+                text=row[8],
+                effective_date=row[9].isoformat() if row[9] else None,
+                dense_score=e["dense"], sparse_score=e["sparse"],
                 rrf_score=e["rrf"], rank=rank))
         rerank_query = query if not aux_queries else query + "\n" + "\n".join(aux_queries)
         chunks, reranked = rerank(rerank_query, pool)

@@ -76,6 +76,46 @@ def detect_page_furniture(pages: list[list[str]], *, min_pages: int = 5,
             and at_edge.get(key, 0) / total[key] >= edge_ratio}
 
 
+# "hiệu lực THI HÀNH từ ngày ..." — KHÔNG phải "có hiệu lực từ ngày ...".
+# Cụm "có hiệu lực" xuất hiện dày đặc trong NỘI DUNG điều luật (hiệu lực của
+# hợp đồng, của giao dịch dân sự), và bản đầu của regex này khớp đúng chúng:
+# đo trên 9 PDF thì 8 tệp trả về câu về hiệu lực HỢP ĐỒNG, chỉ 1 tệp ra ngày
+# thật. Chữ "thi hành" là thứ phân biệt ngày của CHÍNH VĂN BẢN với mọi cách
+# dùng khác.
+_EFFECTIVE_RE = re.compile(
+    r"hiệu\s+lực\s+thi\s+hành\s+(?:kể\s+)?từ\s+ngày\s+"
+    r"(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})",
+    re.IGNORECASE)
+
+
+def extract_effective_date(text: str | None):
+    """Ngày hiệu lực của văn bản, hoặc None.
+
+    None là kết quả HỢP LỆ, không phải lỗi: 8 tài liệu nghiệp vụ (.docx,
+    .xlsx) trong corpus không phải văn bản quy phạm và không có ngày hiệu lực.
+    Cả 9/9 PDF luật thì đều đọc được ngày (đo 2026-08-20 trên DB thật).
+
+    Con số 9/9 này SỬA LẠI một phép đo sai của chính tôi. Phép đo đầu báo 8/9
+    vì nó đi tìm MỤC mang tên "Hiệu lực thi hành"; `luat-doanhnghiep.pdf` đặt
+    tên mục là "Điều khoản thi hành" nên bị bỏ sót, dù câu "Luật này có hiệu
+    lực thi hành từ ngày 01 tháng 01 năm 2021" nằm ngay trong đó. Tìm theo CÂU
+    trên toàn văn không phụ thuộc vào cách đặt tên mục, nên bắt được cả hai.
+
+    Ngày không hợp lệ (45 tháng 13) trả None thay vì ném: một cú trích hỏng
+    không được làm vỡ việc ingest cả tài liệu."""
+    import datetime as _dt
+    if not text:
+        return None
+    m = _EFFECTIVE_RE.search(text)
+    if not m:
+        return None
+    day, month, year = (int(x) for x in m.groups())
+    try:
+        return _dt.date(year, month, day)
+    except ValueError:
+        return None
+
+
 def parse_docx(path: str) -> list[dict]:
     """Blocks in order; a heading block carries heading_level (1..n), body carries None."""
     doc = Document(path)

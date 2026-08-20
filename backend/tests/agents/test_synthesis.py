@@ -345,3 +345,41 @@ def test_extract_write_suggestion_dinh_cuoi_cau_khong_xuong_dong():
     assert "ĐỀ_XUẤT_GHI" not in clean
     assert clean == ("Bạn có muốn tôi tiến hành tạo đơn mua 20 cái từ nhà cung cấp "
                      "Acme Corporation không?")
+
+
+def test_footer_hien_ngay_hieu_luc_dang_viet():
+    """Ngày nằm giữa tên tệp và số trang, dạng dd/mm/yyyy."""
+    c = _chunk(source_file="/docs/luat-thuegtgt.pdf",
+               section_path="Điều 9. Thuế suất", page=3,
+               effective_date="2025-07-01")
+    out = build_citations([c])
+    assert "• Điều 9. Thuế suất (luat-thuegtgt.pdf, hiệu lực 01/07/2025, tr.3)" in out
+
+
+def test_footer_bo_ngay_khi_khong_co():
+    """NULL không được sinh ra "hiệu lực None" — đây là ca THƯỜNG GẶP: mọi
+    tài liệu nghiệp vụ đều rơi vào đây."""
+    out = build_citations([_chunk(source_file="/docs/quy-trinh.pdf",
+                                  section_path="Mục 1", page=2,
+                                  effective_date=None)])
+    assert "• Mục 1 (quy-trinh.pdf, tr.2)" in out
+    assert "hiệu lực" not in out
+
+
+def test_footer_giu_nguyen_basename_cho_citation_acc():
+    """Bộ synthesis_live chấm bằng `expect_source in footer` với basename.
+    Chèn ngày KHÔNG được cắt đôi chuỗi đó."""
+    out = build_citations([_chunk(source_file="/docs/boluat-laodong.pdf",
+                                  effective_date="2021-01-01")])
+    assert "boluat-laodong.pdf" in out
+
+
+def test_footer_ngay_di_vao_duoc_state_json():
+    """Chunk mang ngày phải còn tuần tự hoá JSON được.
+
+    Đây là ràng thật của bất biến ở fanout.py: nếu ai đó đổi kiểu trường này
+    về datetime.date thì test này đỏ ngay, thay vì hỏng lúc gặp checkpointer
+    Postgres thật trên production."""
+    import json
+    from src.agents.fanout import chunk_to_dict
+    json.dumps(chunk_to_dict(_chunk(effective_date="2021-01-01")))
