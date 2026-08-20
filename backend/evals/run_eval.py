@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from evals.cases import (CHITCHAT_CASES, CONFIRM_CASES, GATHER_CASES,
                          HALLUCINATION_MARKERS, INTENT_CASES,
-                         LANGUAGE_CASES, LOCALIZE_CASES, MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
+                         LANGUAGE_CASES, LOCALIZE_CASES, MEMORY_CASES, MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS,
                          MULTI_SOURCE_GATHER_CASES,
                          PLANNER_CASES, READ_CASES, SOP_SELECT_CASES,
                          SYNTHESIS_CASES, WRITE_TOOL_NAMES)
@@ -46,6 +46,7 @@ from src.agents.synthesis import (SENTINEL, _format_context, _MARKER_RE,
 from src.agents.nodes import _parse_plan_tiered
 from src.agents.routing import parse_proposal, decide_route
 from src.agents.language import _EN_WORDS, _WORD as _EN_WORD_RE
+from src.agents.user_memory import extract_memory_markers, is_document_code
 from src.erp_query.tools import build_erp_query_tools
 from jobs.resilience import run_resilient
 from evals import role_config
@@ -645,6 +646,53 @@ async def eval_language(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
+async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
+    """Ký ức có bị ghi vu vơ không — đo tầng PROMPT + cổng phủ quyết.
+
+    Hai chỉ số gác TUYỆT ĐỐI vì đều là hướng nguy hiểm:
+      false_injection — ghi một fact người dùng không hề khai. Ký ức sai KHÔNG
+        báo lỗi, nó chỉ âm thầm làm mọi câu trả lời sau tệ đi.
+      leaked_doc_code — mã chứng từ lọt vào ký ức, rồi rò sang cloud chitchat
+        ở lượt sau (M5/ADR-009).
+    `recall` chỉ ghi nhận, chưa gác: chưa có baseline.
+    """
+    from src.agents import prompts as prompts_mod
+    lat: list[float] = []
+
+    async def call(case):
+        prompt_name, question, want = case
+        system = getattr(prompts_mod, prompt_name)
+        resp, ms = await _timed(llm.ainvoke(
+            [SystemMessage(content=system), HumanMessage(content=question)]))
+        lat.append(ms)
+        body = (resp.content or "").strip()
+        _clean, saves, _forgets = extract_memory_markers(body)
+        stored = [(k, v) for k, v in saves if not is_document_code(v)]
+        if want == "none" and saves:
+            return {"case": question, "want": want, "got": saves,
+                    "kind": "false_injection"}
+        if want == "fact" and not stored:
+            return {"case": question, "want": want, "got": saves,
+                    "kind": "missed"}
+        if want == "blocked" and stored:
+            return {"case": question, "want": want, "got": stored,
+                    "kind": "leaked_doc_code"}
+        return None
+
+    fails, errors = await run_resilient(MEMORY_CASES, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(MEMORY_CASES)
+    p50, p95 = _percentiles(lat)
+    want_fact = sum(1 for c in MEMORY_CASES if c[2] == "fact")
+    missed = sum(1 for f in fails if f["kind"] == "missed")
+    return {"set": "memory", "n": n,
+            "false_injection": sum(1 for f in fails if f["kind"] == "false_injection"),
+            "leaked_doc_code": sum(1 for f in fails if f["kind"] == "leaked_doc_code"),
+            "recall": (want_fact - missed) / want_fact if want_fact else 0.0,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
 async def eval_confirm(llm, pace: float = 0.0, checkpoint_path=None):
     lat: list[float] = []
 
@@ -1089,7 +1137,7 @@ async def main(argv=None):
                     choices=["intent", "confirm", "chitchat", "planner", "read",
                              "synthesis", "multi_source", "sop_select",
                              "language", "localize", "retrieval",
-                             "synthesis_live"],
+                             "synthesis_live", "memory"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
@@ -1113,7 +1161,8 @@ async def main(argv=None):
                "multi_source": eval_multi_source, "sop_select": eval_sop_select,
                "language": eval_language, "localize": eval_localize,
                "retrieval": eval_retrieval,
-               "synthesis_live": eval_synthesis_live}
+               "synthesis_live": eval_synthesis_live,
+               "memory": eval_memory}
         kwargs = {"pace": args.pace}
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role

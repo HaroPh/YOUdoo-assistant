@@ -231,6 +231,18 @@ def _fake_language_eval(acc=1.0, n=6):
     return fn
 
 
+def _fake_memory_eval(false_injection=0, leaked_doc_code=0, recall=1.0, n=7):
+    async def fn(llm, **kwargs):
+        fn.calls.append(kwargs)
+        return {"set": "memory", "n": n,
+                "false_injection": false_injection,
+                "leaked_doc_code": leaked_doc_code,
+                "recall": recall,
+                "lat_p50": 1, "lat_p95": 2, "fails": [], "errors": []}
+    fn.calls = []
+    return fn
+
+
 def test_chitchat_zero_violations_passes(monkeypatch):
     fchat = _fake_chitchat_eval(violations=0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
@@ -376,6 +388,11 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     được viết ra để bắt. An toàn để đưa lại vì `eval_language`'s "en" giờ đòi
     bằng chứng dương (Fix 5 cùng đợt), không còn suy ngầm từ thiếu bằng chứng
     tiếng Việt (từng khiến body rỗng/lỗi lặng lẽ tính là "en" = PASS giả).
+
+    `memory` (Task 7) CŨNG NẰM TRONG "all": nó có hai điều kiện an toàn TUYỆT
+    ĐỐI (false_injection == 0, leaked_doc_code == 0), đúng tiền lệ `chitchat`
+    và `language` — không phải phép đo tương đối cần baseline chưa có.
+
     Ba set còn lại KHÔNG nằm trong "all": gather, multi_source_gather,
     localize — đều có gate không theo baseline nên để trong "all" chỉ tạo
     PASS/FAIL giả mà không gác được thứ gì thật.
@@ -444,6 +461,12 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     flanguage = _fake_language_eval(acc=1.0)
     monkeypatch.setitem(eval_gate.EVAL_FN, "language", flanguage)
 
+    # memory NẰM TRONG "all": hai điều kiện an toàn TUYỆT ĐỐI
+    # (false_injection == 0, leaked_doc_code == 0), đúng tiền lệ chitchat và
+    # language. Không thêm vào tập loại trừ.
+    fmemory = _fake_memory_eval()
+    monkeypatch.setitem(eval_gate.EVAL_FN, "memory", fmemory)
+
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == \
@@ -453,8 +476,10 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     assert "multi_source_gather" not in result.detail
     assert "localize" not in result.detail
     assert "language" in result.detail
+    assert "memory" in result.detail
     assert result.exit_code == PASS
-    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop, flanguage):
+    for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop, flanguage,
+               fmemory):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
     assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
     assert fmsg.calls == [], "multi_source_gather KHÔNG được chạy dưới --set all"

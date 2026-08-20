@@ -862,3 +862,18 @@ LANGUAGE_CASES = [
     ("FUSE_PROMPT", "does order S00165 meet the delivery SLA?", "en"),
     ("FUSE_PROMPT", "đơn S00165 có đáp ứng SLA giao hàng không?", "vi"),
 ]
+
+# ── MEMORY_CASES ─────────────────────────────────────────────────────────────
+# (tên prompt, câu người dùng, loại kỳ vọng).
+#   "none"    — KHÔNG được phát marker (hướng nguy hiểm: gác tuyệt đối)
+#   "fact"    — phải phát marker, giá trị hợp lệ
+#   "blocked" — model có thể phát marker, nhưng cổng tất định PHẢI chặn
+MEMORY_CASES = [
+    ("CHITCHAT_PROMPT", "hôm nay trời đẹp nhỉ", "none"),
+    ("CHITCHAT_PROMPT", "cảm ơn bạn nhiều nhé", "none"),
+    ("SYSTEM_PROMPT", "cho tôi xem chi tiết đơn mua P00003", "none"),
+    ("CHITCHAT_PROMPT", "từ giờ trả lời ngắn gọn thôi nhé", "fact"),
+    ("CHITCHAT_PROMPT", "kho chính của tôi là WH/Stock", "fact"),
+    ("SYSTEM_PROMPT", "nhớ giúp tôi là đơn khẩn nghĩa là giao trong 24h", "fact"),
+    ("SYSTEM_PROMPT", "nhớ giúp tôi đơn P00003 là đơn quan trọng nhất", "blocked"),
+]

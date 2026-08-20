@@ -57,7 +57,8 @@ ROLE_FOR_SET = {"intent": "router", "confirm": "evaluator", "chitchat": "chitcha
                 "multi_source_gather": "fusion",
                 "gather": "fusion",
                 "localize": "evaluator",
-                "language": "chitchat"}
+                "language": "chitchat",
+                "memory": "chitchat"}
 EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "chitchat": run_eval.eval_chitchat, "planner": run_eval.eval_planner,
            "read": run_eval.eval_read, "synthesis": run_eval.eval_synthesis,
@@ -66,7 +67,8 @@ EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "gather": run_eval.eval_gather,
            "multi_source_gather": run_eval.eval_multi_source_gather,
            "localize": run_eval.eval_localize,
-           "language": run_eval.eval_language}
+           "language": run_eval.eval_language,
+           "memory": run_eval.eval_memory}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -136,6 +138,11 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # không phải phép đo chất lượng tương đối. Trả lời sai ngôn ngữ là hỏng
         # hẳn với người dùng đó, không phải "kém hơn hôm qua".
         return result["acc"] == 1.0
+    if set_name == "memory":
+        # Hai điều kiện TUYỆT ĐỐI, không so baseline: cả hai đều là hướng
+        # nguy hiểm (ghi vu vơ / rò mã chứng từ). recall chưa gác vì chưa có
+        # baseline — ghi số vào báo cáo để người đọc tự đánh giá.
+        return result["false_injection"] == 0 and result["leaked_doc_code"] == 0
     if set_name == "intent":
         return result["acc"] >= base["acc"]
     return (result["false_confirm"] == 0
@@ -310,6 +317,16 @@ def run(args) -> JobResult:
                              lat_p95=result.get("lat_p95"))
                 print(f"[{set_name}] model={model} pace={pace}s "
                       f"acc={result.get('acc')} → {'PASS' if ok else 'FAIL'}")
+            elif set_name == "memory":
+                entry.update(false_injection=result.get("false_injection"),
+                             leaked_doc_code=result.get("leaked_doc_code"),
+                             recall=result.get("recall"),
+                             lat_p50=result.get("lat_p50"),
+                             lat_p95=result.get("lat_p95"))
+                print(f"[{set_name}] model={model} pace={pace}s "
+                      f"false_injection={result.get('false_injection')} "
+                      f"leaked_doc_code={result.get('leaked_doc_code')} "
+                      f"recall={result.get('recall')} → {'PASS' if ok else 'FAIL'}")
             else:
                 # chitchat
                 entry["violations"] = result["violations"]
