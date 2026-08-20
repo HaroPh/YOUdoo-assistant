@@ -9,7 +9,7 @@ import uuid
 import pytest
 from psycopg_pool import AsyncConnectionPool
 
-from src.agents.user_memory import forget_fact, load_active_facts, save_fact
+from src.agents.user_memory import MEMORY_CAP, forget_fact, load_active_facts, save_fact
 
 pytestmark = pytest.mark.integration
 
@@ -75,3 +75,25 @@ async def test_ky_uc_cua_nguoi_nay_khong_lo_sang_nguoi_khac(pool, user_id):
     other = f"{user_id}-other"
     await save_fact(pool, user_id, "kho_chinh", "WH/Stock", "thread-1")
     assert await load_active_facts(pool, other) == []
+
+
+async def test_vuot_tran_thi_bo_fact_cu_nhat_va_giu_fact_moi(pool, user_id):
+    """MEMORY_CAP phải bỏ fact CŨ NHẤT, giữ fact MỚI NHẤT.
+
+    Sai chiều (DESC ↔ ASC) sẽ âm thầm vứt đúng thứ người dùng VỪA nói, và
+    không ca test nào khác trong file này bắt được — đó là lý do ca này tồn tại.
+    """
+    total = MEMORY_CAP + 2
+    for i in range(total):
+        await save_fact(pool, user_id, f"key_{i:03d}", f"value_{i:03d}", "t")
+
+    keys = [key for key, _value in await load_active_facts(pool, user_id)]
+    assert len(keys) == MEMORY_CAP
+    assert f"key_{total - 1:03d}" in keys, "fact MỚI NHẤT phải còn hiệu lực"
+    assert "key_000" not in keys, "fact CŨ NHẤT phải bị supersede"
+
+    # Append-only: vượt trần là SUPERSEDE, không phải xoá.
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "SELECT count(*) FROM user_memory WHERE user_id = %s", (user_id,))
+        assert (await cur.fetchone())[0] == total
