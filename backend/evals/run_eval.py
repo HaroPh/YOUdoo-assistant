@@ -906,7 +906,8 @@ def _score_fusion(body: str, chunks, erp_text: str, doc_fact, erp_fact,
     return {"both": both, "citation_ok": citation_ok, "fabricated": fabricated}
 
 
-async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None,
+                           memory: str | None = None):
     """Đo tổng hợp 2 nguồn trên fixture đóng băng — mirror node fuse_answer.
 
     Prompt VÀ hình dạng input đều lấy từ production (FUSE_PROMPT,
@@ -921,13 +922,25 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
     Chấm điểm nằm ở _score_fusion (dùng chung với eval_multi_source_gather);
     set này không dùng whitelist số hợp lệ ngoài để giữ nguyên công thức đang gác.
     """
+    # Ghep khoi ky uc Y HET production: fanout.py:202-204 lam
+    # `system = memory + "\n\n" + FUSE_PROMPT`. Dung lai chinh cong thuc do,
+    # khong dung lai bang tay — day la dieu kien de mirror khong troi.
+    #
+    # VI SAO PHAI DO DUONG NAY. Ky uc da bi CAT khoi rag_node (ce2704b) sau khi
+    # do ra ba loai fact deu khong duong tren duong tai lieu. Nhung fuse_answer
+    # VAN nhan khoi ky uc, va no cung sinh cau tra loi co can cu tai lieu: cung
+    # hop dong NGUON_DUNG:, cung cite_and_verify. Nguoi dung THAT dang mang san
+    # fact `do_dai_phan_hoi = ngan_gon` — dung loai fact da do duoc lam mat 8,3%
+    # fact_acc tren duong RAG.
+    system = ((MEMORY_PRESETS[memory] + "\n\n" + FUSE_PROMPT)
+              if memory else FUSE_PROMPT)
     lat: list[float] = []
 
     async def call(case):
         topic, erp_block, question, doc_fact, erp_fact = case
         chunks = fixtures.load_chunks(topic)
         resp, ms = await _timed(llm.ainvoke([
-            SystemMessage(content=FUSE_PROMPT),
+            SystemMessage(content=system),
             HumanMessage(content=render_fuse_input(chunks, erp_block, question)),
         ]))
         lat.append(ms)
@@ -951,6 +964,7 @@ async def eval_multi_source(llm, pace: float = 0.0, checkpoint_path=None):
     # khác. Khi có errors thì eval_gate trả INFRA_ERROR trước khi gate chạy
     # (bất biến Global Constraints), nên 2 cách chia tương đương trong thực tế.
     return {"set": "multi_source", "n": n,
+            "memory_preset": memory or "none",
             "both_source_coverage": (measured - no_both) / n if n else 0.0,
             "citation_validity": (measured - bad_cite) / n if n else 0.0,
             "fabricated_number": fabricated_number,
@@ -1284,9 +1298,10 @@ async def main(argv=None):
                          "RAG_RERANK_ENABLED=0 de tinh rerank_delta")
     args = ap.parse_args(argv)
 
-    if args.memory and args.set not in ("synthesis_live", "memory"):
-        ap.error("--memory chỉ dùng được với --set synthesis_live hoặc "
-                 "--set memory")
+    if args.memory and args.set not in ("synthesis_live", "memory",
+                                        "multi_source"):
+        ap.error("--memory chỉ dùng được với --set synthesis_live, "
+                 "--set memory hoặc --set multi_source")
     if args.memory and args.save_baseline:
         # Baseline của synthesis_live LÀ chân memory="" — ghi đè nó bằng
         # số của một chân ký ức là tự tay xoá mốc so sánh, và lượt chạy
@@ -1306,7 +1321,7 @@ async def main(argv=None):
                "synthesis_live": eval_synthesis_live,
                "multiturn": eval_multiturn, "memory": eval_memory}
         kwargs = {"pace": args.pace}
-        if args.set == "memory":
+        if args.set in ("memory", "multi_source"):
             kwargs["memory"] = args.memory
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
