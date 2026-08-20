@@ -147,3 +147,79 @@ cho chuỗi `expect` giòn; đọc kỹ ra câu trả lời sai thật.
 **Thay đổi rẻ nhất thường ở prompt, nhưng chỉ khi có thước đo.** Một đoạn văn
 cho +0,143 ở nhóm khó nhất. Không có `synthesis_live` thì không ai biết nó có
 tác dụng hay không.
+
+---
+
+## Kết thúc lộ trình — 2026-08-20 (cuối ngày)
+
+Toàn bộ mục trong lộ trình này đã đóng. Ghi lại kết quả và, quan trọng hơn,
+**những giả thuyết bị bác bỏ** — chúng đắt hơn phần được làm.
+
+### Đã làm
+
+| Mục | Kết quả | Commit |
+|---|---|---|
+| A3 ngày hiệu lực | thu thập + hiển thị trên trích dẫn, 9/9 PDF luật | `58d026f` |
+| B2 reranker | cross-encoder thành **lá phiếu** hoà RRF, thôi ghi đè | `347c35f` |
+| P3b phân cấp mục | `Chương › Mục › Điều`, đóng luôn B1 | `a7cbf5c` |
+
+Số đo cuối, so với đầu đợt:
+
+| | đầu | cuối |
+|---|---|---|
+| retrieval recall@20 | 1,0 | 1,0 |
+| retrieval mrr | 0,8385 | **0,8646** |
+| retrieval `trap` mrr | 0,8458 | **0,9375** |
+| multiturn mrr | 0,9375\* | 0,8750 |
+| synthesis_live fact_acc | 0,9583 | **1,0000** |
+
+\* multiturn mrr đầu đợt đo ở chế độ reranker ghi đè — chế độ về sau bị bác vì
+nó làm hai câu `hard` mất hẳn đáp án khỏi top-6. Xem docstring `rerank()`.
+
+### Bị bác bỏ bằng phép đo (đừng làm lại)
+
+**1. Trần số chunk mỗi mục trong `compress()`** — tag `parked/rag-section-cap`.
+Ghi chú park đặt điều kiện "đo bằng eval sinh câu trả lời qua retrieval thật";
+điều kiện đã đủ (`synthesis_live`), và bộ đó đạt `fact_acc = 1,0` nên không còn
+khoảng trống nào để chiếm. Đo lại trên corpus sau P3b: `cap=0/1/2` cho recall@6
+**y hệt** (0,9688), mrr xê dịch 0,0008 = 0,05 ca trên n=64. Code giữ trong tag.
+
+**2. Đưa ngữ cảnh hội thoại vào `synthesize()`.** Tiền đề: câu hỏi nối tiếp rút
+gọn tới `synthesize()` trần trụi nên model không biết đang nói về gì. Đo:
+
+- 8/8 ca `elliptical` của bộ `multiturn` trả lời **đúng** khi KHÔNG có ngữ cảnh
+  ở prompt tổng hợp, kể cả *"trong bao lâu?"* (không còn một từ nội dung nào).
+  Lý do: chính các chunk truy xuất được đã mang chủ đề.
+- Trên một ca đối kháng cố ý dựng để phá (*"loại đầu tiên có bắt buộc lập hội
+  đồng thành viên không?"* sau lượt so sánh hai loại công ty), thêm ngữ cảnh vào
+  prompt **KHÔNG chữa được**: sai 2/2 lượt, y hệt khi không thêm.
+
+Vì sao không chữa được: top-6 toàn chunk *hai thành viên trở lên*; chunk *một
+thành viên* duy nhất trong pool 20 nằm hạng 15 và nói về chuyện khác. Nội dung
+đúng **không có mặt**, nên prompt có thêm gì cũng vô ích.
+
+### Giới hạn còn lại, đã đo, CHƯA làm
+
+Tham chiếu thứ tự/chỉ định trong câu nối tiếp (*"loại đầu tiên"*, *"cái sau"*)
+không được giải thành từ khoá truy xuất. Viết lại truy vấn chỉ chữa được một
+phần — đo thử với tham chiếu đã giải sẵn: 0/6 → **1/6** chunk đúng mục, và hạng
+1 rơi vào `CÔNG TY HỢP DANH › Điều 182. Hội đồng thành viên`, loại hình thứ ba.
+
+Nguyên nhân sâu hơn: "Hội đồng thành viên" là tiêu đề dùng chung ở **4 chương**
+(đúng cặp ×4 đã đếm khi làm P3b). Giải nó cần định tuyến theo mục chứ không chỉ
+viết lại truy vấn. **Đây là bài toán mới, không phải nợ của lộ trình này**, và
+ca trên là ca tôi tự dựng để phá chứ không phải câu hỏi thật hay ca eval.
+
+### Vận hành — đọc trước khi chạy eval
+
+Lỗi `cạn chuỗi cho vai 'synthesis': ...=cooldown` mang **hai nguyên nhân khác
+hẳn nhau**, phải phân biệt trước khi xử lý:
+
+1. **Chạm trần lượt/phút** (15/phút ở free tier). Bộ eval bắn 28 ca liên tiếp là
+   dính. Chữa bằng `--pace 4.5`, KHÔNG phải đổi khoá API.
+2. **Cạn hạn mức ngày** (500/ngày/model/project). Lúc này Google trả nguyên văn
+   `GenerateRequestsPerDayPerProjectPerModel-FreeTier`.
+
+Phân biệt bằng cách đọc thông điệp 429 thật, đừng đọc chữ "cooldown" — đó chỉ là
+trạng thái ngắt mạch nội bộ. Sổ `llm_usage` KHÔNG dùng để phân biệt được: nó chỉ
+ghi lượt **thành công** nên luôn thấp hơn con số Google tính.
