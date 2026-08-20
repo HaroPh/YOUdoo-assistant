@@ -124,3 +124,46 @@ async def forget_fact(pool, user_id: str, key: str) -> bool:
             "UPDATE user_memory SET superseded_by = id "
             "WHERE id = ANY(%s)", ([r[0] for r in rows],))
         return True
+
+
+MEMORY_SAVE_MARKER = "GHI_NHỚ"
+MEMORY_FORGET_MARKER = "QUÊN"
+
+# Hai pattern mỗi marker, đúng khuôn _WRITE_SUGGEST_RE / _WRITE_SUGGEST_TRAILING_RE
+# ở synthesis.py. Pattern neo-đầu-dòng KHÔNG đủ: model dán marker vào cuối câu
+# trong thực tế (bug thật 2026-08-06), khiến marker lộ ra văn bản hiển thị.
+_SAVE_LINE = re.compile(rf'\n?^{MEMORY_SAVE_MARKER}:([^\n]*)',
+                        re.IGNORECASE | re.MULTILINE)
+_SAVE_TAIL = re.compile(rf'[ \t]*{MEMORY_SAVE_MARKER}:([^\n]*)$', re.IGNORECASE)
+_FORGET_LINE = re.compile(rf'\n?^{MEMORY_FORGET_MARKER}:([^\n]*)',
+                          re.IGNORECASE | re.MULTILINE)
+_FORGET_TAIL = re.compile(rf'[ \t]*{MEMORY_FORGET_MARKER}:([^\n]*)$', re.IGNORECASE)
+
+
+def extract_memory_markers(body: str) -> tuple[str, list[tuple[str, str]], list[str]]:
+    """Tách marker ký ức khỏi văn bản. Người dùng KHÔNG BAO GIỜ thấy marker.
+
+    Trả (văn bản sạch, [(key thô, value)], [key thô cần quên]). Key ở đây còn
+    THÔ — caller phải gọi normalize_key(). Tách hai việc để test được riêng.
+
+    Marker viết sai khuôn (thiếu dấu '=') bị BỎ QUA nhưng vẫn bị CẮT khỏi văn
+    bản: thà mất một ghi nhớ còn hơn để lộ ký hiệu máy-đọc ra câu người dùng.
+    """
+    text = body or ""
+    saves: list[tuple[str, str]] = []
+    forgets: list[str] = []
+
+    for pattern in (_SAVE_LINE, _SAVE_TAIL):
+        for raw in pattern.findall(text):
+            key, sep, value = raw.partition("=")
+            if sep and key.strip() and value.strip():
+                saves.append((key.strip(), value.strip()))
+        text = pattern.sub("", text)
+
+    for pattern in (_FORGET_LINE, _FORGET_TAIL):
+        for raw in pattern.findall(text):
+            if raw.strip():
+                forgets.append(raw.strip())
+        text = pattern.sub("", text)
+
+    return text.rstrip(), saves, forgets
