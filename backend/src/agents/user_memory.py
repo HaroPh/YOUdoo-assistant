@@ -33,13 +33,17 @@ def normalize_key(raw: str) -> str:
     return _NON_WORD.sub("_", text).strip("_")
 
 
-# Mã chứng từ CỤ THỂ — hai hình dạng thật trong repo này:
+# Mã chứng từ CỤ THỂ — ba hình dạng thật trong repo này:
 #   - chữ+số liền: P00003, S00012, E-COM07
 #   - có gạch chéo VÀ có chữ số: INV/2026/00004, WH/OUT/00001
+#   - sổ nhật ký Odoo CÓ CHỮ SỐ ngay ở đoạn đầu: BNK1/2026/00001,
+#     PBNK1/2026/00001, CSH1/2026/00007 — final review đo được đoạn đầu
+#     "[A-Z]{2,}" (chỉ chữ) để lọt cả ba, vì post_invoice/register_payment
+#     làm vai đọc thấy đúng những tên sổ này.
 # Ranh giới cố ý: "WH/Stock" (không chữ số) là tên KHO — một quy ước, cho qua.
 # "WH/OUT/00001" (có chữ số) là MỘT phiếu cụ thể — chặn.
 _DOC_CODE = re.compile(r"\b[A-Z]{1,4}-?[A-Z]{0,4}\d{2,}\b|"
-                       r"\b[A-Z]{2,}(?:/[A-Z0-9]+)*/\d+\b",
+                       r"\b[A-Z][A-Z0-9]*(?:/[A-Z0-9]+)*/\d+\b",
                        re.IGNORECASE)
 
 
@@ -92,25 +96,39 @@ async def save_fact(pool, user_id: str, key: str, value: str,
     """Chèn fact mới và supersede mọi bản cũ CÙNG key. Không bao giờ UPDATE giá trị.
 
     Vượt MEMORY_CAP thì supersede fact CŨ NHẤT — không xoá, nên vẫn truy lại được.
+
+    BA CÂU LỆNH TRONG MỘT TRANSACTION: pool production mở với autocommit=True
+    (bắt buộc cho AsyncPostgresSaver — xem erp_agent.py::setup), nên KHÔNG bọc
+    transaction thì mỗi câu tự commit riêng. Hỏng giữa chừng (VD sau INSERT,
+    trước UPDATE supersede) để lại HAI fact cùng key cùng hiệu lực — cả hai
+    cùng render vào khối ký ức mọi lượt sau, trong khi `except: continue` của
+    caller (erp_agent._apply_memory_markers) nuốt lỗi, không báo gì. `async
+    with conn.transaction()` của psycopg3 vẫn mở transaction thật dù pool
+    autocommit=True.
     """
     async with pool.connection() as conn:
-        cur = conn.cursor(row_factory=tuple_row)
-        await cur.execute(
-            "INSERT INTO user_memory (user_id, fact_key, fact_value, thread_id) "
-            "VALUES (%s, %s, %s, %s) RETURNING id",
-            (user_id, key, value, thread_id))
-        new_id = (await cur.fetchone())[0]
-        await conn.execute(
-            "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
-            "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
-            "AND id <> %s",
-            (new_id, user_id, key, new_id))
-        await conn.execute(
-            "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
-            "WHERE id IN (SELECT id FROM user_memory "
-            "             WHERE user_id = %s AND superseded_by IS NULL "
-            "             ORDER BY id DESC OFFSET %s)",
-            (new_id, user_id, MEMORY_CAP))
+        async with conn.transaction():
+            cur = conn.cursor(row_factory=tuple_row)
+            await cur.execute(
+                "INSERT INTO user_memory (user_id, fact_key, fact_value, thread_id) "
+                "VALUES (%s, %s, %s, %s) RETURNING id",
+                (user_id, key, value, thread_id))
+            new_id = (await cur.fetchone())[0]
+            await conn.execute(
+                "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
+                "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
+                "AND id <> %s",
+                (new_id, user_id, key, new_id))
+            # AND user_id = %s dưới đây làm bất biến "không lộ ký ức sang
+            # người khác" GREPPABLE thay vì chỉ ĐÚNG NHỜ id đến từ subquery
+            # đã lọc user_id — an toàn hôm nay, nhưng chỉ đọc code mới thấy.
+            await conn.execute(
+                "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
+                "WHERE user_id = %s AND id IN "
+                "      (SELECT id FROM user_memory "
+                "       WHERE user_id = %s AND superseded_by IS NULL "
+                "       ORDER BY id DESC OFFSET %s)",
+                (new_id, user_id, user_id, MEMORY_CAP))
 
 
 async def forget_fact(pool, user_id: str, key: str) -> bool:
@@ -118,25 +136,39 @@ async def forget_fact(pool, user_id: str, key: str) -> bool:
 
     KHÔNG DELETE: "quên" với người dùng là "không còn áp dụng", còn vệt kiểm
     toán thì giữ nguyên.
+
+    HAI CÂU LỆNH TRONG MỘT TRANSACTION (cùng lý do save_fact ở trên): hỏng
+    GIỮA hai câu để lại `superseded_at` đã đặt mà `superseded_by` còn NULL —
+    fact đó vẫn hiệu lực (load_active_facts lọc theo superseded_by IS NULL),
+    tức forget_fact báo True nhưng fact không hề biến mất.
     """
     async with pool.connection() as conn:
-        cur = conn.cursor(row_factory=tuple_row)
-        await cur.execute(
-            "UPDATE user_memory SET superseded_at = now() "
-            "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
-            "RETURNING id",
-            (user_id, key))
-        rows = await cur.fetchall()
-        if not rows:
-            return False
-        await conn.execute(
-            "UPDATE user_memory SET superseded_by = id "
-            "WHERE id = ANY(%s)", ([r[0] for r in rows],))
-        return True
+        async with conn.transaction():
+            cur = conn.cursor(row_factory=tuple_row)
+            await cur.execute(
+                "UPDATE user_memory SET superseded_at = now() "
+                "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
+                "RETURNING id",
+                (user_id, key))
+            rows = await cur.fetchall()
+            if not rows:
+                return False
+            # AND user_id = %s: xem chú thích tương ứng ở save_fact.
+            await conn.execute(
+                "UPDATE user_memory SET superseded_by = id "
+                "WHERE user_id = %s AND id = ANY(%s)",
+                (user_id, [r[0] for r in rows]))
+            return True
 
 
 MEMORY_SAVE_MARKER = "GHI_NHỚ"
 MEMORY_FORGET_MARKER = "QUÊN"
+
+# QUÊN phải khớp ĐÚNG HOA: "quên:" là văn xuôi tiếng Việt bình thường
+# ("Đừng quên: kiểm tra tồn kho..."), nên IGNORECASE ở đây sẽ CẮT CỤT câu trả
+# lời thật và ghi một lệnh quên bịa. GHI_NHỚ có gạch dưới nên không phải văn
+# xuôi, giữ IGNORECASE được.
+_FORGET_LITERAL = f"(?-i:{MEMORY_FORGET_MARKER})"
 
 # MỘT pattern mỗi marker. Ba tính chất, mỗi cái đóng một lỗi thật:
 #   MULTILINE  — `$` khớp cuối DÒNG, không phải cuối chuỗi. Thiếu nó thì marker
@@ -146,12 +178,12 @@ MEMORY_FORGET_MARKER = "QUÊN"
 #                cùng một dòng không nuốt lẫn nhau.
 #   dấu ':' BẮT BUỘC — xem chú thích GIỚI HẠN bên dưới. Đây là thứ DUY NHẤT
 #                phân biệt marker máy với văn xuôi tiếng Việt bình thường.
-_NEXT_MARKER = rf'(?=[ \t]*(?:{MEMORY_SAVE_MARKER}|{MEMORY_FORGET_MARKER})[ \t]*:|$)'
+_NEXT_MARKER = rf'(?=[ \t]*(?:{MEMORY_SAVE_MARKER}|{_FORGET_LITERAL})[ \t]*:|$)'
 _SAVE_RE = re.compile(
     rf'[ \t]*{MEMORY_SAVE_MARKER}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
     re.IGNORECASE | re.MULTILINE)
 _FORGET_RE = re.compile(
-    rf'[ \t]*{MEMORY_FORGET_MARKER}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
+    rf'[ \t]*{_FORGET_LITERAL}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
     re.IGNORECASE | re.MULTILINE)
 
 
@@ -170,6 +202,12 @@ def extract_memory_markers(body: str) -> tuple[str, list[tuple[str, str]], list[
     THẬT, nên 4/5 câu văn bình thường bị cắt nát ("Tôi quên mất rồi, xin lỗi bạn
     nhé." → người dùng chỉ còn thấy "Tôi", kèm một lệnh quên bịa). Dấu hai chấm
     là thứ duy nhất phân biệt marker máy với văn xuôi người — giữ bắt buộc.
+
+    GIỚI HẠN THỨ HAI đã đóng (final review, trước merge): dấu ':' một mình
+    KHÔNG đủ — "Đừng quên: kiểm tra tồn kho..." là văn xuôi CÓ dấu ':' thật.
+    _FORGET_LITERAL tắt IGNORECASE cho riêng QUÊN nên chỉ chữ HOA đúng khuôn
+    máy mới khớp; GHI_NHỚ giữ IGNORECASE vì gạch dưới đã đủ phân biệt nó khỏi
+    văn xuôi.
     """
     text = body or ""
     saves: list[tuple[str, str]] = []

@@ -100,7 +100,9 @@ def test_van_xuoi_tieng_viet_co_tu_quen_khong_bi_cat():
     """Vì sao dấu ':' phải BẮT BUỘC: "quên" là từ tiếng Việt thật."""
     for prose in ("Tôi quên mất rồi, xin lỗi bạn nhé.",
                   "Đừng quên kiểm tra tồn kho trước khi giao.",
-                  "Tôi sẽ ghi nhớ điều đó cho bạn."):
+                  "Tôi sẽ ghi nhớ điều đó cho bạn.",
+                  "Đừng quên: kiểm tra lại tồn kho trước khi xác nhận đơn nhé.",
+                  "Quên: chuyện đó bỏ qua đi."):
         clean, saves, forgets = extract_memory_markers(prose)
         assert clean == prose, prose
         assert saves == [] and forgets == [], prose

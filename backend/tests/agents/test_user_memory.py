@@ -31,6 +31,10 @@ def test_co_dau_va_khong_dau_ra_cung_mot_key():
     "P00003", "S00012", "INV/2026/00004", "WH/OUT/00001",
     "E-COM07", "F-COM07", "COM07",
     "đơn P00003 là quan trọng nhất", "xem hoá đơn INV/2026/00017 nhé",
+    # Final review: sổ nhật ký Odoo có chữ số NGAY Ở ĐOẠN ĐẦU — regex cũ đòi
+    # "[A-Z]{2,}" (chỉ chữ) cho đoạn đầu nên lọt cả ba, dù post_invoice /
+    # register_payment làm vai đọc thấy đúng những tên sổ này.
+    "BNK1/2026/00001", "PBNK1/2026/00001", "CSH1/2026/00007",
 ])
 def test_chan_fact_mang_ma_chung_tu_cu_the(value):
     # Marker do LLM phát ra, mà ở erp_read model đang NHÌN THẤY dữ liệu ERP —

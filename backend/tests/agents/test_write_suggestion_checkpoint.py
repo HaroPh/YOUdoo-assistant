@@ -248,3 +248,87 @@ async def test_neo_dung_cho_ca_duong_erp_read_nhieu_message():
         await cp.adelete_thread(tid)
     finally:
         await pool.close()
+
+
+async def test_luot_chat_that_nap_khoi_ky_uc_that_vao_system_prompt():
+    """Finding 4 (final review, trước merge): KHÔNG ca nào (1822 unit + 44
+    integration) từng lái qua ERPAgent._chat_inner's `if user_id:` block VÀ
+    ERPAgent._invoke_fresh's `memory_block` argument bằng một graph THẬT —
+    mọi test ký ức khác đều mock thẳng `_chat_inner` (test_chat_memory.py)
+    hoặc set `state["user_memory"]` tay (test_memory_injection.py). Xoá
+    nguyên khối `if user_id:` trong erp_agent.py thì CẢ HAI bộ test đó vẫn
+    xanh — đúng lớp lỗi ký ức "ghi được nhưng không bao giờ đọc lại" mà
+    branch này đã phải vá một lần rồi (xem test_user_memory_postgres.py
+    docstring).
+
+    Dựng graph THẬT qua build_graph (không phải graph tối thiểu router/answer
+    ở trên) để _chat_inner đi đúng đường sản xuất: intent_router → decide_route
+    → respond_unknown. Router LLM script cứng về "unknown" (quyết định TẤT
+    ĐỊNH ở decide_route, không cần model thật phân loại đúng); chitchat LLM là
+    spy bắt system prompt thật sự gửi đi — cùng idiom SpyLLM của
+    test_memory_injection.py. user_id là uuid4 riêng của test, KHÔNG đụng dữ
+    liệu người thật; dọn lại chính hàng đã seed ở finally.
+    """
+    _skip_guard()
+    from unittest.mock import MagicMock
+
+    from src.agents.erp_agent import ERPAgent
+    from src.agents.graph import build_graph
+    from src.agents.user_memory import save_fact
+    from src.llm.catalog import ROLES
+
+    pool = _pool()
+    await pool.open()
+    user_id = "test-memory-read-" + uuid.uuid4().hex[:12]
+    tid = "test-memory-read-" + uuid.uuid4().hex[:8]
+    try:
+        cp = AsyncPostgresSaver(pool)
+        await cp.setup()
+
+        await save_fact(pool, user_id, "do_dai_tra_loi", "ngan gon", "seed")
+
+        class _RouterLLM:
+            async def ainvoke(self, messages, config=None):
+                return AIMessage(content="intent: unknown")
+
+        class _ChitchatSpy:
+            def __init__(self):
+                self.system_prompts: list[str] = []
+
+            async def ainvoke(self, messages, config=None):
+                for m in messages:
+                    if m.type == "system":
+                        self.system_prompts.append(m.content)
+                return AIMessage(content="Chao ban.")
+
+        llms = {role: MagicMock(name=role) for role in ROLES}
+        llms["router"] = _RouterLLM()
+        chitchat = _ChitchatSpy()
+        llms["chitchat"] = chitchat
+
+        # mcp_all_tools=None (mặc định) — chứ KHÔNG phải [] — để
+        # tools_for_coordinator trả nguyên `tools` (đường "vai admin" của nó)
+        # thay vì ném ValueError khi thấy registry MCP rỗng: xem docstring.
+        graph = build_graph(llms, tools=[], checkpointer=cp, role_cfg=None)
+
+        agent = ERPAgent.__new__(ERPAgent)  # bỏ __init__ (cần MCP thật)
+        agent._pool = pool
+        agent._llms = {"evaluator": MagicMock()}
+        agent.graphs = {"admin": graph}
+        agent._checkpointer = cp
+        agent._handler = None
+
+        out = await agent.chat([{"role": "user", "content": "chao ban"}],
+                               thread_id=tid, role="admin", user_id=user_id)
+
+        assert chitchat.system_prompts, "respond_unknown không hề gọi LLM"
+        assert any("do_dai_tra_loi = ngan gon" in p for p in chitchat.system_prompts), \
+            chitchat.system_prompts
+        assert "Chao ban" in out
+
+        await cp.adelete_thread(tid)
+    finally:
+        async with pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM user_memory WHERE user_id = %s", (user_id,))
+        await pool.close()

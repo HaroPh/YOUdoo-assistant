@@ -46,6 +46,19 @@ async def test_khong_phat_marker_khi_can_thi_tinh_missed(monkeypatch):
     assert r["false_injection"] == 0
 
 
+async def test_quen_bia_ra_bi_tinh_la_false_injection(monkeypatch):
+    """Finding 5 (final review): chiều QUÊN từng bị bỏ sót hoàn toàn — chỉ đếm
+    `saves`, không đếm `forgets`. Ca này script LLM trả về một QUÊN bịa (không
+    liên quan tới câu hỏi), want="none": bản cũ (`if want == "none" and
+    saves:`) sẽ IM LẶNG bỏ qua vì `saves` rỗng, dù ký ức thật vừa bị xoá."""
+    only = [("CHITCHAT_PROMPT", "hôm nay trời đẹp nhỉ", "none")]
+    monkeypatch.setattr(run_eval, "MEMORY_CASES", only)
+    r = await run_eval.eval_memory(_ScriptedLLM("Vâng!\nQUÊN: kho chính"))
+    assert r["false_injection"] == 1
+    assert r["fails"][0]["kind"] == "false_injection"
+    assert r["fails"][0]["got_forgets"] == ["kho chính"]
+
+
 async def test_bo_dem_leak_THAT_SU_tang_duoc(monkeypatch):
     """Chứng minh `leaked_doc_code` BẮN ĐƯỢC, không chỉ chứng minh cổng chặn được.
 

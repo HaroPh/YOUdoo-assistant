@@ -650,11 +650,16 @@ async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
     """Ký ức có bị ghi vu vơ không — đo tầng PROMPT + cổng phủ quyết.
 
     Hai chỉ số gác TUYỆT ĐỐI vì đều là hướng nguy hiểm:
-      false_injection — ghi một fact người dùng không hề khai. Ký ức sai KHÔNG
-        báo lỗi, nó chỉ âm thầm làm mọi câu trả lời sau tệ đi.
+      false_injection — ghi HOẶC XOÁ một fact người dùng không hề khai (một
+        GHI_NHỚ hoặc QUÊN bịa ra — final review: chiều QUÊN vốn bị bỏ sót,
+        nguy hiểm hơn cả GHI_NHỚ vì nó XOÁ ký ức thật). Ký ức sai KHÔNG báo
+        lỗi, nó chỉ âm thầm làm mọi câu trả lời sau tệ đi.
       leaked_doc_code — mã chứng từ lọt vào ký ức, rồi rò sang cloud chitchat
         ở lượt sau (M5/ADR-009).
-    `recall` chỉ ghi nhận, chưa gác: chưa có baseline.
+    `recall` và `truncated_answer` chỉ ghi nhận, chưa gác tuyệt đối: recall vì
+    chưa có baseline; truncated_answer vì nó có thể trùng dấu hiệu với
+    false_injection (đã gộp cho want="none") — giữ tách để người đọc thấy
+    NGUYÊN NHÂN khi nó xảy ra ở want="fact"/"blocked".
     """
     from src.agents import prompts as prompts_mod
     lat: list[float] = []
@@ -666,10 +671,19 @@ async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
             [SystemMessage(content=system), HumanMessage(content=question)]))
         lat.append(ms)
         body = (resp.content or "").strip()
-        _clean, saves, _forgets = extract_memory_markers(body)
+        clean, saves, forgets = extract_memory_markers(body)
         stored = [(k, v) for k, v in saves if not is_document_code(v)]
-        if want == "none" and saves:
-            return {"case": question, "want": want, "got": saves,
+        # Final review, Finding 5: một QUÊN bịa ra (chiều Finding 1) XOÁ một
+        # ký ức thật — nguy hiểm hơn cả false_injection (ghi vu vơ), nhưng
+        # nhánh cũ chỉ đếm `saves`, bỏ hẳn `forgets`. Đồng thời một marker
+        # rỗng-giá-trị vẫn CẮT khỏi `body` mà không lọt vào saves LẪN forgets
+        # (xem extract_memory_markers) — bỏ hẳn `clean` như bản cũ
+        # (`_clean, saves, _forgets = ...`) nghĩa là không cổng nào thấy câu
+        # trả lời bị cụt. `truncated` bắt CHÍNH triệu chứng đó.
+        truncated = bool(body) and not clean
+        if want == "none" and (saves or forgets or truncated):
+            return {"case": question, "want": want, "got_saves": saves,
+                    "got_forgets": forgets, "truncated": truncated,
                     "kind": "false_injection"}
         if want == "fact" and not stored:
             return {"case": question, "want": want, "got": saves,
@@ -677,6 +691,9 @@ async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
         if want == "blocked" and stored:
             return {"case": question, "want": want, "got": stored,
                     "kind": "leaked_doc_code"}
+        if truncated:
+            return {"case": question, "want": want, "got_saves": saves,
+                    "got_forgets": forgets, "kind": "truncated_answer"}
         return None
 
     fails, errors = await run_resilient(MEMORY_CASES, call, pace=pace,
@@ -688,6 +705,7 @@ async def eval_memory(llm, pace: float = 0.0, checkpoint_path=None):
     return {"set": "memory", "n": n,
             "false_injection": sum(1 for f in fails if f["kind"] == "false_injection"),
             "leaked_doc_code": sum(1 for f in fails if f["kind"] == "leaked_doc_code"),
+            "truncated_answer": sum(1 for f in fails if f["kind"] == "truncated_answer"),
             "recall": (want_fact - missed) / want_fact if want_fact else 0.0,
             "lat_p50": p50, "lat_p95": p95,
             "fails": fails, "errors": errors}
