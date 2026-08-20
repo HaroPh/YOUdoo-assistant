@@ -26,6 +26,7 @@ from evals import fixtures
 from evals.matching import _norm, _grounded_match
 from evals.retrieval_cases import RETRIEVAL_CASES
 from evals.retrieval_score import label_of, score_one
+from evals.multiturn_cases import MULTITURN_CASES
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
 from evals.synthesis_live_score import score_answer
 from src.agents.synthesis import synthesize as _synthesize
@@ -1083,13 +1084,77 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
+async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
+    """Đo GIẢI CHIẾU ở câu hỏi nối tiếp — KHÔNG gọi LLM lần nào.
+
+    `rag_node` lấy duy nhất tin nhắn cuối (`query = last_human.content`) cho cả
+    truy xuất lẫn sinh; lịch sử hội thoại bị bỏ hoàn toàn. Cả 12 bộ eval trước
+    đều một-lượt nên chỗ này chưa bao giờ được đo.
+
+    Mỗi ca chạy HAI lần trong cùng lượt: không ngữ cảnh (đúng hành vi
+    production hiện tại) và có ngữ cảnh (lượt trước đưa vào `aux_queries`).
+    Đo cả hai trong một lượt là bắt buộc, không phải tiện tay — nhóm
+    `independent` chỉ có nghĩa khi so được hai chiều, và nó là nửa duy nhất
+    bắt được MẶT HẠI của việc trộn hai truy vấn vào cùng pool 20.
+    """
+    per_case: list[dict] = []
+
+    async def call(case):
+        prev, question, expect, kind = case[0], case[1], case[2], case[3]
+        want = {tuple(x) for x in expect}
+        no_ctx = await asyncio.to_thread(_retrieve, question, _TOP_N)
+        with_ctx = await asyncio.to_thread(_retrieve, question, _TOP_N,
+                                           None, (prev,))
+        row = {"question": question, "kind": kind}
+        for tag, res in (("no_ctx", no_ctx), ("with_ctx", with_ctx)):
+            ranked = [label_of(c) for c in res.chunks]
+            sc = score_one(ranked, want, k_pool=_TOP_N, k_final=_TOP_K)
+            row[tag] = sc
+        per_case.append(row)
+        # Ca hỏng = có ngữ cảnh mà VẪN không tìm ra trong top-6.
+        if row["with_ctx"]["recall_at_final"] > 0:
+            return None
+        return {"question": question, "kind": kind,
+                "rank_no_ctx": row["no_ctx"]["hit_ranks"][:1],
+                "rank_with_ctx": row["with_ctx"]["hit_ranks"][:1]}
+
+    items = [[c.prev_turn, c.question, [list(x) for x in sorted(c.expect)], c.kind]
+             for c in MULTITURN_CASES]
+    fails, errors = await run_resilient(items, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+
+    def _avg(tag: str, key: str, rows) -> float:
+        return round(sum(r[tag][key] for r in rows) / len(rows), 4) if rows else 0.0
+
+    by_kind = {}
+    for k in ("elliptical", "independent"):
+        rows = [r for r in per_case if r["kind"] == k]
+        by_kind[k] = {
+            "n": len(rows),
+            "recall_at_6_no_ctx": _avg("no_ctx", "recall_at_final", rows),
+            "recall_at_6_with_ctx": _avg("with_ctx", "recall_at_final", rows),
+            "mrr_no_ctx": _avg("no_ctx", "reciprocal_rank", rows),
+            "mrr_with_ctx": _avg("with_ctx", "reciprocal_rank", rows),
+        }
+
+    return {"set": "multiturn", "n": len(MULTITURN_CASES),
+            "recall_at_6_no_ctx": _avg("no_ctx", "recall_at_final", per_case),
+            "recall_at_6_with_ctx": _avg("with_ctx", "recall_at_final", per_case),
+            "recall_at_20_no_ctx": _avg("no_ctx", "recall_at_pool", per_case),
+            "recall_at_20_with_ctx": _avg("with_ctx", "recall_at_pool", per_case),
+            "mrr_no_ctx": _avg("no_ctx", "reciprocal_rank", per_case),
+            "mrr_with_ctx": _avg("with_ctx", "reciprocal_rank", per_case),
+            "by_kind": by_kind,
+            "fails": fails, "errors": errors}
+
+
 async def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",
                              "synthesis", "multi_source", "sop_select",
                              "language", "localize", "retrieval",
-                             "synthesis_live"],
+                             "synthesis_live", "multiturn"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
@@ -1113,16 +1178,19 @@ async def main(argv=None):
                "multi_source": eval_multi_source, "sop_select": eval_sop_select,
                "language": eval_language, "localize": eval_localize,
                "retrieval": eval_retrieval,
-               "synthesis_live": eval_synthesis_live}
+               "synthesis_live": eval_synthesis_live,
+               "multiturn": eval_multiturn}
         kwargs = {"pace": args.pace}
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
-        if args.set == "retrieval":
+        if args.set in ("retrieval", "multiturn"):
             # KHÔNG dựng LLM: bộ này thuần truy xuất. _llm() gọi
             # chain_for("retrieval") mà "retrieval" không nằm trong
             # catalog.ROLES → nổ ngay nếu đi đường chung.
-            kwargs["rerank"] = not args.no_rerank
-            result = await eval_retrieval(**kwargs)
+            # KHÔNG dựng LLM: cả hai bộ này thuần truy xuất.
+            if args.set == "retrieval":
+                kwargs["rerank"] = not args.no_rerank
+            result = await _FN[args.set](**kwargs)
         elif args.set == "synthesis_live":
             # "synthesis_live" KHÔNG nằm trong catalog.ROLES; production chạy
             # rag_node bằng llms["synthesis"], nên dùng đúng vai đó.
