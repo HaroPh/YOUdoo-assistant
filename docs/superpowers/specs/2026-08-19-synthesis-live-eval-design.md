@@ -285,3 +285,129 @@ Baseline `synthesis_live` trên `gemini-3.1-flash-lite` **chưa ghi lại** và 
 lỗi thời hai lần: một vì P3a đổi corpus, một vì bộ ca 20→28. Phải chạy lại khi
 hạn mức reset — và đó mới là lượt đo trả lời được câu "trần 1,0 đã bị phá
 chưa" cho cấu hình thật.
+
+## 11. Baseline thật trên 28 ca, và so sánh hai model (2026-08-20)
+
+Chạy được nhờ dùng key của một **project Google khác** — hạn mức free-tier
+tính theo project (`GenerateRequestsPerDayPerProjectPerModel`), nên đó là một
+ví 500/ngày riêng. Key chỉ quyết định ví nào bị trừ, không đổi model/endpoint/
+tham số, nên phép đo vẫn hợp lệ. Key KHÔNG được ghi vào `.env` hay bất kỳ tệp
+nào — truyền inline cho đúng lệnh đó.
+
+| Số đo | `gemini-3.1-flash-lite` (production) | `gemini-3.5-flash-lite` |
+|---|---|---|
+| `fact_acc` | **0,8750** | 0,9583 |
+| `refusal_acc` | 0,9643 | 0,9643 |
+| `citation_acc` | **0,9167** | 1,0000 |
+| `deep_chunk` fact (n=10) | 1,0000 | 1,0000 |
+| **`distractor` fact (n=14)** | **0,7857** (11/14) | **0,9286** (13/14) |
+| p50 / p95 | 4603 / 12439 ms | 2059 / 12429 ms |
+
+Baseline `synthesis_live` cho vai `synthesis` = **cột 3.1**, đã ghi.
+
+### 11.1 Trần 1,0 đã bị phá — và phá ở đúng chỗ đã thiết kế
+
+Bộ 20 ca cũ cho 1,0/1,0/1,0. Bộ 28 ca cho 0,8750. Toàn bộ khoảng cách nằm ở
+nhóm `distractor`, và **cả ba ca trượt đều là ca bẫy cùng-tệp** vừa thêm ở
+đợt làm cứng. `deep_chunk` vẫn 1,0 — tức phần "đọc tới chunk sau" không phải
+chỗ hỏng.
+
+### 11.2 Ba ca trượt là BA BIỂU HIỆN của cùng một điểm yếu
+
+Đứng trước hai Điều gần trùng, `3.1-flash-lite` hỏng theo ba kiểu khác nhau:
+
+| Ca | Kiểu hỏng | Chi tiết |
+|---|---|---|
+| "bộ luật dân sự… mức phạt vi phạm" | **Trộn hai nguồn** | Bê trần 8% của Luật Thương mại vào câu hỏi Dân sự, dẫn Điều 301 |
+| "BHXH TỰ NGUYỆN… một lần" | **Lấy nhầm điều** | Trả "1,5 **tháng** mức bình quân **tiền lương**" (Điều 70, bắt buộc) thay vì "1,5 **lần** mức bình quân **thu nhập**" (Điều 102, tự nguyện) |
+| "TNHH hai thành viên… cập nhật vốn điều lệ" | **Bỏ cuộc** | Trả `GUARD_MSG` "không tìm thấy tài liệu" |
+
+Ca thứ ba đáng chú ý nhất và **không phải lỗi truy xuất**: đo được
+`passes_floor = True`, Điều 68 (đúng) ở **hạng 3**, Điều 87 (cạnh tranh) ở
+hạng 2. Model tự phát sentinel `KHÔNG_ĐỦ_THÔNG_TIN` dù câu trả lời nằm ngay
+trong ngữ cảnh của nó.
+
+### 11.3 Hệ quả cho lộ trình
+
+`recall@20 = 1,0` trên cả 64 ca của bộ `retrieval`, và `deep_chunk` fact =
+1,0 ở đây. Chỗ hỏng còn lại **không phải "tìm không ra tài liệu"** mà là
+**"chọn nhầm điều trong số đã tìm được"**.
+
+P1 (metadata filtering) và P2 (query rewrite) đều nhắm vào việc tìm ra tài
+liệu. Trên corpus này, đó không phải nút thắt. Thứ tự P1–P4 nên xem lại trước
+khi đầu tư thêm vào tầng truy xuất.
+
+### 11.4 Dữ kiện cho câu hỏi đổi model — nay đã đủ để cân, chưa đủ để quyết
+
+3.5 thắng rõ ở nhóm khó nhất (13/14 vs 11/14) và nhanh hơn ở p50. Nhưng:
+- `refusal_acc` **bằng nhau** (0,9643) — cả hai đều trượt một ca, khác ca.
+- Đổi vai `synthesis` sang 3.5 sẽ dồn **ba vai** (planner + read + synthesis)
+  vào một ví 500/ngày, lật lại quyết định 2026-08-13.
+- Chưa đo 3.5 trên các bộ khác mà vai `synthesis` cũng phục vụ.
+
+## 12. Sửa prompt phân định đối tượng (2026-08-20)
+
+Ba ca trượt ở §11.2 đều là một điểm yếu: đứng trước hai Điều gần trùng, model
+trộn / lấy nhầm / bỏ cuộc. `RAG_SYNTHESIS_PROMPT` **không có quy tắc nào** về
+việc phân định nhiều đoạn cùng chủ đề nhưng khác đối tượng áp dụng.
+
+Thêm ĐÚNG MỘT đoạn, viết HẸP: khi nhiều đoạn cùng chủ đề nhưng khác đối
+tượng/trường hợp (bắt buộc vs tự nguyện, công ty một vs hai thành viên, người
+lao động vs người sử dụng lao động), xác định câu hỏi nhắm đối tượng nào rồi
+CHỈ dùng đoạn đó, KHÔNG gộp số liệu. Kèm câu chốt *"Việc chọn đúng đoạn KHÔNG
+phải lý do để từ chối trả lời"*.
+
+Viết hẹp là có chủ đích: đợt `fuse-prompt-obligation-penalty-fix` đã cho thấy
+**quy tắc rộng gây hồi quy, quy tắc hẹp mới sạch**.
+
+### 12.1 Kết quả — hai lượt độc lập, giống hệt nhau
+
+| Số đo | trước | sau (2 lượt) | delta |
+|---|---|---|---|
+| `fact_acc` | 0,8750 | **0,9583** | **+0,0833** |
+| `refusal_acc` | 0,9643 | **1,0000** | **+0,0357** |
+| `citation_acc` | 0,9167 | **1,0000** | **+0,0833** |
+| `distractor` fact | 0,7857 | **0,9286** | **+0,1429** |
+
+Hai trong ba ca trượt được chữa: ca "trộn hai nguồn" (bê trần 8% của Luật
+Thương mại vào câu hỏi Dân sự) và ca "bỏ cuộc" (trả `GUARD_MSG` dù đáp án ở
+hạng 3).
+
+**Rủi ro dự báo KHÔNG xảy ra.** Tôi lo quy tắc sẽ đẩy model sang từ chối nhiều
+hơn — nó vốn đã bỏ cuộc ở một ca. Ngược lại, `refusal_acc` **tăng** lên 1,0.
+Câu chốt "không phải lý do để từ chối" có thể là thứ giữ được điều đó, nhưng
+đó là suy đoán: không đo riêng câu ấy.
+
+### 12.2 Ca còn trượt — cải thiện một phần, chưa dứt điểm
+
+*"bảo hiểm xã hội TỰ NGUYỆN thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?"*
+
+Model **nay nhận ra có hai chế độ** — nó viết "tiền lương/thu nhập", hedge cả
+hai — nhưng vẫn dùng cách diễn đạt *"1,5 tháng"* của Điều 70 (bắt buộc) thay
+vì *"1,5 lần… thu nhập"* của Điều 102 (tự nguyện). Nó ngập ngừng chứ không
+chọn dứt khoát.
+
+Cần nói thẳng một điểm yếu của phép đo ở đây: hai điều luật nêu **cùng một hệ
+số 1,5**, khác nhau ở cách diễn đạt và ở căn cứ (tiền lương vs thu nhập). Nên
+`expect = "1,5 lần"` đang đo **cách diễn đạt** nhiều hơn đo **con số**. Ca này
+vẫn hợp lệ (nó phân biệt được điều nào được dùng) nhưng nó là ca yếu nhất
+trong 14 ca `distractor`.
+
+### 12.3 Kiểm hồi quy trên bộ dùng chung prompt
+
+`RAG_SYNTHESIS_PROMPT` cũng là prompt của `eval_synthesis` (bộ fixture đóng
+băng). Chạy lại với prompt mới: **`grounded_acc = 1,0000` (12/12),
+`false_answer = 0`, `false_insufficient = 0`.** Không hồi quy.
+
+Baseline `synthesis_live` đã ghi lại theo số mới.
+
+### 12.4 Hệ quả cho câu hỏi đổi model
+
+Trước sửa prompt, `3.1-flash-lite` (0,8750 fact / 0,7857 distractor) thua rõ
+`3.5-flash-lite` (0,9583 / 0,9286). **Sau sửa prompt, 3.1 đạt đúng con số của
+3.5**: 0,9583 / 0,9286.
+
+Nghĩa là khoảng cách giữa hai model ở nhóm khó nhất **không phải năng lực
+model, mà là prompt thiếu một quy tắc**. Lý do chính để cân nhắc đổi sang 3.5
+vì thế yếu đi đáng kể — trong khi cái giá (dồn ba vai vào một ví 500/ngày)
+không đổi.

@@ -6,6 +6,12 @@ CREATE TABLE IF NOT EXISTS {schema}.rag_documents (
     source_file   text NOT NULL,
     content_hash  text NOT NULL,
     lang          text NOT NULL DEFAULT 'vi',
+    -- Ngày hiệu lực của văn bản. NULL hợp lệ (tài liệu nghiệp vụ không có).
+    -- Xem migrations/003_effective_date.sql cho lý do đầy đủ. CREATE TABLE ở
+    -- đây dùng cho DB dựng MỚI; migration 003 vá DB đã tồn tại. Hai chỗ phải
+    -- khớp nhau — thiếu ở đây thì mọi test integration dựng bảng sạch sẽ đỏ
+    -- ngay, đó chính là cách khoảng lệch này bị bắt.
+    effective_date date,
     ingested_at   timestamptz NOT NULL DEFAULT now()
 );
 

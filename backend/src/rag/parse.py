@@ -25,6 +25,59 @@ _HEADING_RE = re.compile(
     r"|^\s*Điều\s+\d+\s*[\.\-–]\s*\S"
     r"|^\s*\d+\.\d{1,2}(\.\d{1,2})*(?!\d)[\.\)]?\s+\S")
 
+_CHUONG_RE = re.compile(r"^\s*Chương\b")
+_MUC_RE = re.compile(r"^\s*Mục\b")
+_DIEU_RE = re.compile(r"^\s*Điều\s+\d+\s*[\.\-–]\s*\S")
+
+
+def heading_level(text: str) -> int | None:
+    """Cấp của một dòng tiêu đề, hoặc None nếu không phải tiêu đề.
+
+    TRƯỚC 2026-08-20 mọi tiêu đề đều là cấp 2, tức `Chương`, `Mục` và `Điều`
+    là ANH EM. Vì `chunk_text_blocks` đẩy khỏi stack mọi mục cùng-hoặc-cao-cấp,
+    "Điều 102" hất "Chương VI" ra và section_path thành PHẮNG.
+
+    Tác hại đo được: 27 cặp điều luật trong corpus TRÙNG TIÊU ĐỀ từng chữ, và
+    thứ phân biệt chúng nằm ở chương. Ví dụ đã bắt được trong bộ synthesis_live:
+
+        Điều 70  ← Chương V  — BẢO HIỂM XÃ HỘI BẮT BUỘC
+        Điều 102 ← Chương VI — BẢO HIỂM XÃ HỘI TỰ NGUYỆN
+
+    cả hai cùng tên "Hưởng bảo hiểm xã hội một lần". Hỏi về TỰ NGUYỆN thì cả
+    dense lẫn cross-encoder đều chọn Điều 70, vì từ "tự nguyện" không dính vào
+    văn bản index của Điều 102 — trớ trêu là nó lại nằm trong THÂN Điều 70
+    ("không bao gồm số tiền ngân sách nhà nước hỗ trợ đóng bảo hiểm xã hội tự
+    nguyện"). Đáp án đúng không lọt nổi top-6.
+
+    THANG CẤP và lý do khoảng cách:
+
+        1  Chương
+        2  dòng IN HOA          — tiêu đề của chương nằm ở DÒNG SAU số chương
+                                  ("Chương VI" / "BẢO HIỂM XÃ HỘI TỰ NGUYỆN"),
+                                  và chính nó mang từ phân biệt. Phải nằm GIỮA
+                                  Chương và Mục: để cùng cấp với Mục thì Mục đầu
+                                  tiên sẽ hất nó ra và mất đúng từ đó.
+        3  Mục
+        4  Điều
+        5  numbering đa cấp
+
+    Dòng IN HOA ở cấp 2 còn là hàng rào an toàn: một dòng IN HOA lạc giữa
+    chương (vd "ĐIỀU KHOẢN THI HÀNH" in giữa văn bản) chỉ hất được các Mục,
+    KHÔNG hất được Chương — nên chương vẫn sống sót cho mọi điều phía sau.
+    """
+    if _CHUONG_RE.match(text):
+        return 1
+    if _MUC_RE.match(text):
+        return 3
+    if _DIEU_RE.match(text):
+        return 4
+    if _HEADING_RE.match(text):
+        return 5      # numbering đa cấp "1.1", "3.2.1"
+    if text.isupper() and len(text) <= 80:
+        return 2
+    return None
+
+
 
 _DIGITS_RE = re.compile(r"\d+")
 
@@ -76,6 +129,46 @@ def detect_page_furniture(pages: list[list[str]], *, min_pages: int = 5,
             and at_edge.get(key, 0) / total[key] >= edge_ratio}
 
 
+# "hiệu lực THI HÀNH từ ngày ..." — KHÔNG phải "có hiệu lực từ ngày ...".
+# Cụm "có hiệu lực" xuất hiện dày đặc trong NỘI DUNG điều luật (hiệu lực của
+# hợp đồng, của giao dịch dân sự), và bản đầu của regex này khớp đúng chúng:
+# đo trên 9 PDF thì 8 tệp trả về câu về hiệu lực HỢP ĐỒNG, chỉ 1 tệp ra ngày
+# thật. Chữ "thi hành" là thứ phân biệt ngày của CHÍNH VĂN BẢN với mọi cách
+# dùng khác.
+_EFFECTIVE_RE = re.compile(
+    r"hiệu\s+lực\s+thi\s+hành\s+(?:kể\s+)?từ\s+ngày\s+"
+    r"(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})",
+    re.IGNORECASE)
+
+
+def extract_effective_date(text: str | None):
+    """Ngày hiệu lực của văn bản, hoặc None.
+
+    None là kết quả HỢP LỆ, không phải lỗi: 8 tài liệu nghiệp vụ (.docx,
+    .xlsx) trong corpus không phải văn bản quy phạm và không có ngày hiệu lực.
+    Cả 9/9 PDF luật thì đều đọc được ngày (đo 2026-08-20 trên DB thật).
+
+    Con số 9/9 này SỬA LẠI một phép đo sai của chính tôi. Phép đo đầu báo 8/9
+    vì nó đi tìm MỤC mang tên "Hiệu lực thi hành"; `luat-doanhnghiep.pdf` đặt
+    tên mục là "Điều khoản thi hành" nên bị bỏ sót, dù câu "Luật này có hiệu
+    lực thi hành từ ngày 01 tháng 01 năm 2021" nằm ngay trong đó. Tìm theo CÂU
+    trên toàn văn không phụ thuộc vào cách đặt tên mục, nên bắt được cả hai.
+
+    Ngày không hợp lệ (45 tháng 13) trả None thay vì ném: một cú trích hỏng
+    không được làm vỡ việc ingest cả tài liệu."""
+    import datetime as _dt
+    if not text:
+        return None
+    m = _EFFECTIVE_RE.search(text)
+    if not m:
+        return None
+    day, month, year = (int(x) for x in m.groups())
+    try:
+        return _dt.date(year, month, day)
+    except ValueError:
+        return None
+
+
 def parse_docx(path: str) -> list[dict]:
     """Blocks in order; a heading block carries heading_level (1..n), body carries None."""
     doc = Document(path)
@@ -121,11 +214,8 @@ def parse_pdf(path: str) -> list[dict]:
         for text in lines:
             if _normalize_digits(text) in furniture:
                 continue
-            is_heading = bool(_HEADING_RE.match(text)) or (
-                text.isupper() and len(text) <= 80
-            )
             blocks.append({"text": text,
-                           "heading_level": 2 if is_heading else None,
+                           "heading_level": heading_level(text),
                            "page": pageno})
     return blocks
 

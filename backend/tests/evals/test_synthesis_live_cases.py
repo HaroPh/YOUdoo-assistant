@@ -11,6 +11,7 @@ như recall@6 đã vô cảm.
 """
 import pytest
 
+from evals.retrieval_score import sql_section_suffix
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
 from src.rag import db as _db
 
@@ -65,6 +66,33 @@ def test_khong_co_cau_hoi_trung_lap():
     assert len(questions) == len(set(questions))
 
 
+def test_phuong_an_them_khong_lam_yeu_ca():
+    """Phương án thêm phải HẸP HƠN hoặc bằng mỏ neo, không được rộng hơn.
+
+    Vì sao cần: test dưới vừa được nới để không đòi phương án thêm có mặt
+    trong corpus. Không có rào này thì cửa sau đã mở — thêm "0%" vào một ca là
+    làm nó xanh vĩnh viễn, và không phép đo nào bắt được.
+
+    Dùng ĐỘ DÀI làm rào: chuỗi ngắn hơn thì dễ khớp hơn, tức làm ca YẾU đi.
+    Một cách diễn đạt thật của model hầu như luôn DÀI hơn mỏ neo vì nó thêm
+    chữ chứ không bớt (đã đo: "thuế suất 0%" -> "thuế suất giá trị gia tăng
+    0%").
+
+    Rào này thô, nhưng chặn đúng kiểu hỏng đáng lo. Nó không thay được việc
+    đọc kỹ lúc review, chỉ làm cái hỏng rẻ tiền nhất thành bất khả thi.
+    """
+    yeu = []
+    for c in SYNTHESIS_LIVE_CASES:
+        alts = _expects(c.expect)
+        neo = alts[0]
+        for alt in alts[1:]:
+            if len(alt) < len(neo):
+                yeu.append((c.question, neo, alt))
+    assert not yeu, (
+        f"{len(yeu)} phương án NGẮN HƠN mỏ neo — làm ca dễ khớp hơn chứ không "
+        f"chính xác hơn: {yeu}")
+
+
 @pytest.mark.integration
 def test_moi_expect_co_that_trong_dung_tep_nguon():
     conn = _db.connect()
@@ -73,11 +101,17 @@ def test_moi_expect_co_that_trong_dung_tep_nguon():
         for c in SYNTHESIS_LIVE_CASES:
             if c.kind == "insufficient":
                 continue
-            for alt in _expects(c.expect):
+            # CHỈ phương án ĐẦU — nó là mỏ neo chống trôi. Các phương án sau
+            # là CÁCH DIỄN ĐẠT CỦA MODEL đã quan sát thật (chính sách ghi
+            # trong matching.py), nên theo định nghĩa chúng KHÔNG nằm trong
+            # văn bản luật; đòi chúng có mặt là mâu thuẫn nội tại. Rào chống
+            # nới ẩu nằm ở test_phuong_an_them_khong_lam_yeu_ca.
+            for alt in _expects(c.expect)[:1]:
                 n = conn.execute(
                     "select count(*) from rag_chunks where source_file like %s "
-                    "and section_path = %s and chunk_text like %s",
-                    ("%" + c.source, c.section, "%" + alt + "%")).fetchone()[0]
+                    "and (section_path = %s or section_path like %s) and chunk_text like %s",
+                    ("%" + c.source, *sql_section_suffix(c.section),
+                     "%" + alt + "%")).fetchone()[0]
                 if n == 0:
                     bad.append((c.question, alt, c.source, c.section))
     finally:
@@ -102,13 +136,14 @@ def test_ca_deep_chunk_thuc_su_nam_o_chunk_sau():
             # mục thì test sẽ soi nhầm chunk và báo sai.
             idxs = [r[0] for r in conn.execute(
                 "select chunk_index from rag_chunks where source_file like %s "
-                "and section_path = %s and chunk_text like %s order by chunk_index",
-                ("%" + c.source, c.section, "%" + first_alt + "%")).fetchall()]
+                "and (section_path = %s or section_path like %s) and chunk_text like %s order by chunk_index",
+                ("%" + c.source, *sql_section_suffix(c.section),
+                 "%" + first_alt + "%")).fetchall()]
             assert idxs, f"không tìm thấy chunk chứa {first_alt!r} trong {c.section!r}"
             first_idx = conn.execute(
                 "select min(chunk_index) from rag_chunks "
-                "where source_file like %s and section_path = %s",
-                ("%" + c.source, c.section)).fetchone()[0]
+                "where source_file like %s and (section_path = %s or section_path like %s)",
+                ("%" + c.source, *sql_section_suffix(c.section))).fetchone()[0]
             if first_idx in idxs:
                 shallow.append((c.question, c.section, first_idx))
     finally:

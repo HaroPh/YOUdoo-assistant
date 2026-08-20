@@ -11,6 +11,10 @@ embedding mới (spec 2026-08-19 §4).
 """
 import os
 
+# Dấu phân cách breadcrumb — phải trùng với chunking.chunk_text_blocks.
+SEP = " › "
+
+
 
 def label_of(chunk) -> tuple[str, str]:
     """Quy một chunk về nhãn so sánh được.
@@ -25,6 +29,44 @@ def label_of(chunk) -> tuple[str, str]:
     base = os.path.basename(str(chunk.source_file).replace("\\", "/"))
     section = chunk.section_path or chunk.sheet or ""
     return (base, section)
+
+
+def label_matches(got: tuple[str, str], want: tuple[str, str]) -> bool:
+    """Nhãn chunk `got` có thoả nhãn mong đợi `want` không.
+
+    Khớp theo HẬU TỐ CĂN ĐOẠN chứ không phải bằng nhau tuyệt đối, từ
+    2026-08-20 khi section_path của PDF luật trở thành phân cấp:
+
+        want: "Điều 102. Hưởng bảo hiểm xã hội một lần"
+        got:  "Chương VI  › BẢO HIỂM XÃ HỘI TỰ NGUYỆN  › Mục 2. ...  › Điều 102. ..."
+
+    Vì sao hậu tố chứ không phải cắt lấy đoạn lá của cả hai bên: cắt lấy lá
+    làm bộ đo MÙ với chính thứ nó vừa đi sửa — nếu breadcrumb dựng sai chương
+    ("Chương V" cho Điều 102) thì cắt lá vẫn khớp và không ai biết. Với hậu
+    tố, một fixture có thể ghim cả chương khi cần độ chính xác đó.
+
+    Mọi fixture viết trước ngày này vẫn khớp nguyên: một chuỗi luôn là hậu tố
+    của chính nó, và nhãn của tài liệu .docx (vốn đã phân cấp sẵn) không đổi.
+
+    Ranh giới đoạn là bắt buộc: không có nó thì "Điều 2. ..." sẽ khớp nhầm
+    vào "Điều 102. ...".
+    """
+    got_file, got_sec = got
+    want_file, want_sec = want
+    if got_file != want_file:
+        return False
+    return got_sec == want_sec or got_sec.endswith(SEP + want_sec)
+
+
+def sql_section_suffix(section: str) -> tuple[str, str]:
+    """Cặp tham số cho mệnh đề `(section_path = %s OR section_path LIKE %s)`.
+
+    Bản SQL của `label_matches`. Đặt cạnh nhau CỐ Ý: dấu phân cách breadcrumb
+    xuất hiện ở ba nơi (chunking dựng, matcher Python so, SQL của test hợp
+    đồng so) và chép nó ra ba chỗ là cách chắc chắn để một chỗ trôi mà hai chỗ
+    kia không biết.
+    """
+    return section, "%" + SEP + section
 
 
 def score_one(ranked_labels: list[tuple[str, str]],
@@ -44,10 +86,15 @@ def score_one(ranked_labels: list[tuple[str, str]],
     sách (không cắt) — cắt rồi mới tính sẽ biến "hạng 8" thành "trượt", làm
     mất đúng tín hiệu cần để thấy rerank kéo nó lên.
     """
-    hit_ranks = [i + 1 for i, lab in enumerate(ranked_labels) if lab in expected]
+    hit_ranks = [i + 1 for i, lab in enumerate(ranked_labels)
+                 if any(label_matches(lab, e) for e in expected)]
 
     def _recall(cut: int) -> float:
-        seen = set(ranked_labels[:cut]) & expected
+        # Đếm theo nhãn MONG ĐỢI đã được phủ, không theo nhãn trả về: một
+        # nhãn mong đợi có thể được phủ bởi nhiều chunk (một Điều dài bị cắt
+        # nhiều mảnh), và đếm nhầm chiều sẽ cho recall > 1.
+        seen = {e for e in expected
+                for lab in ranked_labels[:cut] if label_matches(lab, e)}
         return len(seen) / len(expected) if expected else 0.0
 
     return {

@@ -11,7 +11,7 @@ không ai biết, phải thêm test hợp đồng sau. Lần này viết cùng l
 import pytest
 
 from evals.retrieval_cases import RETRIEVAL_CASES
-from evals.retrieval_score import label_of
+from evals.retrieval_score import label_matches, label_of
 from src.rag import db as _db
 
 
@@ -71,7 +71,7 @@ def test_moi_nhan_khop_it_nhat_mot_chunk_that():
 
     real = {label_of(_Row(r)) for r in rows}
     missing = sorted({lab for _q, exp, _d in RETRIEVAL_CASES for lab in exp
-                      if lab not in real})
+                      if not any(label_matches(rl, lab) for rl in real)})
     assert not missing, (
         f"{len(missing)} nhãn không khớp chunk thật nào — golden set đã trôi "
         f"khỏi corpus (hoặc sai chính tả). Nhãn hỏng: {missing[:10]}")

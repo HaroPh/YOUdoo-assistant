@@ -48,14 +48,20 @@ def test_retrieve_empty_on_no_match(clean_tables, monkeypatch):
 @pytest.mark.integration
 def test_rerank_reorders_and_tags_scores(clean_tables, monkeypatch):
     from src.rag import retrieve as r
+    # BA tài liệu, không phải hai: từ 2026-08-20 cross-encoder chỉ là MỘT LÁ
+    # PHIẾU hoà vào thứ hạng RRF. Với đúng hai ứng viên đảo chỗ cho nhau, hai
+    # lá phiếu triệt tiêu nhau tuyệt đối và thứ tự RRF thắng tie-break — xem
+    # test_rerank_khong_lat_duoc_cap_doi_xung ngay dưới. Muốn chứng minh "có
+    # xếp lại thật" thì cần đủ ứng viên để lá phiếu tạo được chênh lệch.
     _seed(clean_tables, [
         ("A", "Khách hàng hoàn hàng trong 30 ngày", [1.0] + [0.0] * 1023),
         ("B", "Quy trình bảo trì máy CNC", [1.0, 1.0] + [0.0] * 1022),
+        ("C", "Biểu mẫu đề nghị thanh toán", [1.0, 2.0] + [0.0] * 1022),
     ])
     monkeypatch.setattr(r, "embed_query", lambda q: [1.0] + [0.0] * 1023)
-    # A đứng đầu theo RRF; mock cho B điểm cao hơn → B phải lên đầu
+    # RRF: A, B, C. Cross-encoder: B, C, A → hoà lại thì B lên đầu.
     monkeypatch.setattr(r.reranker, "score_pairs",
-                        lambda q, texts: [0.1, 0.9])
+                        lambda q, texts: [0.1, 0.9, 0.5])
     res = r.retrieve("hoàn hàng chính sách", k=5, conn=clean_tables)
     assert res.method == "hybrid-rrf+rerank"
     assert res.chunks[0].doc_id == "B"
@@ -65,6 +71,34 @@ def test_rerank_reorders_and_tags_scores(clean_tables, monkeypatch):
     assert res.chunks[1].rank == 1
     # invariant giữ nguyên công thức: top_score = rrf của chunk ĐỨNG ĐẦU
     assert res.top_score == res.chunks[0].rrf_score
+
+
+@pytest.mark.integration
+def test_rerank_khong_lat_duoc_cap_doi_xung(clean_tables, monkeypatch):
+    """Hai ứng viên đảo chỗ cho nhau → RRF thắng, cross-encoder KHÔNG lật được.
+
+    Đây là hệ quả CÓ CHỦ Ý của việc hoà hai thứ hạng (2026-08-20), không phải
+    lỗi: một chunk phải tệ ở CẢ HAI thứ hạng mới rơi, nên một lá phiếu lệch
+    không đủ sức đẩy đáp án đúng ra ngoài. Cái giá là ở tình huống đối xứng
+    tuyệt đối này lá phiếu bị vô hiệu hoàn toàn.
+
+    Test này tồn tại để tính chất đó được TUYÊN BỐ. Không có nó, ai đó sau này
+    gặp hiện tượng "mock cho B điểm cao mà B không lên đầu" sẽ tưởng reranker
+    hỏng và đi sửa nhầm chỗ — đúng cách reranker đã chết im lặng 6 tuần.
+
+    Điểm vẫn được gắn đầy đủ: reranker CÓ chạy, chỉ là không thắng."""
+    from src.rag import retrieve as r
+    _seed(clean_tables, [
+        ("A", "Khách hàng hoàn hàng trong 30 ngày", [1.0] + [0.0] * 1023),
+        ("B", "Quy trình bảo trì máy CNC", [1.0, 1.0] + [0.0] * 1022),
+    ])
+    monkeypatch.setattr(r, "embed_query", lambda q: [1.0] + [0.0] * 1023)
+    monkeypatch.setattr(r.reranker, "score_pairs", lambda q, texts: [0.1, 0.9])
+    res = r.retrieve("hoàn hàng chính sách", k=5, conn=clean_tables)
+
+    assert res.method == "hybrid-rrf+rerank"          # reranker CÓ chạy
+    assert [c.doc_id for c in res.chunks] == ["A", "B"]  # RRF vẫn thắng
+    assert [c.rerank_score for c in res.chunks] == [0.1, 0.9]  # điểm vẫn gắn
 
 
 @pytest.mark.integration
@@ -87,11 +121,16 @@ def test_rerank_pool_wider_than_k(clean_tables, monkeypatch):
     res = r.retrieve("an toàn kho lạnh", k=6, conn=clean_tables)
     ids = [c.doc_id for c in res.chunks]
     assert len(ids) == 6
-    assert ids[0] == "D6"                      # hạng-7 RRF lên đầu nhờ rerank
-    # sort ổn định: các điểm 0.0 giữ nguyên thứ tự RRF → D0..D4 theo sau
-    assert ids == ["D6", "D0", "D1", "D2", "D3", "D4"]
+    # BẤT BIẾN THẬT của fix này: chunk hạng-7 theo RRF LỌT ĐƯỢC vào kết quả
+    # cuối. Nó vẫn đúng sau khi đổi sang hoà thứ hạng (2026-08-20).
+    assert "D6" in ids
+    # Nó KHÔNG còn lên hạng 1. Trước đây cross-encoder ghi đè nên một mình nó
+    # quyết; nay là lá phiếu hoà với RRF, mà D6 đứng hạng 7 ở chân RRF. Đây là
+    # đánh đổi CÓ CHỦ Ý, không phải hồi quy: đo trên 64 ca thật thì cách ghi đè
+    # làm hai câu hỏi `hard` mất hẳn đáp án khỏi top-6.
+    assert ids == ["D0", "D1", "D2", "D6", "D3", "D4"]
     assert "D5" not in ids and "D7" not in ids
-    assert res.chunks[0].rerank_score == pytest.approx(10.0)
+    assert next(c for c in res.chunks if c.doc_id == "D6").rerank_score         == pytest.approx(10.0)
 
 
 @pytest.mark.integration
@@ -262,18 +301,31 @@ def test_rerank_recovers_doc_when_bare_query_lacks_context(clean_tables, monkeyp
     # if it did, plainto_tsquery('simple', 'SLA') would sparse-match it
     # directly against the bare primary query alone, pre-empting the very
     # thing this test isolates (whether rerank, not pooling, recovers it).
+    # BA tài liệu: cross-encoder nay là lá phiếu hoà với RRF, nên với đúng hai
+    # ứng viên đảo chỗ cho nhau hai lá phiếu triệt tiêu và RRF thắng tie-break.
+    # Muốn kéo được RIGHT lên đầu, lá phiếu phải vừa NÂNG RIGHT vừa DÌM WRONG —
+    # đúng thứ một cross-encoder có ích phải làm được.
     _seed(clean_tables, [
         ("RIGHT", "quy dinh ve thoi gian giao hang khan cap", [1.0, 1.0] + [0.0] * 1022),
         ("WRONG", "chuong muc luat lao dong chung chung", [1.0, 0.9] + [0.0] * 1022),
+        ("FILLER", "bieu mau de nghi thanh toan noi bo", [1.0, 2.0] + [0.0] * 1022),
     ])
     monkeypatch.setattr(r, "embed_query", lambda q: [1.0] + [0.0] * 1023)
 
     def fake_score(q, texts):
         # Only recognizes RIGHT's content when the rerank query carries the
         # "khan cap" marker — absent from bare "SLA" alone, present only via
-        # the concatenated aux query.
-        return [1.0 if ("khan cap" in q and "quy dinh ve thoi gian" in t) else 0.1
-                for t in texts]
+        # the concatenated aux query. WRONG bị chấm thấp nhất dù ở hạng 1 theo
+        # RRF; FILLER ở giữa.
+        out = []
+        for t in texts:
+            if "chuong muc luat lao dong" in t:
+                out.append(0.0)
+            elif "quy dinh ve thoi gian" in t:
+                out.append(1.0 if "khan cap" in q else 0.2)
+            else:
+                out.append(0.5)
+        return out
 
     monkeypatch.setattr(r.reranker, "score_pairs", fake_score)
 

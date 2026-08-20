@@ -1,0 +1,20 @@
+-- 003_effective_date.sql — ngày hiệu lực của văn bản nguồn.
+--
+-- VÌ SAO. Corpus 98,7% là PDF luật. Chủ dự án xác nhận 2026-08-20 rằng sẽ có
+-- lúc bản CŨ và bản MỚI của cùng một luật cùng nằm trong corpus (tra cứu lịch
+-- sử, hoặc hợp đồng cũ chịu luật cũ). Khi đó model trộn hai bản là rủi ro TÍNH
+-- ĐÚNG PHÁP LÝ — cùng loại hỏng đã đo được với cặp Điều 418/301, chỉ nặng hơn.
+--
+-- Đợt này CHỈ thu thập và hiển thị trong trích dẫn. CHƯA lọc theo hiệu lực:
+-- hôm nay chưa có bản nào bị thay thế, nên viết bộ lọc ngay sẽ tạo một nhánh
+-- code không bao giờ chạy — đúng cách reranker, chân sparse và sổ ngân sách đã
+-- chết (mỗi cái mất nhiều tuần mới bị phát hiện).
+--
+-- NULL là giá trị HỢP LỆ: 8/17 tài liệu là tài liệu nghiệp vụ (docx/xlsx),
+-- không phải văn bản quy phạm. Cả 9/9 PDF luật đều đọc được ngày (đo lại
+-- 2026-08-20 sau khi ingest thật; con số 8/9 ước lượng trước đó là SAI, do
+-- phép đo đầu đi tìm mục tên "Hiệu lực thi hành" nên bỏ sót tệp đặt tên mục
+-- là "Điều khoản thi hành").
+--
+-- Idempotent, an toàn khi chạy lại.
+ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS effective_date date;

@@ -86,12 +86,36 @@ def extract_write_suggestion(body: str) -> tuple[str, bool]:
     return clean, value in _WRITE_SUGGEST_YES
 
 
+def _vn_date(iso: str) -> str:
+    """'2025-07-01' → '01/07/2025'. Trả nguyên chuỗi nếu không đúng dạng.
+
+    Không ném: một chuỗi ngày lạ không được phép làm hỏng cả footer trích dẫn.
+    """
+    parts = iso.split("-")
+    if len(parts) != 3:
+        return iso
+    y, m, d = parts
+    return f"{d}/{m}/{y}"
+
+
 def build_citations(chunks) -> str:
     """Deterministic '📄 Nguồn:' footer from chunk metadata.
 
     Deduped by (source_file, section_path or sheet), retrieval order preserved.
-    Text chunk → "{section_path} ({file}, tr.{page})" (page omitted if None).
+    Text chunk → "{section_path} ({file}, hiệu lực {date}, tr.{page})" — cả
+    ngày lẫn trang bỏ đi nếu không có.
     xlsx chunk → "{sheet} ({file}, {row_range})". Empty list → "".
+
+    VÌ SAO CÓ NGÀY HIỆU LỰC. Corpus sẽ chứa nhiều bản của cùng một luật (luật
+    sửa đổi không thay thế bản gốc). Không có ngày trên trích dẫn thì hai bản
+    trông giống hệt nhau và người đọc không có cách nào biết mình đang xem bản
+    nào. Đây là toàn bộ phần "làm bây giờ": KHÔNG lọc, KHÔNG xếp hạng theo
+    ngày — chưa có hai bản nào cùng tồn tại để mà lọc, và dựng bộ lọc không có
+    gì để lọc chính là cách sinh ra thành phần chết.
+
+    Ngày đặt SAU tên tệp và TRƯỚC số trang, nên chuỗi con "{file}" vẫn liền
+    mạch — `citation_acc` của bộ synthesis_live kiểm `expect_source in footer`
+    bằng basename.
     """
     if not chunks:
         return ""
@@ -107,7 +131,9 @@ def build_citations(chunks) -> str:
             lines.append(f"• {c.sheet} ({base}, {c.row_range})")
         else:
             loc = c.section_path or base
-            tail = f", tr.{c.page}" if c.page is not None else ""
+            tail = f", hiệu lực {_vn_date(c.effective_date)}" if getattr(
+                c, "effective_date", None) else ""
+            tail += f", tr.{c.page}" if c.page is not None else ""
             lines.append(f"• {loc} ({base}{tail})")
     return "\n\n📄 Nguồn:\n" + "\n".join(lines)
 

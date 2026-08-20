@@ -23,6 +23,8 @@ from .write_registry import COORDINATED_TOOLS, expand_chain
 from .handoff import build_handoff, existing_handoff
 from ..erp_query import crm
 from ..rag.retrieve import retrieve
+from ..rag.config import TOP_K
+from .history import previous_user_turn
 from .synthesis import synthesize, SAFE_MSG, extract_write_suggestion
 from .erp_grounding import verify_erp_grounding
 from .tool_result import _tool_result_text, parse_write_result
@@ -94,8 +96,19 @@ def make_rag_node(llm):
         if last_human is None:
             return {"messages": [AIMessage(content=SAFE_MSG)]}
         query = last_human.content
+        # Lượt hỏi liền trước đi vào aux_queries — KHÔNG vào `query`. Truy xuất
+        # được thấy ngữ cảnh, còn prompt của synthesize() vẫn nhận đúng câu
+        # người dùng vừa hỏi. Tách hai thứ có chủ đích: nửa sinh cũng thiếu
+        # ngữ cảnh nhưng CHƯA ĐO ĐƯỢC, và trộn hai thay đổi vào một lần thì
+        # không quy được kết quả cho cái nào.
+        prev = previous_user_turn(state["messages"])
         try:
-            result = await asyncio.to_thread(retrieve, query)
+            # Hoà hai nhánh: `aux_queries` (lượt hỏi trước) đến từ main —
+            # đo được multiturn recall@6 0,75→1,00; `memory` đến từ nhánh ký
+            # ức. Lấy nguyên một vế là MẤT LẶNG LẼ một tính năng đã đo, nên
+            # cả hai phải cùng sống ở đây.
+            result = await asyncio.to_thread(
+                retrieve, query, TOP_K, None, (prev,) if prev else ())
             answer = await synthesize(query, result, llm,
                                       memory=state.get("user_memory") or "")
         except Exception:

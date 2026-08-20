@@ -217,3 +217,119 @@ async def test_erp_read_node_skips_verify_when_no_tools_called(monkeypatch):
     )
     await node(state)
     assert calls == []
+
+
+# ── Ngữ cảnh hội thoại cho truy xuất (2026-08-20) ────────────────────────────
+# rag_node và gather_docs đều lấy DUY NHẤT tin nhắn cuối, nên câu hỏi nối tiếp
+# rút gọn ("trong bao lâu?") đi vào retrieve() trần trụi. Đo trên bộ multiturn:
+# recall@6 0,7500 (không ngữ cảnh) vs 1,0000 (có) — một phần tư câu hỏi nối
+# tiếp không tìm ra tài liệu đúng trong 6 chunk gửi cho LLM.
+
+from langchain_core.messages import AIMessage, HumanMessage
+
+from src.agents.history import previous_user_turn
+
+
+def test_previous_user_turn_bo_qua_cau_tra_loi_cua_tro_ly():
+    # Chỉ lấy lượt NGƯỜI DÙNG. Câu trả lời của trợ lý dài và mang văn phong
+    # tổng hợp; nhúng nó thành truy vấn là đưa nhiễu vào pool.
+    msgs = [HumanMessage(content="chính sách đổi trả thế nào?"),
+            AIMessage(content="Khách hàng được hoàn hàng trong 30 ngày..."),
+            HumanMessage(content="thế còn hàng giảm giá?")]
+    assert previous_user_turn(msgs) == "chính sách đổi trả thế nào?"
+
+
+def test_previous_user_turn_luot_dau_tien_khong_co_ngu_canh():
+    msgs = [HumanMessage(content="chính sách đổi trả thế nào?")]
+    assert previous_user_turn(msgs) == ""
+
+
+def test_previous_user_turn_danh_sach_rong():
+    assert previous_user_turn([]) == ""
+
+
+def test_previous_user_turn_chi_lay_MOT_luot_lien_truoc():
+    # Một lượt, KHÔNG phải N: đó là cấu hình đã đo. Nhiều lượt hơn nghĩa là
+    # nhiều ứng viên hơn tranh 20 chỗ trong pool — chưa đo, và đó chính là cơ
+    # chế đã làm hỏng việc hồi sinh chân sparse.
+    msgs = [HumanMessage(content="câu rất cũ"),
+            HumanMessage(content="câu liền trước"),
+            HumanMessage(content="câu hiện tại")]
+    assert previous_user_turn(msgs) == "câu liền trước"
+
+
+def test_previous_user_turn_bo_qua_noi_dung_rong():
+    msgs = [HumanMessage(content="câu thật"),
+            HumanMessage(content="   "),
+            HumanMessage(content="câu hiện tại")]
+    assert previous_user_turn(msgs) == "câu thật"
+
+
+@pytest.mark.asyncio
+async def test_rag_node_truyen_luot_truoc_vao_aux_queries(monkeypatch):
+    """DÂY NỐI phải sống: rag_node gọi previous_user_turn và đưa kết quả vào
+    aux_queries của retrieve() — KHÔNG trộn vào `query`.
+
+    VÌ SAO TEST NÀY TỒN TẠI. Các test ngay trên chỉ kiểm `previous_user_turn()`
+    như HÀM THUẦN. Đo bằng phép thử gỡ ngày 2026-08-20: thay lời gọi trong
+    rag_node bằng `retrieve(query, TOP_K)` trần thì **1785 test vẫn XANH**. Bộ
+    eval `multiturn` cũng không bắt được, vì nó gọi thẳng retrieve() chứ không
+    đi qua node.
+
+    Rủi ro cụ thể đang chờ: nhánh `worktree-user-memory-l2` sửa ĐÚNG câu lệnh
+    này (thêm `memory=` cho synthesize) và git báo CONFLICT ở đây. Lấy nguyên
+    một bên là mất một tính năng đã đo (multiturn recall@6 0,75 → 1,00). Bản
+    hoà đúng giữ CẢ HAI. Test này làm cho bản hoà sai đỏ ngay thay vì im lặng.
+
+    Cùng lớp lỗi với write-confirmation-ux-fix: cơ chế chết trên production mà
+    mọi test đơn vị vẫn xanh vì không cái nào đi qua đường thật."""
+    import src.agents.nodes as nodes_mod
+    from langchain_core.messages import AIMessage
+    from src.rag.types import RetrievalResult
+    calls = []
+
+    def fake_retrieve(*a, **kw):
+        aux = kw["aux_queries"] if "aux_queries" in kw else (
+            a[3] if len(a) > 3 else None)
+        calls.append((a[0], aux))
+        return RetrievalResult(query="q", query_used="q", chunks=[],
+                               top_score=0.0, total_candidates=0,
+                               method="hybrid-rrf")
+
+    monkeypatch.setattr(nodes_mod, "retrieve", fake_retrieve)
+    from src.agents.nodes import make_rag_node
+    node = make_rag_node(make_mock_llm("x"))
+    st = _state("còn hàng giảm giá thì sao?")
+    st["messages"] = [HumanMessage(content="chính sách hoàn hàng thế nào?"),
+                      AIMessage(content="Trong 30 ngày."),
+                      HumanMessage(content="còn hàng giảm giá thì sao?")]
+    await node(st)
+
+    query, aux = calls[0]
+    assert query == "còn hàng giảm giá thì sao?"          # query KHÔNG bị trộn
+    assert aux == ("chính sách hoàn hàng thế nào?",)      # ngữ cảnh đi lối aux
+
+
+@pytest.mark.asyncio
+async def test_rag_node_luot_dau_khong_co_aux(monkeypatch):
+    """Nửa còn lại: lượt đầu KHÔNG được bịa ra ngữ cảnh.
+
+    Thiếu test này thì một bản cài đặt luôn truyền cả lịch sử vẫn xanh, và nó
+    làm pool 20 chỗ loãng đi — đúng cơ chế đã làm hỏng việc hồi sinh chân
+    sparse."""
+    import src.agents.nodes as nodes_mod
+    from src.rag.types import RetrievalResult
+    calls = []
+
+    def fake_retrieve(*a, **kw):
+        aux = kw["aux_queries"] if "aux_queries" in kw else (
+            a[3] if len(a) > 3 else None)
+        calls.append(aux)
+        return RetrievalResult(query="q", query_used="q", chunks=[],
+                               top_score=0.0, total_candidates=0,
+                               method="hybrid-rrf")
+
+    monkeypatch.setattr(nodes_mod, "retrieve", fake_retrieve)
+    from src.agents.nodes import make_rag_node
+    await make_rag_node(make_mock_llm("x"))(_state("chính sách hoàn hàng?"))
+    assert calls == [()]

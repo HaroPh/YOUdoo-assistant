@@ -1,6 +1,6 @@
 {
   "set": "synthesis_live",
-  "n": 20,
+  "n": 28,
   "fact_acc": 1.0,
   "refusal_acc": 1.0,
   "citation_acc": 1.0,
@@ -12,7 +12,7 @@
       "citation_acc": 1.0
     },
     "distractor": {
-      "n": 6,
+      "n": 14,
       "fact_acc": 1.0,
       "refusal_acc": 1.0,
       "citation_acc": 1.0
@@ -24,8 +24,8 @@
       "citation_acc": null
     }
   },
-  "lat_p50": 2231,
-  "lat_p95": 6501,
+  "lat_p50": 8181,
+  "lat_p95": 25691,
   "fails": [],
   "errors": []
 }

@@ -193,6 +193,8 @@ Chỉ khi các đoạn tài liệu HOÀN TOÀN KHÔNG đề cập đến chủ �
 
 Nếu trả lời được, trả lời tự nhiên, thân thiện, ngắn gọn bằng tiếng Việt, bám sát nội dung tài liệu.
 
+Nếu nhiều đoạn TÀI LIỆU cùng nói về một chủ đề nhưng áp dụng cho ĐỐI TƯỢNG hoặc TRƯỜNG HỢP KHÁC NHAU (ví dụ: chế độ bắt buộc và chế độ tự nguyện; công ty một thành viên và công ty hai thành viên trở lên; người lao động và người sử dụng lao động), hãy xác định câu hỏi đang hỏi về đối tượng nào, rồi CHỈ dùng đoạn đúng đối tượng đó. KHÔNG gộp số liệu của đoạn này với đoạn kia. Nếu câu hỏi nêu rõ tên văn bản hoặc tên chế độ, ưu tiên đoạn thuộc đúng văn bản/chế độ đó. Việc chọn đúng đoạn KHÔNG phải lý do để từ chối trả lời.
+
 KHÔNG nêu số thứ tự Điều/Mục/Khoản HAY số thứ tự đoạn tài liệu (ví dụ "Điều 3", "Mục 2", "[2]", "đoạn 2") trong câu trả lời — hãy diễn giải trực tiếp nội dung bằng lời tự nhiên, không chỉ đến nguồn theo số. Danh sách nguồn chính xác sẽ được thêm tự động ở cuối.
 
 Sau khi trả lời xong, LUÔN thêm một dòng CUỐI CÙNG theo đúng định dạng: NGUỒN_DÙNG: <số thứ tự các đoạn TÀI LIỆU bạn đã dùng để trả lời, cách nhau bởi dấu phẩy>. Ví dụ: NGUỒN_DÙNG: 1,3. Chỉ liệt kê số của đoạn THỰC SỰ dùng để trả lời, không liệt kê đoạn không liên quan. Không thêm dòng này nếu trả lời KHÔNG_ĐỦ_THÔNG_TIN. /no_think"""
