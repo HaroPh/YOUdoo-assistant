@@ -64,3 +64,63 @@ def render_memory_block(facts: list[tuple[str, str]]) -> str:
             f"{lines}\n"
             "Áp dụng khi phù hợp. Nếu yêu cầu hiện tại mâu thuẫn với ghi nhớ, "
             "ưu tiên yêu cầu hiện tại.")
+
+
+async def load_active_facts(pool, user_id: str) -> list[tuple[str, str]]:
+    """Fact đang hiệu lực của MỘT người, cũ trước mới sau.
+
+    KHÔNG có đường nào bỏ điều kiện user_id — ký ức riêng tư tuyệt đối theo
+    người (spec §4).
+    """
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "SELECT fact_key, fact_value FROM user_memory "
+            "WHERE user_id = %s AND superseded_by IS NULL ORDER BY id",
+            (user_id,))
+        return [(row[0], row[1]) for row in await cur.fetchall()]
+
+
+async def save_fact(pool, user_id: str, key: str, value: str,
+                    thread_id: str | None) -> None:
+    """Chèn fact mới và supersede mọi bản cũ CÙNG key. Không bao giờ UPDATE giá trị.
+
+    Vượt MEMORY_CAP thì supersede fact CŨ NHẤT — không xoá, nên vẫn truy lại được.
+    """
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "INSERT INTO user_memory (user_id, fact_key, fact_value, thread_id) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (user_id, key, value, thread_id))
+        new_id = (await cur.fetchone())[0]
+        await conn.execute(
+            "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
+            "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
+            "AND id <> %s",
+            (new_id, user_id, key, new_id))
+        await conn.execute(
+            "UPDATE user_memory SET superseded_by = %s, superseded_at = now() "
+            "WHERE id IN (SELECT id FROM user_memory "
+            "             WHERE user_id = %s AND superseded_by IS NULL "
+            "             ORDER BY id DESC OFFSET %s)",
+            (new_id, user_id, MEMORY_CAP))
+
+
+async def forget_fact(pool, user_id: str, key: str) -> bool:
+    """Supersede fact đang hiệu lực của key này. True nếu có gỡ được cái nào.
+
+    KHÔNG DELETE: "quên" với người dùng là "không còn áp dụng", còn vệt kiểm
+    toán thì giữ nguyên.
+    """
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "UPDATE user_memory SET superseded_at = now() "
+            "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
+            "RETURNING id",
+            (user_id, key))
+        rows = await cur.fetchall()
+        if not rows:
+            return False
+        await conn.execute(
+            "UPDATE user_memory SET superseded_by = id "
+            "WHERE id = ANY(%s)", ([r[0] for r in rows],))
+        return True
