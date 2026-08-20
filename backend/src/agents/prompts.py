@@ -235,6 +235,39 @@ def _with_language_rule(prompt: str) -> str:
     return prompt + "\n\n" + LANGUAGE_RULE
 
 
+MEMORY_RULE = """
+QUY TẮC GHI NHỚ:
+Khi người dùng nêu một SỞ THÍCH lâu dài ("từ giờ trả lời ngắn gọn") hoặc một
+QUY ƯỚC riêng ("kho chính của tôi là WH/Stock", "đơn khẩn nghĩa là 24h"), hãy
+thêm một dòng CUỐI CÙNG:
+GHI_NHỚ: <tên quy ước> = <giá trị>
+Khi người dùng bảo bỏ một ghi nhớ, thêm dòng:
+QUÊN: <tên quy ước>
+
+TUYỆT ĐỐI KHÔNG ghi nhớ:
+- mã chứng từ hay bản ghi cụ thể (P00003, INV/2026/00004) — dữ liệu đó đã ở
+  trong hệ thống ERP và tra được bất cứ lúc nào
+- câu hỏi hay yêu cầu dùng một lần
+
+Phần lớn lượt trò chuyện KHÔNG có gì đáng ghi nhớ. Không có thì đừng thêm dòng
+nào — ghi nhớ vu vơ làm nhiễu, không làm nên trí nhớ."""
+
+
+def _with_memory_rule(prompt: str) -> str:
+    """Nối MEMORY_RULE vào cuối prompt, trước /no_think nếu có.
+
+    Áp lên chỉ SYSTEM_PROMPT và CHITCHAT_PROMPT (các prompt hội thoại thực với
+    người dùng); các prompt nội bộ khác không cần, tránh bắn marker vu vơ."""
+    marker = " /no_think"
+    if prompt.endswith(marker):
+        return prompt[:-len(marker)] + "\n\n" + MEMORY_RULE + marker
+    return prompt + "\n\n" + MEMORY_RULE
+
+
+# Áp MEMORY_RULE trước LANGUAGE_RULE vì cả hai chèn trước /no_think;
+# thứ tự chèn quyết định thứ tự xuất hiện.
+SYSTEM_PROMPT = _with_memory_rule(SYSTEM_PROMPT)
+CHITCHAT_PROMPT = _with_memory_rule(CHITCHAT_PROMPT)
 SYSTEM_PROMPT = _with_language_rule(SYSTEM_PROMPT)
 CHITCHAT_PROMPT = _with_language_rule(CHITCHAT_PROMPT)
 RAG_SYNTHESIS_PROMPT = _with_language_rule(RAG_SYNTHESIS_PROMPT)
