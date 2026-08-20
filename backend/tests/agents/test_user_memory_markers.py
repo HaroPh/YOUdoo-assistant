@@ -70,3 +70,47 @@ def test_marker_giua_cau_nuot_ca_duoi_cau_gioi_han_da_biet():
     assert saves == [("kho chính", "WH/Stock cho ban nhe.")]
     assert clean == "Toi se"
     assert "GHI_NHỚ" not in clean          # marker vẫn KHÔNG lọt ra ngoài
+
+
+def test_marker_o_dong_giua_van_duoc_boc():
+    """Critical: `$` không có MULTILINE chỉ khớp cuối CHUỖI, nên marker ở dòng
+    giữa từng lọt ra văn bản người dùng VÀ mất tín hiệu."""
+    body = "Xong.\n   GHI_NHỚ: kho chinh = WH/Stock\nCòn gì nữa không?"
+    clean, saves, _forgets = extract_memory_markers(body)
+    assert saves == [("kho chinh", "WH/Stock")]
+    assert "GHI_NHỚ" not in clean
+
+
+def test_marker_dan_giua_dong_con_dong_sau():
+    body = "A. GHI_NHỚ: x = y\nB còn nội dung."
+    clean, saves, _forgets = extract_memory_markers(body)
+    assert saves == [("x", "y")]
+    assert "GHI_NHỚ" not in clean
+
+
+def test_hai_marker_cung_dong_khong_nuot_nhau():
+    """Marker sau từng bị nuốt nguyên văn vào VALUE của marker trước."""
+    body = "Xong. GHI_NHỚ: a = b GHI_NHỚ: c = d"
+    clean, saves, _forgets = extract_memory_markers(body)
+    assert saves == [("a", "b"), ("c", "d")]
+    assert "GHI_NHỚ" not in clean
+
+
+def test_van_xuoi_tieng_viet_co_tu_quen_khong_bi_cat():
+    """Vì sao dấu ':' phải BẮT BUỘC: "quên" là từ tiếng Việt thật."""
+    for prose in ("Tôi quên mất rồi, xin lỗi bạn nhé.",
+                  "Đừng quên kiểm tra tồn kho trước khi giao.",
+                  "Tôi sẽ ghi nhớ điều đó cho bạn."):
+        clean, saves, forgets = extract_memory_markers(prose)
+        assert clean == prose, prose
+        assert saves == [] and forgets == [], prose
+
+
+def test_thieu_dau_hai_cham_thi_khong_ghi_va_khong_cat_gioi_han_da_biet():
+    """GIỚI HẠN ĐÃ BIẾT, cố ý: thiếu ':' → không ghi gì, và KHÔNG cắt câu.
+
+    Đánh đổi có chủ đích — xem docstring của extract_memory_markers."""
+    body = "Xong.\nGHI_NHỚ a = b"
+    clean, saves, forgets = extract_memory_markers(body)
+    assert saves == [] and forgets == []
+    assert clean == body

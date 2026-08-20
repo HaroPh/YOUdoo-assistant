@@ -129,15 +129,21 @@ async def forget_fact(pool, user_id: str, key: str) -> bool:
 MEMORY_SAVE_MARKER = "GHI_NHỚ"
 MEMORY_FORGET_MARKER = "QUÊN"
 
-# Hai pattern mỗi marker, đúng khuôn _WRITE_SUGGEST_RE / _WRITE_SUGGEST_TRAILING_RE
-# ở synthesis.py. Pattern neo-đầu-dòng KHÔNG đủ: model dán marker vào cuối câu
-# trong thực tế (bug thật 2026-08-06), khiến marker lộ ra văn bản hiển thị.
-_SAVE_LINE = re.compile(rf'\n?^{MEMORY_SAVE_MARKER}:([^\n]*)',
-                        re.IGNORECASE | re.MULTILINE)
-_SAVE_TAIL = re.compile(rf'[ \t]*{MEMORY_SAVE_MARKER}:([^\n]*)$', re.IGNORECASE)
-_FORGET_LINE = re.compile(rf'\n?^{MEMORY_FORGET_MARKER}:([^\n]*)',
-                          re.IGNORECASE | re.MULTILINE)
-_FORGET_TAIL = re.compile(rf'[ \t]*{MEMORY_FORGET_MARKER}:([^\n]*)$', re.IGNORECASE)
+# MỘT pattern mỗi marker. Ba tính chất, mỗi cái đóng một lỗi thật:
+#   MULTILINE  — `$` khớp cuối DÒNG, không phải cuối chuỗi. Thiếu nó thì marker
+#                nằm ở dòng giữa sẽ LỌT ra văn bản người dùng và mất luôn tín
+#                hiệu (đúng lớp bug 2026-08-06 của ĐỀ_XUẤT_GHI).
+#   non-greedy + lookahead — capture DỪNG trước marker kế tiếp, nên hai marker
+#                cùng một dòng không nuốt lẫn nhau.
+#   dấu ':' BẮT BUỘC — xem chú thích GIỚI HẠN bên dưới. Đây là thứ DUY NHẤT
+#                phân biệt marker máy với văn xuôi tiếng Việt bình thường.
+_NEXT_MARKER = rf'(?=[ \t]*(?:{MEMORY_SAVE_MARKER}|{MEMORY_FORGET_MARKER})[ \t]*:|$)'
+_SAVE_RE = re.compile(
+    rf'[ \t]*{MEMORY_SAVE_MARKER}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
+    re.IGNORECASE | re.MULTILINE)
+_FORGET_RE = re.compile(
+    rf'[ \t]*{MEMORY_FORGET_MARKER}[ \t]*:[ \t]*([^\n]*?){_NEXT_MARKER}',
+    re.IGNORECASE | re.MULTILINE)
 
 
 def extract_memory_markers(body: str) -> tuple[str, list[tuple[str, str]], list[str]]:
@@ -148,22 +154,27 @@ def extract_memory_markers(body: str) -> tuple[str, list[tuple[str, str]], list[
 
     Marker viết sai khuôn (thiếu dấu '=') bị BỎ QUA nhưng vẫn bị CẮT khỏi văn
     bản: thà mất một ghi nhớ còn hơn để lộ ký hiệu máy-đọc ra câu người dùng.
+
+    GIỚI HẠN CÓ CHỦ ĐÍCH — dấu ':' là BẮT BUỘC: marker viết thiếu dấu hai chấm
+    ("GHI_NHỚ a = b") sẽ hiện ra như văn bản thường. Đã thử làm dấu ':' tuỳ chọn
+    để đóng lỗ đó và ĐO ĐƯỢC hồi quy nặng hơn nhiều: "quên" là TỪ TIẾNG VIỆT
+    THẬT, nên 4/5 câu văn bình thường bị cắt nát ("Tôi quên mất rồi, xin lỗi bạn
+    nhé." → người dùng chỉ còn thấy "Tôi", kèm một lệnh quên bịa). Dấu hai chấm
+    là thứ duy nhất phân biệt marker máy với văn xuôi người — giữ bắt buộc.
     """
     text = body or ""
     saves: list[tuple[str, str]] = []
     forgets: list[str] = []
 
-    for pattern in (_SAVE_LINE, _SAVE_TAIL):
-        for raw in pattern.findall(text):
-            key, sep, value = raw.partition("=")
-            if sep and key.strip() and value.strip():
-                saves.append((key.strip(), value.strip()))
-        text = pattern.sub("", text)
+    for raw in _SAVE_RE.findall(text):
+        key, sep, value = raw.partition("=")
+        if sep and key.strip() and value.strip():
+            saves.append((key.strip(), value.strip()))
+    text = _SAVE_RE.sub("", text)
 
-    for pattern in (_FORGET_LINE, _FORGET_TAIL):
-        for raw in pattern.findall(text):
-            if raw.strip():
-                forgets.append(raw.strip())
-        text = pattern.sub("", text)
+    for raw in _FORGET_RE.findall(text):
+        if raw.strip():
+            forgets.append(raw.strip())
+    text = _FORGET_RE.sub("", text)
 
     return text.rstrip(), saves, forgets
