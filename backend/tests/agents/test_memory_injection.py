@@ -1,7 +1,14 @@
-"""Cả BỐN node sinh câu trả lời đều phải nạp khối ký ức.
+"""Cả NĂM chỗ sinh câu trả lời đều phải nạp khối ký ức.
 
-Bốn chỗ ghép = bốn chỗ có thể quên. Lớp lỗi "danh sách khai báo thiếu âm thầm"
+Năm chỗ ghép = năm chỗ có thể quên. Lớp lỗi "danh sách khai báo thiếu âm thầm"
 đã tái phát 5 lần ở repo này, nên chống trôi bằng TEST chứ không bằng lời hứa.
+
+BỐN → NĂM ngày 2026-08-20: bản đầu đếm bốn và kiểm `synthesize()` ở mức HÀM.
+Nhưng `rag_node` mới là chỗ TRUYỀN ký ức vào hàm đó, và nó không được kiểm.
+Đo bằng phép thử gỡ: thay `memory=state.get("user_memory") or ""` bằng
+`memory=""` trong rag_node thì 1866 test vẫn XANH — tính năng chết trên đường
+hỏi-đáp tài liệu mà không phép đo nào nhúc nhích. Cùng lớp lỗi đã bắt được
+cùng ngày với dây nối `aux_queries` (xem test_simple_nodes.py).
 """
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
@@ -97,3 +104,39 @@ async def test_erp_read_nap_khoi_ky_uc(state, monkeypatch):
     monkeypatch.setattr(nodes, "_create_agent", fake_create_agent)
     await nodes.make_erp_read_node(_SpyLLM(), [])(state)
     assert any(MEMORY_BLOCK in p for p in seen)
+
+
+async def test_rag_node_nap_khoi_ky_uc(state, monkeypatch):
+    """Chỗ thứ NĂM: rag_node phải TRUYỀN ký ức vào synthesize().
+
+    test_synthesize_nap_khoi_ky_uc ở trên chứng minh HÀM tôn trọng tham số.
+    Test này chứng minh NODE thật sự truyền tham số đó — hai chuyện khác nhau,
+    và chỉ chuyện thứ hai mới là thứ người dùng nhận được."""
+    import src.agents.nodes as nodes_mod
+    from src.agents.synthesis import SENTINEL
+    from src.rag.types import RetrievalResult
+
+    class _Chunk:
+        text = "Chính sách hoàn hàng trong 30 ngày."
+        section_path = "Điều 1"
+        source_file = "policy.docx"
+        sheet = None
+        page = None
+        row_range = None
+        dense_score = 0.9
+        sparse_score = None
+
+    class _SentinelLLM(_SpyLLM):
+        async def ainvoke(self, messages, config=None):
+            await super().ainvoke(messages, config)
+            return AIMessage(content=SENTINEL)
+
+    monkeypatch.setattr(
+        nodes_mod, "retrieve",
+        lambda *a, **kw: RetrievalResult(query="q", query_used="q",
+                                         chunks=[_Chunk()], top_score=0.9,
+                                         total_candidates=1))
+    llm = _SentinelLLM()
+    st = {**state, "messages": [HumanMessage(content="chính sách hoàn hàng?")]}
+    await nodes_mod.make_rag_node(llm)(st)
+    assert any(MEMORY_BLOCK in p for p in llm.system_prompts)
