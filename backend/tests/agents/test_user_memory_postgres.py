@@ -7,6 +7,7 @@ import os
 import uuid
 
 import pytest
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from src.agents.user_memory import MEMORY_CAP, forget_fact, load_active_facts, save_fact
@@ -20,7 +21,15 @@ DSN = os.environ.get("DATABASE_URL")
 async def pool():
     if not DSN:
         pytest.skip("DATABASE_URL chưa đặt")
-    p = AsyncConnectionPool(DSN, min_size=1, max_size=2, open=False)
+    # Cấu hình pool phải KHỚP HỆT production (erp_agent.py::setup): dict_row +
+    # autocommit + prepare_threshold=0. Trước đây fixture này dùng row factory
+    # mặc định (tuple), nên cả ba hàm DB indexing theo vị trí "0 sky-passed"
+    # trong khi production luôn KeyError: 0 — 1822 test xanh mà tính năng chết
+    # hoàn toàn. Đo đúng cấu hình thật để lỗi này không tái diễn.
+    p = AsyncConnectionPool(
+        DSN, min_size=1, max_size=2, open=False,
+        kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+    )
     await p.open()
     yield p
     await p.close()
@@ -53,8 +62,8 @@ async def test_supersede_khong_xoa_ban_cu(pool, user_id):
             "SELECT fact_value, superseded_by FROM user_memory "
             "WHERE user_id = %s ORDER BY id", (user_id,))).fetchall()
     assert len(rows) == 2
-    assert rows[0][1] is not None      # bản cũ đã bị supersede
-    assert rows[1][1] is None          # bản mới đang hiệu lực
+    assert rows[0]["superseded_by"] is not None      # bản cũ đã bị supersede
+    assert rows[1]["superseded_by"] is None          # bản mới đang hiệu lực
 
 
 async def test_quen_thi_khong_con_hieu_luc_nhung_van_con_dong(pool, user_id):
@@ -64,7 +73,7 @@ async def test_quen_thi_khong_con_hieu_luc_nhung_van_con_dong(pool, user_id):
     async with pool.connection() as conn:
         rows = await (await conn.execute(
             "SELECT count(*) FROM user_memory WHERE user_id = %s", (user_id,))).fetchall()
-    assert rows[0][0] == 1             # KHÔNG bị DELETE
+    assert rows[0]["count"] == 1       # KHÔNG bị DELETE
 
 
 async def test_quen_key_khong_ton_tai_tra_false(pool, user_id):
@@ -96,4 +105,4 @@ async def test_vuot_tran_thi_bo_fact_cu_nhat_va_giu_fact_moi(pool, user_id):
     async with pool.connection() as conn:
         cur = await conn.execute(
             "SELECT count(*) FROM user_memory WHERE user_id = %s", (user_id,))
-        assert (await cur.fetchone())[0] == total
+        assert (await cur.fetchone())["count"] == total

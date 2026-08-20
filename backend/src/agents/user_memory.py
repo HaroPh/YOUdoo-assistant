@@ -10,6 +10,8 @@ Nhờ vậy ký ức sai luôn gỡ được và vẫn còn vệt kiểm toán.
 import re
 import unicodedata
 
+from psycopg.rows import tuple_row
+
 # Trần fact đang hiệu lực mỗi người. Vượt trần thì supersede cái CŨ NHẤT —
 # không mất gì vì bảng append-only.
 MEMORY_CAP = 50
@@ -73,7 +75,12 @@ async def load_active_facts(pool, user_id: str) -> list[tuple[str, str]]:
     người (spec §4).
     """
     async with pool.connection() as conn:
-        cur = await conn.execute(
+        # Pool production dùng row_factory=dict_row (bắt buộc cho
+        # AsyncPostgresSaver — xem erp_agent.py::setup). Lấy ô theo vị trí
+        # (row[0]) trên dict sẽ KeyError: 0. Ép tuple_row NGAY TRÊN CURSOR để
+        # hàm này đúng bất kể pool cấu hình row factory gì.
+        cur = conn.cursor(row_factory=tuple_row)
+        await cur.execute(
             "SELECT fact_key, fact_value FROM user_memory "
             "WHERE user_id = %s AND superseded_by IS NULL ORDER BY id",
             (user_id,))
@@ -87,7 +94,8 @@ async def save_fact(pool, user_id: str, key: str, value: str,
     Vượt MEMORY_CAP thì supersede fact CŨ NHẤT — không xoá, nên vẫn truy lại được.
     """
     async with pool.connection() as conn:
-        cur = await conn.execute(
+        cur = conn.cursor(row_factory=tuple_row)
+        await cur.execute(
             "INSERT INTO user_memory (user_id, fact_key, fact_value, thread_id) "
             "VALUES (%s, %s, %s, %s) RETURNING id",
             (user_id, key, value, thread_id))
@@ -112,7 +120,8 @@ async def forget_fact(pool, user_id: str, key: str) -> bool:
     toán thì giữ nguyên.
     """
     async with pool.connection() as conn:
-        cur = await conn.execute(
+        cur = conn.cursor(row_factory=tuple_row)
+        await cur.execute(
             "UPDATE user_memory SET superseded_at = now() "
             "WHERE user_id = %s AND fact_key = %s AND superseded_by IS NULL "
             "RETURNING id",
