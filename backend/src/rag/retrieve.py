@@ -76,12 +76,55 @@ def _rrf(dense: list[tuple], sparse: list[tuple], acc: dict | None = None) -> di
 
 
 def rerank(query: str, chunks: list[Chunk]) -> tuple[list[Chunk], bool]:
-    """Cross-encoder rerank, fail-open (spec 2026-07-12 §3.3).
+    """Cross-encoder rerank HOÀ với thứ tự RRF, fail-open (spec 2026-07-12 §3.3).
 
     (chunks, False) khi reranker tắt/hỏng — nguyên trạng thứ tự RRF, đúng
     hành vi trước khi có feature; (reordered, True) khi có điểm. Gọi
-    score_pairs qua module attr để test monkeypatch được. sorted ổn định:
-    điểm bằng nhau giữ nguyên thứ tự RRF."""
+    score_pairs qua module attr để test monkeypatch được.
+
+    CROSS-ENCODER LÀ MỘT LÁ PHIẾU, KHÔNG PHẢI KẺ GHI ĐÈ (đổi 2026-08-20).
+    Trước đây hàm này xếp lại hoàn toàn theo điểm cross-encoder. Đo trên 64 ca
+    của bộ `retrieval` thì cách đó THUA cả cách tắt hẳn reranker:
+
+        recall@6   tắt 0,9635 | ghi đè 0,9453 | hoà 0,9766
+        hard mrr   tắt 0,7160 | ghi đè 0,6135 | hoà 0,6758
+
+    Đối đầu từng ca trên recall@6: hoà thắng ghi-đè 2–0 và thắng tắt-hẳn 2–0,
+    không thua ca nào; còn tắt-hẳn với ghi-đè chỉ hoà 2–2.
+
+    NGUYÊN NHÂN cách ghi đè hỏng: cross-encoder chấm nặng theo TRÙNG MẶT CHỮ
+    của tiêu đề. Câu "một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là
+    gì?" bị nó đẩy "Điều 309/311. HẬU QUẢ pháp lý của việc tạm ngừng/đình chỉ"
+    lên hạng 1-2 với điểm DƯƠNG, còn đáp án đúng "Điều 428. Đơn phương chấm
+    dứt" tụt xuống −2,87 và văng khỏi top-6. Trả lời đúng đòi hiểu "tự ý dừng
+    giữa chừng" = "đơn phương chấm dứt" — đúng thứ trùng mặt chữ không làm
+    được. Nên nó giúp ở nhóm `easy` (vốn đã trùng mặt chữ sẵn) và hại ở nhóm
+    `hard` (vốn là nhóm cần truy xuất tốt).
+
+    Hoà bằng RRF làm một chunk phải TỆ Ở CẢ HAI thứ hạng mới rơi khỏi top-k,
+    nên một lá phiếu sai lệch không đủ sức đẩy đáp án đúng ra ngoài.
+
+    ĐÁNH ĐỔI ĐÃ BIẾT VÀ CHẤP NHẬN. Trên bộ `multiturn` (12 ca) thứ tự đảo
+    ngược — ở đó cách GHI ĐÈ mới là tốt nhất về mrr:
+
+        multiturn mrr   tắt 0,7391 | ghi đè 0,9375 | hoà 0,8292
+        multiturn r@6   tắt 1,0000 | ghi đè 1,0000 | hoà 1,0000
+
+    Vẫn chọn hoà, vì hai lẽ: (a) trên multiturn CẢ BA cấu hình đều đạt
+    recall@6 = 1,0, nên chênh lệch ở đó chỉ là thứ tự BÊN TRONG 6 chunk mà
+    model đều đọc cả; (b) trên bộ `retrieval` cách ghi đè làm đáp án VĂNG HẲN
+    khỏi top-6 ở hai câu — hỏng nặng hơn hẳn tụt từ hạng 1 xuống hạng 3.
+
+    CÂU HỎI CÒN MỞ: chưa đo được tác động thật xuống câu trả lời cuối. Chỉ bộ
+    `synthesis_live` trả lời được "hạng 1 so với hạng 3 có đổi đáp án không",
+    và nó cần hạn mức LLM (đang cooldown lúc đổi, 2026-08-20). Nếu sau này đo
+    được rằng thứ hạng trong top-6 có ảnh hưởng thật, cân nhắc lại tỉ trọng
+    hai chân thay vì 1:1 như hiện nay.
+
+    Cái giá còn lại: `trap` mrr tụt 0,8906 → 0,8562 so với tắt hẳn, và vẫn tốn
+    ~100ms/truy vấn cho lượt gọi cross-encoder.
+
+    sorted ổn định: điểm hoà bằng nhau thì giữ nguyên thứ tự RRF."""
     if not chunks:
         return chunks, False
     # Pair = đúng chuỗi đã index (crumb + body) — nếu chỉ đưa body, chunk
@@ -90,9 +133,17 @@ def rerank(query: str, chunks: list[Chunk]) -> tuple[list[Chunk], bool]:
                                           for c in chunks])
     if scores is None:
         return chunks, False
-    order = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
+    # `chunks` đã ở thứ tự RRF, nên chỉ số i CHÍNH LÀ thứ hạng RRF của nó.
+    by_score = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
+    ce_rank = {i: pos for pos, i in enumerate(by_score)}
+    # Cùng công thức và cùng hằng RRF_K với _rrf() — hoà thứ hạng ở đây là
+    # thêm một chân vào đúng phép hợp nhất đang dùng cho dense/sparse, không
+    # phải một cơ chế chấm điểm thứ hai.
+    fused = sorted(range(len(chunks)),
+                   key=lambda i: -(1.0 / (RRF_K + i + 1)
+                                   + 1.0 / (RRF_K + ce_rank[i] + 1)))
     reordered = [dataclasses.replace(chunks[i], rerank_score=scores[i], rank=pos)
-                 for pos, i in enumerate(order)]
+                 for pos, i in enumerate(fused)]
     return reordered, True
 
 
