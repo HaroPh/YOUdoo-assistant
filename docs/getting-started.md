@@ -138,10 +138,10 @@ backend.
    ```powershell
    docker cp backend\migrations\001_llm_usage.sql youdoo-postgres:/tmp/001_llm_usage.sql
    docker cp backend\migrations\002_mcp_call_log.sql youdoo-postgres:/tmp/002_mcp_call_log.sql
-   docker cp backend\migrations\003_user_memory.sql youdoo-postgres:/tmp/003_user_memory.sql
+   docker cp backend\migrations\004_user_memory.sql youdoo-postgres:/tmp/004_user_memory.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/001_llm_usage.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/002_mcp_call_log.sql
-   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/003_user_memory.sql
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/004_user_memory.sql
    ```
 
    `admin` / `ai_assistant` are `POSTGRES_USER` and `POSTGRES_DB` from
@@ -153,7 +153,7 @@ backend.
    harmless.
 
    `001_llm_usage.sql` — the LLM budget ledger. `002_mcp_call_log.sql` —
-   the audit trail for every MCP call. `003_user_memory.sql` — the
+   the audit trail for every MCP call. `004_user_memory.sql` — the
    cross-session per-user memory table.
 
    **Skip `002` and the MCP processes refuse to start**, with a message
