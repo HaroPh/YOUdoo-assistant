@@ -19,7 +19,7 @@
 - **KHÔNG đụng** `INTENT_ROUTER_PROMPT` (bất biến byte-for-byte một plan khác đang canh), `WRITE_PLANNER_PROMPT`, `GATHER_ERP_PROMPT`.
 - **0 lượt gọi LLM thêm.** Không task nào được thêm một lượt `ainvoke` mới vào đường nóng.
 - **Trần 50 fact đang hiệu lực mỗi người.**
-- Số test kỳ vọng là **số CỘNG DỒN** từ mốc **1698 passed, 4 skipped, 48 deselected**. Lệch thì đếm lại bằng `--collect-only` và ghi số THẬT vào báo cáo, đừng sửa cho khớp plan.
+- Số test kỳ vọng là **số CỘNG DỒN** từ mốc **1763 passed, 2 skipped, 53 deselected** (đo lại 2026-08-20, sau khi nhánh `rag-gpu-reranker-p0` merge vào main — mốc 1698 trong bản plan đầu đã lỗi thời). Lệch thì đếm lại bằng `--collect-only` và ghi số THẬT vào báo cáo, đừng sửa cho khớp plan.
 
 ---
 
@@ -264,7 +264,7 @@ docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/003_user_memor
 - [ ] **Step 12: Chạy full suite**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1718 passed (1698 + 20), 4 skipped, 48 deselected
+Expected: 1783 passed (1763 + 20), 2 skipped, 53 deselected
 
 - [ ] **Step 13: Commit**
 
@@ -452,7 +452,7 @@ Expected: PASS (6 test)
 - [ ] **Step 4: Chạy full suite chế độ nhanh — không được đổi số**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1718 passed (không đổi — test mới đều là `integration`), 4 skipped, deselected tăng 6 → 54
+Expected: 1783 passed (không đổi — test mới đều là `integration`), 2 skipped, deselected tăng 6 → 59
 
 - [ ] **Step 5: Commit**
 
@@ -598,7 +598,7 @@ Expected: PASS (6 test)
 - [ ] **Step 4: Chạy full suite**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1724 passed (1718 + 6), 4 skipped, 54 deselected
+Expected: 1789 passed (1783 + 6), 2 skipped, 59 deselected
 
 - [ ] **Step 5: Commit**
 
@@ -838,7 +838,7 @@ Trong `backend/src/main.py`, điểm gọi `agent.chat` (quanh dòng 176) đổi
 - [ ] **Step 5: Chạy full suite**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1729 passed (1724 + 5), 4 skipped, 54 deselected
+Expected: 1794 passed (1789 + 5), 2 skipped, 59 deselected
 
 - [ ] **Step 6: Commit**
 
@@ -1118,7 +1118,7 @@ Expected: PASS (5 test)
 - [ ] **Step 8: Chạy full suite — đây là task dễ vỡ test cũ nhất**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1734 passed (1729 + 5), 4 skipped, 54 deselected
+Expected: 1799 passed (1794 + 5), 2 skipped, 59 deselected
 
 Nếu có test cũ ĐỎ: đọc hiểu bất biến thật của nó rồi sửa cho đúng, **không nới lỏng assertion**. `synthesize` đổi chữ ký là chỗ nhiều khả năng vỡ nhất — tham số `memory` có giá trị mặc định nên mọi điểm gọi cũ phải vẫn chạy được.
 
@@ -1207,7 +1207,7 @@ Expected: PASS (3 test)
 - [ ] **Step 4: Chạy full suite**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1737 passed (1734 + 3), 4 skipped, 54 deselected
+Expected: 1802 passed (1799 + 3), 2 skipped, 59 deselected
 
 Test cũ trong `tests/agents/test_prompts.py` có thể vỡ nếu nó khẳng định `/no_think` nằm cuối chuỗi — sửa cho đúng vị trí mới, **giữ nguyên bất biến gốc**.
 
@@ -1460,7 +1460,7 @@ Expected: PASS
 - [ ] **Step 8: Chạy full suite**
 
 Run: `.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: 1741 passed (1737 + 4), 4 skipped, 54 deselected
+Expected: 1806 passed (1802 + 4), 2 skipped, 59 deselected
 
 - [ ] **Step 9: Commit**
 
@@ -1547,7 +1547,7 @@ git commit -m "docs(report): so do va nghiem thu song cho ky uc xuyen phien L2"
 
 ## Ghi chú cho người thực thi
 
-- **Số test kỳ vọng là số CỘNG DỒN** từ mốc 1698. Lệch thì đếm lại bằng `--collect-only` và ghi số THẬT vào báo cáo task, đừng sửa cho khớp plan.
+- **Số test kỳ vọng là số CỘNG DỒN** từ mốc 1763. Lệch thì đếm lại bằng `--collect-only` và ghi số THẬT vào báo cáo task, đừng sửa cho khớp plan.
 - **Chạy lại `git status` sau mỗi lượt pytest.** Bộ test từng ghi đè file fixture đã commit; thấy file lạ "modified" mà mình không đụng thì nghi lớp lỗi đó trước.
 - **Không test nào chứng minh được ký ức xuyên phiên.** Mọi khẳng định chỉ có giá trị khi đo qua HTTP thật với hai `session_id` khác nhau (Task 8 Step 6).
 - **Cổng phủ quyết `is_document_code` là lưới cuối, không phải lưới duy nhất.** `MEMORY_RULE` cũng dặn model đừng ghi mã chứng từ. Nếu bộ eval cho thấy model bắn nhiều ca `blocked`, đó là tín hiệu sửa PROMPT, không phải nới cổng.
