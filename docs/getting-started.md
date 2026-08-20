@@ -149,11 +149,11 @@ backend.
    `DATABASE_URL`. If you overrode `POSTGRES_USER` in `.env`, use that
    value here instead.
 
-   Both scripts are `CREATE TABLE IF NOT EXISTS`, so re-running them is
+   All three scripts are `CREATE TABLE IF NOT EXISTS`, so re-running them is
    harmless.
 
    `001_llm_usage.sql` — the LLM budget ledger. `002_mcp_call_log.sql` —
-   the audit trail for every MCP call.
+   the audit trail for every MCP call. `003_user_memory.sql` — ký ức xuyên phiên theo từng người dùng.
 
    **Skip `002` and the MCP processes refuse to start**, with a message
    naming the exact file to run. That is deliberate: this table was missing

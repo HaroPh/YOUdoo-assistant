@@ -29,6 +29,7 @@ def test_co_dau_va_khong_dau_ra_cung_mot_key():
 
 @pytest.mark.parametrize("value", [
     "P00003", "S00012", "INV/2026/00004", "WH/OUT/00001",
+    "E-COM07", "F-COM07", "COM07",
     "đơn P00003 là quan trọng nhất", "xem hoá đơn INV/2026/00017 nhé",
 ])
 def test_chan_fact_mang_ma_chung_tu_cu_the(value):
@@ -43,6 +44,7 @@ def test_chan_fact_mang_ma_chung_tu_cu_the(value):
     "ngắn gọn",
     "giao trong 24h",     # có chữ số nhưng không phải mã chứng từ
     "tiếng Anh",
+    "khong qua 3 dong", "uu tien don gap trong 48h", "top 10 khach hang",
 ])
 def test_cho_qua_fact_noi_ve_loai_hoac_quy_uoc(value):
     assert is_document_code(value) is False

@@ -36,7 +36,8 @@ def normalize_key(raw: str) -> str:
 #   - có gạch chéo VÀ có chữ số: INV/2026/00004, WH/OUT/00001
 # Ranh giới cố ý: "WH/Stock" (không chữ số) là tên KHO — một quy ước, cho qua.
 # "WH/OUT/00001" (có chữ số) là MỘT phiếu cụ thể — chặn.
-_DOC_CODE = re.compile(r"\b[A-Z]{1,4}\d{3,}\b|\b[A-Z]{2,}(?:/[A-Z0-9]+)*/\d+\b",
+_DOC_CODE = re.compile(r"\b[A-Z]{1,4}-?[A-Z]{0,4}\d{2,}\b|"
+                       r"\b[A-Z]{2,}(?:/[A-Z0-9]+)*/\d+\b",
                        re.IGNORECASE)
 
 
