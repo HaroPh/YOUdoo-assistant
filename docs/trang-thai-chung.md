@@ -1,6 +1,6 @@
 # Trạng thái chung — hai phiên làm việc song song
 
-Cập nhật lần cuối: **2026-08-20**, `origin/main = 2994a37`.
+Cập nhật lần cuối: **2026-08-21**.
 
 ## Cách dùng tệp này
 
@@ -33,16 +33,22 @@ Quy ước:
 
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
-| 1 | Đo khối ký ức trên `FUSE_PROMPT` — phủ **cả** `NGUỒN_DÙNG:` lẫn `ĐỀ_XUẤT_GHI` | RAG | hạn mức LLM |
+| 1 | Đo `ĐỀ_XUẤT_GHI` với khối ký ức khác rỗng — **cần bộ ca riêng** | chưa ai | `MULTI_SOURCE_CASES` không có ca đề xuất ghi |
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | — |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 4 | Dọn 11 worktree mồ côi + 2 stash rác | chưa ai | — |
 
-**Mục 1 là MỘT phép đo, đừng chia đôi.** Cả `NGUỒN_DÙNG:` (prompts.py:227) và
-`ĐỀ_XUẤT_GHI` (prompts.py:228) đều nằm trong `FUSE_PROMPT`, sau khối ký ức, và
-`fuse_answer` (fanout.py:202) vẫn nhận khối đó. Hai tab cùng đo riêng = tốn hạn
-mức gấp đôi cho cùng một câu trả lời. `eval_multi_source` đã mirror sẵn
-`FUSE_PROMPT`; chân `--memory` đã dựng.
+**Mục 1 thu hẹp sau phép đo 2026-08-21.** Nửa `NGUỒN_DÙNG:` đã đo xong:
+`citation_validity` giữ **1,0** ở mọi chân ký ức, tất định qua 3 lượt (spec
+`2026-08-20-memory-synthesis-eval.md` §9). Nửa còn lại — `ĐỀ_XUẤT_GHI` — KHÔNG
+đo chung được: `_strip_write_marker()` chỉ cắt marker chứ không chấm, và
+`MULTI_SOURCE_CASES` không có ca nào đề xuất thao tác ghi. Cần bộ ca riêng.
+
+**Kèm một quyết định đã có số đỡ lưng: ĐỪNG cắt ký ức khỏi `fuse_answer`.** Sự
+không nhất quán giữa hai đường (`rag_node` không nạp / `fuse_answer` có nạp)
+trông như bỏ sót, nhưng đo ra fact ép định dạng làm đường fuse TỐT LÊN
+(`both_source` 0,750 → 0,875, tất định 3/3) trong khi làm đường RAG tệ đi. Cắt
+cho "nhất quán" sẽ làm mất một ca đang đúng.
 
 **Mục 2 đang tắt một cổng chặn hồi quy Critical**:
 `tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` bị skip

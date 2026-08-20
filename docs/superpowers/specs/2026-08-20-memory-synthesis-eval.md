@@ -173,3 +173,62 @@ tiếng Việt làm CHÍNH dòng in lỗi ném `UnicodeEncodeError` trên consol
 nuốt mất chẩn đoán và đổi exit 2 (đọc được) thành exit 1 trống rỗng — đúng lỗi
 này che mất chữ "cooldown" một lượt. `main()` nay đặt
 `sys.stdout.reconfigure(errors="replace")`.
+
+## 9. Đường `fuse_answer`: KHÔNG suy giảm — và ĐỪNG cắt ký ức ở đây
+
+Ngày 2026-08-21. Đóng nợ mục 1 của `docs/trang-thai-chung.md`.
+
+**Vì sao phải đo.** §7 cắt ký ức khỏi `rag_node`, nhưng `fuse_answer`
+(fanout.py:202) **vẫn nhận** khối ký ức và cũng sinh câu trả lời có căn cứ tài
+liệu: cùng hợp đồng `NGUỒN_DÙNG:` (prompts.py:227), cùng `cite_and_verify()`.
+Comment quyết định ở nodes.py liệt kê "erp_node và chitchat" và sót chỗ này.
+Người dùng THẬT đang mang sẵn fact `do_dai_phan_hoi = ngan_gon` — đúng loại fact
+§3 đo được làm mất 8,3% `fact_acc` trên đường RAG.
+
+Đã thêm chân `--memory` cho `eval_multi_source`, ghép khối **y hệt production**
+(`memory + "\n\n" + FUSE_PROMPT`).
+
+**Số đo** — `gemini-3.1-flash-lite`, `--pace 4.5`, 8 ca:
+
+| chân | both_source_coverage | citation_validity | fabricated |
+|---|---|---|---|
+| không ký ức | 0,7500 | 1,0000 | 0 |
+| `inert` | 0,8750 | 1,0000 | 0 |
+| `format` | 0,8750 | 1,0000 | 0 |
+| `conflict` | 0,7500 | 1,0000 | 0 |
+
+**Đã tách nhiễu** (n=8 quá nhỏ để tin một lượt): chạy lặp 3 lượt cho chân
+`none` và chân `format` — **tất định 3/3 mỗi bên**, đúng các con số trên.
+
+**Kết luận, và nó NGƯỢC với đường RAG.**
+
+- Hợp đồng trích dẫn **không hề suy giảm**: `citation_validity` giữ 1,0 ở mọi
+  chân. Phơi nhiễm tôi cảnh báo là có thật về mặt cấu trúc nhưng **không gây
+  hại đo được**.
+- Ca `INV/2026/00017` trượt `both` khi KHÔNG có ký ức và ĐẠT khi có khối ép
+  ngắn. Cùng loại fact cho hai kết quả trái ngược:
+
+  | | fact ép định dạng |
+  |---|---|
+  | đường RAG (`synthesis_live`) | `fact_acc` 1,0 → 0,9167 |
+  | đường fuse (`multi_source`) | `both_source` 0,750 → 0,875 |
+
+  Giải thích hợp lý: trên đường RAG, ép ngắn khiến câu trả lời né sang chung
+  chung và mất dữ kiện; trên đường fuse, nó buộc model nói gọn **cả hai** nguồn
+  thay vì lan man vào một nguồn. Hai đường có áp lực khác nhau nên cùng một fact
+  cho hai dấu khác nhau.
+
+**Hệ quả cho quyết định: ĐỪNG cắt ký ức khỏi `fuse_answer`.** Sự không nhất quán
+giữa hai đường (`rag_node` không nạp / `fuse_answer` có nạp) trông như bỏ sót,
+nhưng số đo bảo vệ nó. Nên ghi lý do vào comment ở nodes.py thay vì "sửa cho
+nhất quán" — cắt sẽ làm mất một ca đang đúng.
+
+**Cẩn trọng, nói rõ:** n=8, và khác biệt nằm ở ĐÚNG MỘT ca. Tất định qua 3 lượt
+nên không phải nhiễu, nhưng "ký ức làm đường fuse tốt lên" là kết luận cỡ mẫu
+này chưa đỡ nổi. Điều bộ số này chống lưng được là mệnh đề phủ định: **không
+quan sát thấy suy giảm**.
+
+**CÒN NỢ**: `ĐỀ_XUẤT_GHI` vẫn chưa đo. Nó nằm trong cả `SYSTEM_PROMPT`
+(prompts.py:29) lẫn `FUSE_PROMPT` (:228), đều sau khối ký ức. `eval_multi_source`
+KHÔNG đo được nó: `_strip_write_marker()` chỉ **cắt** marker chứ không chấm, và
+`MULTI_SOURCE_CASES` không có ca nào đề xuất thao tác ghi. Cần bộ ca riêng.
