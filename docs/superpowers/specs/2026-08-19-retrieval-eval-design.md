@@ -353,3 +353,74 @@ không thể thấy gì.
 
 Đây cũng chính là lỗ hổng chặn P4 (thay `compress()`, sửa `passes_floor`).
 Vì thế nó lên trước P1/P2/P3 trong thứ tự việc.
+
+## 13. Chân sparse của hệ "hybrid" đã chết từ đầu (2026-08-20)
+
+Định sửa `passes_floor` (mệnh đề "bất kỳ FTS hit nào cũng qua cổng"), nhưng
+phép đo dẫn tới một thứ lớn hơn.
+
+### 13.1 Số đo
+
+`_sparse()` trả về **0 kết quả cho 64/64** câu hỏi của golden set.
+
+`plainto_tsquery` nối mọi từ tố bằng **AND**. Sau pyvi, một câu hỏi thật thành
+`thuế_suất thuế giá_trị gia_tăng là bao_nhiêu ?` — đòi cả `là` lẫn `bao_nhiêu`
+phải có trong CÙNG một chunk. Văn bản luật không bao giờ chứa "bao nhiêu", nên
+AND luôn hỏng.
+
+Hệ quả: `retrieve()` thực chất chạy **dense-only**; `_rrf` hợp nhất đúng MỘT
+nguồn dù `method="hybrid-rrf"` nói khác. Đây là **lần thứ ba trong một ngày**
+gặp cùng lớp lỗi *"năng lực khai báo trong code nhưng không bao giờ chạy"* —
+sau cross-encoder rerank (chết 6 tuần vì dep thiếu) và sổ ngân sách (mù với
+mọi lượt hỏng).
+
+Lỗi không lộ ra ở test cơ học vì truy vấn từ khoá NGẮN vẫn chạy
+(`thuế suất` → 20 kết quả). Nó chỉ lộ với **câu hỏi thật của người dùng**.
+
+### 13.2 Đã thử hồi sinh, và đã BỎ
+
+| Cấu hình | FTS bắn được | `recall@20` | `mrr` |
+|---|---|---|---|
+| Hiện tại (AND) | 0/64 | **1,0000** | **0,8385** |
+| `to_tsquery` OR | 64/64 | **0,9766** | 0,8375 |
+| OR + lọc token DF>30% | 64/64 | **0,9766** | 0,8367 |
+
+Cả hai biến thể đều **TRƯỢT cổng**. Ứng viên sparse chiếm chỗ trong pool 20 và
+đẩy chunk đúng ra ngoài. Giả thuyết "do hư từ kéo `ts_rank` lên" cũng bị bác:
+lọc hư từ dựng **từ chính corpus** (document-frequency > 30%) cho kết quả y
+hệt và `mrr` còn nhích xuống.
+
+Đã revert; đo lại sau revert khôi phục baseline chính xác từng chữ số.
+
+### 13.3 Kết luận, và vì sao nó không tầm thường
+
+**Trên corpus này, dense-only TỐT HƠN hybrid như đang thiết kế.** Một thành
+phần chết suốt nhiều tháng, và hồi sinh nó làm hệ thống tệ đi.
+
+Nguyên nhân nằm ở chỗ ứng viên vào pool, không ở truy vấn: `retrieve()` lấy
+`ordered[:TOP_N]` — tức **20 chỗ chia nhau** giữa hai chân. Khi chỉ có dense
+sống, dense được cả 20. Khi sparse sống lại, nó lấy mất chỗ của dense mà không
+mang lại ứng viên tốt hơn.
+
+Muốn hồi sinh sparse cho đúng thì phải đổi **cách vào pool** (ví dụ mỗi chân
+giữ TOP_N riêng, pool tối đa 2×TOP_N trước rerank — reranker trên GPU dư sức
+chấm 40 cặp), chứ không phải sửa truy vấn. Đó là một đợt riêng, có rủi ro
+riêng, và cần đo lại từ đầu.
+
+### 13.4 Hệ quả cho `passes_floor`
+
+Mệnh đề "bất kỳ FTS hit nào cũng qua cổng" hiện **vô hại vì FTS không bao giờ
+hit**. Nó chỉ trở thành nguy hiểm nếu sparse được hồi sinh. Việc sửa
+`passes_floor` vì thế **gắn với** việc hồi sinh sparse, không phải việc độc
+lập.
+
+Nhưng đo được một điều khác, quan trọng hơn: **cổng `passes_floor` hiện không
+chặn gì cả.** Cả 4 câu ngoài corpus đều qua, và **không câu nào có FTS hit** —
+chúng qua bằng chính ngưỡng cosine. `bge-m3` chấm 0,353–0,603 cho câu hoàn
+toàn lạc đề ("thủ đô nước Pháp", "dự báo thời tiết Hà Nội"), trong khi câu
+trong corpus có min 0,562. **Hai phân bố CHỒNG LẤN**, nên không ngưỡng cosine
+đơn nào tách sạch được.
+
+Đây là bản đính chính cho review 2026-08-19: tôi đã quy lỗi cổng vô hiệu cho
+mệnh đề FTS. Sai — thủ phạm là ngưỡng cosine nằm dưới mức nhiễu của chính
+embedding model.

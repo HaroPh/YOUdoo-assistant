@@ -21,6 +21,29 @@ def _dense(conn, qvec) -> list[tuple]:
 
 
 def _sparse(conn, qseg) -> list[tuple]:
+    """Chân từ-khoá của hệ hybrid.
+
+    ⚠️ ĐO ĐƯỢC 2026-08-20: chân này trả về **0 kết quả cho 64/64** câu hỏi của
+    golden set. `plainto_tsquery` nối mọi từ tố bằng AND, mà sau pyvi một câu
+    hỏi thật thành "thuế_suất thuế giá_trị gia_tăng là bao_nhiêu ?" — đòi cả
+    "là" lẫn "bao_nhiêu" phải có trong CÙNG một chunk. Văn bản luật không bao
+    giờ chứa "bao nhiêu", nên AND luôn hỏng.
+
+    Hệ quả: `retrieve()` thực chất chạy **dense-only**, và `_rrf` hợp nhất
+    đúng MỘT nguồn dù tên hàm và `method="hybrid-rrf"` nói khác. Lỗi không lộ
+    ra ở test cơ học vì truy vấn từ khoá NGẮN vẫn chạy ("thuế suất" → 20 kết
+    quả); nó chỉ lộ với câu hỏi thật của người dùng.
+
+    ĐÃ THỬ HỒI SINH VÀ ĐÃ BỎ. Đổi sang `to_tsquery` dạng OR làm FTS bắn được
+    64/64 câu, nhưng **`recall@20` tụt 1,0000 → 0,9766**: ứng viên sparse
+    chiếm chỗ trong pool 20 và đẩy chunk đúng ra ngoài. Giả thuyết "do hư từ"
+    cũng bị bác — lọc token có document-frequency > 30% cho kết quả y hệt
+    (0,9766) và `mrr` còn nhích xuống.
+
+    Nói cách khác: trên corpus này, dense-only **tốt hơn** hybrid như đang
+    thiết kế. Muốn hồi sinh sparse thì phải đổi cách ứng viên vào pool (ví dụ
+    mỗi chân giữ TOP_N riêng thay vì chia nhau 20 chỗ), chứ không phải sửa
+    truy vấn."""
     return conn.execute(
         f"SELECT {_COLS}, ts_rank(ts_vector, plainto_tsquery('simple', %s)) AS score "
         f"FROM rag_chunks WHERE ts_vector @@ plainto_tsquery('simple', %s) "
