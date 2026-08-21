@@ -28,6 +28,7 @@ from evals.retrieval_cases import RETRIEVAL_CASES
 from evals.retrieval_score import label_of, score_one
 from evals.multiturn_cases import MULTITURN_CASES
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
+from src.cli_console import use_utf8_streams
 from evals.memory_presets import MEMORY_PRESETS
 from evals.write_suggest_cases import WRITE_SUGGEST_CASES
 from evals.write_suggest_oracle import oracle_proposes_write
@@ -1346,12 +1347,11 @@ async def eval_write_suggest(llm, pace: float = 0.0, checkpoint_path=None,
 
 
 async def main(argv=None):
-    # Console Windows mặc định cp1252: một thông điệp lỗi có dấu tiếng Việt
+    # Console/tệp log Windows mặc định cp1252: một thông điệp lỗi có dấu
     # làm CHÍNH dòng in lỗi ném UnicodeEncodeError, nuốt mất chẩn đoán và đổi
     # exit 2 (INFRA ERROR đọc được) thành exit 1 trống rỗng. Gặp thật khi đo
     # chân --memory: lỗi thật là "cạn chuỗi ... =cooldown" nhưng không ai thấy.
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(errors="replace")
+    use_utf8_streams()
     ap = argparse.ArgumentParser()
     ap.add_argument("--set",
                     choices=["intent", "confirm", "chitchat", "planner", "read",

@@ -34,7 +34,7 @@ Quy ước:
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
 | 1b | ⚠️ **Ký ức thật tắt hẳn việc đề xuất ghi** trên `fuse_answer` (`proposed_rate` 0,75 → 0,00, tất định 3 lượt) — quyết định SẢN PHẨM: có muốn trợ lý chủ động đề nghị làm không | chủ dự án | spec §13 |
-| 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | — |
+| 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 4 | Dọn 11 worktree mồ côi + 2 stash rác | chưa ai | — |
 
@@ -50,12 +50,12 @@ trông như bỏ sót, nhưng đo ra fact ép định dạng làm đường fuse
 (`both_source` 0,750 → 0,875, tất định 3/3) trong khi làm đường RAG tệ đi. Cắt
 cho "nhất quán" sẽ làm mất một ca đang đúng.
 
-**Mục 2 đang tắt một cổng chặn hồi quy Critical**:
-`tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` bị skip
-cứng vì thiếu job `e2e-smoke`. Nó gác đúng lớp lỗi vừa cắn phiên ký ức ở
-`evals/` (thông điệp lỗi tiếng Việt làm chính dòng in lỗi ném
-`UnicodeEncodeError` trên console cp1252, biến exit 2 đọc được thành exit 1
-trống rỗng).
+**Mục 2 đã hạ ưu tiên (2026-08-21).** Lý do nó từng gấp là
+`tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` — cổng chặn
+hồi quy Critical — bị skip cứng vì thiếu job `e2e-smoke`. Lớp lỗi đó nay được
+gác bởi `tests/test_cli_utf8.py`, **không phụ thuộc job nào**, và bản vá đã áp
+cho **cả bảy** cửa vào CLI qua `src/cli_console.py`. Port 4 job vẫn là việc nên
+làm, nhưng không còn là việc đang giữ một cổng an toàn ở trạng thái tắt.
 
 ## Ai giữ vùng nào
 

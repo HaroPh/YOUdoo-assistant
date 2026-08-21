@@ -14,11 +14,9 @@ from datetime import datetime
 # crash UnicodeEncodeError, làm mất verdict thật và thoát exit 1 (vi phạm exit
 # contract 0/1/2). Console tương tác không dính lỗi này (Python dùng Windows
 # Console API, không qua codepage) — đó là lý do bug ẩn qua mọi lần test tay.
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding="utf-8")
-    except (AttributeError, ValueError):
-        pass
+from src.cli_console import use_utf8_streams
+
+use_utf8_streams()
 
 # ── job modules đăng ký tại import ───────────────────────────────────────────
 # 4 job e2e_* (D:\Project) cần backend :8002 sống (kế hoạch C2, chưa tồn tại
