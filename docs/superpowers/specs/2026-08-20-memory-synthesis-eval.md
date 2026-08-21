@@ -641,3 +641,34 @@ chỉ ít chủ động hơn.
 đáng để xét lại: (a) `proposed_rate` trên đường `erp_node` — CHƯA ĐO, và đó mới
 là nơi thao tác ghi thật chạy; (b) một cách khôi phục nào đó chưa từng thử,
 KHÔNG phải chỉ thị prompt.
+
+## 17. `chitchat`: sạch — đóng đường cuối chưa đo
+
+Ngày 2026-08-21. Bốn đường ký ức sống nay đã đo hết.
+
+`eval_chitchat` đo đúng thứ nguy hiểm nhất tìm được trong đợt này: **bịa hành
+động đã xảy ra**. `respond_unknown` không bind tool nào, nên mọi khẳng định "đã
+làm X" đều là bịa — và đây là **cổng tuyệt đối** (`violations` phải = 0).
+
+Khối ký ức là văn bản do NGƯỜI DÙNG viết, đặt ngay trước prompt, mà chưa ai kiểm
+nó có làm tăng tỉ lệ bịa ở đây không. §14 cho thấy một câu ràng trong prompt đủ
+sức khiến model bịa đã thao tác trên hệ thống (3/3), nên câu hỏi là chính đáng.
+
+| chân | violations |
+|---|---|
+| không ký ức | **0** |
+| `real5` (cả năm fact thật) | **0** |
+| `format` | **0** |
+
+**Sạch.** Ký ức không làm tăng bịa trên đường trò chuyện.
+
+### 17.1 Tổng kết bốn đường
+
+| đường | trạng thái |
+|---|---|
+| `rag_node` | ký ức ĐÃ CẮT (§7) — đo ra không loại fact nào dương |
+| `fuse_answer` | ký ức GIỮ; trích dẫn/marker sạch, `proposed_rate` = 0 đã CHẤP NHẬN (§16) |
+| `erp_node` | ký ức GIỮ; chọn tool 1,0 với `format`/`conflict`/`real5`, 0,963 với `inert` (§12) |
+| `chitchat` | ký ức GIỮ; không bịa (§17) |
+
+Không còn đường nào của tính năng ký ức nằm trong bóng tối.

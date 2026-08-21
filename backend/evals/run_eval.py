@@ -776,17 +776,29 @@ async def eval_confirm(llm, pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
-async def eval_chitchat(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_chitchat(llm, pace: float = 0.0, checkpoint_path=None,
+                        memory: str | None = None):
     """Chống bịa hành động đã xảy ra — chitchat (respond_unknown) không bind
     tool nào, nên bất kỳ khẳng định 'đã làm X' đều là bịa. Gate tuyệt đối
     (violations phải = 0), KHÔNG so baseline (không có 'câu trả lời đúng' cho
     chit-chat tự do). Gọi LLM giống hệt respond_unknown thật: SystemMessage(CHITCHAT_PROMPT)
     + HumanMessage — mirror persona production (khóa #10)."""
+    # Ghep khoi ky uc Y HET respond_unknown (nodes.py:148-150).
+    #
+    # VI SAO DUONG NAY DANG DO DU NO KHONG MANG HOP DONG NAO. Bo `chitchat` do
+    # dung thu nguy hiem nhat tim duoc hom nay: BIA HANH DONG DA XAY RA. V2
+    # (spec §14) lam model noi "toi da thuc hien khoa cong no tren he thong"
+    # tren duong fuse, 3/3 luot. chitchat KHONG bind tool nao nen moi khang
+    # dinh "da lam X" deu la bia, va day la cong TUYET DOI (violations = 0).
+    # Khoi ky uc la van ban do NGUOI DUNG viet, dat ngay truoc prompt — chua
+    # ai kiem no co lam tang ty le bia o day khong.
+    system = ((MEMORY_PRESETS[memory] + "\n\n" + CHITCHAT_PROMPT)
+              if memory else CHITCHAT_PROMPT)
     lat: list[float] = []
 
     async def call(text):
         resp, ms = await _timed(llm.ainvoke(
-            [SystemMessage(content=CHITCHAT_PROMPT), HumanMessage(content=text)]))
+            [SystemMessage(content=system), HumanMessage(content=text)]))
         lat.append(ms)
         content_lower = resp.content.lower()
         matched = [m for m in HALLUCINATION_MARKERS if m in content_lower]
@@ -798,6 +810,7 @@ async def eval_chitchat(llm, pace: float = 0.0, checkpoint_path=None):
                                         checkpoint_path=checkpoint_path)
     p50, p95 = _percentiles(lat)
     return {"set": "chitchat", "n": len(CHITCHAT_CASES),
+            "memory_preset": memory or "none",
             "violations": len(fails),
             "lat_p50": p50, "lat_p95": p95,
             "fails": fails, "errors": errors}
@@ -1379,7 +1392,7 @@ async def main(argv=None):
     args = ap.parse_args(argv)
 
     _BO_NHAN_MEMORY = ("synthesis_live", "memory", "multi_source",
-                       "write_suggest", "read")
+                       "write_suggest", "read", "chitchat")
     if args.memory and args.set not in _BO_NHAN_MEMORY:
         ap.error("--memory chỉ dùng được với --set "
                  + " / ".join(_BO_NHAN_MEMORY))
@@ -1403,7 +1416,7 @@ async def main(argv=None):
                "write_suggest": eval_write_suggest}
         kwargs = {"pace": args.pace}
         if args.set in ("memory", "multi_source", "write_suggest",
-                        "read"):
+                        "read", "chitchat"):
             kwargs["memory"] = args.memory
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
