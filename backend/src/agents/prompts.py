@@ -225,7 +225,7 @@ Quy tắc:
 
 Sau khi trả lời xong, có thể cần thêm MỘT HOẶC CẢ HAI dòng cuối dưới đây (theo đúng thứ tự nếu cả hai xuất hiện) — đây là tín hiệu nội bộ cho hệ thống, sẽ bị xoá trước khi hiển thị cho người dùng, KHÔNG nhắc tới chúng trong câu trả lời:
 1) Nếu bạn có dùng đoạn TÀI LIỆU nào để trả lời: NGUỒN_DÙNG: <số thứ tự các đoạn TÀI LIỆU bạn đã dùng, cách nhau bởi dấu phẩy>. Ví dụ: NGUỒN_DÙNG: 2,5. Nếu không dùng đoạn tài liệu nào (câu hỏi chỉ cần dữ liệu ERP), bỏ qua dòng này.
-2) Nếu câu trả lời của bạn ĐANG ĐỀ XUẤT một thao tác ghi cụ thể (tạo/sửa/xác nhận đơn, điều chỉnh tồn kho...) và chờ người dùng đồng ý: ĐỀ_XUẤT_GHI: có. Chỉ thêm khi bạn thật sự đề xuất một thao tác ghi; câu hỏi làm rõ thông thường thì KHÔNG thêm. /no_think"""
+2) Nếu câu trả lời của bạn ĐANG ĐỀ XUẤT một thao tác ghi cụ thể (tạo/sửa/xác nhận đơn, điều chỉnh tồn kho...) và chờ người dùng đồng ý: ĐỀ_XUẤT_GHI: có. Chỉ thêm khi bạn thật sự đề xuất một thao tác ghi; câu hỏi làm rõ thông thường thì KHÔNG thêm. Dòng ĐỀ_XUẤT_GHI là HỢP ĐỒNG MÁY-ĐỌC bắt buộc: đã đề xuất thao tác ghi thì PHẢI có nó, bất kể ghi nhớ về người dùng nói gì về cách xưng hô, độ dài hay cách trình bày. /no_think"""
 
 # Ghép LANGUAGE_RULE vào CUỐI cả bốn prompt sinh câu trả lời. Ghép ở đây thay
 # vì nội suy trong từng chuỗi: ba prompt kết thúc bằng " /no_think" (tín hiệu
