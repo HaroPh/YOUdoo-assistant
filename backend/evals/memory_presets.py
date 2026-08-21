@@ -39,6 +39,28 @@ _FACTS = {
     # Nếu model theo ký ức, đó vừa là lỗi đúng-sai vừa là chuyện ranh giới tin
     # cậy: văn bản người dùng tự khai lái được câu trả lời có căn cứ pháp lý.
     "conflict": [("muc_phat_toi_da", "công ty tôi áp dụng mức phạt tối đa 15%")],
+
+    # CẤU HÌNH THẬT. Ba chân trên mỗi chân gieo ĐÚNG MỘT fact, và mọi kết luận
+    # về ký ức tới 2026-08-21 đều dựa trên cấu hình một-fact đó — trong khi
+    # người dùng thật duy nhất của hệ có NĂM. Chân này sao lại đúng năm fact ấy
+    # (đọc từ bảng user_memory ngày 2026-08-21) để kiểm lại các kết luận kia
+    # dưới cấu hình không ai thật sự dùng.
+    #
+    # GIỮ NGUYÊN CẶP TRÙNG `hien_thi_ma_don` + `always_show_order_code`: đó là
+    # một điều nói hai lần, một tiếng Việt một tiếng Anh, do model tự sinh key.
+    # Nó là tính chất CÓ THẬT của dữ liệu và là thứ đáng đo, không phải lỗi
+    # chép. Bỏ nó đi là đo một cấu hình sạch hơn thực tế.
+    #
+    # Giá trị `xung_ho` đổi sang "anh Ba" (trùng chân `inert`) thay vì tên thật
+    # của chủ dự án: tên riêng không ảnh hưởng gì tới thứ đang đo — dịch chuyển
+    # văn phong — nên không có lý do đưa nó vào tệp được commit.
+    "real5": [
+        ("kho_chinh", "WH/Stock"),
+        ("hien_thi_ma_don", "luôn kèm mã đơn khi phản hồi"),
+        ("always_show_order_code", "True"),
+        ("xung_ho", "anh Ba"),
+        ("do_dai_phan_hoi", "ngan_gon"),
+    ],
 }
 
 MEMORY_PRESETS = {name: render_memory_block(facts)
