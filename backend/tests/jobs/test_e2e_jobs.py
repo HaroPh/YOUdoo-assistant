@@ -105,3 +105,42 @@ def test_preflight_doc_cong_tu_moi_truong(monkeypatch):
     monkeypatch.setenv("BACKEND_PORT", "59999")   # chắc chắn không ai nghe
     err = e2e_common.preflight()
     assert err is not None and "59999" in err
+
+
+# ── model nào đã phục vụ lượt nghiệm thu ────────────────────────────────────
+def test_chat_ghi_lai_model_da_tra_loi(monkeypatch):
+    """Cạn hạn mức làm lượt gọi TỤT xuống model yếu hơn, và model yếu vẫn trả
+    lời trôi chảy nhưng bỏ chỉ dẫn SOP — không phân biệt được với lỗi hành vi.
+    Ghi lại tên model là thứ duy nhất phân biệt được hai thứ đó."""
+    import tests.live_verify_common as lvc
+
+    class _R:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"model": "groq-gpt-oss-20b",
+                    "choices": [{"message": {"content": "xong"}}]}
+
+    monkeypatch.setattr(lvc.requests, "post", lambda *a, **k: _R())
+    lvc.MODELS_DA_PHUC_VU.clear()
+    try:
+        assert lvc.chat([], "sid", "hỏi") == "xong"
+        assert lvc.MODELS_DA_PHUC_VU == {"groq-gpt-oss-20b"}
+    finally:
+        lvc.MODELS_DA_PHUC_VU.clear()
+
+
+def test_result_json_mang_theo_danh_sach_model(capsys):
+    import tests.live_verify_common as lvc
+
+    lvc.MODELS_DA_PHUC_VU.clear()
+    lvc.MODELS_DA_PHUC_VU.update({"gemini-3.1-flash-lite", "groq-gpt-oss-20b"})
+    try:
+        lvc.print_result("job-thu", [lvc.Scenario("ca", True, 1, "ok")])
+        ra = e2e_common.extract_result_json(capsys.readouterr().out)
+        assert ra["models"] == ["gemini-3.1-flash-lite", "groq-gpt-oss-20b"]
+    finally:
+        lvc.MODELS_DA_PHUC_VU.clear()

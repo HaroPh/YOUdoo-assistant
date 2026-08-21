@@ -22,6 +22,11 @@ import urllib.request
 from jobs.registry import (GATE_FAIL, INFRA_ERROR, PASS, REPO_ROOT, Job,
                            JobResult, register)
 
+# CHẠY JOB PHẢI ĐỨNG Ở backend/. `python -m jobs …` từ gốc repo trả
+# "No module named jobs" vì gói `jobs` nằm dưới backend/. Đã cắn hai lần trong
+# một ngày: một lần trong test bị skip (cwd=REPO_ROOT, xem tests/jobs/
+# test_cli.py) và một lần khi chính tôi gõ lệnh từ gốc repo — lỗi im lặng vì
+# nó không giống lỗi cấu hình, chỉ giống "chưa cài".
 BACKEND_DIR = REPO_ROOT / "backend"
 
 # job e2e → module script nó bọc. Tồn tại để TEST đối chiếu được hai chiều:

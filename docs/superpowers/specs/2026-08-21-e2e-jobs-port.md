@@ -118,8 +118,10 @@ Mọi lượt đều tạo bản ghi THẬT trong Odoo.
 |---|---|---|
 | `e2e-smoke` | **PASS 3/3** (148s) | chain_note đúng chỗ, tự chạy tới bước `Giao hàng`, ca một-bước không sinh chain_note |
 | `e2e-skill-discount` | **PASS 3/3** (111s) | `price_unit` 304,0 (−5%) và 288,0 (−10%); ca từ chối không tạo quotation |
-| `e2e-skill-delivery` | **2/3** (73s) | `happy_path` + `draft_order_refused` đạt; `refusal` đỏ vì **hạ tầng** |
-| `e2e-skill-warehouse` | **3/5** (186s) | `happy_path`, `qty_mismatch`, `qc_fail` đạt |
+| `e2e-skill-delivery` | **PASS 3/3** (135s) | sau khi sửa câu mở đầu (§5.1) và đổi khoá (§5.2) |
+| `e2e-skill-warehouse` | **PASS 5/5** (296s) | gồm `no_po_tool_leak` và `refusal`, cả hai từng đỏ |
+
+**14/14 kịch bản đạt.**
 
 Cả bốn job từ chối `--scheduled` với exit 2, không chạm mạng.
 
@@ -159,16 +161,41 @@ kết quả (chiết khấu theo cấp khách chỉ skill mới tính được).
 lộ ra ở đây vì đường skill dùng mẫu xác nhận riêng. Dòng y hệt tồn tại ở
 `D:\Project`, nên đây không phải hồi quy của Youdoo.
 
-### 5.2 Ba kịch bản còn lại chưa nghiệm thu — vì HẠ TẦNG, không phải hành vi
+### 5.2 Ba kịch bản còn lại: CẠN HẠN MỨC, và nó suy giảm CHẤT LƯỢNG chứ không chỉ gây lỗi
 
-`refusal` (cả delivery lẫn warehouse) trả về `ERROR_MSG`. Log backend:
-`ChainExhausted` cho vai `planner`, **cả bốn mắt xích** cooldown. Đọc thông điệp
-429 thật cho `PerDayPerProjectPerModel` ⇒ **cạn hạn mức NGÀY**, không phải trần
-phút. Không kết luận được gì về hành vi từ ba kịch bản này.
+Lượt đầu, `refusal` (cả hai job) trả `ERROR_MSG`; log backend cho `ChainExhausted`
+vai `planner`, cả bốn mắt xích cooldown, 429 ghi `PerDayPerProjectPerModel`.
 
-Diagnostics của bản gốc **không kèm câu trả lời** trong thông điệp "không hoàn
-thành sau N lượt", nên lượt đầu không chẩn đoán được gì. Đã vá 7 chỗ trên ba
-script trước khi chạy lại — và chính bản vá đó cho ra `ERROR_MSG` ngay lập tức.
+**Hạn mức ngày của Google là cửa sổ TRƯỢT 24h, không phải mốc nửa đêm.** Probe
+trực tiếp bằng API trần trên chính khoá đã báo cạn: `gemini-3.1-flash-lite` trả
+**200**, còn `gemini-3.5-flash-lite` vẫn 429 `PerDay`. Tức chỗ trống nhỏ giọt
+quay lại khi lượt cũ rơi khỏi cửa sổ — "cạn ngày" KHÔNG có nghĩa phải chờ tới
+sáng, nhưng cũng KHÔNG đủ để chạy một job 5 kịch bản.
+
+Chủ dự án cấp ba khoá (ba project ⇒ **ba ví riêng**). Đổi khoá chính sang khoá
+còn nguyên rồi chạy lại: **cả hai job PASS trọn**.
+
+⚠️ **PHÁT HIỆN QUAN TRỌNG NHẤT CỦA ĐỢT NÀY — và nó bác một dự đoán của tôi.**
+Tôi lập luận rằng đổi khoá sẽ chữa `refusal` (đỏ vì `ERROR_MSG`) nhưng **không**
+chữa `no_po_tool_leak`, vì kịch bản đó chạy đủ 3 lượt, không lỗi, chỉ thiếu câu
+bridge mà SOP dặn — nghe như lỗi hành vi. **Đổi khoá xong nó PASS.**
+
+Cơ chế: cạn hạn mức không làm lượt gọi chết, nó làm lượt gọi **TỤT xuống mắt
+xích yếu hơn**. Model yếu vẫn trả lời trôi chảy nhưng bỏ qua một chỉ dẫn trong
+SOP. Nhìn từ ngoài, thứ đó **không phân biệt được với một lỗi hành vi thật**.
+
+⇒ **Mọi kết quả eval/nghiệm thu chạy trong lúc hạn mức suy giảm đều không đáng
+tin — kể cả những lượt đỏ trông như lỗi chất lượng, không chỉ những lượt đỏ vì
+lỗi.**
+
+### 5.3 Hệ quả đã cài đặt: RESULT_JSON mang theo model đã phục vụ
+
+`live_verify_common.chat()` nay gom trường `model` của phản hồi (thứ mới có từ
+đợt model-picker sáng cùng ngày) vào `MODELS_DA_PHUC_VU`, và `print_result` phát
+nó ra `RESULT_JSON["models"]`. Nhờ vậy một lượt đỏ **tự nó nói được** "đỏ vì suy
+giảm" hay "đỏ vì hành vi", thay vì bắt người đọc đoán như tôi vừa phải làm.
+
+Thông tin này trước đó **có sẵn mà bị vứt đi** — script chỉ đọc `content`.
 
 ## 6. Khó khăn / giới hạn còn lại
 
@@ -179,8 +206,14 @@ script trước khi chạy lại — và chính bản vá đó cho ra `ERROR_MSG
 - `live_verify_common.py` đã port từ SP-1B nhưng **chưa từng chạy được** ở đây
   (thiếu header vai). Code đã port mà chưa ai chạy = code chưa tồn tại.
 - Test bị skip có sẵn lỗi trong chính nó (`cwd=REPO_ROOT`).
-- Ba lần suýt kết luận sai trong một phiên: khoảng hở scrub, "lỗi định tuyến",
-  và "306 lượt" (số đọc từ một sổ vừa bị chính bộ test tích hợp xoá).
+- **Bốn** lần suýt kết luận sai trong một phiên: khoảng hở scrub, "lỗi định
+  tuyến", "306 lượt" (số đọc từ một sổ vừa bị chính bộ test tích hợp xoá), và
+  "đổi khoá không chữa được `no_po_tool_leak`" (§5.2). Ba trong bốn cái đều do
+  **suy từ dấu hiệu gián tiếp thay vì lấy dữ liệu thật ra xem**.
+- Bẫy `cwd`: `python -m jobs` phải chạy từ `backend/`. Cắn ba lần trong một
+  ngày (test bị skip, và hai lần ở chính tôi) vì thông điệp "No module named
+  jobs" trông giống "chưa cài" chứ không giống "đứng sai chỗ". Đã ghi vào
+  `e2e_common.py`.
 
 **Hướng đã chọn**
 
@@ -191,7 +224,7 @@ script trước khi chạy lại — và chính bản vá đó cho ra `ERROR_MSG
 
 **Giới hạn còn lại**
 
-- 3/14 kịch bản **chưa nghiệm thu** (bảng chung mục 11) — chặn bởi hạn mức ngày.
+- ~~3/14 kịch bản chưa nghiệm thu~~ → **ĐÃ ĐÓNG**, 14/14 đạt sau khi đổi khoá.
 - Mâu thuẫn Invariant C ↔ chống-lộ-tool: **chưa giải**, chỉ chưa lộ ra.
 - `or-nemotron` **chết** (bảng chung mục 10): 16 lần gọi, 0 thành công.
 - Bộ test tích hợp **xoá sổ ngân sách** (bảng chung mục 9).

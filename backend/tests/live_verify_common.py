@@ -41,6 +41,19 @@ def odoo_transport() -> XmlRpcTransport:
                            os.environ["ODOO_USERNAME"], os.environ["ODOO_PASSWORD"])
 
 
+# Model đã thật sự phục vụ lượt nghiệm thu này.
+#
+# VÌ SAO CẦN. Cạn hạn mức KHÔNG chỉ gây lỗi — nó làm lượt gọi TỤT xuống mắt
+# xích yếu hơn, và model yếu vẫn trả lời trôi chảy nhưng bỏ qua chỉ dẫn trong
+# SOP. Nhìn từ ngoài, thứ đó KHÔNG phân biệt được với một lỗi hành vi thật.
+#
+# Đo được 2026-08-21: `e2e-skill-warehouse` đỏ 2/5, trong đó `no_po_tool_leak`
+# chạy đủ 3 lượt, không lỗi, chỉ thiếu câu bridge mà SOP dặn. Tôi dự đoán đổi
+# khoá sẽ KHÔNG chữa được nó (vì nó không phải lỗi hạ tầng) — đổi khoá xong nó
+# PASS. Dự đoán sai vì không ai nhìn thấy model nào đã trả lời.
+MODELS_DA_PHUC_VU: set[str] = set()
+
+
 def role_user_id(role: str | None = None) -> str | None:
     """Id người dùng Open WebUI ứng với một vai, suy từ `YOUDOO_ROLE_MAP`.
 
@@ -76,7 +89,13 @@ def chat(history: list[dict], sid: str, msg: str,
         headers["x-openwebui-user-id"] = uid
     r = requests.post(CHAT_ENDPOINT, json=body, headers=headers, timeout=150)
     r.raise_for_status()
-    answer = r.json()["choices"][0]["message"]["content"]
+    payload = r.json()
+    # Trường `model` mang tên model THẬT đã sinh câu trả lời (2026-08-21,
+    # spec model-picker §8.3). Gom lại để RESULT_JSON nói được một lượt đỏ là
+    # "đỏ vì suy giảm" hay "đỏ vì hành vi" — xem MODELS_DA_PHUC_VU.
+    if payload.get("model"):
+        MODELS_DA_PHUC_VU.add(payload["model"])
+    answer = payload["choices"][0]["message"]["content"]
     history.append({"role": "assistant", "content": answer})
     return answer
 
@@ -158,6 +177,7 @@ def print_result(job: str, scenarios: list[Scenario]) -> bool:
     Trả True nếu tất cả pass."""
     n, passed = len(scenarios), sum(1 for s in scenarios if s.passed)
     result = {"job": job, "n": n, "passed": passed,
+             "models": sorted(MODELS_DA_PHUC_VU),
              "scenarios": [{"name": s.name, "passed": s.passed,
                             "turns": s.turns, "detail": s.detail}
                            for s in scenarios]}
