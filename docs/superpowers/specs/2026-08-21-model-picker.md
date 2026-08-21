@@ -144,6 +144,27 @@ nhau một ca, nên chưa chốt được nó ngang hay hơn. Cần thêm lượ
 ngày của 3.5 đã cạn lúc đo (phải mượn khoá dự phòng). Đây là việc đáng làm khi
 hạn mức reset.
 
+### 6.1.1 CHỐT 2026-08-21: giữ 3.1
+
+Chủ dự án quyết **giữ `gemini-3.1-flash-lite` làm mặc định**. Không cần đổi code
+— hằng số `MODEL_MAC_DINH` đã là giá trị đó.
+
+Ghi lại cho rõ, vì quyết định này đi **ngược chiều** số đo mới nhất và người đọc
+sau sẽ vấp vào §6.1 rồi tưởng đây là nợ chưa đóng:
+
+- Số sau vá cho thấy 3.5 **ngang**, không cho thấy nó **hơn**. Đổi mặc định cần
+  bằng chứng nó hơn, không phải bằng chứng nó không kém — mặc định đang chạy có
+  quyền được giữ khi hoà.
+- Lập luận bất đối xứng của §4 **vẫn còn nguyên**: chậm là hỏng lớn tiếng, định
+  tuyến nhầm là hỏng im lặng. Nó không phụ thuộc vào chênh lệch 4-6 điểm đã
+  đóng, nên vá prompt không xoá được nó.
+- Tốc độ nay là **lựa chọn chứ không phải đánh đổi bắt buộc** — ai cần thì đổi ở
+  dropdown. Đó chính là thứ tính năng này sinh ra để giải quyết.
+
+**Điều kiện mở lại**: có số cho thấy 3.5 acc **hơn** 3.1 ổn định qua nhiều lượt.
+"Cần thêm lượt lặp" ở §6.1 **không còn là việc đang treo** — nó là điều kiện mở
+lại, không phải hàng đợi.
+
 ### 6.2 Ca CHƯA chữa được
 
 *"lệnh sản xuất mới có cần kiểm tra chất lượng theo SOP trước khi hoàn tất

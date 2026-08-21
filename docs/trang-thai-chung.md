@@ -32,7 +32,6 @@ Quy ước:
 |---|---|---|---|
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 4 | Chốt lại **model mặc định** — sau khi vá prompt `mixed`, hai model HỘI TỤ nên căn cứ chọn 3.1 đã đóng | RAG | cần hạn mức (3.5 cạn ngày trên 2/3 khoá) |
 | 5 | Dòng báo fallback **chưa nghiệm thu sống** — cần một model cạn hạn mức thật mới thấy nó chạy | RAG | — |
 | 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | đáng đo nếu hạn mức thành nút thắt |
 
@@ -98,3 +97,4 @@ báo trước.
 | Hai key cho cùng một fact (`hien_thi_ma_don` + `always_show_order_code`) | 5 fact = 10% `SYSTEM_PROMPT`; cộng dồn không hỏng chỉ số nào (spec §13) | Sửa cần phân loại/gộp lúc ghi — cơ chế đã bị số đo bác hai lần. **Cách rẻ hơn: người dùng tự bảo trợ lý "quên `always_show_order_code`"** — nó là dữ liệu, không phải code. Nguy cơ thật là sửa một cái mà cái kia vẫn nói ngược; chưa xảy ra. |
 | Không có trần số fact | ở 50 fact khối bằng 130% `CHITCHAT_PROMPT`, nhưng người dùng thật có 5 | Đặt trần bây giờ là dựng cơ chế cho một rủi ro chưa đo được. Đo lại khi có người vượt ~20 fact. |
 | `proposed_rate = 0` trên `fuse_answer` | 0,75 → 0,00 tất định 3 lượt | Ba hướng khả dĩ: một đắt, một vô dụng, một nguy hiểm (spec §16). |
+| Mặc định là **3.1** dù số nghiêng 3.5 | acc sau vá: 3.1 = 0,9630 · 0,9630; 3.5 = 0,9630 · 0,9815. Trễ trung vị 2000ms vs 951ms | **Chủ dự án chốt 2026-08-21: giữ 3.1.** Số chỉ cho thấy 3.5 *ngang*, không cho thấy nó *hơn*; đổi mặc định để lấy tốc độ là mua bằng rủi ro định tuyến im lặng (spec §4). Ai cần nhanh thì đổi ở dropdown — đúng việc tính năng này sinh ra để làm. Mở lại **chỉ khi** có số mới cho thấy 3.5 HƠN. |
