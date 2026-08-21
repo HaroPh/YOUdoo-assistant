@@ -29,6 +29,7 @@ from evals.retrieval_score import label_of, score_one
 from evals.multiturn_cases import MULTITURN_CASES
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
 from evals.memory_presets import MEMORY_PRESETS
+from evals.write_suggest_cases import WRITE_SUGGEST_CASES
 from evals.synthesis_live_score import score_answer
 from src.agents.synthesis import synthesize as _synthesize
 from src.rag.retrieve import retrieve as _retrieve
@@ -1266,6 +1267,63 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
             "fails": fails, "errors": errors}
 
 
+
+async def eval_write_suggest(llm, pace: float = 0.0, checkpoint_path=None,
+                             memory: str | None = None):
+    """Đo marker `ĐỀ_XUẤT_GHI` trên đường fuse_answer, có/không khối ký ức.
+
+    Marker này ARM cơ chế xác nhận ghi: fuse_answer tách nó thành
+    `state["suggested_write"]` (fanout.py:217) và `replying_to_write_suggestion`
+    chỉ cho lượt "ok" đi vào đường GHI khi cờ đó bật. Tịt ⇒ người dùng gật mà
+    không có gì xảy ra. Bật oan ⇒ câu hỏi làm rõ biến lượt sau thành lệnh ghi.
+
+    Nhận marker bằng CHÍNH `extract_write_suggestion` của production, không tự
+    viết lại — nó là hợp đồng đã từng hỏng vì regex lệch (marker dán cuối câu
+    thay vì đầu dòng), nên một bản sao trong eval sẽ che đúng lớp lỗi đó.
+
+    HAI CHIỀU HỎNG CHẤM RIÊNG vì mức nghiêm trọng khác nhau:
+      false_negative — đề xuất ghi mà không phát marker: cơ chế xác nhận không
+                       lên đạn, hỏng IM LẶNG (không ai thấy gì sai).
+      false_positive — phát marker khi không đề xuất: lượt "ok" kế tiếp bị đẩy
+                       sang đường ghi ngoài ý muốn.
+    Gộp hai thứ vào một con số acc là làm mờ mất chiều nguy hiểm hơn.
+    """
+    system = ((MEMORY_PRESETS[memory] + "\n\n" + FUSE_PROMPT)
+              if memory else FUSE_PROMPT)
+    lat: list[float] = []
+
+    async def call(case):
+        topic, erp_block, question, expect_marker = case
+        chunks = fixtures.load_chunks(topic)
+        resp, ms = await _timed(llm.ainvoke([
+            SystemMessage(content=system),
+            HumanMessage(content=render_fuse_input(chunks, erp_block, question)),
+        ]))
+        lat.append(ms)
+        _clean, suggested = extract_write_suggestion(resp.content or "")
+        if suggested == expect_marker:
+            return None
+        return {"question": question, "expect_marker": expect_marker,
+                "got_marker": suggested,
+                "kind": "false_negative" if expect_marker else "false_positive",
+                "response": (resp.content or "")[:300]}
+
+    items = [list(c) for c in WRITE_SUGGEST_CASES]
+    fails, errors = await run_resilient(items, call, pace=pace,
+                                        checkpoint_path=checkpoint_path)
+    n = len(WRITE_SUGGEST_CASES)
+    measured = n - len(errors)
+    fn_ = sum(1 for f in fails if f["kind"] == "false_negative")
+    fp_ = sum(1 for f in fails if f["kind"] == "false_positive")
+    p50, p95 = _percentiles(lat)
+    return {"set": "write_suggest", "n": n,
+            "memory_preset": memory or "none",
+            "marker_acc": (measured - len(fails)) / n if n else 0.0,
+            "false_negative": fn_, "false_positive": fp_,
+            "lat_p50": p50, "lat_p95": p95,
+            "fails": fails, "errors": errors}
+
+
 async def main(argv=None):
     # Console Windows mặc định cp1252: một thông điệp lỗi có dấu tiếng Việt
     # làm CHÍNH dòng in lỗi ném UnicodeEncodeError, nuốt mất chẩn đoán và đổi
@@ -1278,7 +1336,8 @@ async def main(argv=None):
                     choices=["intent", "confirm", "chitchat", "planner", "read",
                              "synthesis", "multi_source", "sop_select",
                              "language", "localize", "retrieval",
-                             "synthesis_live", "multiturn", "memory"],
+                             "synthesis_live", "multiturn", "memory",
+                             "write_suggest"],
                     required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
@@ -1298,11 +1357,11 @@ async def main(argv=None):
                          "RAG_RERANK_ENABLED=0 de tinh rerank_delta")
     args = ap.parse_args(argv)
 
-    if args.memory and args.set not in ("synthesis_live", "memory",
-                                        "multi_source"):
-        ap.error("--memory chỉ dùng được với --set synthesis_live, "
-                 "--set memory hoặc --set multi_source")
-    if args.memory and args.save_baseline:
+    _BO_NHAN_MEMORY = ("synthesis_live", "memory", "multi_source",
+                       "write_suggest")
+    if args.memory and args.set not in _BO_NHAN_MEMORY:
+        ap.error("--memory chỉ dùng được với --set "
+                 + " / ".join(_BO_NHAN_MEMORY))
         # Baseline của synthesis_live LÀ chân memory="" — ghi đè nó bằng
         # số của một chân ký ức là tự tay xoá mốc so sánh, và lượt chạy
         # sau sẽ so chân gốc với một baseline không phải của nó. Chặn
@@ -1319,9 +1378,10 @@ async def main(argv=None):
                "language": eval_language, "localize": eval_localize,
                "retrieval": eval_retrieval,
                "synthesis_live": eval_synthesis_live,
-               "multiturn": eval_multiturn, "memory": eval_memory}
+               "multiturn": eval_multiturn, "memory": eval_memory,
+               "write_suggest": eval_write_suggest}
         kwargs = {"pace": args.pace}
-        if args.set in ("memory", "multi_source"):
+        if args.set in ("memory", "multi_source", "write_suggest"):
             kwargs["memory"] = args.memory
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
