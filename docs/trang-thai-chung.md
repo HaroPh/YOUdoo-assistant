@@ -25,8 +25,6 @@ Quy ước:
 
 | # | mục | vùng | ghi chú |
 |---|---|---|---|
-| A | Hai key cho cùng một fact — `hien_thi_ma_don` + `always_show_order_code` đã có trong dữ liệu THẬT | ký ức | spec L2 xếp vào "giới hạn v1, tầng gộp đợt sau", nhưng đã thành hiện thực ngày đầu |
-| B | Trần số fact trong khối ký ức — hiện **không có** | ký ức | liên quan A: trùng key làm khối phình nhanh gấp đôi |
 
 ## Việc đang treo
 
@@ -34,19 +32,6 @@ Quy ước:
 |---|---|---|---|
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 4 | Dọn 11 worktree mồ côi + 2 stash rác | chưa ai | — |
-
-**Mục 1 thu hẹp sau phép đo 2026-08-21.** Nửa `NGUỒN_DÙNG:` đã đo xong:
-`citation_validity` giữ **1,0** ở mọi chân ký ức, tất định qua 3 lượt (spec
-`2026-08-20-memory-synthesis-eval.md` §9). Nửa còn lại — `ĐỀ_XUẤT_GHI` — KHÔNG
-đo chung được: `_strip_write_marker()` chỉ cắt marker chứ không chấm, và
-`MULTI_SOURCE_CASES` không có ca nào đề xuất thao tác ghi. Cần bộ ca riêng.
-
-**Kèm một quyết định đã có số đỡ lưng: ĐỪNG cắt ký ức khỏi `fuse_answer`.** Sự
-không nhất quán giữa hai đường (`rag_node` không nạp / `fuse_answer` có nạp)
-trông như bỏ sót, nhưng đo ra fact ép định dạng làm đường fuse TỐT LÊN
-(`both_source` 0,750 → 0,875, tất định 3/3) trong khi làm đường RAG tệ đi. Cắt
-cho "nhất quán" sẽ làm mất một ca đang đúng.
 
 **Mục 2 đã hạ ưu tiên (2026-08-21).** Lý do nó từng gấp là
 `tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` — cổng chặn
@@ -77,6 +62,9 @@ báo trước.
 | Ngữ cảnh hội thoại cho `synthesize()`: **không chữa được gì** | spec `2026-08-20-rag-roadmap-revision.md` |
 | Cross-encoder là **lá phiếu**, không phải kẻ ghi đè | docstring `retrieve.rerank()` |
 | Ký ức tắt việc chủ động đề nghị ghi trên `fuse_answer` — **ĐÃ CHẤP NHẬN**, không sửa | spec §13, §15 |
+| Ký ức KHÔNG làm tăng bịa hành động trên `chitchat` (violations = 0 mọi chân) | spec §17 |
+| Cộng dồn 5 fact KHÔNG hỏng chọn tool / trích dẫn / độ khớp marker | spec §13 |
+| Lọc ký ức theo LOẠI fact: bị bác HAI lần, trên hai bộ chỉ số khác nhau | spec §12.1, §15 |
 
 ## CHƯA đo — danh sách "ta chưa biết"
 
@@ -99,3 +87,11 @@ báo trước.
   (container `youdoo-postgres`).
 - Đụng `chunking`/`parse` thì phải `DELETE FROM rag_documents` rồi ingest lại
   (~3,5 phút). Không xoá thì content-hash bỏ qua toàn bộ 17 tệp.
+
+## Giới hạn đã chấp nhận — có đo, quyết không sửa
+
+| giới hạn | số đo | vì sao không sửa |
+|---|---|---|
+| Hai key cho cùng một fact (`hien_thi_ma_don` + `always_show_order_code`) | 5 fact = 10% `SYSTEM_PROMPT`; cộng dồn không hỏng chỉ số nào (spec §13) | Sửa cần phân loại/gộp lúc ghi — cơ chế đã bị số đo bác hai lần. **Cách rẻ hơn: người dùng tự bảo trợ lý "quên `always_show_order_code`"** — nó là dữ liệu, không phải code. Nguy cơ thật là sửa một cái mà cái kia vẫn nói ngược; chưa xảy ra. |
+| Không có trần số fact | ở 50 fact khối bằng 130% `CHITCHAT_PROMPT`, nhưng người dùng thật có 5 | Đặt trần bây giờ là dựng cơ chế cho một rủi ro chưa đo được. Đo lại khi có người vượt ~20 fact. |
+| `proposed_rate = 0` trên `fuse_answer` | 0,75 → 0,00 tất định 3 lượt | Ba hướng khả dĩ: một đắt, một vô dụng, một nguy hiểm (spec §16). |
