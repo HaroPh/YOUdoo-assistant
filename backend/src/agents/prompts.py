@@ -52,6 +52,7 @@ unknown    — does not clearly fit any of the above
 Rules for intent:
 - When unsure between erp_read and erp_write, choose erp_read.
 - When the question needs a policy/document AND specific ERP records together, choose mixed.
+- Checking an ERP record AGAINST a documented rule is ALSO mixed, even when the rule is named only as a noun inside the sentence rather than announced up front. Words like SLA, SOP, bảng giá, định mức, ngưỡng, hạn mức, tiêu chuẩn refer to internal documents. e.g. "phiếu giao WH/OUT/00007 có đúng thời hạn cam kết không?" → mixed (needs the delivery record AND the commitment document).
 - Greetings / small talk → unknown.
 
 Rules for sop — this field names the BUSINESS DOMAIN of the work, nothing
