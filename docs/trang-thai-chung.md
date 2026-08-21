@@ -27,7 +27,6 @@ Quy ước:
 |---|---|---|---|
 | A | Hai key cho cùng một fact — `hien_thi_ma_don` + `always_show_order_code` đã có trong dữ liệu THẬT | ký ức | spec L2 xếp vào "giới hạn v1, tầng gộp đợt sau", nhưng đã thành hiện thực ngày đầu |
 | B | Trần số fact trong khối ký ức — hiện **không có** | ký ức | liên quan A: trùng key làm khối phình nhanh gấp đôi |
-| C | Chân sparse đã chết (64/64 truy vấn trả rỗng) — gỡ hẳn hay giữ và đổi nhãn `method` cho đúng sự thật | RAG | hồi sinh đã đo là CÓ HẠI (recall 1,0 → 0,9766) |
 
 ## Việc đang treo
 

@@ -189,7 +189,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
             query=query, query_used=qseg, chunks=chunks,
             top_score=chunks[0].rrf_score if chunks else 0.0,
             total_candidates=len(fused),
-            method="hybrid-rrf+rerank" if reranked else "hybrid-rrf")
+            method="dense-rrf+rerank" if reranked else "dense-rrf")
     finally:
         if own:
             conn.close()

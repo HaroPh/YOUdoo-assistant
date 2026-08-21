@@ -35,7 +35,13 @@ class RetrievalResult:
     chunks: list[Chunk]
     top_score: float
     total_candidates: int
-    method: str = "hybrid-rrf"
+    # "dense-rrf", KHONG phai "hybrid-rrf": chan sparse tra RONG cho 64/64
+    # truy van cua bo eval (do 2026-08-20), va hoi sinh no da do la CO HAI
+    # (recall@20 1,0 -> 0,9766). He chay DENSE-ONLY, hop nhat bang RRF giua
+    # truy van chinh va truy van phu. Nhan cu noi doi voi bat ky ai doc
+    # trace — dung lop loi "thanh phan am tham khong lam dieu ten no noi"
+    # da dot du an nay ba lan.
+    method: str = "dense-rrf"
 
     def is_empty(self) -> bool:
         return not self.chunks

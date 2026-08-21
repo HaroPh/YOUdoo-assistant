@@ -24,7 +24,7 @@ def test_retrieve_returns_result_with_scores_and_ordering(clean_tables, monkeypa
     monkeypatch.setattr(r, "embed_query", lambda q: [1.0] + [0.0] * 1023)
 
     res = r.retrieve("chính sách hoàn hàng", k=5, conn=clean_tables)
-    assert res.method == "hybrid-rrf"
+    assert res.method == "dense-rrf"
     assert not res.is_empty()
     assert res.chunks[0].doc_id == "A"                 # nearest dense → top
     assert res.top_score == res.chunks[0].rrf_score
@@ -63,7 +63,7 @@ def test_rerank_reorders_and_tags_scores(clean_tables, monkeypatch):
     monkeypatch.setattr(r.reranker, "score_pairs",
                         lambda q, texts: [0.1, 0.9, 0.5])
     res = r.retrieve("hoàn hàng chính sách", k=5, conn=clean_tables)
-    assert res.method == "hybrid-rrf+rerank"
+    assert res.method == "dense-rrf+rerank"
     assert res.chunks[0].doc_id == "B"
     assert res.chunks[0].rerank_score == pytest.approx(0.9)
     assert res.chunks[0].rank == 0
@@ -96,7 +96,7 @@ def test_rerank_khong_lat_duoc_cap_doi_xung(clean_tables, monkeypatch):
     monkeypatch.setattr(r.reranker, "score_pairs", lambda q, texts: [0.1, 0.9])
     res = r.retrieve("hoàn hàng chính sách", k=5, conn=clean_tables)
 
-    assert res.method == "hybrid-rrf+rerank"          # reranker CÓ chạy
+    assert res.method == "dense-rrf+rerank"          # reranker CÓ chạy
     assert [c.doc_id for c in res.chunks] == ["A", "B"]  # RRF vẫn thắng
     assert [c.rerank_score for c in res.chunks] == [0.1, 0.9]  # điểm vẫn gắn
 
@@ -143,7 +143,7 @@ def test_rerank_fail_open_keeps_rrf_order(clean_tables, monkeypatch):
     monkeypatch.setattr(r, "embed_query", lambda q: [1.0] + [0.0] * 1023)
     monkeypatch.setattr(r.reranker, "score_pairs", lambda q, texts: None)
     res = r.retrieve("hoàn hàng", k=5, conn=clean_tables)
-    assert res.method == "hybrid-rrf"          # không nói dối khi fail-open
+    assert res.method == "dense-rrf"          # không nói dối khi fail-open
     assert res.chunks[0].doc_id == "A"          # nguyên trạng thứ tự RRF
     assert res.chunks[0].rerank_score is None
     assert res.top_score == res.chunks[0].rrf_score
