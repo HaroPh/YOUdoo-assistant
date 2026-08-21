@@ -475,3 +475,42 @@ Danh sách này NGẮN HƠN nhiều so với lúc chưa đo:
    thì khối bằng 130% `CHITCHAT_PROMPT`.
 4. `chitchat` chưa đo — rủi ro thấp nhất (không mang hợp đồng nào).
 5. Ca `format`/`fuse`: model **bịa rằng đã thực hiện thao tác ghi** (n=1).
+
+## 13. Cấu hình THẬT (5 fact): cộng dồn không phá hợp đồng, nhưng tắt hẳn việc đề xuất ghi
+
+Ngày 2026-08-21. Đóng mục 1b.
+
+Mọi kết luận trong spec này tới §12 đều dựa trên cấu hình **một fact** — cấu hình
+không ai thật sự dùng. Người dùng thật duy nhất của hệ có **năm**. Chân `real5`
+sao lại đúng năm fact ấy, **giữ nguyên cặp key trùng** (`hien_thi_ma_don` +
+`always_show_order_code` — một điều nói hai lần, do model tự sinh key), vì đó là
+tính chất có thật của dữ liệu.
+
+| bộ | không ký ức | 1 fact | **5 fact** |
+|---|---|---|---|
+| `read` (erp_node) `tool_acc` | 1,0000 | 0,9630 (`inert`) | **1,0000** |
+| `multi_source` `both_source` | 0,7500 | 0,8750 | 0,8750 |
+| `multi_source` `citation_validity` | 1,0000 | 1,0000 | 1,0000 |
+| `write_suggest` `agreement` | 0,8750 | 1,0 / 0,75 | 0,8750 |
+| **`write_suggest` `proposed_rate`** | **0,7500** | **0,5000** | **0,0000** |
+
+**Cộng dồn KHÔNG làm hỏng thứ ta lo.** Chọn tool trở lại 1,0 (tốt hơn chân một
+fact `inert`); trích dẫn giữ 1,0; `agreement` bằng đúng mốc không-ký-ức. Nỗi lo
+"càng nhiều fact càng hỏng" — không có cơ sở trên ba mặt đó.
+
+**Nhưng `proposed_rate` giảm ĐƠN ĐIỆU về 0.** Tất định qua **3 lượt** (12 lượt
+chạy ca): với ký ức thật của người dùng, trợ lý **không đề xuất thao tác ghi lần
+nào** trong 4 ca được thiết kế để mời. Nó vẫn trả lời đúng — nhưng thay vì
+*"tôi sẽ làm X, anh đồng ý chứ?"* thì nó giải thích quy trình, bảo người dùng tự
+làm, hoặc hỏi thêm thông tin.
+
+**Hệ quả sản phẩm**: chuỗi *đề xuất → "ok" → thực thi* trên đường `fuse_answer`
+**thực tế không bao giờ lên đạn** cho người dùng thật. Không phải vì marker hỏng
+— `agreement` chứng minh marker vẫn nói đúng — mà vì **không có gì để đánh dấu**.
+
+**Đây là câu hỏi sản phẩm, không phải lỗi.** Trợ lý thận trọng hơn có thể là
+điều mong muốn với một hệ chạm dữ liệu ERP thật. Số liệu chỉ nói rằng ký ức đã
+tắt hành vi đó, chưa nói nên bật lại hay không.
+
+**Phạm vi**: chỉ đường `fuse_answer`. Hành vi đề xuất trên `erp_node` chưa đo —
+`eval_read` dừng ở lượt chọn tool, không sinh câu trả lời cuối.
