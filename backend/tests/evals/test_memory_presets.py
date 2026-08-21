@@ -6,7 +6,7 @@ from evals.memory_presets import MEMORY_PRESETS
 
 
 def test_du_ba_chan_va_dung_ten():
-    assert set(MEMORY_PRESETS) == {"inert", "format", "conflict", "real5"}
+    assert set(MEMORY_PRESETS) == {"inert", "format", "conflict", "real5", "content"}
 
 
 def test_moi_chan_mang_dung_hinh_dang_production():

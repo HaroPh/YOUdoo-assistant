@@ -553,3 +553,61 @@ ký ức đứng trước, nhưng CHƯA BAO GIỜ được đo với câu ràng 
 (`gemini-3.1-flash-lite`). Không biết cơ chế này còn xảy ra ở hình thức ép buộc
 nào khác. Điều biết chắc: **đừng viết "PHẢI phát marker X" vào prompt sinh câu
 trả lời.**
+
+## 15. `proposed_rate`: lọc theo LOẠI fact KHÔNG cứu được — kích thước khối mới là biến
+
+Ngày 2026-08-21. Chủ dự án chốt: **muốn** trợ lý chủ động đề nghị "để tôi làm
+giúp". Điều đó biến `proposed_rate` thành chỉ số ưu tiên, và §12.1 (bác bảng lọc
+theo loại fact) cần được xét lại trên chỉ số mới.
+
+Giả thuyết đem đi đo: *fact nội dung vô hại, fact xưng hô/định dạng mới ức chế —
+nên lọc hai loại sau khỏi `FUSE_PROMPT` sẽ khôi phục việc đề nghị*.
+
+**Đo ra là SAI.** `write_suggest`, `gemini-3.1-flash-lite`, `--pace 4.5`, mỗi
+chân 3 lượt (trừ hai chân đã đo trước):
+
+| khối ký ức | proposed_rate | agreement |
+|---|---|---|
+| không ký ức | 0,7500 | 0,8750 |
+| `conflict` (chính sách phạt công ty) | **1,0000** ×3 | 1,0000 |
+| `content` (`kho_chinh = WH/Stock`) | **0,5000** ×3 | 1,0000 |
+| `inert` (xưng hô) | 0,5000 | 1,0000 |
+| `format` (độ dài) | 0,5000 | 0,7500 |
+| `real5` (cả năm fact thật) | **0,0000** ×3 | 0,8750 |
+
+**Fact nội dung ức chế y hệt fact xưng hô** (cùng 0,5000). Giữ lại mỗi
+`kho_chinh` cho 0,50 chứ không phải 0,75 — lọc theo loại **không khôi phục
+được**.
+
+**Biến thật sự có vẻ là KÍCH THƯỚC KHỐI, không phải loại fact**: 1 fact → 0,50;
+5 fact → 0,00. Ngoại lệ duy nhất là `conflict`, và nó giải thích được: fact ấy
+nói về một QUY TẮC NGHIỆP VỤ công ty, tức nội dung của chính nó mồi khung hành
+động, nên đẩy lên 1,0 — cao hơn cả chân không-ký-ức.
+
+Đây là lần thứ HAI bảng lọc theo loại fact bị số đo bác, nay trên đúng chỉ số mà
+quyết định sản phẩm vừa làm cho quan trọng.
+
+### 15.1 Đòn bẩy duy nhất đã đo được, và cái giá của nó
+
+Muốn `proposed_rate` trở lại 0,75 thì phải **bỏ khối ký ức khỏi `FUSE_PROMPT`**.
+Không có cấu hình ký ức nào đã đo cho kết quả tốt hơn.
+
+Việc đó **lật ngược khuyến nghị §9 của tôi** ("ĐỪNG cắt ký ức khỏi
+`fuse_answer`"). §9 đúng với những chỉ số quan trọng lúc đó; quyết định sản phẩm
+đổi chỉ số nào chiếm ưu thế, nên đổi cả kết luận.
+
+Cái giá, đã đo:
+
+| bỏ ký ức khỏi `FUSE_PROMPT` | |
+|---|---|
+| `proposed_rate` | 0,0000 → **0,7500** |
+| `both_source_coverage` | 0,8750 → **0,7500** |
+| `citation_validity` | 1,0000 → 1,0000 (không đổi) |
+| ký ức trên đường doc+ERP | mất hẳn |
+
+Đổi một ca `both_source` lấy ba ca `proposed_rate`. Nhưng đó là **quyết định sản
+phẩm**, không phải phép so số thuần: nó cũng có nghĩa là fact `kho_chinh` không
+còn tác dụng ở đường trả lời hỗn hợp.
+
+**Chưa đo**: `proposed_rate` trên đường `erp_node` — nơi thao tác ghi thật sự
+chạy. `eval_read` dừng ở lượt chọn tool nên không đo được hành vi đề nghị.
