@@ -95,3 +95,62 @@ tại**, và nó biến một đánh đổi bắt buộc thành một lựa ch�
   đây là ứng viên đáng đo trước tiên.
 - `gemini-3.5-flash` (rpd 20) **cố ý không cho chọn** — làm dự phòng thì được.
 - Chưa đo chuỗi thật sự tụt trên production (cần một model cạn hạn mức thật).
+
+## 6. Bổ sung: chênh lệch acc giữa hai model phần lớn là do PROMPT, không do model
+
+Ngày 2026-08-21, sau §4.
+
+§4 chọn 3.1 làm mặc định vì nó hơn 3.5 khoảng 4-6 điểm phần trăm ở `intent`. Soi
+ca trượt thì **mọi ca đều cùng một khuôn**: *"đối chiếu một bản ghi ERP với một
+quy tắc trong tài liệu"* — trễ SLA chưa, có vi phạm SLA không, có khớp bảng giá
+không, có dưới ngưỡng trong SOP không.
+
+Prompt tả `mixed` bằng **đúng một ví dụ**, và nó là dạng **nêu chính sách ra
+trước**: *"theo chính sách hoàn hàng, đơn của khách X có được hoàn không?"*.
+Toàn bộ ca trượt là dạng **nhúng** — tên tài liệu nằm lẫn trong câu như một
+thuộc tính. **Prompt dạy một hình thái, thực tế hỏng ở hình thái khác.**
+
+**Bản vá**: thêm một quy tắc chung (không phải chép ca trượt vào làm ví dụ — làm
+thế thì acc lên là đương nhiên và chứng minh được gì). Ví dụ dùng trong prompt
+là một câu KHÁC cùng khuôn.
+
+| bộ | model | trước | sau |
+|---|---|---|---|
+| `intent` | 3.1 | 0,9444 · 0,9444 | **0,9630 · 0,9630** |
+| `intent` | 3.5 | 0,9074 · 0,8889 | **0,9630 · 0,9815** |
+| `sop_select` | 3.1 | 0,9259 | **0,9630** |
+| `sop_select` | 3.5 | 0,8889 | 0,8889 |
+| `hijack` | cả hai | 0 | **0** |
+
+Prompt dùng chung cho vai `intent` VÀ `sop_select` nên phải đo cả hai; `hijack`
+là bất biến an toàn của router và nó giữ 0 ở cả bốn lượt.
+
+Diacritics đã kiểm riêng: bản không dấu và bản có dấu cho cùng 0,9630 — bản đo
+đầu dùng tiếng Việt không dấu do vướng heredoc, nên phải đo lại bản có dấu trước
+khi áp, vì áp một văn bản khác bản đã đo là không đo gì cả.
+
+### 6.1 Hệ quả: nên xét lại model mặc định
+
+**Hai model nay HỘI TỤ** (3.1: 0,9630 · 0,9630; 3.5: 0,9630 · 0,9815). Khoảng
+cách 4-6 điểm — căn cứ DUY NHẤT để §4 chọn 3.1 — **đã đóng**, và ở lượt thứ hai
+3.5 còn nhỉnh hơn.
+
+Nếu acc ngang nhau thì tiêu chí còn lại là độ trễ, và ở đó 3.5 nhanh hơn ~2 lần
+ở trung vị (951ms vs 2000ms, đo bằng prompt router thật). Tức lập luận của §4
+nay nghiêng về 3.5.
+
+**CHƯA đổi mặc định.** Số của 3.5 sau vá là 0,9630 và 0,9815 — hai lượt chênh
+nhau một ca, nên chưa chốt được nó ngang hay hơn. Cần thêm lượt lặp, và hạn mức
+ngày của 3.5 đã cạn lúc đo (phải mượn khoá dự phòng). Đây là việc đáng làm khi
+hạn mức reset.
+
+### 6.2 Ca CHƯA chữa được
+
+*"lệnh sản xuất mới có cần kiểm tra chất lượng theo SOP trước khi hoàn tất
+không?"* → `rag` thay vì `mixed`, trượt ở **mọi model, mọi phiên bản prompt**.
+Nó khác các ca kia: "lệnh sản xuất mới" chưa phải một bản ghi cụ thể, nên câu
+này thật sự nằm ở ranh giới.
+
+Và bản vá tạo ra **một ca trượt ngược chiều**: *"phiếu giao hàng nào đang trễ
+hạn?"* → `mixed` trong khi kỳ vọng `erp_read`. Ròng vẫn dương, nhưng nó cho thấy
+ranh giới `mixed`/`erp_read` mảnh — đừng siết thêm quy tắc mà không đo.
