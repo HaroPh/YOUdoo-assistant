@@ -59,6 +59,21 @@ CATALOG: dict[str, ModelSpec] = {
         quota_scope="model", rpm=15, tpm=250_000, rpd=500,
         token_multiplier=1.0, max_output_tokens=8192, timeout_s=60,
         supports_tools=True, emits_thought_tags=False),
+    # HỌ GEMINI-3.x KHÔNG DÙNG THINKING trên tải của hệ này — đo 2026-08-21
+    # bằng API trần, cả câu ngắn lẫn prompt router thật (2855 ký tự):
+    # `thoughtsTokenCount` = 0 ở MỌI cấu hình, kể cả mặc định.
+    #
+    # `thinkingConfig.thinkingBudget` CÓ được free tier chấp nhận cho
+    # gemini-3.1-flash-lite (cả 0 lẫn 512); gemini-3.5-flash-lite TỪ CHỐI
+    # budget=0 (HTTP 400) nhưng nhận 512. Nhưng vặn nút đó KHÔNG đổi gì, vì
+    # không có thinking nào đang chạy để tắt. Đừng mất công tối ưu ở đây.
+    #
+    # Độ trễ: 3.1-flash-lite chậm hơn 3.5-flash-lite khoảng 2 LẦN ở trung vị
+    # (2000ms vs 951ms, prompt router thật, 4 lượt mỗi model). Con số p95
+    # 11 220ms từng đo được trong bộ eval là do VÀI LƯỢT NGOẠI LAI trong 54
+    # lượt, không phải đặc tính thường trực — đừng trích nó như chênh lệch
+    # điển hình.
+
     # Gemma: RPD khổng lồ (14.4K) nhưng TPM thấp (16K) và KHÔNG tắt được
     # thinking (reasoning_effort → 400 "Thinking budget is not supported").
     # 26b và 31b có HAI ví hạn mức riêng biệt — vai router và chitchat cố ý
