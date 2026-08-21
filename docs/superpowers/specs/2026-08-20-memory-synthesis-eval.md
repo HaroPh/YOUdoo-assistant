@@ -232,3 +232,64 @@ quan sát thấy suy giảm**.
 (prompts.py:29) lẫn `FUSE_PROMPT` (:228), đều sau khối ký ức. `eval_multi_source`
 KHÔNG đo được nó: `_strip_write_marker()` chỉ **cắt** marker chứ không chấm, và
 `MULTI_SOURCE_CASES` không có ca nào đề xuất thao tác ghi. Cần bộ ca riêng.
+
+## 10. `ĐỀ_XUẤT_GHI`: khối ký ức làm marker TỊT một nửa số ca
+
+Ngày 2026-08-21. Đóng nốt mục 1 của `docs/trang-thai-chung.md`.
+
+Bộ ca mới `evals/write_suggest_cases.py` (8 ca: 4 dương, 4 âm), chạy qua đúng
+hình dạng production của `fuse_answer` (`FUSE_PROMPT` + `render_fuse_input`), và
+nhận marker bằng **chính `extract_write_suggestion`** chứ không viết lại.
+
+**Vì sao marker này quan trọng hơn vẻ ngoài.** Nó ARM cơ chế xác nhận ghi:
+`fuse_answer` tách nó thành `state["suggested_write"]` (fanout.py:217), và
+`replying_to_write_suggestion` chỉ cho lượt "ok" của người dùng đi vào đường GHI
+khi cờ đó bật. Marker tịt ⇒ **người dùng gật mà không có gì xảy ra**, và không ai
+thấy gì sai. Marker này đã hỏng im lặng HAI lần trong lịch sử dự án.
+
+**Số đo** — `gemini-3.1-flash-lite`, `--pace 4.5`, 8 ca, mỗi chân 2 lượt:
+
+| chân | marker_acc (2 lượt) | false_negative | false_positive |
+|---|---|---|---|
+| không ký ức | **1,000 · 1,000** | 0 · 0 | 0 |
+| `inert` | **0,750 · 0,750** | 2 · 2 | 0 |
+| `format` | **0,750 · 0,750** | 2 · 2 | 0 |
+| `conflict` (1 lượt) | 1,000 | 0 | 0 |
+
+**Kết luận: khối ký ức làm mất một nửa số marker đáng phát.** Tỉ lệ lặp lại
+chính xác qua hai lượt; *ca nào* bị tịt thì đổi giữa các lượt (lượt 1 của `inert`
+mất ca SLA + khoá công nợ, `format` mất ca SLA + hoàn tiền). Tức hiệu ứng ổn
+định ở mức tổng, ngẫu nhiên ở mức từng ca.
+
+**Không có false positive nào.** Model không bao giờ phát marker oan — nó chỉ
+KHÔNG phát. Chiều hỏng này là chiều im lặng: người dùng đồng ý và hệ thống không
+làm gì, không báo lỗi.
+
+**Đây là chỗ ký ức gây hại NẶNG NHẤT trong ba đường đã đo**, và nó ngược hẳn kết
+quả §9 (cùng đường `fuse_answer`, cùng khối ký ức, nhưng hợp đồng `NGUỒN_DÙNG:`
+không hề suy giảm còn `ĐỀ_XUẤT_GHI` mất một nửa). Hai hợp đồng nằm cạnh nhau
+trong cùng một prompt mà chịu ảnh hưởng khác hẳn nhau.
+
+### 10.1 Bản đầu của bộ ca này SAI, và cách phát hiện
+
+Lượt đo đầu cho chân KHÔNG ký ức chỉ 0,625 — tôi suýt báo là lỗi production. Đọc
+đuôi câu trả lời thật thì model ĐÚNG: `erp_block` (dùng lại nguyên từ
+`MULTI_SOURCE_CASES`) không có ngày giao, nên nó không kết luận được đơn có trễ
+SLA hay không, nên nó **hỏi thêm thông tin** — mà `FUSE_PROMPT` ghi rõ "câu hỏi
+làm rõ thông thường thì KHÔNG thêm marker". Nhãn "phải phát marker" là **tiền đề
+bất khả thi**, không phải model hỏng.
+
+Một sai lầm phụ suýt che mất chuyện này: bản ghi `fails` cắt câu trả lời ở 300
+ký tự, mà marker nằm ở CUỐI. Soi chuỗi đã cắt cụt rồi kết luận "model không phát
+marker" là đọc nhầm bằng chứng.
+
+**Phép hiệu chỉnh bắt buộc**: chân KHÔNG ký ức phải đạt `marker_acc` gần tuyệt
+đối. Nếu nó không sạch thì bộ ca đang đo chính nó chứ không đo ảnh hưởng của ký
+ức. Sau khi mỗi ca dương được cấp đủ dữ kiện để việc DUY NHẤT còn lại là thao tác
+ghi, chân đó lên 1,0 và phép đo mới có nghĩa.
+
+### 10.2 Còn lại
+
+Đường `erp_node` (nodes.py:68) cũng sinh marker này, sau `SYSTEM_PROMPT` cũng có
+khối ký ức đứng trước. CHƯA đo — nó cần agent gọi tool thật nên đắt hơn hẳn
+đường fuse. Không có lý do để tin nó miễn nhiễm.
