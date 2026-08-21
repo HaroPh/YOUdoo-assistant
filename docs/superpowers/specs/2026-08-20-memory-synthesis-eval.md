@@ -423,3 +423,55 @@ thuộc về việc gỡ nó. Muốn nhận lại thì phải đo bằng `agreem
   hôm nay và đáng đo riêng.
 - Thẩm định sai 1/24 — cần ca kiểm tra chính thẩm định nếu muốn dùng nó làm cổng.
 - Đường `erp_node` vẫn chưa đo.
+
+## 12. Đường `erp_node`: ký ức gần như vô hại — và bảng lọc theo loại fact BỊ BÁC
+
+Ngày 2026-08-21. Đóng mục 1b của `docs/trang-thai-chung.md`.
+
+`erp_node` là chỗ ký ức sống mà chưa ai đo, đồng thời là đường THAO TÁC GHI thật
+sự chạy. Thêm chân `--memory` cho `eval_read` (mirror `SYSTEM_PROMPT` +
+`bind_tools`, đúng hình dạng node), ghép khối y hệt nodes.py:49-51.
+
+| chân | tool_acc | param_acc | bịa tham số |
+|---|---|---|---|
+| không ký ức | 1,0000 | 1,0000 | 0 |
+| `format` | **1,0000** | 1,0000 | 0 |
+| `conflict` | **1,0000** | 1,0000 | 0 |
+| `inert` | 0,9630 · 0,9630 | 0,9630 | 0 |
+
+`inert` trượt ĐÚNG MỘT ca qua hai lượt (tất định): *"khách Azure Interior thông
+tin thế nào?"* chọn `find_customer` thay vì `get_customer_detail` — hai tool
+khách hàng gần nhau. 1/27.
+
+### 12.1 Bảng lọc theo loại fact — ĐỀ XUẤT CỦA TÔI, ĐÃ BỊ SỐ LIỆU BÁC
+
+Trước phép đo này tôi đề xuất: *"fact nội dung đi khắp nơi; fact định dạng/xưng
+hô chỉ vào `chitchat`"*, kèm cột `fact_type`, phân loại lúc ghi, lọc lúc đọc.
+
+Ghép cả bốn đợt đo:
+
+| đường | nội dung | xưng hô | định dạng |
+|---|---|---|---|
+| `rag_node` | vô hại, nhưng đóng góp 0 | **phá hợp đồng guard** | **−8,3% fact_acc** |
+| `fuse_answer` | sạch | agreement 1,0 | agreement 0,75 |
+| `erp_node` | 1,0 | 0,963 | **1,0** |
+
+**Tác hại tập trung ở ĐÚNG MỘT đường — `rag_node` — và nó đã bị cắt.** Trên hai
+đường còn lại, fact định dạng đạt 1,0 ở `erp_node` và fact nội dung sạch ở mọi
+nơi. Không có căn cứ cho bảng lọc.
+
+Xây nó sẽ là dựng cột DB + bước phân loại + lớp lọc để giải một vấn đề chỉ tồn
+tại ở nơi đã xử lý xong. **Đo trước khi xây đã tiết kiệm đúng chỗ đó.**
+
+### 12.2 Nợ còn lại của tính năng ký ức, sau khi đã đo bốn đường
+
+Danh sách này NGẮN HƠN nhiều so với lúc chưa đo:
+
+1. **Mọi phép đo đều dùng ĐÚNG MỘT fact; người dùng thật có NĂM.** Đây là lỗ
+   hổng lớn nhất còn lại — không có gì cho biết hiệu ứng cộng dồn thế nào.
+2. **Hai key cho cùng một fact** (`hien_thi_ma_don` + `always_show_order_code`)
+   đã có trong dữ liệu thật. Khối ký ức phình theo hướng lặp lại chính nó.
+3. **Không có trần số fact.** Chưa hại ở 5 fact (11% `SYSTEM_PROMPT`) nhưng ở 50
+   thì khối bằng 130% `CHITCHAT_PROMPT`.
+4. `chitchat` chưa đo — rủi ro thấp nhất (không mang hợp đồng nào).
+5. Ca `format`/`fuse`: model **bịa rằng đã thực hiện thao tác ghi** (n=1).
