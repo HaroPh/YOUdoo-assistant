@@ -293,3 +293,52 @@ ghi, chân đó lên 1,0 và phép đo mới có nghĩa.
 Đường `erp_node` (nodes.py:68) cũng sinh marker này, sau `SYSTEM_PROMPT` cũng có
 khối ký ức đứng trước. CHƯA đo — nó cần agent gọi tool thật nên đắt hơn hẳn
 đường fuse. Không có lý do để tin nó miễn nhiễm.
+
+### 10.3 Bản sửa V2: câu ràng trong `FUSE_PROMPT` — chữa MỘT trong hai loại fact
+
+Đã áp dụng 2026-08-21. Thêm vào ngay sau hướng dẫn marker trong `FUSE_PROMPT`:
+
+> Dòng ĐỀ_XUẤT_GHI là HỢP ĐỒNG MÁY-ĐỌC bắt buộc: đã đề xuất thao tác ghi thì
+> PHẢI có nó, bất kể ghi nhớ về người dùng nói gì về cách xưng hô, độ dài hay
+> cách trình bày.
+
+| chân | trước V2 | sau V2 |
+|---|---|---|
+| không ký ức | 1,0000 · 1,0000 | 1,0000 |
+| `format` | 0,7500 · 0,7500 | **1,0000 · 1,0000 · 1,0000** |
+| `inert` | 0,7500 · 0,7500 | **0,7500 · 0,7500 · 0,7500** |
+
+Không hồi quy trên `multi_source` (cùng dùng `FUSE_PROMPT`): `citation_validity`
+giữ 1,0000, `fabricated_number` giữ 0. `both_source_coverage` nhích 0,7500 →
+0,8750 nhưng đó là MỘT lượt trên MỘT ca, trong khi mốc cũ là tất định 3/3 — ghi
+nhận, không tính là thắng lợi.
+
+**CHỈ SỬA `FUSE_PROMPT`, KHÔNG sửa `SYSTEM_PROMPT`.** Cùng câu hướng dẫn marker
+tồn tại ở CẢ HAI prompt (một assertion trong lệnh sửa bắt được điều này). Đường
+`erp_node` chạy `SYSTEM_PROMPT` thì CHƯA ĐO, và áp một thay đổi chưa đo sang
+đường thứ hai là đúng lớp lỗi bộ spec này đi tìm.
+
+**Vì sao V2 chữa `format` mà không chữa `inert` — giả thuyết, CHƯA đo.**
+Câu ràng nêu đích danh "cách xưng hô", mà `inert` chính là fact xưng hô, vậy mà
+không đỡ. Cơ chế có lẽ không phải "chỉ thị định dạng lấn chỉ thị marker" mà là
+**dịch chuyển văn phong**: fact xưng hô đẩy model vào giọng trò chuyện cá nhân
+("Chào anh Ba, …") và trong văn phong đó những dòng giao thức máy-đọc rơi ra một
+cách tự nhiên. Giả thuyết này giải thích luôn §3(c) — cũng chính fact `inert`
+khiến model tự viết lời từ chối thay vì phát sentinel `KHÔNG_ĐỦ_THÔNG_TIN` trên
+đường RAG. Một cơ chế, hai triệu chứng, hai đường khác nhau.
+
+Kiểm được bằng cách soi xem các câu trượt dưới `inert` có mở đầu bằng lời chào
+cá nhân hoá không. Chưa làm.
+
+**V2 là bảo vệ MỘT PHẦN, không phải bản sửa.** Người dùng thật mang CẢ HAI loại
+fact (`xung_ho = anh Hào` VÀ `do_dai_phan_hoi = ngan_gon`), nên nửa còn lại vẫn
+hở. Hướng tiếp theo đang chờ duyệt: khi khối ký ức khác rỗng VÀ marker không
+phát, hỏi lại bằng một lượt gọi riêng KHÔNG hề thấy khối ký ức — dựa trên số đo
+rằng ngữ cảnh sạch ký ức cho marker_acc = 1,0. Điều kiện nghiệm thu bắt buộc:
+`false_positive` phải giữ 0 trên cả 4 ca âm, vì cơ chế đó THÊM cờ và thêm cờ là
+chiều nguy hiểm.
+
+**Một hướng đã bị BÁC BỎ trước khi viết code**: bắt lượt "ok" khi không có cờ mà
+câu trả lời trước kết thúc bằng câu hỏi. Đó đúng là heuristic dò văn bản mà
+docstring `replying_to_write_suggestion` đã cân nhắc và loại bỏ, kèm đúng phản ví
+dụ ("Bạn có muốn tôi giải thích thêm không?" theo sau bởi "ok").
