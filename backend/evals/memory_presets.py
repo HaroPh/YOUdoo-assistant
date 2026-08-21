@@ -54,6 +54,15 @@ _FACTS = {
     # Giá trị `xung_ho` đổi sang "anh Ba" (trùng chân `inert`) thay vì tên thật
     # của chủ dự án: tên riêng không ảnh hưởng gì tới thứ đang đo — dịch chuyển
     # văn phong — nên không có lý do đưa nó vào tệp được commit.
+    # CHỈ FACT NỘI DUNG. Đây là cấu hình còn lại NẾU lọc fact xưng hô/định dạng
+    # ra khỏi FUSE_PROMPT. Người dùng thật có đúng MỘT fact loại này
+    # (`kho_chinh`), và nó là fact duy nhất mang giá trị nghiệp vụ thật.
+    #
+    # Khác chân `conflict` ở chỗ fact này VÔ HẠI về nội dung — nó không chọi
+    # với tài liệu nào. `conflict` đo "ký ức có đè được luật không"; chân này
+    # đo "fact nội dung có làm tụt việc chủ động đề nghị không".
+    "content": [("kho_chinh", "WH/Stock")],
+
     "real5": [
         ("kho_chinh", "WH/Stock"),
         ("hien_thi_ma_don", "luôn kèm mã đơn khi phản hồi"),
