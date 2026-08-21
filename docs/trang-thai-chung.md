@@ -33,7 +33,7 @@ Quy ước:
 
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
-| 1 | ⚠️ **Ký ức làm `ĐỀ_XUẤT_GHI` tịt** — V2 đã chữa chân `format`, chân `xưng hô` VẪN hở | RAG | chờ duyệt bộ phân loại cô lập, spec §10.3 |
+| 1 | ⚠️ **Model BỊA đã thực hiện thao tác ghi** trên đường đọc (n=1, chưa lặp) | chưa ai | spec §11.3 |
 | 1b | Đo `ĐỀ_XUẤT_GHI` trên đường `erp_node` (cần agent gọi tool thật) | chưa ai | — |
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | — |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
