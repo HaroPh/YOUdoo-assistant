@@ -23,6 +23,7 @@ from .user_memory import (extract_memory_markers, forget_fact, is_document_code,
                           load_active_facts, normalize_key, render_memory_block,
                           save_fact)
 from src.llm import tracing
+from src.llm.router import THUNG_FALLBACK
 
 MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
 PG_CONN      = os.environ.get(
@@ -149,6 +150,32 @@ def _filter_tools_for_role(tools, cfg):
     return [t for t in tools if t.name in allowed]
 
 
+def _them_dong_bao_fallback(answer: str) -> str:
+    """Gắn một dòng nếu lượt này KHÔNG chạy bằng model người dùng chọn.
+
+    ĐẶT SAU _apply_memory_markers, TRƯỚC localize, và cả hai vị trí đều có lý do:
+
+    SAU bóc marker — dòng này là văn bản gắn vào CUỐI câu trả lời, đúng vùng
+    `NGUỒN_DÙNG:` và `ĐỀ_XUẤT_GHI` đang sống. Gắn trước khi bóc là chen chữ vào
+    giữa marker và chỗ nó được tìm; cùng lý do fuse_answer phải gọi
+    extract_write_suggestion trước cite_and_verify.
+
+    TRƯỚC localize — để người dùng tiếng Anh nhận dòng này bằng tiếng Anh, giống
+    hệt dòng công bố ký ức.
+
+    CHỈ hiện khi CÓ tụt. Hiện mọi lượt thì thành nhiễu, và tên model ở lượt bình
+    thường không giúp người dùng làm gì.
+    """
+    thung = THUNG_FALLBACK.get()
+    if not thung:
+        return answer
+    # Một lượt đi qua nhiều vai; báo tên VAI là vô nghĩa với người dùng. Nêu
+    # (các) model đã thật sự trả lời, sắp xếp để dòng chữ ổn định.
+    models = ", ".join(sorted(set(thung.values())))
+    return (f"{answer}\n\n_Lượt này do {models} trả lời "
+            "(model bạn chọn đang quá tải)._")
+
+
 class ERPAgent:
     def __init__(self) -> None:
         self.graphs: dict = {}
@@ -227,6 +254,7 @@ class ERPAgent:
                                         reset_if_fresh=reset_if_fresh,
                                         role=role, user_id=user_id)
         answer = await self._apply_memory_markers(answer, user_id, thread_id)
+        answer = _them_dong_bao_fallback(answer)
         lang = VI
         for m in messages or []:
             if m.get("role") == "user" and detect_lang(m.get("content")) == EN:

@@ -6,6 +6,7 @@ sửa cả hai; test contract (Task 11) đối chiếu model_id với /models th
 KHÔNG có khoá API nào trong file này.
 """
 from dataclasses import dataclass
+from contextvars import ContextVar
 
 
 @dataclass(frozen=True)
@@ -238,5 +239,56 @@ def spec_for(alias: str) -> ModelSpec:
     return CATALOG[alias]
 
 
-def chain_for(role: str) -> tuple[ModelSpec, ...]:
-    return tuple(CATALOG[a] for a in CHAINS[role])
+# Model người dùng chọn ở dropdown Open WebUI, đặt tại ranh giới HTTP mỗi lượt.
+# ContextVar chứ không phải tham số xuyên tầng: lựa chọn phải tới được resolve()
+# của Router, mà giữa hai chỗ đó là erp_agent + LangGraph + RoutedChatModel —
+# luồn thêm một tham số qua cả bốn tầng là bốn chỗ có thể quên. Cùng cơ chế mà
+# router đã dùng cho `_QUYET_DINH`.
+MODEL_NGUOI_DUNG_CHON: ContextVar[str | None] = ContextVar(
+    "MODEL_NGUOI_DUNG_CHON", default=None)
+
+# Model cho người dùng chọn. CHỈ những model đủ hạn mức gánh cả ngày:
+#   gemini-3.5-flash-lite  rpd 500
+#   gemini-3.1-flash-lite  rpd 500
+# CỐ Ý KHÔNG có `gemini-3.5-flash` (rpd=20 — chết sau ~20 tin nhắn/ngày, mời
+# người dùng chọn một thứ hỏng sau hai chục lượt là mời họ thất vọng) và
+# `gemma-4-26b` (rpd 14400, dư sức gánh cả hệ, nhưng CHƯA ĐO trên các vai này —
+# xem docs/trang-thai-chung.md).
+MODEL_CHON_DUOC: tuple[str, ...] = ("gemini-3.5-flash-lite",
+                                    "gemini-3.1-flash-lite")
+
+# Mặc định. Đo 2026-08-21 trên `read`/`planner`/`intent`, mỗi bộ 2 lượt:
+#
+#                        intent acc        intent p95
+#   3.1-flash-lite    0,9444 · 0,9444   11 220 · 7 900ms
+#   3.5-flash-lite    0,9074 · 0,8889    1 058 · 1 073ms
+#   (read/planner: CẢ HAI đạt 1,0 — hai bộ đó bão hoà, không phân biệt được)
+#
+# Chọn 3.1 dù nó CHẬM HƠN 7-10 lần ở đuôi, vì hai kiểu hỏng không cùng hạng:
+#   - chậm là hỏng LỚN TIẾNG — người dùng thấy, tự biết chờ, không nhận thông
+#     tin sai;
+#   - định tuyến nhầm là hỏng IM LẶNG — câu `mixed` bị phân thành nguồn đơn nên
+#     câu trả lời thiếu hẳn nửa tài liệu, mà người dùng KHÔNG BIẾT là thiếu.
+# Mặc định phục vụ người không bao giờ đổi lựa chọn; với họ, thiếu âm thầm tệ
+# hơn chậm.
+#
+# Ai ưu tiên tốc độ thì đổi sang 3.5-flash-lite ngay ở dropdown — đó chính là
+# lý do tính năng này tồn tại.
+MODEL_MAC_DINH = "gemini-3.1-flash-lite"
+
+
+def chain_for(role: str, prefer: str | None = None) -> tuple[ModelSpec, ...]:
+    """Chuỗi mắt xích cho một vai, model `prefer` được đưa lên ĐẦU.
+
+    `prefer` KHÁC `pin` của Router: pin bỏ qua toàn bộ chuỗi và chỉ thử một lần
+    (eval dùng để quy kết quả cho đúng model). `prefer` chỉ ĐỔI THỨ TỰ — mọi
+    mắt xích dự phòng của vai vẫn nằm phía sau. Nhầm hai thứ này là mất fallback
+    mà không có gì báo.
+
+    Model đã có sẵn trong chuỗi thì được NHẤC LÊN chứ không nhân đôi: thử cùng
+    một model hai lần trong một lượt là đốt hạn mức cho một kết quả đã biết.
+    """
+    aliases = list(CHAINS[role])
+    if prefer and prefer in CATALOG:
+        aliases = [prefer] + [a for a in aliases if a != prefer]
+    return tuple(CATALOG[a] for a in aliases)
