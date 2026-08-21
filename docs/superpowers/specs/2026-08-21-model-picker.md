@@ -175,3 +175,57 @@ này thật sự nằm ở ranh giới.
 Và bản vá tạo ra **một ca trượt ngược chiều**: *"phiếu giao hàng nào đang trễ
 hạn?"* → `mixed` trong khi kỳ vọng `erp_read`. Ròng vẫn dương, nhưng nó cho thấy
 ranh giới `mixed`/`erp_read` mảnh — đừng siết thêm quy tắc mà không đo.
+
+## 7. Nghiệm thu sống 2026-08-21 — dòng báo fallback ĐÃ chạy thật
+
+Giới hạn cuối của §5 ("chưa đo chuỗi thật sự tụt trên production") **đã đóng**,
+và đóng ngoài ý muốn: chủ dự án chọn `3.5-flash-lite`, hỏi *"xin chào bạn có thể
+làm gì"*, và nhận đúng dòng:
+
+    Lượt này do gemini-3.1-flash-lite, gemini-3.5-flash trả lời
+    (model bạn chọn đang quá tải).
+
+**Hai tên chứ không phải một, và đó là đúng.** Một lượt chat gọi LLM nhiều lần,
+`THUNG_FALLBACK` gom theo LƯỢT chứ không theo lời gọi:
+
+| vai | chuỗi khi `prefer=3.5-flash-lite` | ai thật sự trả lời |
+|---|---|---|
+| `router` | 3.5-flash-lite → **3.1-flash-lite** → groq → or-ling | 3.1-flash-lite |
+| `chitchat` | 3.5-flash-lite → **3.5-flash** → groq | 3.5-flash |
+
+Hai tên trong dòng báo khớp **chính xác** hai mắt xích này, nên nó vừa chứng
+minh cơ chế chạy vừa chứng minh nó gom đúng phạm vi. Không cần dựng lại hạn mức
+giả để đo.
+
+### 7.1 Nhưng nó phơi ra một hố: `prefer` mở lại cái bẫy rpd=20
+
+Comment ở `main.py` khoe rằng mặc định mới "tiện thể chữa luôn việc
+`gemini-3.5-flash` (rpd=20) từng là mắt xích ĐẦU của chitchat". Đúng — **nhưng
+chỉ với mặc định**. Chọn `3.5-flash-lite` thì chuỗi chitchat thành
+`3.5-flash-lite → 3.5-flash → groq`, nên khi mắt xích đầu cạn ngày, tán gẫu rơi
+thẳng vào đúng model rpd=20 mà §4 đã CỐ Ý không cho chọn. Nó chết sau ~20 lượt
+rồi mới xuống Groq.
+
+Không phải lỗi của `prefer` — `prefer` đúng thiết kế là chỉ đảo thứ tự. Lỗi là
+chuỗi `chitchat` gốc vẫn còn `gemini-3.5-flash` ở vị trí mà mọi lựa chọn của
+người dùng đều đẩy nó lên hàng hai.
+
+### 7.2 Ba ô dropdown, hai hành vi
+
+`erp-assistant` là `MODEL_ID`, không nằm trong `MODEL_CHON_DUOC`, nên rơi vào
+nhánh `else MODEL_MAC_DINH` — tức **y hệt** chọn `gemini-3.1-flash-lite`, không
+khác một mắt xích nào ở cả bảy vai. Ba ô nhưng chỉ hai hành vi.
+
+### 7.3 Vì sao KHÔNG có dự phòng theo khoá API
+
+`providers.ENV_KEYS` là ánh xạ **một upstream ↔ một biến môi trường**
+(`google → GOOGLE_API_KEY`). Không có vòng xoay khoá ở bất kỳ tầng nào. Hạn mức
+Gemini free tier tính **theo project**, nên một khoá project khác là một ví
+KHÁC — nhưng hệ hiện không biết điều đó, và cạn ngày của một khoá là cạn cho cả
+bảy vai.
+
+Đây là **nợ có thật, chưa mở phạm vi** — xem `docs/trang-thai-chung.md` mục 7.
+Lưu ý khi thiết kế: thêm khoá thứ hai KHÔNG được làm thành mắt xích thứ hai của
+chuỗi, vì bất biến #1 của router (không hai mắt xích cùng upstream) tồn tại để
+chặn đúng chuyện rơi từ miền lỗi này sang lại chính nó. Chỗ đúng là **xoay khoá
+bên trong một mắt xích**, trước khi tụt xuống mắt xích sau.

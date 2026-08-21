@@ -32,8 +32,9 @@ Quy ước:
 |---|---|---|---|
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 5 | Dòng báo fallback **chưa nghiệm thu sống** — cần một model cạn hạn mức thật mới thấy nó chạy | RAG | — |
-| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | đáng đo nếu hạn mức thành nút thắt |
+| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | **nay có căn cứ thật**: 2026-08-21 `3.5-flash-lite` cạn hạn mức ngày, người dùng chọn nó thì `chitchat` rơi xuống `gemini-3.5-flash` (rpd **20**) |
+| 7 | **Không có dự phòng theo KHOÁ API** — `providers.ENV_KEYS` chỉ một biến mỗi upstream, nên cạn hạn mức ngày của Google là cạn cho cả hệ | chưa ai | chờ chủ dự án quyết hướng |
+| 8 | `erp-assistant` và `gemini-3.1-flash-lite` ở dropdown **hành vi y hệt nhau** (tên lạ → `MODEL_MAC_DINH` = 3.1) — ba ô nhưng chỉ hai hành vi | chưa ai | chờ chủ dự án quyết có gộp/đổi nhãn không |
 
 **Mục 2 đã hạ ưu tiên (2026-08-21).** Lý do nó từng gấp là
 `tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` — cổng chặn
