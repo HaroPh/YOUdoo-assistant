@@ -22,7 +22,7 @@ async def test_rag_node_synthesizes_answer(monkeypatch):
               row_range=None, text="Hoàn hàng trong 30 ngày.", dense_score=0.7,
               sparse_score=None, rrf_score=0.02, rank=0)
     result = RetrievalResult(query="q", query_used="q", chunks=[c], top_score=0.02,
-                             total_candidates=1, method="hybrid-rrf")
+                             total_candidates=1, method="dense-rrf")
     captured = {}
 
     def fake_retrieve(query, *a, **kw):
@@ -294,7 +294,7 @@ async def test_rag_node_truyen_luot_truoc_vao_aux_queries(monkeypatch):
         calls.append((a[0], aux))
         return RetrievalResult(query="q", query_used="q", chunks=[],
                                top_score=0.0, total_candidates=0,
-                               method="hybrid-rrf")
+                               method="dense-rrf")
 
     monkeypatch.setattr(nodes_mod, "retrieve", fake_retrieve)
     from src.agents.nodes import make_rag_node
@@ -327,7 +327,7 @@ async def test_rag_node_luot_dau_khong_co_aux(monkeypatch):
         calls.append(aux)
         return RetrievalResult(query="q", query_used="q", chunks=[],
                                top_score=0.0, total_candidates=0,
-                               method="hybrid-rrf")
+                               method="dense-rrf")
 
     monkeypatch.setattr(nodes_mod, "retrieve", fake_retrieve)
     from src.agents.nodes import make_rag_node

@@ -9,12 +9,12 @@ def _chunk(rank=0, score=1.0):
 
 def test_retrieval_result_is_empty_and_top_score():
     empty = RetrievalResult(query="q", query_used="q", chunks=[], top_score=0.0,
-                            total_candidates=0, method="hybrid-rrf")
+                            total_candidates=0, method="dense-rrf")
     assert empty.is_empty() is True
 
     c = _chunk(rank=0, score=0.42)
     full = RetrievalResult(query="q", query_used="q", chunks=[c], top_score=0.42,
-                           total_candidates=3, method="hybrid-rrf")
+                           total_candidates=3, method="dense-rrf")
     assert full.is_empty() is False
     assert full.top_score == full.chunks[0].rrf_score
 

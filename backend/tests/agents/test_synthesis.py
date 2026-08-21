@@ -113,7 +113,7 @@ from src.agents.synthesis import verify_citations
 def _result(chunks):
     return RetrievalResult(query="q", query_used="q", chunks=chunks,
                            top_score=(chunks[0].rrf_score if chunks else 0.0),
-                           total_candidates=len(chunks), method="hybrid-rrf")
+                           total_candidates=len(chunks), method="dense-rrf")
 
 
 @pytest.mark.asyncio

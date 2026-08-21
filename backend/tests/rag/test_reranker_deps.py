@@ -4,7 +4,7 @@
 VÌ SAO TỒN TẠI. Từ 2026-07-12 đến 2026-08-19, reranker chết 100% trong
 production: torch/transformers cố ý không nằm trong requirements.txt, nên
 _load() ném ModuleNotFoundError, fail-open nuốt thành None, sentinel cắm
-False. retrieve() trả method="hybrid-rrf" thay vì "hybrid-rrf+rerank" suốt
+False. retrieve() trả method="dense-rrf" thay vì "hybrid-rrf+rerank" suốt
 gần 6 tuần mà KHÔNG một test nào đỏ:
 
   - 4 test trong test_reranker.py đều monkeypatch _load hoặc score_pairs,

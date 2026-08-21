@@ -23,7 +23,7 @@ def _chunk(**kw) -> Chunk:
 def _result(chunks) -> RetrievalResult:
     return RetrievalResult(query="q", query_used="q", chunks=chunks,
                            top_score=(chunks[0].rrf_score if chunks else 0.0),
-                           total_candidates=len(chunks), method="hybrid-rrf")
+                           total_candidates=len(chunks), method="dense-rrf")
 
 
 def _state(text: str) -> dict:
