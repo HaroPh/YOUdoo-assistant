@@ -33,7 +33,6 @@ Quy ước:
 
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
-| 1 | ⚠️ **Model BỊA đã thực hiện thao tác ghi** trên đường đọc (n=1, chưa lặp) | chưa ai | spec §11.3 |
 | 1b | ⚠️ **Ký ức thật tắt hẳn việc đề xuất ghi** trên `fuse_answer` (`proposed_rate` 0,75 → 0,00, tất định 3 lượt) — quyết định SẢN PHẨM: có muốn trợ lý chủ động đề nghị làm không | chủ dự án | spec §13 |
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | — |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |

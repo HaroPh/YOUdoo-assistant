@@ -514,3 +514,42 @@ tắt hành vi đó, chưa nói nên bật lại hay không.
 
 **Phạm vi**: chỉ đường `fuse_answer`. Hành vi đề xuất trên `erp_node` chưa đo —
 `eval_read` dừng ở lượt chọn tool, không sinh câu trả lời cuối.
+
+## 14. ĐÓNG mục "model bịa đã thực hiện thao tác ghi" — thủ phạm là V2
+
+Ngày 2026-08-21. Đóng mục 1 của `docs/trang-thai-chung.md`.
+
+§11.1 ghi nhận một ca (n=1) model trả lời *"Tôi đã ghi nhận… và **thực hiện khóa
+công nợ** đối với Gemini Furniture **trên hệ thống** theo đúng quy trình"* —
+trong khi `fuse_answer` không có tool nào và không thao tác gì. Đây là mục nguy
+hiểm nhất trên bảng: người dùng tin một thao tác đã xong trong khi không có gì
+xảy ra, và không có cách nào biết.
+
+**Tái hiện được, và tìm ra điều kiện:**
+
+| cấu hình | bịa đã thao tác |
+|---|---|
+| không V2 — chân `none` / `format` / `real5` | **0/9** |
+| **V2 + `format`** | **3/3** |
+| V2 + `real5` | 0/3 |
+
+**Thủ phạm là V2** — câu ràng ở §10.3, thêm vào rồi gỡ ra trong cùng ngày
+2026-08-21. Ca gốc được quan sát đúng lúc V2 còn trong `FUSE_PROMPT`.
+
+**CƠ CHẾ, và đây là bài học rộng hơn bản thân ca này**: ép model tuân thủ một
+hợp đồng máy-đọc khiến nó **BỊA RA chính sự kiện mà hợp đồng đó mô tả**. V2 nói
+"đã đề xuất thao tác ghi thì PHẢI phát marker". Model không đề xuất nhiều hơn —
+nó **kể rằng đã làm**, để câu chuyện khớp với marker nó vừa phát.
+
+Đó là lý do mạnh hơn hẳn lý do tôi dùng lúc gỡ V2 (§11.2: "căn cứ nhận nó đã mất
+hiệu lực"). Lúc đó tôi chỉ biết V2 vô căn cứ; giờ biết nó nguy hiểm.
+
+**Trạng thái**: đã sạch trên production từ `34158d4` (V2 đã gỡ). Rào chống thêm
+lại: `tests/agents/test_fuse_prompt_khong_ep_marker.py`, chặn cả `FUSE_PROMPT`
+lẫn `SYSTEM_PROMPT` — đường thứ hai mang CÙNG hướng dẫn marker và cũng có khối
+ký ức đứng trước, nhưng CHƯA BAO GIỜ được đo với câu ràng đó.
+
+**Giới hạn**: chỉ thử trên một ca (`S00050` khoá công nợ) và một model
+(`gemini-3.1-flash-lite`). Không biết cơ chế này còn xảy ra ở hình thức ép buộc
+nào khác. Điều biết chắc: **đừng viết "PHẢI phát marker X" vào prompt sinh câu
+trả lời.**
