@@ -82,9 +82,6 @@ def test_job_specific_args_reach_fn():
     assert seen["model"] == "x-model"
 
 
-@pytest.mark.skip(reason="e2e-smoke job không được port ở SP-1C1 (Bước 8: "
-                          "ngoài phạm vi, cần backend :8002 sống — kế hoạch "
-                          "C2). Bật lại khi C2 port lại 4 job e2e_*.")
 def test_cli_survives_redirected_cp1252_stdout():
     """Regression (whole-branch review, Critical): khi stdout bị redirect ra
     file (đúng cách Task Scheduler chạy), Windows dùng ANSI codepage thay vì
@@ -92,17 +89,26 @@ def test_cli_survives_redirected_cp1252_stdout():
     verdict thật và thoát exit 1 (vi phạm exit contract 0/1/2). Chạy CLI THẬT
     qua subprocess với PYTHONIOENCODING=cp1252 ép buộc, dùng job e2e-smoke có
     sẵn với --scheduled (từ chối NGAY trước khi chạm network/subprocess con —
-    nhanh, không cần stack sống)."""
+    nhanh, không cần stack sống).
+
+    BẬT LẠI 2026-08-21 sau khi 4 job e2e_* được port (nợ từ SP-1C1 Bước 8). Nó
+    skip cứng gần một tháng, và trong thời gian đó lớp lỗi này cắn LẦN THỨ HAI
+    ở evals/run_eval.py mà không ai được cảnh báo — xem docstring
+    tests/test_cli_utf8.py."""
     import subprocess
 
     from jobs.registry import INFRA_ERROR as _INFRA_ERROR
     from jobs.registry import REPO_ROOT
 
     env = dict(os.environ, PYTHONIOENCODING="cp1252")
+    # cwd = backend/, KHÔNG phải REPO_ROOT: ở Youdoo gói `jobs` nằm dưới
+    # backend/ nên `python -m jobs` chạy từ gốc repo trả "No module named
+    # jobs". Bản gốc của test này (D:\Project) dùng REPO_ROOT và không ai
+    # phát hiện — nó bị skip cứng từ lúc viết cho tới 2026-08-21.
     proc = subprocess.run(
         [sys.executable, "-m", "jobs", "run", "e2e-smoke", "--scheduled"],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, encoding="cp1252",
-        timeout=30)
+        cwd=REPO_ROOT / "backend", env=env, capture_output=True, text=True,
+        encoding="cp1252", timeout=30)
     assert proc.returncode == _INFRA_ERROR
     assert "UnicodeEncodeError" not in proc.stderr
     assert "Traceback" not in proc.stderr

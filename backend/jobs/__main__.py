@@ -19,9 +19,15 @@ from src.cli_console import use_utf8_streams
 use_utf8_streams()
 
 # ── job modules đăng ký tại import ───────────────────────────────────────────
-# 4 job e2e_* (D:\Project) cần backend :8002 sống (kế hoạch C2, chưa tồn tại
-# ở đây) — NGOÀI PHẠM VI SP-1C1, cố ý không port. Thêm lại khi C2 xong.
+# 4 job e2e_* ĐÃ PORT 2026-08-21 (nợ từ SP-1C1 Bước 8). Cả bốn là
+# schedulable=False — chúng ghi dữ liệu THẬT vào Odoo và cần full stack sống.
+# Import ở đây chỉ ĐĂNG KÝ, không chạm mạng: `python -m jobs list` và
+# `--scheduled` bị từ chối đều hoạt động khi stack đang tắt.
 from jobs import eval_gate  # noqa: F401  (đăng ký side-effect)
+from jobs import e2e_smoke  # noqa: F401
+from jobs import e2e_skill_discount  # noqa: F401
+from jobs import e2e_skill_delivery  # noqa: F401
+from jobs import e2e_skill_warehouse  # noqa: F401
 
 from jobs.registry import (INFRA_ERROR, JOBS, JobResult, write_result)
 

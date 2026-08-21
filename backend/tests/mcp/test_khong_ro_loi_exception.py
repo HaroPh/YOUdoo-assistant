@@ -59,6 +59,12 @@ MIEN_TRU = {
               "eval bằng CLI đọc, không phải người dùng chat"),
     "backend/evals/run_eval.py": (
         1, 1, "print('INFRA ERROR: …') ra console của người chạy eval"),
+    "backend/jobs/e2e_common.py": (
+        3, 3, "preflight/timeout của job satellite — in ra console người vận "
+              "hành và vào logs/jobs/*.json, KHÔNG bao giờ vào hội thoại. "
+              "Nguyên văn lỗi socket CHÍNH LÀ chẩn đoán cần đọc (\"backend "
+              ":8002 không chạy\" mà không nói vì sao thì phải đoán); cùng lý "
+              "lẽ đã áp cho resilience.py và run_eval.py ngay dưới/trên."),
     "backend/jobs/resilience.py": (
         1, 1, "raise … from e trong job nền — đi vào log, không vào hội thoại"),
     "scripts/check_role_odoo_consistency.py": (

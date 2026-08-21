@@ -30,18 +30,13 @@ Quy ước:
 
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
-| 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | **căn cứ mạnh hơn sau 2026-08-21**: cả `3.5-flash-lite` (306 lượt) lẫn `3.1-flash-lite` (236) đều chạm trần trong một ngày làm việc, và mục 8 cho thấy chuỗi dự phòng có thể cạn sạch |
+| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | **căn cứ sau 2026-08-21**: mục 8 cho thấy chuỗi dự phòng có thể cạn SẠCH trên đường ERP thật (`ChainExhausted`). Không trích số `llm_usage` làm căn cứ hạn mức — xem mục 9 |
 | 7 | **Không có dự phòng theo KHOÁ API** — `providers.ENV_KEYS` chỉ một biến mỗi upstream, nên cạn hạn mức ngày của Google là cạn cho cả hệ | chưa ai | chờ chủ dự án quyết hướng |
 | 8 | ⚠️ **Chọn 3.5 cho chuỗi NGẮN HƠN chọn 3.1** — `prefer` chỉ chèn lên đầu, nên model vốn đã đứng đầu thì không thêm mắt xích nào. Gặp thật: hỏi tồn kho khi chọn 3.5 → `ChainExhausted` dù 3.1 còn hạn mức | chưa ai | phạm vi mới, chờ quyết (spec `2026-08-21-model-picker.md` §8.5) |
-
-**Mục 2 đã hạ ưu tiên (2026-08-21).** Lý do nó từng gấp là
-`tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` — cổng chặn
-hồi quy Critical — bị skip cứng vì thiếu job `e2e-smoke`. Lớp lỗi đó nay được
-gác bởi `tests/test_cli_utf8.py`, **không phụ thuộc job nào**, và bản vá đã áp
-cho **cả bảy** cửa vào CLI qua `src/cli_console.py`. Port 4 job vẫn là việc nên
-làm, nhưng không còn là việc đang giữ một cổng an toàn ở trạng thái tắt.
+| 9 | ⚠️ **Bộ test tích hợp XOÁ SỔ NGÂN SÁCH `llm_usage`** — `tests/llm/test_store_postgres.py::test_thieu_migration_thi_nem_RuntimeError_ro_rang` chạy `DROP TABLE` trên chính `DATABASE_URL` thật rồi tạo lại bảng RỖNG | chưa ai | phạm vi mới. Hệ quả: sau mỗi lượt `pytest -m integration`, ledger tưởng chưa dùng gì và mọi chẩn đoán hạn mức đọc sau đó đều sai |
+| 10 | ⚠️ **`or-nemotron` CHẾT** — 16 lần gọi, **0 lần thành công**, luôn 404 "Provider returned error / Nvidia". Nó là mắt xích CUỐI của `read`/`planner`/`synthesis` ⇒ ba chuỗi đó ngắn hơn vẻ ngoài một mắt xích | chưa ai | phạm vi mới; thành phần chết im lặng thứ BA của dự án (sau chân sparse và reranker) |
+| 11 | `e2e-skill-warehouse` còn **2/5 kịch bản chưa nghiệm thu** (`no_po_tool_leak`, `refusal`) và `e2e-skill-delivery` còn 1 (`refusal`) | chưa ai | **cạn hạn mức NGÀY** (429 `PerDayPerProjectPerModel`). Chạy lại khi hạn mức reset — bản vá chẩn đoán đã sẵn, lượt sau sẽ in nguyên văn câu trả lời |
 
 ## Ai giữ vùng nào
 

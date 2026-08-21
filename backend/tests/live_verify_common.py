@@ -41,11 +41,40 @@ def odoo_transport() -> XmlRpcTransport:
                            os.environ["ODOO_USERNAME"], os.environ["ODOO_PASSWORD"])
 
 
-def chat(history: list[dict], sid: str, msg: str) -> str:
+def role_user_id(role: str | None = None) -> str | None:
+    """Id người dùng Open WebUI ứng với một vai, suy từ `YOUDOO_ROLE_MAP`.
+
+    VÌ SAO CẦN: backend Youdoo suy vai từ header `x-openwebui-user-id`
+    (main._role_from_headers) và **TỪ CHỐI** khi không suy được — trả
+    "Không xác định được quyền truy cập của bạn" chứ không mặc định thành
+    admin. Helper này được port sang Youdoo ở SP-1B nhưng `chat()` không gửi
+    header nào, nên mọi script dùng nó sẽ nhận câu từ chối thay vì câu trả
+    lời thật. Lỗi nằm im vì tới 2026-08-21 helper KHÔNG CÓ script nào gọi.
+
+    Không ghi cứng id vào mã: id là dữ liệu môi trường, và ghi cứng thì máy
+    khác chạy sẽ hỏng câm. Trả None khi không suy được — caller vẫn gửi được
+    (backend sẽ từ chối rõ ràng), tốt hơn là nổ ở đây với thông điệp mờ hơn.
+    """
+    want = role or os.environ.get("YOUDOO_LIVE_VERIFY_ROLE", "admin")
+    for muc in os.environ.get("YOUDOO_ROLE_MAP", "").split(","):
+        if ":" not in muc:
+            continue
+        uid, _, vai = muc.strip().partition(":")
+        if vai.strip() == want:
+            return uid.strip()
+    return None
+
+
+def chat(history: list[dict], sid: str, msg: str,
+         user_id: str | None = None) -> str:
     history.append({"role": "user", "content": msg})
     body = {"model": "erp-assistant", "session_id": sid,
            "messages": history, "stream": False}
-    r = requests.post(CHAT_ENDPOINT, json=body, timeout=150)
+    headers = {}
+    uid = user_id if user_id is not None else role_user_id()
+    if uid:
+        headers["x-openwebui-user-id"] = uid
+    r = requests.post(CHAT_ENDPOINT, json=body, headers=headers, timeout=150)
     r.raise_for_status()
     answer = r.json()["choices"][0]["message"]["content"]
     history.append({"role": "assistant", "content": answer})
