@@ -10,6 +10,7 @@ from ..rag import embed as _embed
 from ..rag.config import RAG_SCHEMA
 from .gateway import default_gateway
 from .semantic import normalize
+from src.cli_console import use_utf8_streams
 
 _SCHEMA_SQL = os.path.join(os.path.dirname(__file__), "schema.sql")
 MODEL = "product.product"
@@ -83,4 +84,5 @@ def sync(gw=None, conn=None) -> dict:
 
 
 if __name__ == "__main__":
+    use_utf8_streams()
     print(sync())

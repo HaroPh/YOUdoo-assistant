@@ -26,6 +26,7 @@ from evals import fixtures
 from evals.cases import MULTI_SOURCE_CASES, MULTI_SOURCE_DERIVED_DIGITS
 from evals.run_eval import _digits
 from src.agents.synthesis import _format_context
+from src.cli_console import use_utf8_streams
 
 _PATH = Path(__file__).resolve().parent / "baseline-qwen3-8b-multi_source.json"
 
@@ -77,6 +78,7 @@ def rescore() -> dict:
 
 
 if __name__ == "__main__":
+    use_utf8_streams()
     result = rescore()
     print(f"fabricated_number: {result['original_fabricated_number']} -> "
          f"{result['fabricated_number']}")

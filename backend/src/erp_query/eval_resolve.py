@@ -13,6 +13,7 @@ from collections import defaultdict
 
 from .gateway import default_gateway
 from .resolve import resolve_entity
+from src.cli_console import use_utf8_streams
 
 CASES = os.path.join(os.path.dirname(__file__), "eval_resolve_cases.json")
 
@@ -56,6 +57,7 @@ def evaluate(gw=None) -> dict:
 
 
 if __name__ == "__main__":
+    use_utf8_streams()
     r = evaluate()
     if r["missing_codes"]:
         print(f"Cảnh báo: chưa seed {r['missing_codes']} — chạy "

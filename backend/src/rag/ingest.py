@@ -10,6 +10,7 @@ from .embed import EmbeddingError, embed_texts, get_embedder
 from .parse import (extract_effective_date, parse_docx, parse_pdf,
                     parse_xlsx)
 from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
+from src.cli_console import use_utf8_streams
 
 _EXT = {".pdf": "text", ".docx": "text", ".xlsx": "xlsx"}
 
@@ -131,6 +132,7 @@ def ingest_path(path: str, conn=None) -> dict:
 
 
 def main() -> None:
+    use_utf8_streams()
     target = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("DOCUMENTS_PATH", ".")
     print(ingest_path(target))
 

@@ -1,6 +1,7 @@
 import os
 from docx import Document
 from openpyxl import Workbook
+from src.cli_console import use_utf8_streams
 
 HERE = os.path.dirname(__file__)
 
@@ -102,4 +103,5 @@ def build():
 
 
 if __name__ == "__main__":
+    use_utf8_streams()
     build()
