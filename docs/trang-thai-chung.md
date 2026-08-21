@@ -32,6 +32,9 @@ Quy ước:
 |---|---|---|---|
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
+| 4 | Chốt lại **model mặc định** — sau khi vá prompt `mixed`, hai model HỘI TỤ nên căn cứ chọn 3.1 đã đóng | RAG | cần hạn mức (3.5 cạn ngày trên 2/3 khoá) |
+| 5 | Dòng báo fallback **chưa nghiệm thu sống** — cần một model cạn hạn mức thật mới thấy nó chạy | RAG | — |
+| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | đáng đo nếu hạn mức thành nút thắt |
 
 **Mục 2 đã hạ ưu tiên (2026-08-21).** Lý do nó từng gấp là
 `tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` — cổng chặn
