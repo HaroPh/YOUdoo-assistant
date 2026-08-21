@@ -30,6 +30,7 @@ from evals.multiturn_cases import MULTITURN_CASES
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
 from evals.memory_presets import MEMORY_PRESETS
 from evals.write_suggest_cases import WRITE_SUGGEST_CASES
+from evals.write_suggest_oracle import oracle_proposes_write
 from evals.synthesis_live_score import score_answer
 from src.agents.synthesis import synthesize as _synthesize
 from src.rag.retrieve import retrieve as _retrieve
@@ -1270,56 +1271,66 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
 
 async def eval_write_suggest(llm, pace: float = 0.0, checkpoint_path=None,
                              memory: str | None = None):
-    """Đo marker `ĐỀ_XUẤT_GHI` trên đường fuse_answer, có/không khối ký ức.
+    """Marker `ĐỀ_XUẤT_GHI` có nói ĐÚNG về việc câu trả lời đang làm không?
 
-    Marker này ARM cơ chế xác nhận ghi: fuse_answer tách nó thành
-    `state["suggested_write"]` (fanout.py:217) và `replying_to_write_suggestion`
-    chỉ cho lượt "ok" đi vào đường GHI khi cờ đó bật. Tịt ⇒ người dùng gật mà
-    không có gì xảy ra. Bật oan ⇒ câu hỏi làm rõ biến lượt sau thành lệnh ghi.
+    ĐO ĐỘ KHỚP, KHÔNG ĐO KỲ VỌNG. Bản đầu chấm marker so với nhãn tay
+    `expect_marker` — tức khẳng định model NÊN quyết định gì. Model được phép
+    chọn đề xuất, từ chối, hay hỏi làm rõ; cả ba đều hợp lệ, nên nhãn tay biến
+    mọi thay đổi cách xử sự thành "hỏng". Đã trả giá hai lần cho sai lầm đó
+    (xem docstring evals/write_suggest_oracle.py).
 
-    Nhận marker bằng CHÍNH `extract_write_suggestion` của production, không tự
-    viết lại — nó là hợp đồng đã từng hỏng vì regex lệch (marker dán cuối câu
-    thay vì đầu dòng), nên một bản sao trong eval sẽ che đúng lớp lỗi đó.
+    Hợp đồng THẬT chỉ có một điều: **marker phải khớp với thứ câu trả lời thật
+    sự làm** — hệ không được nói dối về việc nó có đang đề xuất hay không. Thẩm
+    định độc lập (không thấy khối ký ức) phán, rồi so với marker.
 
-    HAI CHIỀU HỎNG CHẤM RIÊNG vì mức nghiêm trọng khác nhau:
-      false_negative — đề xuất ghi mà không phát marker: cơ chế xác nhận không
-                       lên đạn, hỏng IM LẶNG (không ai thấy gì sai).
-      false_positive — phát marker khi không đề xuất: lượt "ok" kế tiếp bị đẩy
-                       sang đường ghi ngoài ý muốn.
-    Gộp hai thứ vào một con số acc là làm mờ mất chiều nguy hiểm hơn.
+    `expect_marker` GIỮ LẠI nhưng chỉ để báo cáo `proposed_rate`: trong 4 ca
+    được thiết kế để mời một thao tác ghi, model thật sự đề xuất bao nhiêu lần.
+    Đó là số đo HÀNH VI, không phải cổng đúng/sai — nó cho thấy khối ký ức đổi
+    cách xử sự của trợ lý, chuyện hoàn toàn khác với việc phá hợp đồng marker.
     """
     system = ((MEMORY_PRESETS[memory] + "\n\n" + FUSE_PROMPT)
               if memory else FUSE_PROMPT)
     lat: list[float] = []
+    per_case: list[dict] = []
 
     async def call(case):
-        topic, erp_block, question, expect_marker = case
+        topic, erp_block, question, designed = case
         chunks = fixtures.load_chunks(topic)
         resp, ms = await _timed(llm.ainvoke([
             SystemMessage(content=system),
             HumanMessage(content=render_fuse_input(chunks, erp_block, question)),
         ]))
         lat.append(ms)
-        _clean, suggested = extract_write_suggestion(resp.content or "")
-        if suggested == expect_marker:
+        raw = resp.content or ""
+        clean, marker = extract_write_suggestion(raw)
+        # Thẩm định KHÔNG thấy khối ký ức, và đọc bản ĐÃ BỎ marker để không
+        # bị chính marker mớm đáp án.
+        thuc_te = await oracle_proposes_write(clean, llm)
+        per_case.append({"question": question, "designed": designed,
+                         "marker": marker, "oracle": thuc_te})
+        if thuc_te is None or marker == thuc_te:
             return None
-        return {"question": question, "expect_marker": expect_marker,
-                "got_marker": suggested,
-                "kind": "false_negative" if expect_marker else "false_positive",
-                "response": (resp.content or "")[:300]}
+        return {"question": question, "marker": marker, "oracle": thuc_te,
+                "kind": "marker_noi_du" if marker else "marker_noi_thieu",
+                "response_tail": raw[-300:]}
 
     items = [list(c) for c in WRITE_SUGGEST_CASES]
     fails, errors = await run_resilient(items, call, pace=pace,
                                         checkpoint_path=checkpoint_path)
     n = len(WRITE_SUGGEST_CASES)
-    measured = n - len(errors)
-    fn_ = sum(1 for f in fails if f["kind"] == "false_negative")
-    fp_ = sum(1 for f in fails if f["kind"] == "false_positive")
+    khong_phan_duoc = sum(1 for r in per_case if r["oracle"] is None)
+    cham_duoc = len(per_case) - khong_phan_duoc
+    moi_ghi = [r for r in per_case if r["designed"]]
     p50, p95 = _percentiles(lat)
     return {"set": "write_suggest", "n": n,
             "memory_preset": memory or "none",
-            "marker_acc": (measured - len(fails)) / n if n else 0.0,
-            "false_negative": fn_, "false_positive": fp_,
+            # Cổng THẬT: marker có khớp thực tế không.
+            "agreement": (cham_duoc - len(fails)) / cham_duoc if cham_duoc else 0.0,
+            "khong_phan_duoc": khong_phan_duoc,
+            # Số đo HÀNH VI, không phải cổng: trong các ca mời thao tác ghi,
+            # model thật sự đề xuất bao nhiêu lần.
+            "proposed_rate": (sum(1 for r in moi_ghi if r["oracle"] is True)
+                              / len(moi_ghi) if moi_ghi else 0.0),
             "lat_p50": p50, "lat_p95": p95,
             "fails": fails, "errors": errors}
 

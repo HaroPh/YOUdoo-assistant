@@ -342,3 +342,84 @@ chiều nguy hiểm.
 câu trả lời trước kết thúc bằng câu hỏi. Đó đúng là heuristic dò văn bản mà
 docstring `replying_to_write_suggestion` đã cân nhắc và loại bỏ, kèm đúng phản ví
 dụ ("Bạn có muốn tôi giải thích thêm không?" theo sau bởi "ok").
+
+## 11. RÚT LẠI §10 — và §10.3 (V2) đã được gỡ
+
+Ngày 2026-08-21. Đây là đính chính, không phải bổ sung.
+
+**§10 kết luận SAI.** Tôi báo "ký ức làm marker `ĐỀ_XUẤT_GHI` tịt 50% số ca,
+hỏng im lặng, người dùng gật mà không có gì xảy ra". Đọc được ĐUÔI câu trả lời
+thật thì model **không hề giấu marker — nó không đề xuất ghi**:
+
+- ca SLA: *"Hiện tại, hệ thống chưa có chức năng tự động lập phiếu bồi thường,
+  anh Ba vui lòng thực hiện khấu trừ thủ công"* — TỪ CHỐI làm;
+- ca hoàn tiền: *"Anh muốn nhận tiền hoàn qua hình thức thanh toán ban đầu hay
+  chuyển khoản ngân hàng ạ?"* — HỎI LÀM RÕ.
+
+Cả hai, không phát marker là ĐÚNG theo chính `FUSE_PROMPT`. Điều thật sự xảy ra:
+**ký ức đổi HÀNH VI của trợ lý, không đổi cách nó báo cáo hành vi.** Không có gì
+để người dùng gật cả.
+
+**Vì sao tôi sai hai lần liên tiếp trên cùng bộ ca này.** Cả hai lần đều do đọc
+bằng chứng bị cắt cụt: bản ghi `fails` lưu 300 ký tự ĐẦU, mà marker và phần đề
+xuất nằm ở CUỐI. Đã sửa bộ đo để lưu thêm `response_tail`.
+
+**Lỗi gốc nằm ở thiết kế phép đo.** `marker_acc` chấm marker so với NHÃN TAY —
+tức khẳng định model NÊN quyết định gì. Model được phép chọn đề xuất, từ chối,
+hay hỏi làm rõ; cả ba hợp lệ. Hợp đồng thật chỉ có một điều: **marker phải khớp
+với thứ câu trả lời THẬT SỰ làm**.
+
+### 11.1 Thước mới: độ khớp marker ↔ câu trả lời
+
+`eval_write_suggest` nay chấm bằng một **thẩm định độc lập**
+(`evals/write_suggest_oracle.py`) đọc câu trả lời đã bỏ marker và phán, KHÔNG hề
+thấy khối ký ức. Báo cáo hai số tách bạch:
+
+- `agreement` — CỔNG: marker có nói đúng về câu trả lời không;
+- `proposed_rate` — SỐ ĐO HÀNH VI, không phải cổng: trong 4 ca mời một thao tác
+  ghi, model thật sự đề xuất bao nhiêu lần.
+
+| chân | agreement | proposed_rate |
+|---|---|---|
+| không ký ức | 0,8750 | 0,7500 |
+| `inert` | **1,0000** | 0,5000 |
+| `format` | **0,7500** | 0,5000 |
+
+Ký ức HẠ `proposed_rate` (0,75 → 0,50) — trợ lý ít sẵn sàng đề nghị tự làm hơn.
+Đó là thay đổi hành vi có thật, và nó KHÁC HẲN việc phá hợp đồng marker.
+
+Mọi bất đồng đều là **marker nói DƯ** (marker bật, câu trả lời không đề xuất) —
+chiều nguy hiểm. Đọc từng ca:
+
+1. `none`/INV00017 — *"Bạn vui lòng xác nhận hình thức nhận tiền hoàn để tôi ghi
+   chú vào hệ thống"*: ĐÚNG là đề xuất chờ đồng ý. **Thẩm định sai**, marker đúng.
+2. `format`/INV00017 — *"Theo quy trình, bộ phận kế toán sẽ tiến hành hoàn tiền
+   trong vòng 5-10 ngày"*: thuần mô tả. **Marker nói dư.**
+3. `format`/S00050 — *"Tôi đã ghi nhận… và **thực hiện khóa công nợ** trên hệ
+   thống"* + marker: model **tuyên bố ĐÃ LÀM một thao tác ghi** mà `fuse_answer`
+   không có tool nào để làm, đồng thời tự mâu thuẫn với marker (nghĩa là *đang
+   đề xuất, chờ đồng ý*). Đây là phát hiện MỚI và nặng hơn chuyện marker.
+
+Thẩm định sai 1/24 lượt phán, nên `agreement` **không phải cổng tự động** — nó
+lọc ra ứng viên để người đọc, đúng như vừa làm ở trên.
+
+### 11.2 V2 đã được GỠ
+
+Gỡ câu ràng khỏi `FUSE_PROMPT`. Lý do **không phải** vì đã chứng minh nó có hại,
+mà vì **căn cứ nhận nó đã mất hiệu lực**: nó được duyệt trên `marker_acc`, thước
+nay biết là đo sai thứ. Dưới thước đúng, chân `format` — chân V2 "chữa được" —
+có nhiều bất đồng nhất, và một trong đó là bịa hành động.
+
+Câu chuyện khớp: V2 nói "đã đề xuất thì PHẢI phát marker", và model đáp lại bằng
+cách **phát marker nhiều hơn**, không phải **đề xuất nhiều hơn**.
+
+Gánh nặng chứng minh thuộc về việc GIỮ một thay đổi prompt production, không
+thuộc về việc gỡ nó. Muốn nhận lại thì phải đo bằng `agreement` với đủ lượt lặp.
+
+### 11.3 Còn mở
+
+- **Model bịa đã thực hiện thao tác ghi** (ca 3 ở trên). n=1, chưa lặp lại, chưa
+  biết có xảy ra khi không có ký ức không. Nặng nhất trong những gì thấy được
+  hôm nay và đáng đo riêng.
+- Thẩm định sai 1/24 — cần ca kiểm tra chính thẩm định nếu muốn dùng nó làm cổng.
+- Đường `erp_node` vẫn chưa đo.
