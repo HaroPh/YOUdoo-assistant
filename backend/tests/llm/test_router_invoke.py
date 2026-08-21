@@ -16,7 +16,7 @@ MSGS = [HumanMessage("Tồn kho ABC?")]
 def _router(clock, by_alias):
     """by_alias: {alias: FakeChatClient} — router lấy client theo alias."""
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
-    return Router(ledger, client_factory=lambda spec: by_alias[spec.alias])
+    return Router(ledger, client_factory=lambda spec, api_key=None: by_alias[spec.alias])
 
 
 def test_goi_thanh_cong_tra_ve_message_va_quyet_dinh(clock):
@@ -37,7 +37,7 @@ def test_ghi_so_ngan_sach_bang_total_tokens_khong_phai_p_cong_c(clock):
     store = InMemoryUsageStore()
     ledger = BudgetLedger(store, clock=clock)
     client = FakeChatClient([fake_ai("ok", prompt=11, completion=36, total=337)])
-    r = Router(ledger, client_factory=lambda spec: client)
+    r = Router(ledger, client_factory=lambda spec, api_key=None: client)
     r.invoke("evaluator", MSGS)
     got = store.usage_since(since=clock(), alias="gemma-4-26b")
     assert got.total_tokens == 337
@@ -54,7 +54,7 @@ def test_usage_metadata_cua_google_duoc_doc_dung_khong_qua_response_metadata(clo
     ledger = BudgetLedger(store, clock=clock)
     client = FakeChatClient([fake_ai_google("ok", prompt=11, completion=36,
                                             total=337, reasoning=290)])
-    r = Router(ledger, client_factory=lambda spec: client)
+    r = Router(ledger, client_factory=lambda spec, api_key=None: client)
     r.invoke("evaluator", MSGS)
     got = store.usage_since(since=clock(), alias="gemma-4-26b")
     assert got.total_tokens == 337
@@ -113,7 +113,7 @@ def test_go_thought_cho_model_gemma(clock):
     trong khi hành vi đó vẫn sống ở production."""
     client = FakeChatClient([fake_ai("<thought>nghĩ ngợi</thought>Chào bạn!")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: client)
+               client_factory=lambda spec, api_key=None: client)
     assert r.invoke("evaluator", MSGS).message.content == "Chào bạn!"
 
 
@@ -121,7 +121,7 @@ def test_khong_go_gi_voi_model_khong_nha_thought(clock):
     """read chạy gemini (emits_thought_tags=False) — nội dung giữ nguyên."""
     client = FakeChatClient([fake_ai("Thẻ <thought> nghĩa là gì?")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: client)
+               client_factory=lambda spec, api_key=None: client)
     assert r.invoke("read", MSGS).message.content == "Thẻ <thought> nghĩa là gì?"
 
 
@@ -129,7 +129,7 @@ def test_tool_duoc_bind_vao_client(clock):
     tools = [{"type": "function", "function": {"name": "get_stock"}}]
     client = FakeChatClient([fake_ai("ok")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: client)
+               client_factory=lambda spec, api_key=None: client)
     r.invoke("read", MSGS, tools=tools)
     assert client.bound_tools == tools
 
@@ -138,7 +138,7 @@ def test_ghim_khong_tut_khi_loi_ma_nem_thang_ra(clock):
     """Ghim là ghim — kể cả khi hỏng. Tụt lặng lẽ làm hỏng phép đo eval."""
     hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: hong)
+               client_factory=lambda spec, api_key=None: hong)
     with pytest.raises(ChainExhausted):
         r.invoke("read", MSGS, pin="or-nemotron")
     assert len(hong.calls) == 1
@@ -147,7 +147,7 @@ def test_ghim_khong_tut_khi_loi_ma_nem_thang_ra(clock):
 async def test_ainvoke_hoat_dong_giong_invoke(clock):
     client = FakeChatClient([fake_ai("Còn 42 cái.")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: client)
+               client_factory=lambda spec, api_key=None: client)
     got = await r.ainvoke("read", MSGS)
     assert got.message.content == "Còn 42 cái."
 
@@ -178,7 +178,7 @@ async def test_ainvoke_khong_chan_event_loop_khi_store_cham(clock):
             time.sleep(0.3)
 
     ledger = BudgetLedger(SlowStore(), clock=clock)
-    router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
+    router = Router(ledger, client_factory=lambda spec, api_key=None: FakeChatClient([fake_ai()]))
 
     progressed = []
 
@@ -213,7 +213,7 @@ async def test_ainvoke_dung_routed_span_va_annotate_span(clock, monkeypatch):
         tracing, "annotate_span",
         lambda span, decision, result: annotate_calls.append((span, decision, result)))
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
-    router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
+    router = Router(ledger, client_factory=lambda spec, api_key=None: FakeChatClient([fake_ai()]))
     llm = RoutedChatModel(router, "router")
 
     await llm.ainvoke([HumanMessage("hi")])
@@ -242,7 +242,7 @@ def test_invoke_dung_routed_span_va_annotate_span(clock, monkeypatch):
         tracing, "annotate_span",
         lambda span, decision, result: annotate_calls.append((span, decision, result)))
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
-    router = Router(ledger, client_factory=lambda spec: FakeChatClient([fake_ai()]))
+    router = Router(ledger, client_factory=lambda spec, api_key=None: FakeChatClient([fake_ai()]))
     llm = RoutedChatModel(router, "router")
 
     llm.invoke([HumanMessage("hi")])
@@ -299,7 +299,7 @@ def test_luot_bi_bo_van_duoc_ghi_so_ngan_sach(clock):
     ledger = BudgetLedger(store, clock=clock)
     rong = FakeChatClient([fake_ai_rong(total=2406)])
     tot = FakeChatClient([fake_ai("ok", total=800)])
-    r = Router(ledger, client_factory=lambda spec: {
+    r = Router(ledger, client_factory=lambda spec, api_key=None: {
         "gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot}[spec.alias])
 
     r.invoke("router", MSGS)
@@ -344,7 +344,7 @@ def test_ghim_gap_phan_hoi_rong_thi_goi_dung_mot_lan(clock):
     đo một model khác model được ghim."""
     rong = FakeChatClient([fake_ai_rong()])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: rong)
+               client_factory=lambda spec, api_key=None: rong)
 
     got = r.invoke("router", MSGS, pin="gemini-3.1-flash-lite")
 
@@ -398,7 +398,7 @@ async def test_ainvoke_ghim_gap_phan_hoi_rong_thi_goi_dung_mot_lan(clock):
     """Bản ainvoke của test_ghim_gap_phan_hoi_rong_thi_goi_dung_mot_lan."""
     rong = FakeChatClient([fake_ai_rong()])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-               client_factory=lambda spec: rong)
+               client_factory=lambda spec, api_key=None: rong)
 
     got = await r.ainvoke("router", MSGS, pin="gemini-3.1-flash-lite")
 
@@ -413,7 +413,7 @@ async def test_ainvoke_luot_bi_bo_van_duoc_ghi_so_ngan_sach(clock):
     ledger = BudgetLedger(store, clock=clock)
     rong = FakeChatClient([fake_ai_rong(total=2406)])
     tot = FakeChatClient([fake_ai("ok", total=800)])
-    r = Router(ledger, client_factory=lambda spec: {
+    r = Router(ledger, client_factory=lambda spec, api_key=None: {
         "gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot}[spec.alias])
 
     await r.ainvoke("router", MSGS)
@@ -446,7 +446,7 @@ def test_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_nem(clock):
     Kết quả rỗng đang cầm trong tay bị vứt, hàm ném ra ngoài thay vì trả về."""
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     rong = FakeChatClient([fake_ai_rong()])
-    r = Router(ledger, client_factory=lambda spec: rong)
+    r = Router(ledger, client_factory=lambda spec, api_key=None: rong)
     ledger.cooldown(spec_for("groq-llama-3.3-70b"), 60.0)
 
     got = r.invoke("fusion", MSGS)      # chuỗi fusion: gemini-3.1-flash-lite, groq-llama-3.3-70b
@@ -459,7 +459,7 @@ async def test_ainvoke_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_n
     riêng, phải chứng minh cả hai cùng bị bug và cùng được sửa."""
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     rong = FakeChatClient([fake_ai_rong()])
-    r = Router(ledger, client_factory=lambda spec: rong)
+    r = Router(ledger, client_factory=lambda spec, api_key=None: rong)
     ledger.cooldown(spec_for("groq-llama-3.3-70b"), 60.0)
 
     got = await r.ainvoke("fusion", MSGS)
@@ -479,7 +479,7 @@ def test_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     với cả hai bản, tức không đo gì (đã thử phá và xác nhận)."""
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
-    r = Router(ledger, client_factory=lambda spec: khong_duoc_cham)
+    r = Router(ledger, client_factory=lambda spec, api_key=None: khong_duoc_cham)
     for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"):
         ledger.cooldown(spec_for(alias), 60.0)
 
@@ -496,7 +496,7 @@ def test_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
 async def test_ainvoke_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
-    r = Router(ledger, client_factory=lambda spec: khong_duoc_cham)
+    r = Router(ledger, client_factory=lambda spec, api_key=None: khong_duoc_cham)
     for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"):
         ledger.cooldown(spec_for(alias), 60.0)
 

@@ -13,7 +13,7 @@ MSGS = [HumanMessage("Tồn kho ABC?")]
 
 def _router(clock, client):
     return Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-                  client_factory=lambda spec: client)
+                  client_factory=lambda spec, api_key=None: client)
 
 
 def test_la_mot_Runnable_that(clock):
@@ -75,7 +75,7 @@ def test_van_tut_mat_xich_qua_lop_boc(clock):
     tot = FakeChatClient([fake_ai("ok")])
     by_alias = {"gemini-3.5-flash-lite": hong, "groq-llama-3.3-70b": tot}
     router = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-                    client_factory=lambda spec: by_alias[spec.alias])
+                    client_factory=lambda spec, api_key=None: by_alias[spec.alias])
     llm = RoutedChatModel(router, "read")
     llm.invoke(MSGS)
     assert llm.last_decision.spec.alias == "groq-llama-3.3-70b"
@@ -126,7 +126,7 @@ def test_last_decision_khong_ro_ri_giua_hai_vai(clock):
     không được là một ô nhớ dùng chung."""
     client = FakeChatClient([fake_ai("a"), fake_ai("b")])
     router = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-                    client_factory=lambda spec: client)
+                    client_factory=lambda spec, api_key=None: client)
     doc = RoutedChatModel(router, "read")
     dinh_tuyen = RoutedChatModel(router, "router")
     doc.invoke(MSGS)
@@ -156,9 +156,9 @@ def test_last_decision_khong_ro_ri_giua_hai_request_dong_thoi(clock):
     tot = FakeChatClient([fake_ai("ok")])
     by_alias = {"gemini-3.5-flash-lite": hong, "groq-llama-3.3-70b": tot}
     r_tut = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-                   client_factory=lambda spec: by_alias[spec.alias])
+                   client_factory=lambda spec, api_key=None: by_alias[spec.alias])
     r_thang = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
-                     client_factory=lambda spec: FakeChatClient([fake_ai("ok")]))
+                     client_factory=lambda spec, api_key=None: FakeChatClient([fake_ai("ok")]))
     llm_tut = RoutedChatModel(r_tut, "read")
     llm_thang = RoutedChatModel(r_thang, "read")
 

@@ -13,7 +13,7 @@ from . import tracing
 from .budget import BudgetLedger, Verdict
 from .catalog import (MODEL_NGUOI_DUNG_CHON, ModelSpec, chain_for,
                       spec_for)
-from .providers import client_for, strip_thought      # mở rộng import cũ
+from .providers import client_for, keys_for, strip_thought  # mở rộng import cũ
 from .tokens import estimate_base_tokens
 
 logger = logging.getLogger(__name__)
@@ -165,7 +165,12 @@ class Router:
         # trường dưới; khai đủ ngay từ đây để KHÔNG phải định nghĩa lại
         # __init__ ở task sau.
         self._client_factory = client_factory
-        self._clients: dict[str, object] = {}
+        # Cache client theo (alias, CHỈ SỐ KHOÁ) — đổi khoá là đổi client.
+        self._clients: dict[tuple[str, int], object] = {}
+        # Khoá đang dùng cho từng model, trong BỘ NHỚ TIẾN TRÌNH (giống
+        # cooldown). Không lưu bền: một lượt 429 dạy lại ngay, còn lưu bền thì
+        # một lần cạn tạm thời sẽ đóng đinh khoá đó là "hỏng" mãi mãi.
+        self._chi_so_khoa: dict[str, int] = {}
 
     def resolve(self, role: str, base_tokens: int,
                 pin: str | None = None,
@@ -218,12 +223,47 @@ class Router:
         # tuỳ provider, xem Task 7), mà tools thì
         # đổi theo lượt nên bind_tools() gọi lại mỗi lần (nó trả về bản bọc
         # mới, không sửa client gốc).
-        if spec.alias not in self._clients:
-            self._clients[spec.alias] = self._client_factory(spec)
-        client = self._clients[spec.alias]
+        idx = self._chi_so_khoa.get(spec.alias, 0)
+        if (spec.alias, idx) not in self._clients:
+            khoa = keys_for(spec.provider)
+            self._clients[(spec.alias, idx)] = self._client_factory(
+                spec, khoa[idx] if idx < len(khoa) else None)
+        client = self._clients[(spec.alias, idx)]
         if not tools:
             return client
         return client.bind_tools(tools, **(tool_kwargs or {}))
+
+    def _xoay_khoa(self, spec: ModelSpec) -> bool:
+        """Chuyển sang khoá kế cho `spec`. True = đã chuyển, False = hết khoá.
+
+        Hạn mức Google tính theo PROJECT, nên hai khoá của hai project là hai
+        ví riêng — xoay khoá là cách duy nhất tiêu được ví thứ hai. Xoay BÊN
+        TRONG một mắt xích, KHÔNG thành mắt xích mới: bất biến #1 (không hai
+        mắt xích chung upstream) tồn tại để tránh rơi từ miền lỗi này vào lại
+        chính nó, còn đây là cùng miền nhưng KHÁC VÍ — chuyện bất biến đó
+        không nói tới.
+
+        Hết khoá thì ĐẶT LẠI VỀ 0 chứ không giữ ở khoá cuối. Hạn mức ngày của
+        Google là cửa sổ TRƯỢT 24h (đo 2026-08-21: model vừa báo
+        PerDayPerProjectPerModel trả 200 lại sau vài phút), nên sau khi hết
+        cooldown thì khoá đầu rất có thể đã có chỗ trống. Giữ nguyên ở khoá
+        cuối là tự khoá mình vào cái ví cạn gần nhất.
+        """
+        so_khoa = len(keys_for(spec.provider))
+        idx = self._chi_so_khoa.get(spec.alias, 0)
+        if idx + 1 >= so_khoa:
+            self._chi_so_khoa[spec.alias] = 0
+            return False
+        self._chi_so_khoa[spec.alias] = idx + 1
+        logger.warning("%s: khoá #%d cạn hạn mức — xoay sang khoá #%d",
+                       spec.alias, idx + 1, idx + 2)
+        return True
+
+    def _nen_xoay(self, spec: ModelSpec, exc: Exception) -> bool:
+        """CHỈ xoay khi 429. Lỗi khác thì đổi khoá không giúp gì — `or-nemotron`
+        trả 404 "Provider returned error" suốt (16/16 lượt, 2026-08-21), và xoay
+        ở đó chỉ đốt thêm lượt gọi cho một provider đang hỏng."""
+        return self._is_rate_limit(exc) and self._xoay_khoa(spec)
 
     @staticmethod
     def _is_rate_limit(exc: Exception) -> bool:
@@ -328,10 +368,19 @@ class Router:
                     raise
                 break
             try:
-                response = self._client(decision.spec, tools, tool_kwargs).invoke(
-                    messages,
-                    config=tracing.with_route_metadata(config, decision),
-                    **kwargs)
+                while True:
+                    try:
+                        response = self._client(
+                            decision.spec, tools, tool_kwargs).invoke(
+                                messages,
+                                config=tracing.with_route_metadata(config, decision),
+                                **kwargs)
+                        break
+                    except Exception as exc:      # noqa: PERF203
+                        # Xoay khoá KHÔNG tốn một lượt của chuỗi: hết khoá mới
+                        # tính là mắt xích này hỏng.
+                        if not self._nen_xoay(decision.spec, exc):
+                            raise
             except Exception as exc:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)
@@ -392,11 +441,17 @@ class Router:
                     raise
                 break
             try:
-                response = await self._client(
-                    decision.spec, tools, tool_kwargs).ainvoke(
-                        messages,
-                        config=tracing.with_route_metadata(config, decision),
-                        **kwargs)
+                while True:
+                    try:
+                        response = await self._client(
+                            decision.spec, tools, tool_kwargs).ainvoke(
+                                messages,
+                                config=tracing.with_route_metadata(config, decision),
+                                **kwargs)
+                        break
+                    except Exception as exc:      # noqa: PERF203
+                        if not self._nen_xoay(decision.spec, exc):
+                            raise
             except Exception as exc:
                 attempts.append(AttemptError(decision.spec.alias, str(exc)))
                 self._cooldown_for(decision.spec, exc)

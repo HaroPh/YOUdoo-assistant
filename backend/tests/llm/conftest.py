@@ -6,6 +6,26 @@ import pytest
 T0 = datetime(2026, 7, 28, 12, 0, 0, tzinfo=timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def mot_khoa_moi_provider(monkeypatch):
+    """Mỗi test ở đây thấy ĐÚNG MỘT khoá cho mỗi provider, trừ khi tự khai thêm.
+
+    tests/conftest.py nạp `.env` THẬT, mà `.env` của máy này có
+    GOOGLE_API_KEY_2/_3 (ba project, xem mục 7 docs/trang-thai-chung.md). Không
+    dọn thì số mắt xích khoá phụ thuộc máy đang chạy: cùng một test cho kết quả
+    khác nhau trên máy có 1 khoá và máy có 3 — và nó ĐÃ xảy ra ngay lượt chạy
+    đầu sau khi thêm cơ chế xoay khoá (test cooldown thấy 3 lượt gọi thay vì 1).
+
+    Test nào ĐO xoay khoá thì tự `monkeypatch.setenv` các hậu tố nó cần; như
+    vậy số khoá là dữ liệu của test, không phải của môi trường.
+    """
+    from src.llm.providers import ENV_KEYS, KEY_SUFFIX_MAX
+    for env_name in ENV_KEYS.values():
+        monkeypatch.setenv(env_name, f"khoa-gia-{env_name}")
+        for i in range(2, KEY_SUFFIX_MAX + 1):
+            monkeypatch.delenv(f"{env_name}_{i}", raising=False)
+
+
 class FakeClock:
     """Đồng hồ điều khiển được — cửa sổ trượt không test được bằng time thật."""
 

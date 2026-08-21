@@ -2,7 +2,8 @@ import pytest
 from langchain_openai import ChatOpenAI
 
 from src.llm.catalog import spec_for
-from src.llm.providers import BASE_URLS, ENV_KEYS, client_for, strip_thought
+from src.llm.providers import (BASE_URLS, ENV_KEYS, client_for, keys_for,
+                               strip_thought)
 
 GEMMA = spec_for("gemma-4-26b")            # emits_thought_tags=True
 GEMINI = spec_for("gemini-3.5-flash-lite")  # emits_thought_tags=False
@@ -168,3 +169,69 @@ def test_temperature_luon_bang_khong_ca_hai_loai_client(monkeypatch):
 def test_client_khong_de_sdk_tu_thu_lai(monkeypatch, spec):
     monkeypatch.setenv(ENV_KEYS[spec.provider], "khoa-gia-cho-test")
     assert client_for(spec).max_retries == 0
+
+
+# ─── keys_for: nguyên liệu cho việc xoay khoá (mục 7, 2026-08-21) ───────────
+def test_keys_for_theo_thu_tu_uu_tien(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "a")
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "b")
+    monkeypatch.setenv("GOOGLE_API_KEY_3", "c")
+    assert keys_for("google") == ("a", "b", "c")
+
+
+def test_keys_for_KHONG_dung_o_khoang_trong(monkeypatch):
+    """Xoá một khoá hỏng rồi để lại `_2` trống là chuyện thường. Dừng ở chỗ
+    trống đầu tiên sẽ IM LẶNG vứt khoá `_4` — lớp lỗi "danh sách khai báo hụt
+    mà không ai biết"."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "a")
+    monkeypatch.delenv("GOOGLE_API_KEY_2", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY_4", "d")
+    assert keys_for("google") == ("a", "d")
+
+
+def test_keys_for_khu_trung_giu_thu_tu(monkeypatch):
+    """Dán nhầm cùng một khoá vào hai biến là lỗi sao chép rất dễ xảy ra; không
+    khử thì mỗi lượt 429 phải trả giá hai lần cho cùng MỘT ví."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "a")
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "b")
+    monkeypatch.setenv("GOOGLE_API_KEY_3", "a")
+    assert keys_for("google") == ("a", "b")
+
+
+def test_thieu_khoa_CHINH_nhung_con_du_phong_thi_van_chay(monkeypatch):
+    """Quyết định có chủ đích (2026-08-21): `keys_for` trả "mọi khoá dùng
+    được", nên vắng khoá chính mà còn `_2` thì dùng `_2`. Đây là thay đổi hành
+    vi so với trước — trước đó vắng `GOOGLE_API_KEY` là chết ngay bất kể có gì
+    khác. Giữ tường minh bằng test để không ai "sửa" nó về cũ mà không biết."""
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "b")
+    assert keys_for("google") == ("b",)
+    client_for(GEMINI)          # không được ném
+
+
+def test_khong_khoa_NAO_thi_van_chet_ngay_va_neu_ten_bien_chinh(monkeypatch):
+    """Bảo đảm "fail loud" cũ KHÔNG bị cơ chế xoay khoá làm loãng: không khoá
+    nào thì vẫn chết ngay, và thông báo nêu tên biến CHÍNH (thứ người ta đi
+    đặt), không phải một hậu tố."""
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    for i in range(2, 10):
+        monkeypatch.delenv(f"GOOGLE_API_KEY_{i}", raising=False)
+    with pytest.raises(RuntimeError, match="GOOGLE_API_KEY"):
+        client_for(GEMINI)
+
+
+def test_client_for_dung_dung_khoa_duoc_truyen(monkeypatch):
+    """Nếu `api_key` không thật sự đi xuống client thì mọi test xoay khoá ở
+    test_key_rotation.py đo bằng client giả sẽ xanh giả."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "khoa-chinh")
+    # Tên trường KHÁC NHAU giữa hai loại client (google_api_key vs
+    # openai_api_key) và cả hai là SecretStr — kiểm cả hai nhánh, vì xoay khoá
+    # là cơ chế generic, không riêng Google.
+    monkeypatch.setenv("GROQ_API_KEY", "groq-chinh")
+    g = client_for(GEMINI, api_key="khoa-rieng")
+    assert g.google_api_key.get_secret_value() == "khoa-rieng"
+    assert client_for(GEMINI).google_api_key.get_secret_value() == "khoa-chinh"
+
+    o = client_for(GROQ, api_key="groq-rieng")
+    assert o.openai_api_key.get_secret_value() == "groq-rieng"
+    assert client_for(GROQ).openai_api_key.get_secret_value() == "groq-chinh"

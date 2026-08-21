@@ -94,15 +94,52 @@ def strip_thought(content: str | None) -> str:
     return content
 
 
-def client_for(spec: ModelSpec):
+# Số hậu tố tối đa khi dò khoá dự phòng: X_API_KEY, X_API_KEY_2 … X_API_KEY_9.
+KEY_SUFFIX_MAX = 9
+
+
+def keys_for(provider: str) -> tuple[str, ...]:
+    """Mọi khoá API của một provider, theo thứ tự ưu tiên.
+
+    `X_API_KEY` là khoá chính; `X_API_KEY_2`…`_9` là dự phòng. Hạn mức free
+    tier của Google tính theo **project**, nên hai khoá của hai project là HAI
+    VÍ RIÊNG — đó là toàn bộ lý do cơ chế này tồn tại.
+
+    QUÉT TRỌN dải hậu tố thay vì dừng ở chỗ trống đầu tiên: đặt `_2` rồi `_4`
+    mà bỏ `_3` là chuyện thường khi người ta xoá một khoá hỏng, và dừng sớm sẽ
+    **im lặng vứt** khoá `_4`. Lớp lỗi "danh sách khai báo hụt mà không ai
+    biết" đã tái phát nhiều lần ở repo này.
+
+    KHỬ TRÙNG giữ nguyên thứ tự: dán nhầm cùng một khoá vào hai biến là lỗi
+    sao chép rất dễ xảy ra, và nếu không khử thì mỗi lượt 429 phải trả giá hai
+    lần cho cùng một ví.
+    """
+    env_name = ENV_KEYS[provider]
+    thu = [os.environ.get(env_name)]
+    thu += [os.environ.get(f"{env_name}_{i}")
+            for i in range(2, KEY_SUFFIX_MAX + 1)]
+    ra: list[str] = []
+    for k in thu:
+        if k and k not in ra:
+            ra.append(k)
+    return tuple(ra)
+
+
+def client_for(spec: ModelSpec, api_key: str | None = None):
     """Dựng client cho một model. Thiếu khoá → chết ngay, không đợi lúc gọi.
 
     Google → ChatGoogleGenerativeAI; Groq/OpenRouter → ChatOpenAI (quyết định
     spike Task 1). Đọc khoá và kiểm rỗng CHUNG cho cả hai nhánh trước khi rẽ,
     để thông báo lỗi thiếu biến môi trường nhất quán bất kể provider nào.
+
+    `api_key` tường minh dùng cho việc XOAY KHOÁ ở Router (2026-08-21): khi một
+    khoá cạn hạn mức ngày, Router thử khoá kế TRƯỚC KHI tụt xuống mắt xích sau.
+    Không truyền thì lấy khoá chính, tức hành vi cũ nguyên vẹn.
     """
     env_name = ENV_KEYS[spec.provider]
-    api_key = os.environ.get(env_name)
+    if api_key is None:
+        khoa = keys_for(spec.provider)
+        api_key = khoa[0] if khoa else None
     if not api_key:
         raise RuntimeError(
             f"thiếu biến môi trường {env_name} — cần cho provider "
