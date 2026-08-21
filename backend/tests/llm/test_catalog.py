@@ -1,7 +1,8 @@
 import pytest
 
 from src.llm.catalog import (CATALOG, CHAINS, HEAVY_ROLES, HEAVY_TPM_FLOOR,
-                             ROLES, TOOL_ROLES, chain_for, spec_for)
+                             MODEL_CHON_DUOC, ROLES, RPD_SAN_PHUC_VU,
+                             TOOL_ROLES, chain_for, spec_for)
 
 
 def test_moi_alias_trong_chain_deu_ton_tai_trong_catalog():
@@ -84,3 +85,34 @@ def test_chain_for_nem_loi_voi_vai_la():
 def test_chain_for_tra_ve_dung_thu_tu():
     specs = chain_for("read")
     assert [s.alias for s in specs] == list(CHAINS["read"])
+
+
+def test_hai_mat_xich_dau_phai_du_ganh_mot_ngay():
+    """Bất biến #5 — hai vị trí đầu của mọi chuỗi phải có rpd đủ một ngày.
+
+    Kiểm với CẢ `prefer=None` LẪN từng model trong dropdown, vì `prefer` đổi
+    thứ tự: mắt xích 1 cũ tụt xuống vị trí 2, tức chỗ MỌI cú tụt đi qua. Chỉ
+    kiểm bảng CHAINS tĩnh là mù đúng với đường mà người dùng thật đi.
+
+    Sinh ra từ lỗi 2026-08-21: `gemini-3.5-flash` (rpd=20) ở mắt xích 1 của
+    `chitchat`; người dùng chọn 3.5-flash-lite (đã cạn ngày) thì tán gẫu được
+    phục vụ bằng model chết sau ~20 lượt.
+    """
+    for prefer in (None, *MODEL_CHON_DUOC):
+        for role in CHAINS:
+            for vi_tri, spec in enumerate(chain_for(role, prefer)[:2]):
+                assert spec.rpd is None or spec.rpd >= RPD_SAN_PHUC_VU, (
+                    f"chuỗi {role!r} (prefer={prefer!r}) có {spec.alias!r} "
+                    f"rpd={spec.rpd} < {RPD_SAN_PHUC_VU} ở vị trí {vi_tri + 1}")
+
+
+def test_chitchat_khong_con_dung_model_rpd_20():
+    """Chốt cứng bản sửa 2026-08-21 ở tầng dữ liệu.
+
+    Bất biến #5 đã cấm rồi, nhưng nó cấm theo NGƯỠNG; nếu ai đó nới ngưỡng thì
+    lỗi cũ quay lại im lặng. Đây là mỏ neo cho đúng một model đã gây sự cố.
+    """
+    assert "gemini-3.5-flash" not in CHAINS["chitchat"]
+    # Entry vẫn còn trong CATALOG — cố ý, để `--model gemini-3.5-flash` ghim đo
+    # được. Bất biến #5 là thứ giữ cho việc giữ entry này an toàn.
+    assert "gemini-3.5-flash" in CATALOG

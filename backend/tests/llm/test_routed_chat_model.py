@@ -94,7 +94,7 @@ def test_make_llms_nhan_ghim_theo_tung_vai(clock):
     llms["read"].invoke(MSGS)
     assert llms["read"].last_decision.spec.alias == "or-nemotron"
     llms["chitchat"].invoke(MSGS)
-    assert llms["chitchat"].last_decision.spec.alias == "gemini-3.5-flash"
+    assert llms["chitchat"].last_decision.spec.alias == "gemini-3.5-flash-lite"
 
 
 def test_content_dang_list_duoc_gop_ve_string(clock):
@@ -128,11 +128,18 @@ def test_last_decision_khong_ro_ri_giua_hai_vai(clock):
     router = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                     client_factory=lambda spec: client)
     doc = RoutedChatModel(router, "read")
-    tan_gau = RoutedChatModel(router, "chitchat")
+    dinh_tuyen = RoutedChatModel(router, "router")
     doc.invoke(MSGS)
-    tan_gau.invoke(MSGS)
+    dinh_tuyen.invoke(MSGS)
+    # Test này CHỈ phân biệt được rò rỉ khi hai vai ra hai model KHÁC nhau.
+    # Tới 2026-08-21 nó dùng cặp read+chitchat; bản sửa chuỗi chitchat (bỏ
+    # gemini-3.5-flash rpd=20) làm hai vai đó cùng ra gemini-3.5-flash-lite,
+    # tức test sẽ vẫn xanh mà không còn đo gì. Khẳng định "khác nhau" dưới đây
+    # là rào chống đúng chuyện đó — nó đỏ ngay lúc cặp vai mất sức phân biệt,
+    # thay vì im lặng.
+    assert doc.last_decision.spec.alias != dinh_tuyen.last_decision.spec.alias
     assert doc.last_decision.spec.alias == "gemini-3.5-flash-lite"
-    assert tan_gau.last_decision.spec.alias == "gemini-3.5-flash"
+    assert dinh_tuyen.last_decision.spec.alias == "gemini-3.1-flash-lite"
 
 
 def test_last_decision_khong_ro_ri_giua_hai_request_dong_thoi(clock):
@@ -227,3 +234,29 @@ def test_content_gemma_thinking_block_khong_lam_vo_va_khong_lo_ro(clock):
     ket_qua = llm.invoke(MSGS)      # không được ném TypeError
     assert ket_qua.content == "erp_read"
     assert "User đang hỏi" not in ket_qua.content    # khối thinking không rò rỉ
+
+
+def test_thung_model_ghi_ca_luot_KHONG_tut(clock):
+    """THUNG_MODEL phải ghi MỌI lượt, khác THUNG_FALLBACK (chỉ ghi khi tụt).
+
+    Nếu nó cũng lọc theo `fallback_depth` thì trường `model` của phản hồi sẽ
+    đúng ĐÚNG lúc có sự cố và sai mọi lúc bình thường — ngược hẳn thứ cần.
+    """
+    from src.llm.router import THUNG_FALLBACK, THUNG_MODEL
+    llm = RoutedChatModel(_router(clock, FakeChatClient([fake_ai()])), "chitchat")
+    da_dung, da_tut = {}, {}
+    THUNG_MODEL.set(da_dung)
+    THUNG_FALLBACK.set(da_tut)
+    llm.invoke(MSGS)
+    assert da_dung == {"chitchat": "gemini-3.5-flash-lite"}
+    assert da_tut == {}, "không tụt thì thùng fallback phải rỗng"
+
+
+async def test_thung_model_ghi_o_ca_cua_ainvoke(clock):
+    """Hai cửa (invoke + ainvoke) là hai chỗ để quên một nửa."""
+    from src.llm.router import THUNG_MODEL
+    llm = RoutedChatModel(_router(clock, FakeChatClient([fake_ai()])), "chitchat")
+    da_dung = {}
+    THUNG_MODEL.set(da_dung)
+    await llm.ainvoke(MSGS)
+    assert da_dung == {"chitchat": "gemini-3.5-flash-lite"}

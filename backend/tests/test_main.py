@@ -112,3 +112,106 @@ async def test_health_endpoint_khi_chua_co_agent():
         resp = await client.get("/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok", "agent_ready": False}
+
+
+# ─── Dropdown chọn model + trường `model` của phản hồi (2026-08-21) ──────────
+# Tới trước ngày này KHÔNG test nào chạm /v1/models, và KHÔNG test nào đọc
+# trường `model` của phản hồi chat. Cả hai đổi được mà toàn bộ suite vẫn xanh —
+# đúng lớp lỗi "danh sách khai báo mà không ai gác" đã tái phát nhiều lần ở
+# repo này.
+
+async def _post_chat(main_module, body, monkeypatch):
+    import httpx
+    monkeypatch.setenv("YOUDOO_FALLBACK_ROLE", "admin")
+    transport = httpx.ASGITransport(app=main_module.app)
+    async with httpx.AsyncClient(transport=transport,
+                                 base_url="http://test") as client:
+        return await client.post("/v1/chat/completions", json=body)
+
+
+@pytest.mark.asyncio
+async def test_v1_models_chi_liet_ke_model_chon_duoc():
+    """Ba ô nhưng hai hành vi là hỏng: `erp-assistant` map về MODEL_MAC_DINH nên
+    nó trùng y hệt `gemini-3.1-flash-lite`."""
+    import httpx
+    from src import main as main_module
+    from src.llm.catalog import MODEL_CHON_DUOC
+
+    transport = httpx.ASGITransport(app=main_module.app)
+    async with httpx.AsyncClient(transport=transport,
+                                 base_url="http://test") as client:
+        resp = await client.get("/v1/models")
+    ids = [m["id"] for m in resp.json()["data"]]
+    assert ids == list(MODEL_CHON_DUOC)
+    assert main_module.MODEL_ID not in ids
+
+
+@pytest.mark.asyncio
+async def test_ten_model_cu_van_chay_va_ve_mac_dinh(monkeypatch):
+    """Gỡ khỏi danh sách KHÔNG được làm gãy client cũ. Harness nghiệm thu sống
+    (tests/live_verify_common.py) vẫn gửi đúng tên này."""
+    from src import main as main_module
+    from src.llm.catalog import MODEL_MAC_DINH
+
+    class _Agent:
+        async def chat(self, *a, **k):
+            return "xong"
+
+    main_module._state["agent"] = _Agent()
+    try:
+        resp = await _post_chat(main_module, {
+            "model": "erp-assistant",
+            "messages": [{"role": "user", "content": "hi"}]}, monkeypatch)
+        assert resp.status_code == 200
+        # Không vai nào chạy nên rơi về model người dùng chọn — mà "erp-assistant"
+        # là tên lạ, tức MODEL_MAC_DINH.
+        assert resp.json()["model"] == MODEL_MAC_DINH
+    finally:
+        main_module._state.clear()
+
+
+@pytest.mark.asyncio
+async def test_truong_model_la_model_THAT_da_tra_loi(monkeypatch):
+    """Trước 2026-08-21 trường này là hằng số "erp-assistant" bất kể ai trả lời,
+    nên API tự nó không cho biết model nào chạy."""
+    from src import main as main_module
+    from src.llm.router import THUNG_MODEL
+
+    class _Agent:
+        async def chat(self, *a, **k):
+            # Sửa TẠI CHỖ đúng như RoutedChatModel làm từ trong node.
+            THUNG_MODEL.get().update({"router": "gemini-3.5-flash-lite",
+                                      "chitchat": "gemini-3.5-flash"})
+            return "chào bạn"
+
+    main_module._state["agent"] = _Agent()
+    try:
+        resp = await _post_chat(main_module, {
+            "model": "gemini-3.5-flash-lite",
+            "messages": [{"role": "user", "content": "hi"}]}, monkeypatch)
+        # `chitchat` là vai SINH câu trả lời; `router` chỉ phân loại.
+        assert resp.json()["model"] == "gemini-3.5-flash"
+    finally:
+        main_module._state.clear()
+
+
+@pytest.mark.asyncio
+async def test_truong_model_khi_luot_hong_ve_model_nguoi_dung_chon(monkeypatch):
+    """Lượt nổ trước khi tới vai sinh câu trả lời: nhãn phải suy biến êm, không
+    được kéo cả lượt chat xuống theo."""
+    from src import main as main_module
+
+    class _Agent:
+        async def chat(self, *a, **k):
+            raise RuntimeError("nổ")
+
+    main_module._state["agent"] = _Agent()
+    try:
+        resp = await _post_chat(main_module, {
+            "model": "gemini-3.5-flash-lite",
+            "messages": [{"role": "user", "content": "hi"}]}, monkeypatch)
+        assert resp.status_code == 200
+        assert resp.json()["choices"][0]["message"]["content"] == main_module.ERROR_MSG
+        assert resp.json()["model"] == "gemini-3.5-flash-lite"
+    finally:
+        main_module._state.clear()

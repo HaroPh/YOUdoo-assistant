@@ -32,9 +32,9 @@ Quy ước:
 |---|---|---|---|
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | **nay có căn cứ thật**: 2026-08-21 `3.5-flash-lite` cạn hạn mức ngày, người dùng chọn nó thì `chitchat` rơi xuống `gemini-3.5-flash` (rpd **20**) |
+| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | **căn cứ mạnh hơn sau 2026-08-21**: cả `3.5-flash-lite` (306 lượt) lẫn `3.1-flash-lite` (236) đều chạm trần trong một ngày làm việc, và mục 8 cho thấy chuỗi dự phòng có thể cạn sạch |
 | 7 | **Không có dự phòng theo KHOÁ API** — `providers.ENV_KEYS` chỉ một biến mỗi upstream, nên cạn hạn mức ngày của Google là cạn cho cả hệ | chưa ai | chờ chủ dự án quyết hướng |
-| 8 | `erp-assistant` và `gemini-3.1-flash-lite` ở dropdown **hành vi y hệt nhau** (tên lạ → `MODEL_MAC_DINH` = 3.1) — ba ô nhưng chỉ hai hành vi | chưa ai | chờ chủ dự án quyết có gộp/đổi nhãn không |
+| 8 | ⚠️ **Chọn 3.5 cho chuỗi NGẮN HƠN chọn 3.1** — `prefer` chỉ chèn lên đầu, nên model vốn đã đứng đầu thì không thêm mắt xích nào. Gặp thật: hỏi tồn kho khi chọn 3.5 → `ChainExhausted` dù 3.1 còn hạn mức | chưa ai | phạm vi mới, chờ quyết (spec `2026-08-21-model-picker.md` §8.5) |
 
 **Mục 2 đã hạ ưu tiên (2026-08-21).** Lý do nó từng gấp là
 `tests/jobs/test_cli.py::test_cli_survives_redirected_cp1252_stdout` — cổng chặn

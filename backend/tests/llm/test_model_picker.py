@@ -8,8 +8,9 @@ import pytest
 from langgraph.graph import END, START, StateGraph
 
 from src.llm.catalog import (MODEL_CHON_DUOC, MODEL_MAC_DINH,
-                             MODEL_NGUOI_DUNG_CHON, chain_for)
-from src.llm.router import THUNG_FALLBACK
+                             MODEL_NGUOI_DUNG_CHON, VAI_TRA_LOI, chain_for,
+                             model_tra_loi)
+from src.llm.router import THUNG_FALLBACK, THUNG_MODEL
 
 
 # ── chain_for(prefer=…) ──────────────────────────────────────────────────────
@@ -125,3 +126,53 @@ def test_model_rpd_qua_thap_KHONG_duoc_cho_chon():
     from src.llm.catalog import spec_for
     for alias in MODEL_CHON_DUOC:
         assert spec_for(alias).rpd >= 500, f"{alias} rpd quá thấp để cho chọn"
+
+
+# ── ai đã trả lời lượt này (trường `model` của phản hồi) ─────────────────────
+def test_model_tra_loi_uu_tien_vai_SINH_cau_tra_loi():
+    """Một lượt `mixed` đi qua router → planner → read → fusion. Chỉ `fusion`
+    viết ra văn bản người dùng đọc."""
+    da_dung = {"router": "R", "planner": "P", "read": "D", "fusion": "F"}
+    assert model_tra_loi(da_dung, "mac-dinh") == "F"
+
+
+def test_model_tra_loi_KHONG_lay_loi_goi_LLM_cuoi_cung():
+    """`evaluator` (localize) chạy SAU vai sinh câu trả lời nhưng chỉ DỊCH LẠI
+    văn bản đã có. Lấy "lời gọi cuối" là lấy nhầm nó."""
+    assert "evaluator" not in VAI_TRA_LOI
+    assert model_tra_loi({"chitchat": "C", "evaluator": "E"}, "mac-dinh") == "C"
+
+
+def test_model_tra_loi_ve_mac_dinh_khi_khong_ro():
+    """Nhãn hiển thị, không phải cổng an toàn: không xác định được thì suy biến
+    êm chứ không nổ."""
+    for thung in (None, {}, {"router": "R"}):
+        assert model_tra_loi(thung, "mac-dinh") == "mac-dinh"
+
+
+@pytest.mark.asyncio
+async def test_thung_model_lan_duoc_tu_node_ve_caller():
+    """Cùng bẫy ContextVar với THUNG_FALLBACK — thùng thứ hai nên bẫy thứ hai.
+
+    Ghi riêng test chứ không tin vào việc "hai thùng dùng chung một cửa ghi":
+    chính chỗ gọi mới là thứ có thể quên, và nó có HAI cửa (invoke + ainvoke).
+    """
+    class S(TypedDict):
+        x: int
+
+    async def node(state):
+        thung = THUNG_MODEL.get()
+        if thung is not None:
+            thung["chitchat"] = "gemini-3.5-flash-lite"
+        await asyncio.sleep(0)          # ép qua ranh giới task
+        return {"x": 1}
+
+    g = StateGraph(S)
+    g.add_node("n", node)
+    g.add_edge(START, "n"); g.add_edge("n", END)
+    app = g.compile()
+
+    thung = {}
+    THUNG_MODEL.set(thung)
+    await app.ainvoke({"x": 0})
+    assert thung == {"chitchat": "gemini-3.5-flash-lite"}

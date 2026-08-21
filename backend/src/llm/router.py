@@ -468,6 +468,19 @@ _QUYET_DINH: ContextVar[dict] = ContextVar("routed_chat_quyet_dinh", default={})
 THUNG_FALLBACK: ContextVar[dict | None] = ContextVar(
     "routed_chat_fallback", default=None)
 
+# Thùng gom model ĐÃ DÙNG của lượt — mọi vai, có tụt hay không. Khác
+# THUNG_FALLBACK (chỉ ghi khi fallback_depth > 0): thùng này trả lời câu hỏi
+# "ai đã trả lời lượt này", thứ mà trường `model` của /v1/chat/completions cần.
+# Trước 2026-08-21 trường đó là hằng số "erp-assistant" nên API tự nó không cho
+# biết model nào chạy — dòng báo tụt là chỗ DUY NHẤT hé lộ, mà nó chỉ hiện khi
+# có tụt.
+#
+# Mặc định None chứ không phải {}: một dict mặc định dùng chung mọi ngữ cảnh sẽ
+# rò rỉ giữa các request. Cha đặt {} mỗi lượt, con sửa TẠI CHỖ — set() trong
+# task con của LangGraph KHÔNG lan ngược về cha (đã kiểm bằng graph thật).
+THUNG_MODEL: ContextVar[dict | None] = ContextVar(
+    "routed_chat_model_da_dung", default=None)
+
 
 class RoutedChatModel(Runnable):
     """Mặt tiền giữ nguyên hợp đồng cũ của agents/.
@@ -498,6 +511,17 @@ class RoutedChatModel(Runnable):
     def last_decision(self) -> RouteDecision | None:
         return _QUYET_DINH.get().get(self._khoa)
 
+    def _ghi_dau_vet(self, decision: RouteDecision) -> None:
+        """MỘT cửa duy nhất ghi dấu vết định tuyến của lượt.
+
+        Gộp hai thùng vào một chỗ gọi có chủ đích: hai lời gọi song song ở hai
+        cửa (invoke + ainvoke) là hai chỗ để quên một nửa.
+        """
+        thung = THUNG_MODEL.get()
+        if thung is not None:
+            thung.setdefault(self._role, decision.spec.alias)
+        self._ghi_fallback(decision)
+
     def _ghi_fallback(self, decision: RouteDecision) -> None:
         """Ghi lại nếu lượt này KHÔNG chạy bằng mắt xích đầu."""
         if decision.fallback_depth <= 0:
@@ -527,7 +551,7 @@ class RoutedChatModel(Runnable):
                                          pin=self._pin, config=config,
                                          tool_kwargs=self._tool_kwargs, **kwargs)
             self._ghi_quyet_dinh(result.decision)
-            self._ghi_fallback(result.decision)
+            self._ghi_dau_vet(result.decision)
             tracing.annotate_span(span, result.decision, result)
         return result.message
 
@@ -541,7 +565,7 @@ class RoutedChatModel(Runnable):
                                                 tool_kwargs=self._tool_kwargs,
                                                 **kwargs)
             self._ghi_quyet_dinh(result.decision)
-            self._ghi_fallback(result.decision)
+            self._ghi_dau_vet(result.decision)
             tracing.annotate_span(span, result.decision, result)
         return result.message
 

@@ -23,9 +23,13 @@ from src.agents import roles as roles_mod
 logger = logging.getLogger(__name__)
 
 from src.llm.catalog import (MODEL_CHON_DUOC, MODEL_MAC_DINH,
-                             MODEL_NGUOI_DUNG_CHON)
-from src.llm.router import THUNG_FALLBACK
+                             MODEL_NGUOI_DUNG_CHON, model_tra_loi)
+from src.llm.router import THUNG_FALLBACK, THUNG_MODEL
 
+# Tên endpoint, KHÔNG phải một model. Từ 2026-08-21 nó không còn được
+# quảng cáo ở /v1/models (xem docstring ở đó) nhưng vẫn giữ: client cũ và
+# harness nghiệm thu sống (tests/live_verify_common.py) vẫn gửi tên này, và
+# nhánh "tên lạ → MODEL_MAC_DINH" nhận nó mà không nổ.
 MODEL_ID = "erp-assistant"
 ERROR_MSG = "Xin lỗi, đã có lỗi xảy ra khi xử lý yêu cầu. Vui lòng thử lại."
 _state: dict = {}
@@ -64,11 +68,15 @@ async def list_models():
     Chính xác": nhãn như thế là lời hứa về KẾT QUẢ mà chưa ai đo, còn mục đích
     của việc cho chọn chính là để biết model nào đang trả lời.
 
-    `MODEL_ID` giữ nguyên ở đầu danh sách để mọi client cũ (và mọi cấu hình
-    Open WebUI đang trỏ vào nó) không gãy — nó nghĩa là "dùng mặc định".
+    `MODEL_ID` KHÔNG còn nằm trong danh sách (2026-08-21). Nó là tên của
+    ENDPOINT, không phải một model, và vì tên lạ được map về MODEL_MAC_DINH nên
+    ô đó có hành vi Y HỆT ô `gemini-3.1-flash-lite`: ba ô nhưng hai hành vi.
+    Một lựa chọn trùng hành vi làm hỏng đúng thứ tính năng này sinh ra để phục
+    vụ — biết model nào đang trả lời. Client cũ không gãy vì nhánh "tên lạ →
+    MODEL_MAC_DINH" ở /v1/chat/completions vẫn nhận `erp-assistant`.
     """
     created = int(time.time())
-    ids = (MODEL_ID, *MODEL_CHON_DUOC)
+    ids = MODEL_CHON_DUOC
     return {"object": "list", "data": [
         {"id": i, "object": "model", "created": created, "owned_by": "erp-ai"}
         for i in ids
@@ -186,6 +194,7 @@ async def chat_completions(req: Request):
     # Thùng gom fallback: dict MỚI mỗi request. Node sửa TẠI CHỖ (set()
     # trong task con không lan ngược về đây — đã kiểm bằng graph thật).
     THUNG_FALLBACK.set({})
+    THUNG_MODEL.set({})
 
     agent: ERPAgent = _state["agent"]
     try:
@@ -225,10 +234,15 @@ async def chat_completions(req: Request):
 
     cid = f"chatcmpl-{uuid.uuid4().hex[:24]}"
     created = int(time.time())
+    # Tên model THẬT đã sinh ra câu trả lời, không phải hằng số MODEL_ID. Lượt
+    # hỏng (ERROR_MSG) hoặc lượt chưa tới vai sinh câu trả lời thì rơi về model
+    # người dùng chọn — xem catalog.model_tra_loi.
+    model_da_tra_loi = model_tra_loi(
+        THUNG_MODEL.get(), MODEL_NGUOI_DUNG_CHON.get() or MODEL_MAC_DINH)
 
     if not stream:
         return JSONResponse({
-            "id": cid, "object": "chat.completion", "created": created, "model": MODEL_ID,
+            "id": cid, "object": "chat.completion", "created": created, "model": model_da_tra_loi,
             "choices": [{"index": 0,
                          "message": {"role": "assistant", "content": answer},
                          "finish_reason": "stop"}],
@@ -238,7 +252,7 @@ async def chat_completions(req: Request):
     # Streaming: agent trả nguyên câu → emit 1 content chunk + [DONE] (đủ cho Open WebUI)
     async def sse():
         base = {"id": cid, "object": "chat.completion.chunk",
-                "created": created, "model": MODEL_ID}
+                "created": created, "model": model_da_tra_loi}
         yield f'data: {json.dumps({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})}\n\n'
         yield f'data: {json.dumps({**base, "choices": [{"index": 0, "delta": {"content": answer}, "finish_reason": None}]}, ensure_ascii=False)}\n\n'
         yield f'data: {json.dumps({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})}\n\n'

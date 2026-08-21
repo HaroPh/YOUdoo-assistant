@@ -31,6 +31,21 @@ class ModelSpec:
 # nổi vai nặng. gpt-oss-* ở 8K bị loại khỏi vai nặng đúng bởi ngưỡng này.
 HEAVY_TPM_FLOOR = 12_000
 
+# Ngưỡng cho bất biến #5: HAI mắt xích đầu của mọi chuỗi phải đủ hạn mức phục
+# vụ TRỌN một ngày. 500 = rpd của flash-lite, mức thấp nhất đã dùng thật cho
+# một mắt xích phục vụ.
+#
+# Vì sao chỉ hai mắt xích đầu, không phải cả chuỗi: `or-ling`/`or-nemotron`
+# (rpd=50, ví CHUNG cả tài khoản OpenRouter) là lưới đỡ khẩn cấp ở đuôi, cố ý
+# mỏng. Hai vị trí đầu thì khác — `chain_for(prefer=…)` đẩy mắt xích 1 cũ xuống
+# vị trí 2, nên vị trí 2 là chỗ MỌI cú tụt đều đi qua.
+#
+# Bất biến này sinh ra từ một lỗi thật (2026-08-21): `gemini-3.5-flash` rpd=20
+# nằm ở mắt xích 1 của `chitchat` với lý lẽ "vai này thưa nên chấp nhận được".
+# Lý lẽ đó chết lúc `prefer` ra đời mà không ai sửa lại, và không luật nào bắt
+# được. Nay có.
+RPD_SAN_PHUC_VU = 500
+
 ROLES = frozenset({"router", "chitchat", "evaluator", "planner",
                    "read", "fusion", "synthesis"})
 HEAVY_ROLES = frozenset({"read", "fusion", "synthesis"})
@@ -187,8 +202,9 @@ CHAINS: dict[str, tuple[str, ...]] = {
     # chỉ gánh fusion+synthesis (hai vai chỉ chạy ở nhánh mixed, thưa hơn) —
     # chia tải qua hai ví thay vì chất đống lên một.
     "router":    ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"),
-    # chitchat: gemini-3.5-flash THAY gemma-4-31b ở mắt xích 1 (2026-08-13).
-    # Đo bộ `chitchat` (n=16), mỗi model ghim một lượt:
+    # chitchat: gemini-3.5-flash-lite THAY gemini-3.5-flash ở mắt xích 1
+    # (2026-08-21). Số đo bộ `chitchat` (n=16) từ 2026-08-13 GIỮ NGUYÊN giá trị
+    # tham khảo — không lượt nào bị bác:
     #
     #   model               violations   p50        p95
     #   gemma-4-31b              0     13103ms    21090ms
@@ -196,21 +212,23 @@ CHAINS: dict[str, tuple[str, ...]] = {
     #   gemini-3.6-flash         0      5048ms    43891ms
     #
     # Gate của bộ này là `violations` (tuyệt đối, không so baseline) — CẢ BA
-    # đều 0, tức chất lượng hoà. Khác biệt duy nhất là độ trễ, và 3.5-flash
-    # thắng cả về p50 lẫn độ ỔN ĐỊNH (p95 gần p50). Không chọn 3.6-flash vì
-    # một lượt 43.9s; ở n=16 thì p95 chỉ ~1 mẫu nên không đọc quá nặng, nhưng
-    # lượt đó có thật.
+    # đều 0, tức chất lượng hoà, khác biệt duy nhất là độ trễ.
     #
-    # rpd=20 chấp nhận được ở ĐÂY (khác router): chitchat chỉ chạy khi intent =
-    # `unknown` — chào hỏi, tán gẫu, rất thưa. Cạn hạn mức thì tụt xuống
-    # groq-gpt-oss-20b, suy giảm chấp nhận được.
+    # VÌ SAO ĐỔI: lập luận cũ ("rpd=20 chấp nhận được ở ĐÂY vì chitchat rất
+    # thưa") SAI KỂ TỪ KHI CÓ `prefer`. `prefer` đẩy mắt xích 1 cũ xuống vị trí
+    # 2 — tức chỗ MỌI cú tụt đều đi qua. Nghiệm thu sống 2026-08-21: người dùng
+    # chọn 3.5-flash-lite (đã cạn hạn mức ngày), chuỗi thành
+    # `3.5-flash-lite → 3.5-flash → groq`, và câu tán gẫu được phục vụ bằng
+    # đúng model rpd=20 mà MODEL_CHON_DUOC cố ý không cho chọn.
     #
-    # gemma-4-31b RỜI chuỗi, không xuống mắt xích 3: nó cùng upstream="google"
-    # với 3.5-flash nên bất biến #1 cấm (xem chuỗi `router` phía trên, cùng lý
-    # do). Entry của nó ĐÃ XOÁ khỏi CATALOG luôn — không chuỗi nào dùng nữa, và
-    # một entry chết là cấu hình chờ trôi lệch. Số đo của nó ở lại ngay bảng
-    # trên, đó mới là chỗ nó có ích.
-    "chitchat":  ("gemini-3.5-flash", "groq-gpt-oss-20b"),
+    # Vì sao 3.5-flash-lite KHÔNG cần đo lại trên bộ `chitchat`: nó ĐÃ chạy vai
+    # này ở vị trí 1 mỗi lượt người dùng chọn nó ở dropdown. Đưa xuống vị trí 2
+    # không tạo phơi nhiễm mới — nó nghiêm ngặt ÍT hơn thứ production đang làm.
+    #
+    # gemini-3.5-flash GIỮ entry trong CATALOG (khác gemma-4-31b, bị xoá hẳn):
+    # nó vẫn cần cho `--model gemini-3.5-flash` lúc ghim đo, và bất biến #5
+    # (test_hai_mat_xich_dau_phai_du_gank_mot_ngay) chặn nó quay lại chuỗi.
+    "chitchat":  ("gemini-3.5-flash-lite", "groq-gpt-oss-20b"),
     # evaluator: ĐẢO thứ tự 2026-08-13. Trước: groq-gpt-oss-20b → gemma-4-26b.
     # Đo bộ `confirm` (n=24) trên CẢ HAI mắt xích, mỗi model ghim một lượt:
     #
@@ -290,6 +308,36 @@ MODEL_CHON_DUOC: tuple[str, ...] = ("gemini-3.5-flash-lite",
 # Ai ưu tiên tốc độ thì đổi sang 3.5-flash-lite ngay ở dropdown — đó chính là
 # lý do tính năng này tồn tại.
 MODEL_MAC_DINH = "gemini-3.1-flash-lite"
+
+
+# Thứ tự vai SINH RA câu trả lời người dùng đọc, ưu tiên giảm dần. Một lượt đi
+# qua nhiều vai (router phân loại, planner lập kế, read gọi tool…) nhưng chỉ
+# MỘT vai viết ra văn bản cuối:
+#
+#   fusion    — nhánh `mixed`, node fuse_answer là chỗ hợp nhất cuối cùng
+#   synthesis — nhánh `rag`
+#   read      — nhánh `erp_read`
+#   chitchat  — nhánh `unknown`
+#
+# `evaluator` KHÔNG có trong danh sách dù nó chạy SAU CÙNG (localize): nó dịch
+# lại văn bản đã có chứ không sinh nội dung. `router`/`planner` cũng vậy.
+# Nói cách khác thứ tự này là thứ tự ƯU TIÊN theo vai trò, không phải thứ tự
+# thời gian — lấy "lời gọi LLM cuối cùng" sẽ trả về evaluator, tức sai.
+VAI_TRA_LOI: tuple[str, ...] = ("fusion", "synthesis", "read", "chitchat")
+
+
+def model_tra_loi(da_dung: dict[str, str] | None, mac_dinh: str) -> str:
+    """Model đã sinh ra câu trả lời người dùng đọc.
+
+    Trả `mac_dinh` khi không xác định được — lượt hỏng trước khi tới vai sinh
+    câu trả lời (trả ERROR_MSG), hoặc thùng chưa được cha đặt. Trường `model`
+    của phản hồi là dữ liệu hiển thị, không phải cổng an toàn: đoán sai một
+    nhãn thì tệ hơn nhiều nếu vì thế mà cả lượt chat nổ.
+    """
+    for vai in VAI_TRA_LOI:
+        if da_dung and vai in da_dung:
+            return da_dung[vai]
+    return mac_dinh
 
 
 def chain_for(role: str, prefer: str | None = None) -> tuple[ModelSpec, ...]:

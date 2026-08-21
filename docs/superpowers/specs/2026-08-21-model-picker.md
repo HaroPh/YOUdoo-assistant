@@ -229,3 +229,84 @@ Lưu ý khi thiết kế: thêm khoá thứ hai KHÔNG được làm thành mắ
 chuỗi, vì bất biến #1 của router (không hai mắt xích cùng upstream) tồn tại để
 chặn đúng chuyện rơi từ miền lỗi này sang lại chính nó. Chỗ đúng là **xoay khoá
 bên trong một mắt xích**, trước khi tụt xuống mắt xích sau.
+
+## 8. Bản sửa 2026-08-21 (đợt hai): đóng hố rpd=20 và bỏ ô dropdown giả
+
+### 8.1 Chuỗi `chitchat` — `gemini-3.5-flash` → `gemini-3.5-flash-lite`
+
+Đóng §7.1. Số đo bộ `chitchat` 2026-08-13 giữ nguyên giá trị tham khảo, không
+lượt nào bị bác — thứ SAI là **lập luận**, không phải số: "rpd=20 chấp nhận được
+ở đây vì chitchat rất thưa" chết kể từ khi `prefer` ra đời, mà không ai sửa lại.
+
+`gemini-3.5-flash-lite` KHÔNG cần đo lại trên bộ này: nó đã chạy vai `chitchat`
+ở **vị trí 1** mỗi lượt người dùng chọn nó ở dropdown. Đưa xuống vị trí 2 là
+phơi nhiễm nghiêm ngặt ÍT hơn thứ production đang làm.
+
+Entry `gemini-3.5-flash` **giữ lại** trong `CATALOG` (khác `gemma-4-31b` bị xoá
+hẳn): nó vẫn cần cho `--model gemini-3.5-flash` lúc ghim đo, và bất biến #5 làm
+việc giữ nó thành an toàn.
+
+### 8.2 Bất biến #5 — hai mắt xích đầu phải đủ gánh một ngày
+
+`RPD_SAN_PHUC_VU = 500`. Kiểm với `prefer=None` LẪN từng model trong dropdown,
+vì chỉ kiểm bảng `CHAINS` tĩnh là mù đúng với đường người dùng thật đi. Mắt xích
+cuối (`or-ling`/`or-nemotron`, rpd 50) được miễn — lưới đỡ khẩn cấp, cố ý mỏng.
+
+**Đã thử phá bằng cách khôi phục đúng cấu hình cũ**: 2 test đỏ, khôi phục thì
+xanh. Một test tự-mô-phỏng tôi viết lúc đầu đã **bị gỡ** — nó tự dựng lấy cấu
+hình hỏng nên xanh ở cả hai lượt, tức không chạm vào luật thật.
+
+### 8.3 Dropdown còn hai ô; trường `model` mang tên model THẬT
+
+`/v1/models` không còn quảng cáo `MODEL_ID`. Client cũ không gãy: nhánh "tên lạ
+→ `MODEL_MAC_DINH`" vẫn nhận `erp-assistant` (harness `live_verify_common.py`
+gửi đúng tên đó). Đọc mã Open WebUI đang chạy trong container để xác nhận chứ
+không đoán: `utils/models.py:158`, model tuỳ biến có `base_model_id=None` được
+tra ngược lên danh sách backend; không thấy thì **bỏ qua hoàn toàn**.
+
+`THUNG_MODEL` (thùng thứ hai, cạnh `THUNG_FALLBACK`) ghi **mọi** lượt chứ không
+chỉ lúc tụt — nếu nó cũng lọc theo `fallback_depth` thì trường `model` sẽ đúng
+ĐÚNG lúc có sự cố và sai mọi lúc bình thường. `catalog.VAI_TRA_LOI` chọn vai
+SINH câu trả lời theo ưu tiên (`fusion > synthesis > read > chitchat`), không
+lấy "lời gọi LLM cuối cùng" — lấy thế sẽ trúng `evaluator` (localize), thứ chỉ
+dịch lại văn bản đã có.
+
+**Cả hai chỗ này trước đó KHÔNG có test nào gác**: sửa xong toàn bộ 1902 test
+vẫn xanh. Đã bổ sung 4 test ở `tests/test_main.py`, tất cả đã chứng minh đỏ khi
+quay về hành vi cũ.
+
+### 8.4 Nghiệm thu sống
+
+Backend phụ cổng 8012 (không đụng 8002) rồi khởi động lại 8002 bằng code mới.
+
+| lượt | model trả về | dòng báo tụt |
+|---|---|---|
+| chọn 3.1, câu chào | `gemini-3.1-flash-lite` | không |
+| chọn `erp-assistant` (tên cũ) | `gemini-3.1-flash-lite` | không |
+| chọn 3.5 (đã cạn ngày), câu chào | `groq-gpt-oss-20b` | 3.1-flash-lite, groq |
+| chọn 3.1, hỏi tồn kho | `gemini-3.1-flash-lite` | không |
+
+Lượt thứ ba là bằng chứng hố rpd=20 đã đóng trên đường thật: trước bản sửa nó
+rơi vào `gemini-3.5-flash`, nay đi thẳng xuống Groq.
+
+### 8.5 Khó khăn / giới hạn còn lại
+
+- **Bẫy công cụ**: ghi đè `MCP_ODOO_URL` thành `/mcp` (đúng là `/sse`) làm
+  backend phụ chết lúc startup; và `stdout` cp1252 nuốt chẩn đoán cho tới khi
+  đặt `PYTHONIOENCODING=utf-8`. Cùng hai bẫy đã ghi ở các đợt trước.
+- **`start-dev.ps1` KHÔNG dùng được để khởi động lại từ agent**: nó chạy vòng
+  canh vô hạn và `finally` của nó **giết chính backend vừa khởi động**. Phải
+  lặp lại khối backend bằng tay.
+- ⚠️ **GIỚI HẠN MỚI, CHƯA SỬA — chọn 3.5 cho chuỗi NGẮN HƠN chọn 3.1.**
+  `prefer` chỉ CHÈN LÊN ĐẦU, nên khi model được chọn vốn đã là mắt xích 1 thì
+  nó không thêm gì:
+
+      read, prefer=3.1 → 3.1-lite, 3.5-lite, groq-llama, or-nemotron   (4)
+      read, prefer=3.5 → 3.5-lite, groq-llama, or-nemotron             (3)
+
+  Người chọn 3.5 **không có** mắt xích Gemini thứ hai. Gặp thật trong nghiệm
+  thu: hỏi tồn kho khi chọn 3.5 → `ChainExhausted` (3.5-lite cạn ngày,
+  groq-llama và or-nemotron hỏng tại chỗ) trong khi 3.1-lite vẫn còn hạn mức
+  nhưng **không nằm trong chuỗi**. Cùng câu hỏi với 3.1 trả lời đúng.
+  Hướng khả dĩ: `chain_for` bảo đảm MỌI model trong `MODEL_CHON_DUOC` đều có
+  mặt sau mắt xích đầu. Chưa làm — thuộc phạm vi mới.

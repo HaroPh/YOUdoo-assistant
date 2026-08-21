@@ -317,7 +317,7 @@ def test_chitchat_model_resolution_uses_chitchat_role(monkeypatch):
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
     monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
     result = eval_gate.run(_args(set_="chitchat"))
-    assert result.detail["chitchat"]["model"] == "gemini-3.5-flash"
+    assert result.detail["chitchat"]["model"] == "gemini-3.5-flash-lite"
 
 
 def test_chitchat_registered_as_valid_set_choice():
