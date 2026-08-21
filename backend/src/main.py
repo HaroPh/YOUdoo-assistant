@@ -22,6 +22,10 @@ from src.agents import roles as roles_mod
 
 logger = logging.getLogger(__name__)
 
+from src.llm.catalog import (MODEL_CHON_DUOC, MODEL_MAC_DINH,
+                             MODEL_NGUOI_DUNG_CHON)
+from src.llm.router import THUNG_FALLBACK
+
 MODEL_ID = "erp-assistant"
 ERROR_MSG = "Xin lỗi, đã có lỗi xảy ra khi xử lý yêu cầu. Vui lòng thử lại."
 _state: dict = {}
@@ -50,9 +54,24 @@ async def health():
 
 @app.get("/v1/models")
 async def list_models():
+    """Liệt kê model cho dropdown của Open WebUI.
+
+    Dropdown ĐÃ CÓ SẴN ở client — trước đây endpoint này trả đúng một mục nên
+    nó vô dụng, và trường `model` trong request không ai đọc. Liệt kê lựa chọn
+    thật ở đây là toàn bộ phần "giao diện" của tính năng chọn model.
+
+    Tên hiển thị là TÊN MODEL THẬT, không phải nhãn sản phẩm kiểu "Nhanh /
+    Chính xác": nhãn như thế là lời hứa về KẾT QUẢ mà chưa ai đo, còn mục đích
+    của việc cho chọn chính là để biết model nào đang trả lời.
+
+    `MODEL_ID` giữ nguyên ở đầu danh sách để mọi client cũ (và mọi cấu hình
+    Open WebUI đang trỏ vào nó) không gãy — nó nghĩa là "dùng mặc định".
+    """
+    created = int(time.time())
+    ids = (MODEL_ID, *MODEL_CHON_DUOC)
     return {"object": "list", "data": [
-        {"id": MODEL_ID, "object": "model",
-         "created": int(time.time()), "owned_by": "erp-ai"},
+        {"id": i, "object": "model", "created": created, "owned_by": "erp-ai"}
+        for i in ids
     ]}
 
 
@@ -150,6 +169,23 @@ async def chat_completions(req: Request):
     body = await req.json()
     stream = bool(body.get("stream", False))
     messages = _filter_messages(body.get("messages", []))
+    # Model người dùng chọn ở dropdown. Đặt vào ContextVar để resolve() của
+    # Router đọc được; nó chỉ ĐƯA MODEL LÊN ĐẦU CHUỖI, mọi mắt xích dự phòng
+    # vẫn nguyên (xem catalog.chain_for). Tên lạ / tên MODEL_ID → None = dùng
+    # chuỗi mặc định của từng vai; KHÔNG nổ, vì tên model là dữ liệu do client
+    # gửi và một cấu hình Open WebUI cũ không được phép làm hỏng lượt chat.
+    chosen = body.get("model")
+    # Không chọn (hoặc chọn MODEL_ID / tên lạ) → MODEL_MAC_DINH, KHÔNG phải
+    # None. None nghĩa là "mỗi vai dùng chuỗi riêng của nó" — tức hành vi CŨ,
+    # nhiều model, đúng thứ quyết định 2026-08-21 đi bỏ. Với mặc định này,
+    # mắt xích đầu cũ của từng vai tụt xuống làm dự phòng; tiện thể chữa
+    # luôn việc `gemini-3.5-flash` (rpd=20) từng là mắt xích ĐẦU của
+    # chitchat, tức tán gẫu rơi xuống Groq sau ~20 tin nhắn mỗi ngày.
+    MODEL_NGUOI_DUNG_CHON.set(
+        chosen if chosen in MODEL_CHON_DUOC else MODEL_MAC_DINH)
+    # Thùng gom fallback: dict MỚI mỗi request. Node sửa TẠI CHỖ (set()
+    # trong task con không lan ngược về đây — đã kiểm bằng graph thật).
+    THUNG_FALLBACK.set({})
 
     agent: ERPAgent = _state["agent"]
     try:

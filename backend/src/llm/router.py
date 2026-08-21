@@ -11,7 +11,8 @@ from dataclasses import dataclass
 
 from . import tracing
 from .budget import BudgetLedger, Verdict
-from .catalog import ModelSpec, chain_for, spec_for
+from .catalog import (MODEL_NGUOI_DUNG_CHON, ModelSpec, chain_for,
+                      spec_for)
 from .providers import client_for, strip_thought      # mở rộng import cũ
 from .tokens import estimate_base_tokens
 
@@ -189,7 +190,11 @@ class Router:
                                  base_tokens=base_tokens)
 
         skipped: list[SkippedLink] = []
-        for depth, spec in enumerate(chain_for(role)):
+        # Model người dùng chọn ở dropdown chỉ ĐỔI THỨ TỰ chuỗi (lên đầu),
+        # KHÔNG bỏ fallback — khác `pin` ở ngay trên. Đọc tại đây thay vì
+        # luồn tham số qua erp_agent/LangGraph/RoutedChatModel.
+        prefer = MODEL_NGUOI_DUNG_CHON.get()
+        for depth, spec in enumerate(chain_for(role, prefer)):
             if spec.alias in skip:
                 skipped.append(SkippedLink(alias=spec.alias,
                                            verdict=Verdict.EMPTY))
@@ -299,7 +304,8 @@ class Router:
     def _max_attempts(self, role: str, pin: str | None) -> int:
         # Ghim thì thử đúng một lần: ghim là ghim, kể cả khi hỏng. Tụt lặng lẽ
         # sẽ làm hỏng phép đo eval mà không báo gì (spec §2).
-        return 1 if pin is not None else len(chain_for(role))
+        return (1 if pin is not None
+                else len(chain_for(role, MODEL_NGUOI_DUNG_CHON.get())))
 
     def invoke(self, role: str, messages: list, tools: list | None = None,
                pin: str | None = None, config=None,
@@ -442,6 +448,26 @@ from .store import PostgresUsageStore
 # cùng vai thấy hai giá trị khác nhau thay vì ghi đè lên nhau.
 _QUYET_DINH: ContextVar[dict] = ContextVar("routed_chat_quyet_dinh", default={})
 
+# Thùng gom "lượt này đã tụt mắt xích nào" cho MỘT request, để báo cho người
+# dùng biết model họ chọn không phải model đã trả lời.
+#
+# MẶC ĐỊNH None, KHÔNG phải {}: một dict mặc định là dùng chung mọi ngữ cảnh,
+# và sửa tại chỗ trên nó là rò rỉ giữa các request — đúng thứ chú thích của
+# _QUYET_DINH ở trên đang tránh. Ở đây main.py đặt một dict MỚI mỗi request rồi
+# node sửa TẠI CHỖ.
+#
+# VÌ SAO PHẢI SỬA TẠI CHỖ chứ không set() như _QUYET_DINH: giá trị set() bên
+# trong một asyncio.Task KHÔNG lan ngược về cha, mà node LangGraph chạy trong
+# task con còn nơi gắn dòng thông báo là ở cha. Đã kiểm chứng cả hai chiều bằng
+# graph thật: set() trong node → cha đọc thấy {}; sửa-tại-chỗ dict cha đặt sẵn
+# → cha đọc thấy đủ.
+#
+# Ghi ở RoutedChatModel là CHỖ NGHẼN DUY NHẤT mọi lượt gọi LLM đi qua — thay vì
+# sửa từng node, thứ đã tạo ra lỗi "năm chỗ ghép, đếm nhầm thành bốn" ở tính
+# năng ký ức.
+THUNG_FALLBACK: ContextVar[dict | None] = ContextVar(
+    "routed_chat_fallback", default=None)
+
 
 class RoutedChatModel(Runnable):
     """Mặt tiền giữ nguyên hợp đồng cũ của agents/.
@@ -472,6 +498,14 @@ class RoutedChatModel(Runnable):
     def last_decision(self) -> RouteDecision | None:
         return _QUYET_DINH.get().get(self._khoa)
 
+    def _ghi_fallback(self, decision: RouteDecision) -> None:
+        """Ghi lại nếu lượt này KHÔNG chạy bằng mắt xích đầu."""
+        if decision.fallback_depth <= 0:
+            return
+        thung = THUNG_FALLBACK.get()
+        if thung is not None:
+            thung.setdefault(self._role, decision.spec.alias)
+
     def _ghi_quyet_dinh(self, decision: RouteDecision) -> None:
         # Gán dict MỚI chứ không sửa tại chỗ: dict mặc định của ContextVar dùng
         # chung mọi ngữ cảnh, sửa tại chỗ là rò rỉ đúng thứ đang đi tránh.
@@ -493,6 +527,7 @@ class RoutedChatModel(Runnable):
                                          pin=self._pin, config=config,
                                          tool_kwargs=self._tool_kwargs, **kwargs)
             self._ghi_quyet_dinh(result.decision)
+            self._ghi_fallback(result.decision)
             tracing.annotate_span(span, result.decision, result)
         return result.message
 
@@ -506,6 +541,7 @@ class RoutedChatModel(Runnable):
                                                 tool_kwargs=self._tool_kwargs,
                                                 **kwargs)
             self._ghi_quyet_dinh(result.decision)
+            self._ghi_fallback(result.decision)
             tracing.annotate_span(span, result.decision, result)
         return result.message
 
