@@ -32,7 +32,6 @@ Quy ước:
 
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
-| 1b | ⚠️ **Ký ức thật tắt hẳn việc đề xuất ghi** trên `fuse_answer` (`proposed_rate` 0,75 → 0,00, tất định 3 lượt) — quyết định SẢN PHẨM: có muốn trợ lý chủ động đề nghị làm không | chủ dự án | spec §13 |
 | 2 | 4 job `e2e_*` chưa port từ SP-1C1 | chưa ai | **hạ ưu tiên** — lớp lỗi cp1252 nay đã có rào riêng (`tests/test_cli_utf8.py`), không còn phải chờ job để bật gác |
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 4 | Dọn 11 worktree mồ côi + 2 stash rác | chưa ai | — |
@@ -77,6 +76,7 @@ báo trước.
 | Trần số chunk mỗi mục: **vô tác dụng** | tag `parked/rag-section-cap` |
 | Ngữ cảnh hội thoại cho `synthesize()`: **không chữa được gì** | spec `2026-08-20-rag-roadmap-revision.md` |
 | Cross-encoder là **lá phiếu**, không phải kẻ ghi đè | docstring `retrieve.rerank()` |
+| Ký ức tắt việc chủ động đề nghị ghi trên `fuse_answer` — **ĐÃ CHẤP NHẬN**, không sửa | spec §13, §15 |
 
 ## CHƯA đo — danh sách "ta chưa biết"
 

@@ -611,3 +611,33 @@ còn tác dụng ở đường trả lời hỗn hợp.
 
 **Chưa đo**: `proposed_rate` trên đường `erp_node` — nơi thao tác ghi thật sự
 chạy. `eval_read` dừng ở lượt chọn tool nên không đo được hành vi đề nghị.
+
+## 16. QUYẾT ĐỊNH: chấp nhận `proposed_rate = 0`, không sửa
+
+Ngày 2026-08-21. Chủ dự án chốt sau khi xem cái giá ở §15.1.
+
+**Trạng thái được chấp nhận**: khối ký ức ở lại `FUSE_PROMPT`, và trợ lý **không
+chủ động đề nghị thực hiện thao tác ghi** trên đường trả lời hỗn hợp
+(`proposed_rate = 0,0000`, tất định 3 lượt với ký ức thật của người dùng).
+
+**Vì sao chấp nhận thay vì sửa.** Đòn bẩy duy nhất đã đo được là bỏ khối ký ức
+khỏi `FUSE_PROMPT`, và nó đắt hơn vẻ ngoài: mất `both_source_coverage`
+(0,8750 → 0,7500) VÀ mất hiệu lực của `kho_chinh` ở đúng đường trả lời hỗn hợp —
+nơi fact ấy có giá trị nhất. Lọc theo loại fact đã bị đo là không cứu được
+(§15). Ép bằng chỉ thị prompt đã bị đo là NGUY HIỂM (§14: model bịa rằng đã
+thực hiện thao tác, 3/3).
+
+Nói cách khác: ba hướng khả dĩ thì một đắt, một vô dụng, một nguy hiểm.
+
+**Người dùng mất gì.** Trợ lý sẽ giải thích quy trình, chỉ cách làm, hoặc hỏi
+thêm thông tin — thay vì nói *"để tôi làm giúp, anh đồng ý chứ?"*. Người dùng
+vẫn ra lệnh ghi được bằng cách nói thẳng; chỉ là trợ lý không tự mời.
+
+**Không phải là hỏng.** `agreement` cho thấy marker vẫn nói ĐÚNG về việc câu
+trả lời làm gì, và `false_positive` là 0 trên mọi chân. Hệ không nói dối — nó
+chỉ ít chủ động hơn.
+
+**ĐỪNG MỞ LẠI nếu không có dữ kiện mới.** Ba hướng đã đo và đã loại. Dữ kiện
+đáng để xét lại: (a) `proposed_rate` trên đường `erp_node` — CHƯA ĐO, và đó mới
+là nơi thao tác ghi thật chạy; (b) một cách khôi phục nào đó chưa từng thử,
+KHÔNG phải chỉ thị prompt.
