@@ -334,17 +334,26 @@ async def eval_planner(llm, pace: float = 0.0, checkpoint_path=None,
             "fails": fails, "errors": errors}
 
 
-async def eval_read(llm, pace: float = 0.0, checkpoint_path=None):
+async def eval_read(llm, pace: float = 0.0, checkpoint_path=None,
+                    memory: str | None = None):
     """Đo QUYẾT ĐỊNH chọn tool đọc bằng MỘT lời gọi có bind_tools — KHÔNG
     thực thi tool, không cần Odoo sống (spec §4.0a). Mirror SYSTEM_PROMPT
     thật; không chạy verify_erp_grounding (đo riêng ở multi_source)."""
+    # Ghep khoi ky uc Y HET erp_node (nodes.py:49-51): memory + "\n\n" + prompt.
+    #
+    # VI SAO PHAI DO DUONG NAY. Ky uc song o BA cho, va day la cho DUY NHAT
+    # chua tung do — dong thoi la duong THAO TAC GHI that su chay. Ba do khac
+    # cho ket qua khong dong nhat (RAG: hai, phai cat; fuse: hon hop), nen suy
+    # doan cho nay tu hai cho kia la khong co co so.
+    system = ((MEMORY_PRESETS[memory] + "\n\n" + SYSTEM_PROMPT)
+              if memory else SYSTEM_PROMPT)
     bound = llm.bind_tools(build_erp_query_tools())
     lat: list[float] = []
 
     async def call(case):
         text, exp_tool, exp_args, entity_keys = case
         resp, ms = await _timed(bound.ainvoke(
-            [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=text)]))
+            [SystemMessage(content=system), HumanMessage(content=text)]))
         lat.append(ms)
         tool_calls = getattr(resp, "tool_calls", None) or []
         if not tool_calls:
@@ -373,6 +382,7 @@ async def eval_read(llm, pace: float = 0.0, checkpoint_path=None):
     measured = n - len(errors)
     p50, p95 = _percentiles(lat)
     return {"set": "read", "n": n,
+            "memory_preset": memory or "none",
             "tool_acc": (measured - tool_wrong) / n if n else 0.0,
             "param_acc": (measured - len(fails)) / n if n else 0.0,
             "fabricated_param": fabricated_param,
@@ -1369,7 +1379,7 @@ async def main(argv=None):
     args = ap.parse_args(argv)
 
     _BO_NHAN_MEMORY = ("synthesis_live", "memory", "multi_source",
-                       "write_suggest")
+                       "write_suggest", "read")
     if args.memory and args.set not in _BO_NHAN_MEMORY:
         ap.error("--memory chỉ dùng được với --set "
                  + " / ".join(_BO_NHAN_MEMORY))
@@ -1392,7 +1402,8 @@ async def main(argv=None):
                "multiturn": eval_multiturn, "memory": eval_memory,
                "write_suggest": eval_write_suggest}
         kwargs = {"pace": args.pace}
-        if args.set in ("memory", "multi_source", "write_suggest"):
+        if args.set in ("memory", "multi_source", "write_suggest",
+                        "read"):
             kwargs["memory"] = args.memory
         if args.set in role_config.ROLE_SENSITIVE_SETS:
             kwargs["role"] = args.role
