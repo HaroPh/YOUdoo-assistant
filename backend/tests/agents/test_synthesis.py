@@ -207,8 +207,9 @@ def test_passes_floor_empty():
 @pytest.mark.asyncio
 async def test_verify_citations_empty_chunks_no_llm_call():
     llm = MagicMock(); llm.ainvoke = AsyncMock()
-    out = await verify_citations("answer", [], llm)
+    out, da_xac_minh = await verify_citations("answer", [], llm)
     assert out == []
+    assert da_xac_minh is True, "không có chunk nào thì không có gì để hỏng"
     llm.ainvoke.assert_not_awaited()
 
 
@@ -216,16 +217,18 @@ async def test_verify_citations_empty_chunks_no_llm_call():
 async def test_verify_citations_keeps_yes_drops_no():
     llm = make_mock_llm("1: CÓ\n2: KHÔNG")
     chunks = _two_chunks()
-    out = await verify_citations("Trả lời.", chunks, llm)
+    out, da_xac_minh = await verify_citations("Trả lời.", chunks, llm)
     assert out == [chunks[0]]
+    assert da_xac_minh is True
 
 
 @pytest.mark.asyncio
 async def test_verify_citations_all_yes_keeps_all():
     llm = make_mock_llm("1: CÓ\n2: CÓ")
     chunks = _two_chunks()
-    out = await verify_citations("Trả lời.", chunks, llm)
+    out, da_xac_minh = await verify_citations("Trả lời.", chunks, llm)
     assert out == chunks
+    assert da_xac_minh is True
 
 
 @pytest.mark.asyncio
@@ -233,24 +236,32 @@ async def test_verify_citations_llm_error_fails_open():
     llm = MagicMock()
     llm.ainvoke = AsyncMock(side_effect=RuntimeError("llm down"))
     chunks = _two_chunks()
-    out = await verify_citations("Trả lời.", chunks, llm)
+    out, da_xac_minh = await verify_citations("Trả lời.", chunks, llm)
     assert out == chunks
+    # Nửa MỚI của hợp đồng (2026-08-22): fail-open vẫn đúng, nhưng phải NÓI RA.
+    # Trước đó nhánh này im lặng tuyệt đối — không log, không cờ — nên cổng
+    # chống ảo giác tắt bao nhiêu lượt cũng không ai biết.
+    assert da_xac_minh is False
 
 
 @pytest.mark.asyncio
 async def test_verify_citations_unparseable_response_fails_open():
     llm = make_mock_llm("không rõ định dạng gì cả")
     chunks = _two_chunks()
-    out = await verify_citations("Trả lời.", chunks, llm)
+    out, da_xac_minh = await verify_citations("Trả lời.", chunks, llm)
     assert out == chunks
+    # KHÁC ca trên: LLM có TRẢ LỜI, chỉ là không parse được verdict nào. Cổng
+    # vẫn CHẠY, nên `da_xac_minh` là True — không được gộp hai tình huống này.
+    assert da_xac_minh is True
 
 
 @pytest.mark.asyncio
 async def test_verify_citations_missing_verdict_for_one_chunk_keeps_it():
     llm = make_mock_llm("1: KHÔNG")  # no line for chunk 2
     chunks = _two_chunks()
-    out = await verify_citations("Trả lời.", chunks, llm)
+    out, da_xac_minh = await verify_citations("Trả lời.", chunks, llm)
     assert out == [chunks[1]]
+    assert da_xac_minh is True
 
 
 def test_extract_write_suggestion_khong_co_marker():
@@ -383,3 +394,56 @@ def test_footer_ngay_di_vao_duoc_state_json():
     import json
     from src.agents.fanout import chunk_to_dict
     json.dumps(chunk_to_dict(_chunk(effective_date="2021-01-01")))
+
+
+# ── cổng xác minh trích dẫn FAIL-OPEN thì phải NÓI RA (vá 2026-08-22) ───────
+@pytest.mark.asyncio
+async def test_cite_and_verify_danh_dau_khi_KHONG_xac_minh_duoc():
+    """FM-2 của bản kiểm toán: `verify_citations` là một lời gọi LLM dùng CHUNG
+    ví hạn mức với model trả lời. Cạn hạn mức ⇒ nó ném ⇒ fail-open giữ nguyên
+    mọi chunk marker TỰ KHAI ⇒ footer 📄 vẫn in đầy đủ.
+
+    Người dùng nhận một câu trả lời **trông như đã kiểm chứng** đúng vào lúc
+    model đang suy giảm nhất. Đó là niềm tin giả do chính hệ thống dựng ra.
+    """
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(side_effect=RuntimeError("cạn hạn mức"))
+    chunks = _two_chunks()
+    out = await syn.cite_and_verify("Trả lời.", chunks, llm)
+    assert "📄 Nguồn:" in out
+    assert syn.CHUA_XAC_MINH_MSG.strip() in out
+
+
+@pytest.mark.asyncio
+async def test_cite_and_verify_KHONG_danh_dau_khi_cong_chay_binh_thuong():
+    """Đối chứng: ghi chú phải hiếm. In nó ở lượt bình thường là dạy người
+    dùng bỏ qua nó — và lúc nó thật sự quan trọng thì không ai đọc nữa."""
+    llm = make_mock_llm("1: CÓ\n2: CÓ")
+    out = await syn.cite_and_verify("Trả lời.", _two_chunks(), llm)
+    assert "📄 Nguồn:" in out
+    assert syn.CHUA_XAC_MINH_MSG.strip() not in out
+
+
+@pytest.mark.asyncio
+async def test_khong_co_footer_thi_KHONG_them_ghi_chu():
+    """Không trích dẫn thì không có lời hứa nào để rút lại; thêm ghi chú chỉ
+    làm nhiễu một câu trả lời vốn chẳng khẳng định gì về nguồn."""
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(side_effect=RuntimeError("cạn hạn mức"))
+    out = await syn.cite_and_verify("Trả lời.", [], llm)
+    assert "📄" not in out
+    assert syn.CHUA_XAC_MINH_MSG.strip() not in out
+
+
+@pytest.mark.asyncio
+async def test_cong_hong_thi_GHI_LOG_chu_khong_im_lang(caplog):
+    """Khiếm khuyết nặng nhất của bản cũ không phải fail-open — fail-open là
+    ĐÚNG. Nó là việc nhánh `except` không ghi một dòng nào, nên cổng chống ảo
+    giác tắt bao nhiêu lượt cũng không ai biết để mà lo."""
+    import logging
+
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(side_effect=RuntimeError("cạn hạn mức"))
+    with caplog.at_level(logging.WARNING, logger="src.agents.synthesis"):
+        await syn.verify_citations("Trả lời.", _two_chunks(), llm)
+    assert any("verify_citations" in r.message for r in caplog.records)

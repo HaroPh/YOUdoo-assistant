@@ -3,7 +3,11 @@
 verify_citations nhưng cho dữ liệu ERP thay vì chunk tài liệu. Không có
 khái niệm 'footer trích dẫn' để lọc chọn lọc; khi phát hiện bịa, thay
 TOÀN BỘ câu trả lời (spec 2026-07-24-erp-guardrails)."""
+import logging
+
 from langchain_core.messages import SystemMessage, HumanMessage
+
+logger = logging.getLogger(__name__)
 
 ERP_GROUNDING_VERIFY_PROMPT = """Bạn kiểm tra xem CÂU TRẢ LỜI có số liệu (ngày tháng, con số, trạng thái) nào MÂU THUẪN với DỮ LIỆU THẬT hay không — KHÔNG phải kiểm tra mọi chữ trong câu trả lời có xuất hiện y hệt trong dữ liệu hay không.
 
@@ -41,4 +45,17 @@ async def verify_erp_grounding(answer: str, tool_outputs: list[str], llm) -> str
             return ERP_GROUNDING_FALLBACK_MSG
         return answer
     except Exception:
+        # Fail-open GIỮ NGUYÊN (chặn câu trả lời tốt vì hạ tầng lỗi thì tệ
+        # hơn), nhưng nay NÓI RA. Trước 2026-08-22 nhánh này nuốt lỗi hoàn
+        # toàn, nên cổng chống bịa số liệu ERP có thể đã tắt hàng loạt lượt mà
+        # không để lại một dòng nào — và nó tắt đúng lúc cạn hạn mức, tức đúng
+        # lúc model trả lời đang yếu nhất (kiểm toán 2026-08-22, FM-2).
+        #
+        # KHÔNG có ghi chú ra người dùng như phía trích dẫn: ở đây không có
+        # footer nào hứa hẹn "đã kiểm chứng", nên không có lời hứa nào để rút
+        # lại. Thứ thiếu là khả năng QUAN SÁT, và đó là thứ được vá.
+        logger.warning(
+            "verify_erp_grounding HỎNG — trả nguyên câu trả lời CHƯA đối "
+            "chiếu với dữ liệu ERP. Cổng chống bịa đã tắt ở lượt này.",
+            exc_info=True)
         return answer

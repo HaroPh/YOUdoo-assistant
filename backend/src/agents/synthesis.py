@@ -5,12 +5,31 @@ Turns S1 retrieval results into a grounded answer + a deterministic citation
 footer, and owns the no-result guard. This keeps backend/src/rag/ synthesis-free
 — all answer/refuse/threshold logic lives here, not in the retrieval library.
 """
+import logging
 import os
 import re
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from .prompts import RAG_SYNTHESIS_PROMPT, CITATION_VERIFY_PROMPT
+
+logger = logging.getLogger(__name__)
+
+# Gắn vào CUỐI footer khi cổng xác minh trích dẫn KHÔNG chạy được.
+#
+# Vì sao phải có (kiểm toán 2026-08-22, FM-2): `verify_citations` là một lời
+# gọi LLM, dùng CHUNG ví hạn mức với model trả lời. Cạn hạn mức ⇒ nó ném ⇒
+# fail-open giữ nguyên mọi chunk mà marker TỰ KHAI ⇒ footer 📄 vẫn in ra đầy
+# đủ. Người dùng nhận một câu trả lời **trông như đã được kiểm chứng** đúng
+# vào lúc model đang suy giảm nhất. Đó là niềm tin giả, do chính hệ thống dựng.
+#
+# CHỌN ĐÁNH DẤU thay vì XOÁ footer: xoá đi thì câu trả lời trông như không
+# dùng tài liệu nào — cũng sai, và mất luôn thông tin người dùng cần để tự
+# kiểm. Đánh dấu giữ được thông tin mà bỏ được lời hứa không có thật.
+CHUA_XAC_MINH_MSG = (
+    "\n_(Chưa xác minh được nguồn trích dẫn ở lượt này — nguồn nêu trên là "
+    "do mô hình tự khai, chưa đối chiếu với nội dung tài liệu.)_"
+)
 
 COS_FLOOR = float(os.environ.get("RAG_NO_RESULT_COS_FLOOR", "0.35"))
 SENTINEL = "KHÔNG_ĐỦ_THÔNG_TIN"
@@ -154,14 +173,20 @@ def extract_used_citations(body: str, chunks: list) -> tuple[str, list]:
     return clean, used
 
 
-async def verify_citations(answer: str, chunks: list, llm) -> list:
+async def verify_citations(answer: str, chunks: list, llm) -> tuple[list, bool]:
     """Xác minh lại các chunk được đánh dấu đã dùng bằng 1 lệnh gọi LLM,
     đối chiếu với nội dung THẬT của từng chunk — không chỉ tin lời tự khai
     của marker NGUỒN_DÙNG. Fail-open toàn phần (lỗi/timeout → giữ nguyên
     chunks) và từng dòng (verdict thiếu/không parse được → giữ, chỉ loại
-    khi có KHÔNG tường minh)."""
+    khi có KHÔNG tường minh).
+
+    Trả `(chunks_giữ_lại, đã_xác_minh)`. Cờ thứ hai thêm 2026-08-22: fail-open
+    là đúng (chặn một câu trả lời tốt vì hạ tầng lỗi thì tệ hơn), NHƯNG nó
+    phải NÓI RA. Trước đó nhánh `except` nuốt lỗi hoàn toàn — không log, không
+    cờ — nên không ai biết cổng này đã tắt bao nhiêu lần.
+    """
     if not chunks:
-        return chunks
+        return chunks, True
     try:
         resp = await llm.ainvoke([
             SystemMessage(content=CITATION_VERIFY_PROMPT),
@@ -171,10 +196,14 @@ async def verify_citations(answer: str, chunks: list, llm) -> list:
         ])
         verdicts = dict(re.findall(r'(\d+):\s*(CÓ|KHÔNG)', resp.content or "",
                                    re.IGNORECASE))
-        return [c for i, c in enumerate(chunks, start=1)
-                if verdicts.get(str(i), "").upper() != "KHÔNG"]
+        return ([c for i, c in enumerate(chunks, start=1)
+                 if verdicts.get(str(i), "").upper() != "KHÔNG"], True)
     except Exception:
-        return chunks
+        logger.warning(
+            "verify_citations HỎNG — giữ nguyên %d chunk do marker tự khai và "
+            "đánh dấu CHƯA XÁC MINH. Cổng chống ảo giác đã tắt ở lượt này.",
+            len(chunks), exc_info=True)
+        return chunks, False
 
 
 async def cite_and_verify(body: str, chunks: list, llm) -> str:
@@ -183,8 +212,13 @@ async def cite_and_verify(body: str, chunks: list, llm) -> str:
     verify that claim against real chunk content (verify_citations), then
     build the footer from whatever survives (build_citations)."""
     clean, used = extract_used_citations(body, chunks)
-    verified = await verify_citations(clean, used, llm)
-    return clean + build_citations(verified)
+    verified, da_xac_minh = await verify_citations(clean, used, llm)
+    footer = build_citations(verified)
+    # Chỉ đánh dấu khi THỰC SỰ có footer: không trích dẫn thì không có lời hứa
+    # nào để rút lại, thêm ghi chú chỉ làm nhiễu.
+    if footer and not da_xac_minh:
+        footer += CHUA_XAC_MINH_MSG
+    return clean + footer
 
 
 def _format_context(chunks, start: int = 1) -> str:
