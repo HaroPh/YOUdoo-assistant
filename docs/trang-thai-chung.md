@@ -32,9 +32,10 @@ Quy ước:
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 15 | Guardrail fail-open: **nửa CHẨN ĐOÁN đã vá** (log + đánh dấu "chưa xác minh" ra người dùng). Nửa còn lại — **tách ví hạn mức** cho verifier — chưa làm | chưa ai | cần quyết: dùng model/ví riêng cho verifier, hay chấp nhận nó tắt khi cạn |
-| 17 | Vệt kiểm toán ghi `caller = mcp-odoo/<vai>` (tên tiến trình), **không có user HTTP, không có `args_digest`** ⇒ không truy vết được sau sự cố | chưa ai | đi cùng mục 14 |
+| 17b | ⚠️ **Đường ĐỌC không có vệt kiểm toán nào.** `erp_query/transport.py` gọi Odoo bằng `ServerProxy` riêng, không qua MCP ⇒ không qua `odoo()` ⇒ không `log_mcp_event`. Cả 35 tool MCP đều là tool GHI. Câu "ai đã đọc công nợ/bảng giá" hiện KHÔNG trả lời được | chưa ai | phát hiện khi đóng mục 17; là mục riêng, không phải phần mở rộng |
 | 18 | Mật khẩu theo vai: **code đã hết cản đường** (`ODOO_PASSWORD_<VAI>`, lùi về biến chung). Còn **bước hai**: đặt bốn biến trong `.env` VÀ đổi mật khẩu thật trong Odoo | chủ dự án | không phải việc code |
-| 19 | RAG: **không có Query Transformation**. (Nửa RBAC đã **TẠM BỎ QUA** theo quyết định chủ dự án 2026-08-22 — quy mô dự án nhỏ) | chưa ai | recall@20 hiện = 1,0 nên truy xuất KHÔNG phải nút thắt; xem mục "đã đo" |
+| 19 | RAG: **không có Query Transformation** | chưa ai | recall@20 = 1,0 ⇒ truy xuất không phải nút thắt |
+| 19b | **RBAC tầng RAG — HOÃN CÓ ĐIỀU KIỆN.** Chỉ mở lại khi corpus có **nhiều tài liệu nội bộ**. Hôm nay: 8 tài liệu / 44 chunk nội bộ (98,6% corpus là PDF luật công khai) ⇒ chưa cần | hoãn 2026-08-22 | điều kiện mở lại, không phải "đã xong" — lỗ hổng vẫn còn, xem mục "đã đo" |
 | 21 | UX: **không có streaming** (màn hình trắng 5–20s), **không có Undo**, dữ liệu hiển thị thô (`sale`/`draft`), thiếu vai Bán hàng & Mua hàng trong `RoleCfg` | chưa ai | nhóm P1 của bản kiểm toán |
 
 ## Ai giữ vùng nào
@@ -59,9 +60,11 @@ báo trước.
 | Cổng xác nhận ghi hiện **args, KHÔNG hiện tên tool** — hai bất biến nay cùng đúng | cùng spec; `tests/agents/test_confirm_khong_lo_ten_tool.py` khoá hai chiều |
 | Chuỗi mọi vai có **ba** mắt xích, mắt xích 3 `or-nemotron` (upstream nvidia); bất biến #6 canh "mỗi vai bind tool phải có ≥1 mắt xích ngoài Google" | spec `2026-08-22-muc-16-du-phong-ngoai-google.md`; commit `0cb708e` |
 | **FM-3 của bản kiểm toán ("hội thoại dài giết đoạn chat") KHÔNG tái hiện được**: payload production là 28 tool `erp_query` (~2 762 token Groq đếm), không phải 35 tool MCP; Groq cần ~134 lượt lịch sử mới chạm trần | cùng spec §3 — đo qua đúng cổng vào production |
-| **RBAC tầng RAG: lỗ hổng CÓ THẬT nhưng chủ dự án chọn TẠM BỎ QUA** (2026-08-22, lý do: quy mô nhỏ). Đo sống: vai `warehouse` hỏi "chính sách chiết khấu" ⇒ nhận đủ bậc 5%/10%, cộng 2%, trần 15% | `POST /v1/chat/completions` với `x-openwebui-user-id` của vai kho |
+| **RBAC tầng RAG: lỗ hổng CÓ THẬT, hoãn CÓ ĐIỀU KIỆN** (2026-08-22 — mở lại khi có nhiều tài liệu nội bộ để RAG). Đo sống: vai `warehouse` hỏi "chính sách chiết khấu" ⇒ nhận đủ bậc 5%/10%, cộng 2%, trần 15% | `POST /v1/chat/completions` với `x-openwebui-user-id` của vai kho |
 | Bán kính lỗ hổng đó **nhỏ hơn bản kiểm toán mô tả**: corpus 3 151 chunk / 17 tài liệu, **98,6% là PDF luật công khai**; toàn bộ vấn đề nằm ở 44 chunk / 8 tài liệu nội bộ, trong đó 4 tài liệu thương mại (`discount_policy`, `bang_gia`, `payment_policy`, `sla`) | truy vấn thẳng `rag_chunks` + `rag_documents` |
 | ⚠️ `rag_chunks.visibility` **tồn tại trong schema nhưng KHÔNG ai đọc, KHÔNG ai ghi** — 3151/3151 chunk đều `'all'`. Hạ tầng để lọc đã có sẵn, chỉ chưa bật | `src/rag/schema.sql:30`; `grep -rn visibility` chỉ khớp đúng dòng đó |
+| Vệt kiểm toán nay ghi `http_user` (id người dùng Open WebUI) + `args_digest` + `args_keys`; cả ba **nằm trong chuỗi hash** — sửa `http_user` thì verify báo đứt | spec `2026-08-22-muc-17-vet-kiem-toan.md`; nghiệm thu sống qua MCP thật có ca đối chứng |
+| `mcp_call_log` khởi động chuỗi mới từ migration 005; 2 671 dòng cũ nằm nguyên ở `mcp_call_log_archive` | cùng spec §4; dòng `chain_reset` id=2685 ghi lại chính việc dọn |
 | Nhịp eval suy từ **CẢ rpm LẪN tpm**, và theo model ĐANG GHIM | cùng spec; Gemini 4,8s (không đổi), Groq 2,4 → 9,0s |
 | Catalog gom còn **4 model**, một hình dạng chuỗi cho mọi vai | spec `2026-08-21-catalog-consolidation.md` |
 | `gemma-4-26b` THUA mọi ứng viên trên bộ `confirm` (0,7917 · 6062ms) — đã xoá | cùng spec §4; bảng 5 model đo cùng phiên |

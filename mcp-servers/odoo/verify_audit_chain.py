@@ -4,9 +4,13 @@
 import audit_chain
 from config import DATABASE_URL
 
+# Phải khớp ĐÚNG tập cột mà event_log.log_mcp_event INSERT và
+# audit_chain.compute_entry_hash băm. Thiếu một cột ở đây = cột đó nằm ngoài
+# phép kiểm, tức sửa được mà verify vẫn báo xanh.
 _COLUMNS = ["id", "entry_hash", "prev_hash", "created_at", "event_type",
-           "caller", "tool_name", "model_name", "operation", "duration_ms",
-           "error_code", "error_message"]
+            "caller", "tool_name", "model_name", "operation", "duration_ms",
+            "error_code", "error_message", "http_user", "args_digest",
+            "args_keys"]
 
 
 def fetch_rows(conn) -> list[dict]:
@@ -46,7 +50,8 @@ def verify(rows: list[dict]) -> tuple[bool, str]:
         expected = audit_chain.compute_entry_hash(
             prev, row["created_at"], row["event_type"], row["caller"],
             row["tool_name"], row["model_name"], row["operation"],
-            row["duration_ms"], row["error_code"], row["error_message"])
+            row["duration_ms"], row["error_code"], row["error_message"],
+            row["http_user"], row["args_digest"], row["args_keys"])
         if expected != row["entry_hash"]:
             return False, f"Chuỗi đứt tại id={row['id']}: entry_hash không khớp"
         prev = row["entry_hash"]

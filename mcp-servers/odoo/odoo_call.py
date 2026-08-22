@@ -17,6 +17,7 @@ from config import ODOO_URL, ODOO_DB, ODOO_USER, ODOO_PWD
 from security import classify_operation, sanitize_model, sanitize_payload_keys
 from rate_limit import check_rate_limit
 from event_log import log_mcp_event
+from audit_chain import args_fingerprint
 
 # ─── Odoo connection ──────────────────────────────────────────────────────────
 
@@ -46,15 +47,28 @@ def odoo(model: str, method: str, args: list, kwargs: dict | None = None,
     sanitize_payload_keys(args)
     sanitize_payload_keys(kwargs or {})
 
+    # Dấu vân tay tham số, tính MỘT LẦN rồi dùng cho mọi nhánh log bên dưới —
+    # kể cả nhánh permission_denied, nơi lệnh gọi bị chặn TRƯỚC khi chạm Odoo.
+    # Chính nhánh đó mới cần nhất: "ai đó đã cố làm gì" là câu hỏi của điều
+    # tra, và trước bản này bảng chỉ ghi được tên tool.
+    #
+    # `args_keys` là TÊN trường, không có giá trị nào — xem docstring
+    # args_fingerprint. Lưu ý giới hạn đã biết: domain Odoo là tuple
+    # ("field","=",value) chứ không phải dict, nên tên trường trong ĐIỀU KIỆN
+    # LỌC không được bóc ra; tham số của create/write là dict nên chúng CÓ.
+    args_digest, args_keys = args_fingerprint(args, kwargs)
+
     op = classify_operation(method)
     if op is None:
         log_mcp_event("permission_denied", tool_name=tool_name, model_name=model,
                       operation=method, error_code="E403",
+                      args_digest=args_digest, args_keys=args_keys,
                       error_message=f"Method '{method}' không có trong whitelist")
         raise ValueError(f"Method '{method}' không được phép")
     if op != "read" and not write_actions_enabled():
         log_mcp_event("permission_denied", tool_name=tool_name, model_name=model,
                       operation=op, error_code="E403",
+                      args_digest=args_digest, args_keys=args_keys,
                       error_message="Write actions đang tắt (toggle Odoo "
                                     "erp_ai.write_actions_enabled)")
         raise ValueError(f"Thao tác '{op}' bị chặn — write-mode đang tắt "
@@ -62,7 +76,8 @@ def odoo(model: str, method: str, args: list, kwargs: dict | None = None,
 
     if not check_rate_limit(tool_name or "default"):
         log_mcp_event("rate_limit", tool_name=tool_name, model_name=model, operation=op,
-                      error_code="E429", error_message="Rate limit exceeded")
+                      error_code="E429", error_message="Rate limit exceeded",
+                      args_digest=args_digest, args_keys=args_keys)
         raise ValueError("Quá nhiều request — thử lại sau 1 phút")
 
     start = time.monotonic()
@@ -70,7 +85,8 @@ def odoo(model: str, method: str, args: list, kwargs: dict | None = None,
         obj = xmlrpc.client.ServerProxy(ODOO_URL + "/xmlrpc/2/object")
         result = obj.execute_kw(ODOO_DB, get_uid(), ODOO_PWD, model, method, args, kwargs or {})
         log_mcp_event("model_access", tool_name=tool_name, model_name=model, operation=op,
-                      duration_ms=int((time.monotonic() - start) * 1000))
+                      duration_ms=int((time.monotonic() - start) * 1000),
+                          args_digest=args_digest, args_keys=args_keys)
         return result
     except xmlrpc.client.Fault as e:
         # Odoo commits the transaction in its service layer BEFORE serializing the
@@ -81,16 +97,19 @@ def odoo(model: str, method: str, args: list, kwargs: dict | None = None,
         # does NOT match and falls through to error + re-raise below.
         if "cannot marshal None" in str(e):
             log_mcp_event("model_access", tool_name=tool_name, model_name=model, operation=op,
-                          duration_ms=int((time.monotonic() - start) * 1000))
+                          duration_ms=int((time.monotonic() - start) * 1000),
+                          args_digest=args_digest, args_keys=args_keys)
             return None
         log_mcp_event("error", tool_name=tool_name, model_name=model, operation=op,
                       duration_ms=int((time.monotonic() - start) * 1000),
-                      error_code="E500", error_message=str(e))
+                      error_code="E500", error_message=str(e),
+                      args_digest=args_digest, args_keys=args_keys)
         raise
     except Exception as e:
         log_mcp_event("error", tool_name=tool_name, model_name=model, operation=op,
                       duration_ms=int((time.monotonic() - start) * 1000),
-                      error_code="E500", error_message=str(e))
+                      error_code="E500", error_message=str(e),
+                      args_digest=args_digest, args_keys=args_keys)
         raise
 
 # ─── Write toggle (S3) — đọc runtime từ Odoo, cache TTL, fail-closed ──────────

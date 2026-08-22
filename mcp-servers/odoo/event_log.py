@@ -31,11 +31,48 @@ DEFAULT_CALLER = f"mcp-odoo/{ODOO_USER}"
 # tác dụng — đừng suy ra từ biến môi trường nào.
 CHAIN_LOCK_KEY = 20260814
 
+# Tên header mang danh tính người dùng HTTP từ backend sang tiến trình MCP.
+# PHẢI khớp `HEADER_NGUOI_DUNG` trong backend/src/agents/erp_agent.py — hai
+# tiến trình khác nhau, không nhập chung được hằng số, nên
+# backend/tests/mcp/test_audit_http_user.py đối chiếu hai chuỗi này.
+HEADER_NGUOI_DUNG = "x-youdoo-user"
+
+# Trần độ dài: header đến từ ngoài, và không có lý do gì để một id người dùng
+# dài hơn thế. Cắt thay vì từ chối — vệt kiểm toán ghi được thứ méo còn hơn
+# không ghi gì.
+HTTP_USER_MAX = 200
+
 # Retry kết nối lúc khởi động (assert_log_table_ready). start-dev.ps1 chạy
 # `docker compose up -d` rồi đi thẳng vào vòng khởi động MCP; lệnh đó trả về
 # khi container đã ĐƯỢC TẠO, không phải khi Postgres đã nhận kết nối.
 CONNECT_RETRIES = 5
 CONNECT_BACKOFF = 0.5      # giây; nhân đôi mỗi lần ⇒ tổng ≈ 7.5s
+
+
+def _http_user() -> str | None:
+    """Id người dùng HTTP của lượt gọi hiện tại, lấy từ header do backend gắn.
+
+    Vì sao phải qua header: ba tiến trình MCP nắm credential Odoo của BA VAI,
+    nên `caller` chỉ nói được "AI vai nào" — nó KHÔNG nói được ai đã yêu cầu.
+    Sau một sự cố, đó đúng là câu hỏi đầu tiên.
+
+    Đọc `request_ctx` — ContextVar cấp module của mcp.server.lowlevel.server —
+    chứ KHÔNG nhập `server.py`: server.py nhập các module tool, các module đó
+    nhập odoo_call, odoo_call nhập chính module này. Nhập ngược lại là vòng.
+
+    Trả None ngoài ngữ cảnh request (test, khởi động, tác vụ nền). Nuốt mọi
+    lỗi: một vệt kiểm toán không được là thứ làm hỏng tool.
+    """
+    try:
+        from mcp.server.lowlevel.server import request_ctx
+        ctx = request_ctx.get(None)
+        req = getattr(ctx, "request", None) if ctx is not None else None
+        if req is None:
+            return None
+        gia_tri = req.headers.get(HEADER_NGUOI_DUNG)
+        return gia_tri[:HTTP_USER_MAX] if gia_tri else None
+    except Exception:                                       # noqa: BLE001
+        return None
 
 
 def _truncate(text: str | None) -> str | None:
@@ -127,7 +164,8 @@ def assert_log_table_ready() -> None:
 
 def log_mcp_event(event_type: str, *, tool_name=None, model_name=None,
                   operation=None, duration_ms=None, error_code=None,
-                  error_message=None, caller=None) -> None:
+                  error_message=None, caller=None, args_digest=None,
+                  args_keys=None) -> None:
     """Ghi mcp_call_log kèm hash-chain. Mọi lỗi log đều nuốt — KHÔNG được
     làm hỏng tool.
 
@@ -160,20 +198,25 @@ def log_mcp_event(event_type: str, *, tool_name=None, model_name=None,
 
                     now = datetime.now(timezone.utc)
                     truncated_error = _truncate(error_message)
+                    http_user = _http_user()
                     entry_hash = audit_chain.compute_entry_hash(
                         prev_hash, now, event_type, caller or DEFAULT_CALLER,
                         tool_name, model_name, operation, duration_ms,
-                        error_code, truncated_error)
+                        error_code, truncated_error,
+                        http_user, args_digest, args_keys)
 
                     cur.execute("""
                         INSERT INTO mcp_call_log
                         (event_type, caller, tool_name, model_name, operation,
                          duration_ms, error_code, error_message, created_at,
-                         entry_hash, prev_hash)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         entry_hash, prev_hash, http_user, args_digest,
+                         args_keys)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """, (event_type, caller or DEFAULT_CALLER, tool_name,
                           model_name, operation, duration_ms, error_code,
-                          truncated_error, now, entry_hash, prev_hash))
+                          truncated_error, now, entry_hash, prev_hash,
+                          http_user, args_digest,
+                          list(args_keys) if args_keys else None))
                 conn.commit()
             except Exception:                               # noqa: BLE001
                 # Kết thúc giao dịch dở TRƯỚC khi ném tiếp — không được để

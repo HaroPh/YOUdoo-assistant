@@ -2,6 +2,7 @@
 import os
 import uuid
 import time
+from contextvars import ContextVar
 
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
@@ -198,6 +199,41 @@ def _them_dong_bao_fallback(answer: str) -> str:
             "(model bạn chọn đang quá tải)._")
 
 
+# Tên header mang danh tính người dùng sang tiến trình MCP. PHẢI khớp
+# `HEADER_NGUOI_DUNG` trong mcp-servers/odoo/event_log.py — hai tiến trình
+# khác nhau nên không nhập chung hằng được; tests/mcp/test_audit_http_user.py
+# đối chiếu hai chuỗi.
+HEADER_NGUOI_DUNG = "x-youdoo-user"
+
+# Người dùng của lượt chat hiện tại. Đặt ở chat(), đọc ở interceptor.
+#
+# Vì sao ContextVar chứ không truyền tham số: đường từ chat() tới lời gọi tool
+# đi qua LangGraph (graph → node → create_react_agent → ToolNode), không chặng
+# nào trong đó nhận thêm tham số của ta được. ContextVar truyền được vì asyncio
+# CHÉP ngữ cảnh vào task con lúc tạo — chiều cha→con. (Chiều ngược lại KHÔNG
+# chạy, và đợt tracing 2026-07 đã trả giá cho điều đó; ở đây ta chỉ cần chiều
+# cha→con.)
+NGUOI_DUNG_HIEN_TAI: ContextVar[str | None] = ContextVar(
+    "nguoi_dung_hien_tai", default=None)
+
+
+async def _gan_nguoi_dung_vao_header(request, handler):
+    """Gắn id người dùng vào header của TỪNG lời gọi tool MCP.
+
+    Vì sao theo từng lượt chứ không đặt lúc dựng kết nối: client được dựng MỘT
+    LẦN cho mỗi vai lúc khởi động và dùng chung cho mọi người dùng của vai đó,
+    nên header cố định sẽ ghi sai tên vào vệt kiểm toán của mọi người.
+
+    Không có người dùng (script nội bộ, tác vụ nền) thì KHÔNG gắn gì —
+    `http_user` để NULL trung thực hơn là bịa một giá trị.
+    """
+    ai = NGUOI_DUNG_HIEN_TAI.get()
+    if not ai:
+        return await handler(request)
+    headers = {**(request.headers or {}), HEADER_NGUOI_DUNG: ai}
+    return await handler(request.override(headers=headers))
+
+
 class ERPAgent:
     def __init__(self) -> None:
         self.graphs: dict = {}
@@ -229,7 +265,8 @@ class ERPAgent:
         self.graphs = {}
         for role_name, cfg in roles_mod.load_profile().items():
             client = MultiServerMCPClient(
-                {"odoo": {"url": cfg.mcp_url, "transport": "sse"}}
+                {"odoo": {"url": cfg.mcp_url, "transport": "sse"}},
+                tool_interceptors=[_gan_nguoi_dung_vao_header],
             )
             # raw_tools = registry MCP ĐẦY ĐỦ (chưa lọc) — cần giữ lại tách
             # biệt với `tools` (đã lọc theo vai) để build_graph phân biệt
@@ -272,9 +309,13 @@ class ERPAgent:
 
         KHÔNG BAO GIỜ để lớp dịch làm hỏng một lượt chat: mọi lỗi → câu gốc.
         """
-        answer = await self._chat_inner(messages, thread_id=thread_id,
-                                        reset_if_fresh=reset_if_fresh,
-                                        role=role, user_id=user_id)
+        token = NGUOI_DUNG_HIEN_TAI.set(user_id)
+        try:
+            answer = await self._chat_inner(messages, thread_id=thread_id,
+                                            reset_if_fresh=reset_if_fresh,
+                                            role=role, user_id=user_id)
+        finally:
+            NGUOI_DUNG_HIEN_TAI.reset(token)
         answer = await self._apply_memory_markers(answer, user_id, thread_id)
         answer = _them_dong_bao_fallback(answer)
         lang = VI
