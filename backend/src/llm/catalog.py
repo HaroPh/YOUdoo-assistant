@@ -26,7 +26,6 @@ class ModelSpec:
     emits_thought_tags: bool  # họ Gemma nhả <thought> vào content
 
 
-# Ngưỡng cho bất biến #3. Chọn theo số đo: một lượt synthesis có RAG tốn ~3–4K
 # Ngưỡng cho bất biến #3 — HẠ 12 000 → 8 000 ngày 2026-08-21.
 #
 # Con số 12 000 KHÔNG đến từ nhu cầu, nó đến từ nguồn cung: chú thích gốc ghi
@@ -168,16 +167,49 @@ CATALOG: dict[str, ModelSpec] = {
     # tế CHỈ CÒN MỘT mắt xích sống. Nó cũng là model Groq duy nhất từng đạt
     # HEAVY_TPM_FLOOR cũ (12 000) — mất nó là lý do ngưỡng đó phải hạ.
 
-    # ─── OpenRouter XOÁ HẲN 2026-08-21 ──────────────────────────────────────
-    # `or-ling` CHẾT: OpenRouter gỡ slug `:free` ("This model is unavailable for
-    # free. The paid version is available now"). `or-nemotron` vẫn SỐNG, nhưng
-    # bị bỏ cùng cả tầng vì lý do cấu trúc: free tier của OpenRouter là ~50
-    # lượt/ngày DÙNG CHUNG cho mọi model (quota_scope="account"), tức nó chưa
-    # bao giờ là dung lượng thật — chỉ là một mắt xích trông cho yên tâm.
+    # ─── OpenRouter ─────────────────────────────────────────────────────────
+    # `or-ling` CHẾT và KHÔNG quay lại: OpenRouter gỡ slug `:free` ("This model
+    # is unavailable for free. The paid version is available now").
+    #
+    # `or-nemotron` bị xoá 2026-08-21 rồi ĐƯA LẠI 2026-08-22.
+    #
+    # ⚠️ LÝ DO ĐƯA LẠI ĐÃ ĐỔI GIỮA CHỪNG — ghi cả hai để không ai dựng lại lập
+    # luận đầu tiên:
+    #
+    # Lý do tôi NÊU BAN ĐẦU (SAI): "groq-gpt-oss-120b trả HTTP 413 cho vai admin
+    # ngay từ lượt đầu, nên bốn vai bind tool không còn dự phòng nào". Phép đo
+    # có thật, nhưng nó bind CẢ 35 TOOL MCP vào LLM — hình dạng production KHÔNG
+    # gửi bao giờ (`erp_read` bind 28 tool erp_query; tool MCP chỉ tới
+    # `erp_write_executor`, nút CHẠY tool chứ không bind). Đo lại đúng hình
+    # dạng: Groq nhận 2 762 token ở lượt 0 và 3 542 ở lượt thứ 20 — cách trần
+    # 8 000 rất xa. Groq KHÔNG hỏng trong production.
+    #
+    # Lý do CÒN LẠI, vẫn đủ để giữ nó:
+    #   1. Miền lỗi thứ BA. Chuỗi hai mắt xích Google+Groq chỉ có hai đường
+    #      thoát; `upstream="nvidia"` thêm đường thứ ba. Đây là bất biến #6.
+    #   2. Thông lượng. 8 000 tpm của Groq tính trên CẢ PHÚT và mọi lời gọi
+    #      đồng thời cộng dồn ⇒ ~3 lượt có tool trong một phút là 429 (đã gặp
+    #      thật lúc đo, Requested=6858). `tpm=None` không có trần đó.
+    #
+    # rpd=50 dùng chung cả tài khoản vẫn là dung lượng mỏng — nó là lưới đỡ
+    # cuối chuỗi, cố ý, và bất biến #5 chỉ đòi hai mắt xích ĐẦU đủ rpd.
+    #
+    # VÌ SAO KHÔNG dùng `gemini-3.5-flash` (tpm 250 000, đã có sẵn trong bảng)
+    # cho rẻ: nó `upstream="google"`, nên nó không mua được điểm 1 ở trên. Với
+    # ba khoá, ví Gemini đã là ~3 000 lượt/ngày — nếu chừng đó cạn thì 20
+    # lượt/khoá của nó là hạt cát; còn kịch bản mà một mắt xích dự phòng THẬT
+    # SỰ cứu được (Google trục trặc/đổi API/khoá tài khoản) thì nó chết cùng
+    # lúc. Đó là toàn bộ lý do bất biến #1 tồn tại.
     #
     # Ghi rõ để đời sau không "khôi phục" nhầm: hai model google/gemma-*:free
     # trên OpenRouter BỊ CẤM quay lại (chú thích OPENROUTER phía trên) vì chúng
     # proxy ngược về Google.
+    "or-nemotron": ModelSpec(
+        alias="or-nemotron", provider="openrouter",
+        model_id="nvidia/nemotron-3-super-120b-a12b:free", upstream="nvidia",
+        quota_scope="account", rpm=None, tpm=None, rpd=50,
+        token_multiplier=1.5, max_output_tokens=4096, timeout_s=60,
+        supports_tools=True, emits_thought_tags=False),
 }
 
 # MỘT hình dạng chuỗi cho MỌI vai (gom 2026-08-21, spec catalog-consolidation):
@@ -218,11 +250,30 @@ CATALOG: dict[str, ModelSpec] = {
 # Entry của nó ở lại CATALOG chỉ để `--model gemini-3.5-flash` ghim đo được, và
 # bất biến #5 chặn nó quay lại chuỗi.
 CHAINS: dict[str, tuple[str, ...]] = {
-    role: ("gemini-3.1-flash-lite", "groq-gpt-oss-120b")
+    role: ("gemini-3.1-flash-lite", "groq-gpt-oss-120b", "or-nemotron")
     for role in ("router", "chitchat", "evaluator", "planner",
                  "read", "fusion", "synthesis")
 }
 
+
+# ─── Payload THẬT mà production gửi lên LLM (đo 2026-08-22) ──────────────────
+# `erp_read` bind `build_erp_query_tools(role_cfg)` = **28 tool erp_query**,
+# KHÔNG phải 35 tool MCP. Tool MCP chỉ đi tới `erp_write_executor`, nút đó CHẠY
+# tool chứ không bind chúng vào LLM nào. Số đo lượt `read` của vai admin:
+#
+#   lịch sử 0 lượt    Groq đếm 2 762 token   Gemini đếm 3 119
+#   lịch sử 20 lượt   Groq đếm 3 542                       (~39 token/lượt)
+#
+# ⚠️ ĐỪNG lặp lại sai lầm đã mắc: bind cả 35 tool MCP vào LLM để đo thì Groq trả
+# 413 ("Limit 8000, Requested 12124") và Gemini trả 400 (10 tham số kiểu `list`
+# trần thiếu `items` — Gemini bắt buộc có). Cả hai lỗi ĐỀU THẬT với payload đó,
+# và cả hai ĐỀU KHÔNG chạm production, vì production không gửi payload đó. Một
+# kết luận rút từ phép đo sai hình dạng thì sai dù phép đo có đúng.
+#
+# Hệ quả cho hạn mức: 8 000 tpm của Groq KHÔNG phải trần cho một lượt (cần ~134
+# lượt lịch sử ngắn mới chạm), nhưng LÀ trần cho THÔNG LƯỢNG — tpm tính trên cả
+# phút và mọi lời gọi đồng thời cộng dồn, nên ~3 lượt có tool trong một phút là
+# 429. Đã gặp thật lúc đo (Requested=6858).
 
 # Ước lượng token MỖI LƯỢT GỌI của một ca eval, dùng để suy nhịp từ TPM.
 # Đo 2026-08-22 trên groq-gpt-oss-120b: bộ `intent` 857 token/lượt, bộ `confirm`

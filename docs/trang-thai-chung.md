@@ -32,7 +32,7 @@ Quy ước:
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 15 | Guardrail fail-open: **nửa CHẨN ĐOÁN đã vá** (log + đánh dấu "chưa xác minh" ra người dùng). Nửa còn lại — **tách ví hạn mức** cho verifier — chưa làm | chưa ai | cần quyết: dùng model/ví riêng cho verifier, hay chấp nhận nó tắt khi cạn |
-| 16 | 🔴 **Không quản lý cửa sổ ngữ cảnh** — `_filter_messages` chuyển nguyên lịch sử, không cắt/tóm tắt/đếm token. Hội thoại dài ⇒ mọi mắt xích cùng lỗi ⇒ đoạn chat chết vĩnh viễn | chưa ai | phạm vi mới |
+| 16 | ✅ **Dựng lại mắt xích dự phòng ngoài Google** (`or-nemotron`), chuỗi nay 3 mắt xích + bất biến #6. ⚠️ Phần "đoạn chat chết vĩnh viễn" của bản kiểm toán **KHÔNG tái hiện được**: Gemini 1 048 576 token ngữ cảnh (~1 870 lượt), Groq cần ~134 lượt. Lịch sử vẫn chuyển nguyên, nhưng đó là chi phí token, không phải lỗi chết | ✅ 2026-08-22 | spec `2026-08-22-muc-16-du-phong-ngoai-google.md`; tiền đề ban đầu bị chính số đo bác bỏ, ghi ở §3 |
 | 17 | Vệt kiểm toán ghi `caller = mcp-odoo/<vai>` (tên tiến trình), **không có user HTTP, không có `args_digest`** ⇒ không truy vết được sau sự cố | chưa ai | đi cùng mục 14 |
 | 18 | Mật khẩu theo vai: **code đã hết cản đường** (`ODOO_PASSWORD_<VAI>`, lùi về biến chung). Còn **bước hai**: đặt bốn biến trong `.env` VÀ đổi mật khẩu thật trong Odoo | chủ dự án | không phải việc code |
 | 19 | RAG: **không có Query Transformation**; metadata thiếu `department`/`access_level` ⇒ **RBAC rách ở tầng RAG** (vai kho đọc được tài liệu kế toán) | chưa ai | phạm vi mới |

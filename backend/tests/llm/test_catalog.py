@@ -119,33 +119,31 @@ def test_chitchat_khong_con_dung_model_rpd_20():
     assert "gemini-3.5-flash" in CATALOG
 
 
-def test_ba_bat_bien_duoi_day_HIEN_RONG_CHU_THE():
-    """Đọc trước khi tin màu xanh của ba test kia.
+def test_moi_vai_bind_tool_deu_co_du_phong_NGOAI_GOOGLE():
+    """Bất biến #6 — mỗi vai bind tool phải có ít nhất một mắt xích NGOÀI Google
+    và mắt xích đó phải `supports_tools`.
 
-    Sau đợt gom 2026-08-21, catalog không còn model OpenRouter nào và không
-    model nào bật `emits_thought_tags`. Ba bất biến sau vì thế lặp trên TẬP
-    RỖNG — chúng xanh vì KHÔNG CÓ GÌ ĐỂ KIỂM, không phải vì đã kiểm và đúng:
+    Vì sao đòi ngoài-Google: một mắt xích dự phòng chỉ đáng gọi là dự phòng nếu
+    nó mua được đường thoát khi upstream chính ngã. Hai model Gemini dùng chung
+    hạ tầng, chung hồ hạn mức theo project; xếp chúng cạnh nhau thì chuỗi dài
+    ra mà miền lỗi không rộng thêm chút nào. Đây chính là lý do
+    `gemini-3.5-flash` (rpd 20) BỊ LOẠI khỏi vị trí này ngày 2026-08-22 dù nó
+    sẵn có và không tốn gì thêm.
 
-        test_khong_co_model_openrouter_nao_co_upstream_google
-        test_openrouter_dung_quota_scope_account
-        (và cờ emits_thought_tags trong ModelSpec)
-
-    Giữ chúng lại có chủ đích: luật vẫn đúng và sẽ có chủ thể ngay khi ai đó
-    thêm model OpenRouter trở lại (nhánh code trong `client_for`/`BASE_URLS`
-    vẫn còn, và có test spec-tổng-hợp phủ ở tests/llm/test_providers.py).
-
-    Test NÀY sẽ đỏ đúng lúc tình trạng rỗng chấm dứt — lúc đó xoá nó đi và ba
-    bất biến kia tự khắc có ý nghĩa trở lại.
+    ⚠️ Bản đầu của test này còn đòi thêm `tpm >= 8_040`, lấy từ một phép đo bind
+    cả 35 tool MCP vào LLM. Ngưỡng đó ĐÃ BỊ GỠ: production không gửi payload
+    đó (xem chú thích "Payload THẬT" trong catalog.py). Giữ lại một con số rút
+    từ hình dạng sai còn tệ hơn không có con số nào — nó biến một phép đo nhầm
+    thành luật.
     """
-    assert not [s for s in CATALOG.values() if s.provider == "openrouter"], (
-        "đã có model OpenRouter trở lại — xoá test này, ba bất biến kia nay "
-        "thật sự đo được")
-    assert not [s for s in CATALOG.values() if s.emits_thought_tags], (
-        "đã có model nhả <thought> trở lại — xem "
-        "test_go_thought_khi_spec_bat_co_emits_thought_tags")
+    for vai in sorted(TOOL_ROLES):
+        du_phong = [a for a in CHAINS[vai]
+                    if CATALOG[a].upstream != "google" and CATALOG[a].supports_tools]
+        assert du_phong, (
+            f"vai {vai!r} bind tool nhưng cả chuỗi nằm trong một miền lỗi: "
+            f"{[(a, CATALOG[a].upstream) for a in CHAINS[vai]]}")
 
 
-# ── nhịp eval: phải xét CẢ hai trần ─────────────────────────────────────────
 def test_nhip_lay_tran_CHAT_HON_giua_rpm_va_tpm():
     """Bản trước chỉ xét rpm. Đúng với Gemini (tpm rộng thênh thang) nhưng SAI
     HẲN với Groq, nơi tpm mới là ràng buộc — và cái sai đó tạo ra một lượt đo

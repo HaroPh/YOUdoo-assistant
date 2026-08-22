@@ -2,7 +2,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from src.llm.budget import BudgetLedger, Verdict
-from src.llm.catalog import spec_for
+from src.llm.catalog import CHAINS, spec_for
 from src.llm.router import (ChainExhausted, RouteDecision, Router, SkippedLink,
                             _usable)
 from src.llm.store import InMemoryUsageStore
@@ -56,13 +56,21 @@ def test_tut_qua_hai_mat_xich(clock):
 
 
 def test_can_ca_chuoi_thi_nem_ChainExhausted_kem_ly_do_tung_mat_xich(clock):
+    """Vắt cạn rpd của MỌI mắt xích, lấy danh sách từ CHAINS chứ không gõ tay.
+
+    Bản cũ gõ tay hai alias kèm chú thích "chuỗi fusion chỉ có 2 mắt xích".
+    Chuỗi đã đổi độ dài HAI LẦN trong hai ngày (gom catalog 2026-08-21 bỏ
+    OpenRouter, rồi 2026-08-22 khôi phục `or-nemotron` vì Groq trả 413 cho vai
+    có tool). Mỗi lần đổi, một test gõ tay hoặc đỏ oan hoặc — tệ hơn — xanh giả
+    vì nó chỉ còn kiểm một phần chuỗi.
+    """
     r = _router(clock)
-    _fill(r, "gemini-3.1-flash-lite", 500)
-    _fill(r, "groq-gpt-oss-120b", 1_000)
+    chuoi = CHAINS["fusion"]
+    for alias in chuoi:
+        _fill(r, alias, spec_for(alias).rpd)
     with pytest.raises(ChainExhausted) as err:
-        r.resolve("fusion", base_tokens=100)      # chuỗi fusion chỉ có 2 mắt
-    assert [s.alias for s in err.value.skipped] == [
-        "gemini-3.1-flash-lite", "groq-gpt-oss-120b"]
+        r.resolve("fusion", base_tokens=100)
+    assert [s.alias for s in err.value.skipped] == list(chuoi)
     assert all(s.verdict is Verdict.RPD for s in err.value.skipped)
 
 
@@ -141,11 +149,16 @@ def test_resolve_khong_truyen_skip_thi_khong_doi_gi(clock):
 
 
 def test_resolve_skip_het_chuoi_thi_nem_ChainExhausted(clock):
+    """Skip lấy thẳng từ CHAINS.
+
+    Bản cũ gõ tay ba alias, một trong đó là `or-ling` — model đã bị XOÁ khỏi
+    catalog ngày 2026-08-21. Test vẫn xanh, vì skip một alias không tồn tại là
+    vô hại và hai alias còn lại tình cờ phủ trọn chuỗi. Đó là một danh sách gõ
+    tay đã trôi khỏi sự thật mà không cổng nào báo.
+    """
     with pytest.raises(ChainExhausted):
-        _router(clock).resolve(
-            "router", base_tokens=100,
-            skip=frozenset({"gemini-3.1-flash-lite", "groq-gpt-oss-120b",
-                            "or-ling"}))
+        _router(clock).resolve("router", base_tokens=100,
+                               skip=frozenset(CHAINS["router"]))
 
 
 def test_usable_content_co_chu_thi_dung_duoc():

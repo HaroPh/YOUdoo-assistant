@@ -2,7 +2,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from src.llm.budget import BudgetLedger
-from src.llm.catalog import spec_for
+from src.llm.catalog import CHAINS, spec_for
 from src.llm.router import (COOLDOWN_RATE_LIMIT_S, EMPTY_RESPONSE_REASON,
                             ChainExhausted, RoutedChatModel, Router)
 from src.llm.store import InMemoryUsageStore
@@ -13,10 +13,23 @@ from tests.llm.conftest import (FakeChatClient, FakeRateLimit, FakeServerError,
 MSGS = [HumanMessage("Tồn kho ABC?")]
 
 
-def _router(clock, by_alias):
-    """by_alias: {alias: FakeChatClient} — router lấy client theo alias."""
+def _router(clock, by_alias, mac_dinh=None):
+    """by_alias: {alias: FakeChatClient} — router lấy client theo alias.
+
+    `mac_dinh` dùng cho các ca "MỌI mắt xích cùng hỏng/cùng rỗng": đưa một
+    client duy nhất áp cho cả chuỗi thay vì gõ tay từng alias. Gõ tay khiến ca
+    đó gắn cứng vào ĐỘ DÀI chuỗi — mà chuỗi đã đổi độ dài hai lần trong hai
+    ngày. Khi KHÔNG truyền `mac_dinh`, alias lạ vẫn ném KeyError như cũ, để các
+    ca "phải tụt đúng tới mắt xích 2" không im lặng nuốt một mắt xích thứ ba.
+    """
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
-    return Router(ledger, client_factory=lambda spec, api_key=None: by_alias[spec.alias])
+
+    def _lay(spec, api_key=None):
+        if mac_dinh is not None:
+            return by_alias.get(spec.alias, mac_dinh)
+        return by_alias[spec.alias]
+
+    return Router(ledger, client_factory=_lay)
 
 
 def test_goi_thanh_cong_tra_ve_message_va_quyet_dinh(clock):
@@ -98,10 +111,9 @@ def test_loi_5xx_cung_lam_tut_mat_xich(clock):
 
 def test_moi_mat_xich_deu_hong_thi_nem_ChainExhausted(clock):
     hong = FakeChatClient([FakeServerError("sập")])
-    r = _router(clock, {"gemini-3.1-flash-lite": hong,
-                        "groq-gpt-oss-120b": hong})
+    r = _router(clock, {}, mac_dinh=hong)
     with pytest.raises(ChainExhausted):
-        r.invoke("fusion", MSGS)      # chuỗi fusion chỉ có 2 mắt xích
+        r.invoke("fusion", MSGS)
 
 
 def test_go_thought_khi_spec_bat_co_emits_thought_tags(clock, monkeypatch):
@@ -336,13 +348,12 @@ def test_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem(clock):
     """Giữ hành vi hôm nay làm SÀN: bản sửa chỉ được cải thiện, không được đẻ
     ra đường crash mới. Không caller nào trong repo bắt ChainExhausted."""
     rong = FakeChatClient([fake_ai_rong()])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong,
-                        "groq-gpt-oss-120b": rong})
+    r = _router(clock, {}, mac_dinh=rong)
 
-    got = r.invoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
+    got = r.invoke("fusion", MSGS)
 
     assert got.message.content == ""
-    assert len(got.attempts) == 2
+    assert len(got.attempts) == len(CHAINS["fusion"])
     assert all(a.error == EMPTY_RESPONSE_REASON for a in got.attempts)
 
 
@@ -391,13 +402,12 @@ async def test_ainvoke_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem(cloc
     đường production thật (routing.py/confirmation.py/erp_agent.py đều
     `await llm.ainvoke`)."""
     rong = FakeChatClient([fake_ai_rong()])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong,
-                        "groq-gpt-oss-120b": rong})
+    r = _router(clock, {}, mac_dinh=rong)
 
-    got = await r.ainvoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
+    got = await r.ainvoke("fusion", MSGS)
 
     assert got.message.content == ""
-    assert len(got.attempts) == 2
+    assert len(got.attempts) == len(CHAINS["fusion"])
     assert all(a.error == EMPTY_RESPONSE_REASON for a in got.attempts)
 
 
@@ -487,7 +497,7 @@ def test_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
     r = Router(ledger, client_factory=lambda spec, api_key=None: khong_duoc_cham)
-    for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-120b"):
+    for alias in CHAINS["router"]:
         ledger.cooldown(spec_for(alias), 60.0)
 
     with pytest.raises(ChainExhausted) as exc:
@@ -495,8 +505,7 @@ def test_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
 
     # Lỗi phải là lỗi THẬT từ resolve(), mang ĐỦ mắt xích và lý do — không
     # phải cái vỏ rỗng sinh ra ở cuối hàm (chuỗi tĩnh còn 2 từ 2026-08-21).
-    assert [s.alias for s in exc.value.skipped] == [
-        "gemini-3.1-flash-lite", "groq-gpt-oss-120b"]
+    assert [s.alias for s in exc.value.skipped] == list(CHAINS["router"])
     assert len(khong_duoc_cham.calls) == 0
 
 
@@ -504,14 +513,13 @@ async def test_ainvoke_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
     r = Router(ledger, client_factory=lambda spec, api_key=None: khong_duoc_cham)
-    for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-120b"):
+    for alias in CHAINS["router"]:
         ledger.cooldown(spec_for(alias), 60.0)
 
     with pytest.raises(ChainExhausted) as exc:
         await r.ainvoke("router", MSGS)
 
-    assert [s.alias for s in exc.value.skipped] == [
-        "gemini-3.1-flash-lite", "groq-gpt-oss-120b"]
+    assert [s.alias for s in exc.value.skipped] == list(CHAINS["router"])
     assert len(khong_duoc_cham.calls) == 0
 
 
