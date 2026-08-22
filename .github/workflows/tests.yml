@@ -1,0 +1,57 @@
+# Cổng hồi quy tự động cho backend.
+#
+# VÌ SAO CÓ TỆP NÀY (mục 20, 2026-08-22). Repo có hơn 2000 test và một cổng
+# eval, nhưng tới hôm nay chúng CHỈ chạy khi có người nhớ gõ lệnh. Lớp lỗi tái
+# phát nhiều nhất của dự án là "thành phần tự tắt trong im lặng" — chân sparse
+# chết, reranker chết 6 tuần vì thiếu dep, helper port sang chưa từng chạy
+# được, lối tắt từ khoá không ai gác, guardrail fail-open không ghi log, một
+# test bị skip có sẵn lỗi trong chính nó. Không có CI là để ngỏ đúng cánh cửa
+# đó cho TOÀN BỘ bộ test.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    # windows-latest chứ không phải ubuntu: đây là nền tảng production thật của
+    # dự án, và trong MỘT ngày (2026-08-22) đã có hai lỗi đặc thù Windows —
+    # cp1252 làm sập CLI khi output bị chuyển hướng, và `localhost` phân giải
+    # IPv6 trước nên phạt ~2s mỗi lời gọi. Repo PUBLIC nên phút Actions miễn
+    # phí; không có lý do tiết kiệm bằng cách đo sai nền tảng.
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          # Cache pip theo hash của requirements.txt. Lượt đầu vẫn tải ~2.5GB
+          # (wheel torch cu128), các lượt sau lấy từ cache.
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Cài phụ thuộc ĐÚNG NHƯ PRODUCTION
+        # KHÔNG thay torch cu128 bằng bản CPU cho nhẹ. CI cài khác production
+        # là CI không thể bắt được lỗi phụ thuộc — mà đó chính xác là lớp lỗi
+        # đã giết reranker 6 tuần (thiếu dep → fail-open nuốt → chết 100% im
+        # lặng). requirements.txt ghi rõ wheel cu128 vẫn import bình thường
+        # trên máy không NVIDIA; `_resolve_device()` lùi về CPU.
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Bộ test mặc định
+        # KHÔNG có `.env` trên CI, và đó là CHỦ ĐÍCH: đã kiểm 2026-08-22 rằng
+        # bộ mặc định chạy sạch khi không có tệp đó (214 ca đại diện xanh sau
+        # khi tạm ẩn `.env`). Nếu một ngày CI đỏ vì thiếu biến môi trường, đó
+        # là tín hiệu THẬT — một test đang lặng lẽ phụ thuộc máy chạy, đúng
+        # lớp lỗi đã bắt được ở đợt xoay khoá API.
+        working-directory: backend
+        env:
+          PYTHONUTF8: "1"
+        run: pytest -q -m "not integration and not live"
