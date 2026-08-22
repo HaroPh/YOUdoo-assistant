@@ -1,6 +1,6 @@
 # Trạng thái chung — hai phiên làm việc song song
 
-Cập nhật lần cuối: **2026-08-21**.
+Cập nhật lần cuối: **2026-08-22**.
 
 ## Cách dùng tệp này
 
@@ -32,10 +32,9 @@ Quy ước:
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 15 | Guardrail fail-open: **nửa CHẨN ĐOÁN đã vá** (log + đánh dấu "chưa xác minh" ra người dùng). Nửa còn lại — **tách ví hạn mức** cho verifier — chưa làm | chưa ai | cần quyết: dùng model/ví riêng cho verifier, hay chấp nhận nó tắt khi cạn |
-| 16 | ✅ **Dựng lại mắt xích dự phòng ngoài Google** (`or-nemotron`), chuỗi nay 3 mắt xích + bất biến #6. ⚠️ Phần "đoạn chat chết vĩnh viễn" của bản kiểm toán **KHÔNG tái hiện được**: Gemini 1 048 576 token ngữ cảnh (~1 870 lượt), Groq cần ~134 lượt. Lịch sử vẫn chuyển nguyên, nhưng đó là chi phí token, không phải lỗi chết | ✅ 2026-08-22 | spec `2026-08-22-muc-16-du-phong-ngoai-google.md`; tiền đề ban đầu bị chính số đo bác bỏ, ghi ở §3 |
 | 17 | Vệt kiểm toán ghi `caller = mcp-odoo/<vai>` (tên tiến trình), **không có user HTTP, không có `args_digest`** ⇒ không truy vết được sau sự cố | chưa ai | đi cùng mục 14 |
 | 18 | Mật khẩu theo vai: **code đã hết cản đường** (`ODOO_PASSWORD_<VAI>`, lùi về biến chung). Còn **bước hai**: đặt bốn biến trong `.env` VÀ đổi mật khẩu thật trong Odoo | chủ dự án | không phải việc code |
-| 19 | RAG: **không có Query Transformation**; metadata thiếu `department`/`access_level` ⇒ **RBAC rách ở tầng RAG** (vai kho đọc được tài liệu kế toán) | chưa ai | phạm vi mới |
+| 19 | RAG: **không có Query Transformation**. (Nửa RBAC đã **TẠM BỎ QUA** theo quyết định chủ dự án 2026-08-22 — quy mô dự án nhỏ) | chưa ai | recall@20 hiện = 1,0 nên truy xuất KHÔNG phải nút thắt; xem mục "đã đo" |
 | 21 | UX: **không có streaming** (màn hình trắng 5–20s), **không có Undo**, dữ liệu hiển thị thô (`sale`/`draft`), thiếu vai Bán hàng & Mua hàng trong `RoleCfg` | chưa ai | nhóm P1 của bản kiểm toán |
 
 ## Ai giữ vùng nào
@@ -58,6 +57,11 @@ báo trước.
 | CI chạy bộ mặc định trên `windows-latest`, cài ĐÚNG requirements production | spec `2026-08-22-ci.md`; KHÔNG phủ integration/live/eval — xem §3 |
 | `groq-gpt-oss-120b` đã đo trên BA vai: `confirm` 0,8333 · `intent` 0,9630 (bằng Gemini) · `chitchat` violations=0 | spec `2026-08-22-muc-9-12-13.md` |
 | Cổng xác nhận ghi hiện **args, KHÔNG hiện tên tool** — hai bất biến nay cùng đúng | cùng spec; `tests/agents/test_confirm_khong_lo_ten_tool.py` khoá hai chiều |
+| Chuỗi mọi vai có **ba** mắt xích, mắt xích 3 `or-nemotron` (upstream nvidia); bất biến #6 canh "mỗi vai bind tool phải có ≥1 mắt xích ngoài Google" | spec `2026-08-22-muc-16-du-phong-ngoai-google.md`; commit `0cb708e` |
+| **FM-3 của bản kiểm toán ("hội thoại dài giết đoạn chat") KHÔNG tái hiện được**: payload production là 28 tool `erp_query` (~2 762 token Groq đếm), không phải 35 tool MCP; Groq cần ~134 lượt lịch sử mới chạm trần | cùng spec §3 — đo qua đúng cổng vào production |
+| **RBAC tầng RAG: lỗ hổng CÓ THẬT nhưng chủ dự án chọn TẠM BỎ QUA** (2026-08-22, lý do: quy mô nhỏ). Đo sống: vai `warehouse` hỏi "chính sách chiết khấu" ⇒ nhận đủ bậc 5%/10%, cộng 2%, trần 15% | `POST /v1/chat/completions` với `x-openwebui-user-id` của vai kho |
+| Bán kính lỗ hổng đó **nhỏ hơn bản kiểm toán mô tả**: corpus 3 151 chunk / 17 tài liệu, **98,6% là PDF luật công khai**; toàn bộ vấn đề nằm ở 44 chunk / 8 tài liệu nội bộ, trong đó 4 tài liệu thương mại (`discount_policy`, `bang_gia`, `payment_policy`, `sla`) | truy vấn thẳng `rag_chunks` + `rag_documents` |
+| ⚠️ `rag_chunks.visibility` **tồn tại trong schema nhưng KHÔNG ai đọc, KHÔNG ai ghi** — 3151/3151 chunk đều `'all'`. Hạ tầng để lọc đã có sẵn, chỉ chưa bật | `src/rag/schema.sql:30`; `grep -rn visibility` chỉ khớp đúng dòng đó |
 | Nhịp eval suy từ **CẢ rpm LẪN tpm**, và theo model ĐANG GHIM | cùng spec; Gemini 4,8s (không đổi), Groq 2,4 → 9,0s |
 | Catalog gom còn **4 model**, một hình dạng chuỗi cho mọi vai | spec `2026-08-21-catalog-consolidation.md` |
 | `gemma-4-26b` THUA mọi ứng viên trên bộ `confirm` (0,7917 · 6062ms) — đã xoá | cùng spec §4; bảng 5 model đo cùng phiên |
