@@ -32,6 +32,8 @@ Quy ước:
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
 | 9 | ⚠️ **Bộ test tích hợp XOÁ SỔ NGÂN SÁCH `llm_usage`** — `tests/llm/test_store_postgres.py::test_thieu_migration_thi_nem_RuntimeError_ro_rang` chạy `DROP TABLE` trên chính `DATABASE_URL` thật rồi tạo lại bảng RỖNG | chưa ai | phạm vi mới. Hệ quả: sau mỗi lượt `pytest -m integration`, ledger tưởng chưa dùng gì và mọi chẩn đoán hạn mức đọc sau đó đều sai |
+| 12 | ⚠️ **`groq-gpt-oss-120b` chưa đo trên vai nào ngoài `confirm`** — sau đợt gom nó là mắt xích dự phòng DUY NHẤT của cả 7 vai, kể cả ba vai nặng | chưa ai | rủi ro thấp (chỉ chạy khi CẢ HAI Gemini ngã) nhưng đừng nói nó "đã đo" |
+| 13 | **Hai bất biến cố ý mâu thuẫn nhau, CHƯA giải**: `tool_leak_guard` cấm lộ tên tool MCP, còn "Invariant C tầng 3" (`nodes.py:475`) bắt buộc in `(tool: args)` ở cổng xác nhận tầng 1 | chưa ai | hiện không lộ ra vì đường skill dùng mẫu xác nhận riêng; dòng y hệt tồn tại ở `D:\Project` nên KHÔNG phải hồi quy (spec `2026-08-21-e2e-jobs-port.md` §5.1) |
 
 ## Ai giữ vùng nào
 
