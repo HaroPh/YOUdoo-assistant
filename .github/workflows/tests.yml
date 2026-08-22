@@ -54,4 +54,22 @@ jobs:
         working-directory: backend
         env:
           PYTHONUTF8: "1"
+          # BỐN BIẾN GIẢ, KHÔNG PHẢI BÍ MẬT — và không có gì kết nối tới chúng.
+          #
+          # `mcp-servers/odoo/server.py` đọc bốn biến này ở CẤP MODULE và ném
+          # ngay nếu thiếu (fail-loud có chủ đích cho production). 73 test ở
+          # `tests/mcp/` + `tests/jobs/test_eval_role_config.py` chỉ IMPORT
+          # module đó để đối chiếu registry tool — chúng giả lập transport và
+          # KHÔNG BAO GIỜ gọi Odoo. Chính repo đã ghi câu này trong thông điệp
+          # lỗi: "bộ đo cần ... để import được, DÙ NÓ KHÔNG GỌI ODOO".
+          #
+          # Host cố ý đặt tên không phân giải được: nếu một ngày có test lén
+          # gọi thật, nó sẽ hỏng ồn ào thay vì âm thầm chạm vào đâu đó.
+          #
+          # KHÔNG sửa server.py thành import lười chỉ để CI xanh: fail-loud lúc
+          # khởi động là thứ giữ cho production không chạy với cấu hình thiếu.
+          ODOO_URL: http://odoo-khong-ton-tai-tren-ci:8069
+          ODOO_DB: ci
+          ODOO_USERNAME: ci
+          ODOO_PASSWORD: ci
         run: pytest -q -m "not integration and not live"
