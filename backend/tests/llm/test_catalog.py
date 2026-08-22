@@ -116,3 +116,29 @@ def test_chitchat_khong_con_dung_model_rpd_20():
     # Entry vẫn còn trong CATALOG — cố ý, để `--model gemini-3.5-flash` ghim đo
     # được. Bất biến #5 là thứ giữ cho việc giữ entry này an toàn.
     assert "gemini-3.5-flash" in CATALOG
+
+
+def test_ba_bat_bien_duoi_day_HIEN_RONG_CHU_THE():
+    """Đọc trước khi tin màu xanh của ba test kia.
+
+    Sau đợt gom 2026-08-21, catalog không còn model OpenRouter nào và không
+    model nào bật `emits_thought_tags`. Ba bất biến sau vì thế lặp trên TẬP
+    RỖNG — chúng xanh vì KHÔNG CÓ GÌ ĐỂ KIỂM, không phải vì đã kiểm và đúng:
+
+        test_khong_co_model_openrouter_nao_co_upstream_google
+        test_openrouter_dung_quota_scope_account
+        (và cờ emits_thought_tags trong ModelSpec)
+
+    Giữ chúng lại có chủ đích: luật vẫn đúng và sẽ có chủ thể ngay khi ai đó
+    thêm model OpenRouter trở lại (nhánh code trong `client_for`/`BASE_URLS`
+    vẫn còn, và có test spec-tổng-hợp phủ ở tests/llm/test_providers.py).
+
+    Test NÀY sẽ đỏ đúng lúc tình trạng rỗng chấm dứt — lúc đó xoá nó đi và ba
+    bất biến kia tự khắc có ý nghĩa trở lại.
+    """
+    assert not [s for s in CATALOG.values() if s.provider == "openrouter"], (
+        "đã có model OpenRouter trở lại — xoá test này, ba bất biến kia nay "
+        "thật sự đo được")
+    assert not [s for s in CATALOG.values() if s.emits_thought_tags], (
+        "đã có model nhả <thought> trở lại — xem "
+        "test_go_thought_khi_spec_bat_co_emits_thought_tags")

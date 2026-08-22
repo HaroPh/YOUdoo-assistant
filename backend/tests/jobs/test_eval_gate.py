@@ -107,7 +107,7 @@ def test_khong_truyen_model_thi_dung_dau_chuoi_catalog(monkeypatch):
     _patch(monkeypatch)
     result = eval_gate.run(_args())
     assert result.detail["intent"]["model"] == "gemini-3.1-flash-lite"
-    assert result.detail["confirm"]["model"] == "gemma-4-26b"
+    assert result.detail["confirm"]["model"] == "gemini-3.1-flash-lite"
 
 
 def test_model_override_applies_to_all_sets(monkeypatch):
@@ -121,12 +121,20 @@ def test_nhip_tu_dong_suy_tu_rpm_catalog(monkeypatch):
     """Thay test_pace_auto_cloud_5s_local_0 (bản cũ giả định có model 'local'
     pace=0 — không còn model local nào trong catalog kể từ SP-1). Hành vi
     MỚI: pace luôn = (60/rpm)*1.2, không có nhánh đặc biệt nào."""
+    from src.llm.catalog import chain_for
+
     fi, fc = _patch(monkeypatch)
     eval_gate.run(_args())
-    # gemini-3.1-flash-lite (router, dòng đầu) rpm=15 -> (60/15)*1.2 = 4.8
-    assert fi.calls[0]["pace"] == pytest.approx(4.8)
-    # gemma-4-26b (evaluator, dòng đầu) rpm=30 -> cùng 2.4
-    assert fc.calls[0]["pace"] == pytest.approx(2.4)
+    # Suy kỳ vọng TỪ CATALOG, không ghim hằng số: sau đợt gom 2026-08-21 mọi
+    # vai chung một mắt xích đầu, nên hai dòng dưới ra CÙNG một con số. Ghim
+    # hằng số thì test vẫn xanh kể cả khi công thức bị thay bằng một hằng —
+    # nó sẽ không còn đo gì. Suy từ rpm thì nó vẫn đo đúng công thức.
+    def nhip(vai):
+        return (60 / chain_for(vai)[0].rpm) * 1.2
+
+    assert fi.calls[0]["pace"] == pytest.approx(nhip("router"))
+    assert fc.calls[0]["pace"] == pytest.approx(nhip("evaluator"))
+    assert nhip("router") > 0
 
 
 def test_pace_override_wins(monkeypatch):
@@ -317,7 +325,7 @@ def test_chitchat_model_resolution_uses_chitchat_role(monkeypatch):
     monkeypatch.setitem(eval_gate.EVAL_FN, "chitchat", fchat)
     monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
     result = eval_gate.run(_args(set_="chitchat"))
-    assert result.detail["chitchat"]["model"] == "gemini-3.5-flash-lite"
+    assert result.detail["chitchat"]["model"] == "gemini-3.1-flash-lite"
 
 
 def test_chitchat_registered_as_valid_set_choice():

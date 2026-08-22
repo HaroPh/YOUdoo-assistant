@@ -59,26 +59,26 @@ def test_quyet_dinh_dinh_tuyen_cua_luot_cuoi_lay_lai_duoc(clock):
     """Kế hoạch C cần nó để đổ thuộc tính vào span Langfuse."""
     llm = RoutedChatModel(_router(clock, FakeChatClient([fake_ai()])), "read")
     llm.invoke(MSGS)
-    assert llm.last_decision.spec.alias == "gemini-3.5-flash-lite"
+    assert llm.last_decision.spec.alias == "gemini-3.1-flash-lite"
     assert llm.last_decision.fallback_depth == 0
 
 
 def test_ghim_truyen_xuong_router(clock):
     llm = RoutedChatModel(_router(clock, FakeChatClient([fake_ai()])), "read",
-                          pin="or-nemotron")
+                          pin="groq-gpt-oss-120b")
     llm.invoke(MSGS)
-    assert llm.last_decision.spec.alias == "or-nemotron"
+    assert llm.last_decision.spec.alias == "groq-gpt-oss-120b"
 
 
 def test_van_tut_mat_xich_qua_lop_boc(clock):
     hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
     tot = FakeChatClient([fake_ai("ok")])
-    by_alias = {"gemini-3.5-flash-lite": hong, "groq-llama-3.3-70b": tot}
+    by_alias = {"gemini-3.1-flash-lite": hong, "groq-gpt-oss-120b": tot}
     router = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                     client_factory=lambda spec, api_key=None: by_alias[spec.alias])
     llm = RoutedChatModel(router, "read")
     llm.invoke(MSGS)
-    assert llm.last_decision.spec.alias == "groq-llama-3.3-70b"
+    assert llm.last_decision.spec.alias == "groq-gpt-oss-120b"
 
 
 def test_make_llms_tra_ve_du_moi_vai(clock):
@@ -90,11 +90,11 @@ def test_make_llms_tra_ve_du_moi_vai(clock):
 def test_make_llms_nhan_ghim_theo_tung_vai(clock):
     """Đường eval ghim từng vai một để đo đúng một model."""
     llms = make_llms(_router(clock, FakeChatClient([fake_ai()])),
-                     pins={"read": "or-nemotron"})
+                     pins={"read": "groq-gpt-oss-120b"})
     llms["read"].invoke(MSGS)
-    assert llms["read"].last_decision.spec.alias == "or-nemotron"
+    assert llms["read"].last_decision.spec.alias == "groq-gpt-oss-120b"
     llms["chitchat"].invoke(MSGS)
-    assert llms["chitchat"].last_decision.spec.alias == "gemini-3.5-flash-lite"
+    assert llms["chitchat"].last_decision.spec.alias == "gemini-3.1-flash-lite"
 
 
 def test_content_dang_list_duoc_gop_ve_string(clock):
@@ -127,18 +127,17 @@ def test_last_decision_khong_ro_ri_giua_hai_vai(clock):
     client = FakeChatClient([fake_ai("a"), fake_ai("b")])
     router = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                     client_factory=lambda spec, api_key=None: client)
-    doc = RoutedChatModel(router, "read")
+    # GHIM một vai để hai bên ra hai model KHÁC nhau. Test này CHỈ phân biệt
+    # được rò rỉ khi chúng khác nhau, và khẳng định "!=" bên dưới là rào chống
+    # đúng chuyện đó — nó ĐÃ ĐỎ THẬT hai lần trong ngày 2026-08-21: lần đầu khi
+    # chuỗi `chitchat` đổi, lần sau khi MỌI vai gom về chung một chuỗi. Cả hai
+    # lần đều bắt đúng lúc cặp vai mất sức phân biệt, thay vì im lặng xanh.
+    doc = RoutedChatModel(router, "read", pin="groq-gpt-oss-120b")
     dinh_tuyen = RoutedChatModel(router, "router")
     doc.invoke(MSGS)
     dinh_tuyen.invoke(MSGS)
-    # Test này CHỈ phân biệt được rò rỉ khi hai vai ra hai model KHÁC nhau.
-    # Tới 2026-08-21 nó dùng cặp read+chitchat; bản sửa chuỗi chitchat (bỏ
-    # gemini-3.5-flash rpd=20) làm hai vai đó cùng ra gemini-3.5-flash-lite,
-    # tức test sẽ vẫn xanh mà không còn đo gì. Khẳng định "khác nhau" dưới đây
-    # là rào chống đúng chuyện đó — nó đỏ ngay lúc cặp vai mất sức phân biệt,
-    # thay vì im lặng.
     assert doc.last_decision.spec.alias != dinh_tuyen.last_decision.spec.alias
-    assert doc.last_decision.spec.alias == "gemini-3.5-flash-lite"
+    assert doc.last_decision.spec.alias == "groq-gpt-oss-120b"
     assert dinh_tuyen.last_decision.spec.alias == "gemini-3.1-flash-lite"
 
 
@@ -154,7 +153,7 @@ def test_last_decision_khong_ro_ri_giua_hai_request_dong_thoi(clock):
 
     hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
     tot = FakeChatClient([fake_ai("ok")])
-    by_alias = {"gemini-3.5-flash-lite": hong, "groq-llama-3.3-70b": tot}
+    by_alias = {"gemini-3.1-flash-lite": hong, "groq-gpt-oss-120b": tot}
     r_tut = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                    client_factory=lambda spec, api_key=None: by_alias[spec.alias])
     r_thang = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
@@ -171,8 +170,8 @@ def test_last_decision_khong_ro_ri_giua_hai_request_dong_thoi(clock):
                                     mot_request(llm_thang))
 
     qd_tut, qd_thang = asyncio.run(hai_request_song_song())
-    assert qd_tut.spec.alias == "groq-llama-3.3-70b"    # đã tụt vì 429
-    assert qd_thang.spec.alias == "gemini-3.5-flash-lite"
+    assert qd_tut.spec.alias == "groq-gpt-oss-120b"    # đã tụt vì 429
+    assert qd_thang.spec.alias == "gemini-3.1-flash-lite"
     assert qd_tut is not qd_thang
 
 
@@ -248,7 +247,7 @@ def test_thung_model_ghi_ca_luot_KHONG_tut(clock):
     THUNG_MODEL.set(da_dung)
     THUNG_FALLBACK.set(da_tut)
     llm.invoke(MSGS)
-    assert da_dung == {"chitchat": "gemini-3.5-flash-lite"}
+    assert da_dung == {"chitchat": "gemini-3.1-flash-lite"}
     assert da_tut == {}, "không tụt thì thùng fallback phải rỗng"
 
 
@@ -259,4 +258,4 @@ async def test_thung_model_ghi_o_ca_cua_ainvoke(clock):
     da_dung = {}
     THUNG_MODEL.set(da_dung)
     await llm.ainvoke(MSGS)
-    assert da_dung == {"chitchat": "gemini-3.5-flash-lite"}
+    assert da_dung == {"chitchat": "gemini-3.1-flash-lite"}

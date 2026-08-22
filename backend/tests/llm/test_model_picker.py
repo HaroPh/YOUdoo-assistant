@@ -28,8 +28,11 @@ def test_prefer_da_co_trong_chuoi_thi_KHONG_nhan_doi():
     """Thử cùng một model hai lần trong một lượt là đốt hạn mức cho một kết quả
     đã biết."""
     moi = [s.alias for s in chain_for("router", "gemini-3.1-flash-lite")]
-    assert len(moi) == len(set(moi))
-    assert moi == [s.alias for s in chain_for("router")]
+    assert len(moi) == len(set(moi)), "không được nhân đôi mắt xích"
+    assert moi[0] == "gemini-3.1-flash-lite"
+    # KHÔNG so bằng chain_for("router") nữa: từ 2026-08-21 `prefer` còn CHÈN
+    # thêm các model chọn được khác (mục 8), nên hai chuỗi cố ý khác nhau.
+    assert set(MODEL_CHON_DUOC) <= set(moi)
 
 
 def test_prefer_ten_la_thi_bo_qua():
@@ -60,7 +63,7 @@ async def test_thung_fallback_lan_duoc_tu_node_ve_caller():
     async def node(state):
         thung = THUNG_FALLBACK.get()
         if thung is not None:
-            thung["router"] = "groq-gpt-oss-20b"
+            thung["router"] = "groq-gpt-oss-120b"
         await asyncio.sleep(0)          # ép qua ranh giới task
         return {"x": 1}
 
@@ -72,7 +75,7 @@ async def test_thung_fallback_lan_duoc_tu_node_ve_caller():
     thung = {}
     THUNG_FALLBACK.set(thung)
     await app.ainvoke({"x": 0})
-    assert thung == {"router": "groq-gpt-oss-20b"}
+    assert thung == {"router": "groq-gpt-oss-120b"}
 
 
 def test_mac_dinh_cua_thung_la_None_khong_phai_dict():
@@ -93,12 +96,12 @@ def test_khong_tut_thi_KHONG_gan_gi():
 
 def test_co_tut_thi_neu_ten_model_THAT_da_tra_loi():
     from src.agents.erp_agent import _them_dong_bao_fallback
-    THUNG_FALLBACK.set({"router": "groq-gpt-oss-20b",
-                        "synthesis": "groq-gpt-oss-20b"})
+    THUNG_FALLBACK.set({"router": "groq-gpt-oss-120b",
+                        "synthesis": "groq-gpt-oss-120b"})
     out = _them_dong_bao_fallback("câu trả lời")
     assert out.startswith("câu trả lời")
-    assert "groq-gpt-oss-20b" in out
-    assert out.count("groq-gpt-oss-20b") == 1, "trùng vai thì gộp, không lặp"
+    assert "groq-gpt-oss-120b" in out
+    assert out.count("groq-gpt-oss-120b") == 1, "trùng vai thì gộp, không lặp"
 
 
 # ── mặc định phải THẬT SỰ gộp về một model ───────────────────────────────────

@@ -27,9 +27,19 @@ class ModelSpec:
 
 
 # Ngưỡng cho bất biến #3. Chọn theo số đo: một lượt synthesis có RAG tốn ~3–4K
-# token input, và 12K là mức của llama-3.3-70b — mắt xích Groq duy nhất gánh
-# nổi vai nặng. gpt-oss-* ở 8K bị loại khỏi vai nặng đúng bởi ngưỡng này.
-HEAVY_TPM_FLOOR = 12_000
+# Ngưỡng cho bất biến #3 — HẠ 12 000 → 8 000 ngày 2026-08-21.
+#
+# Con số 12 000 KHÔNG đến từ nhu cầu, nó đến từ nguồn cung: chú thích gốc ghi
+# "một lượt synthesis có RAG tốn ~3–4K token input, và 12K là mức của
+# llama-3.3-70b — mắt xích Groq duy nhất gánh nổi vai nặng". Ngày 2026-08-21
+# Groq KHAI TỬ llama-3.3-70b ("model does not exist"), và cả ba model chat còn
+# lại của họ đều tpm 8 000. Giữ 12 000 nghĩa là ngưỡng không còn bảo vệ gì, chỉ
+# còn CẤM mọi ứng viên tồn tại.
+#
+# Ngưỡng này bảo vệ THÔNG LƯỢNG, không bảo vệ TÍNH ĐÚNG: ở 8 000 tpm một lượt
+# nặng ~3–4K vẫn chạy lọt, chỉ còn ~2 lượt/phút thay vì ~3. Và mắt xích Groq
+# nay là mắt xích CUỐI, chỉ chạy khi CẢ HAI model Gemini đã ngã.
+HEAVY_TPM_FLOOR = 8_000
 
 # Ngưỡng cho bất biến #5: HAI mắt xích đầu của mọi chuỗi phải đủ hạn mức phục
 # vụ TRỌN một ngày. 500 = rpd của flash-lite, mức thấp nhất đã dùng thật cho
@@ -89,16 +99,24 @@ CATALOG: dict[str, ModelSpec] = {
     # lượt, không phải đặc tính thường trực — đừng trích nó như chênh lệch
     # điển hình.
 
-    # Gemma: RPD khổng lồ (14.4K) nhưng TPM thấp (16K) và KHÔNG tắt được
-    # thinking (reasoning_effort → 400 "Thinking budget is not supported").
-    # 26b và 31b có HAI ví hạn mức riêng biệt — vai router và chitchat cố ý
-    # tách ra hai model để tiêu hai ví thay vì một.
-    "gemma-4-26b": ModelSpec(
-        alias="gemma-4-26b", provider="google",
-        model_id="gemma-4-26b-a4b-it", upstream="google",
-        quota_scope="model", rpm=30, tpm=16_000, rpd=14_400,
-        token_multiplier=1.0, max_output_tokens=2048, timeout_s=60,
-        supports_tools=True, emits_thought_tags=True),
+    # ─── gemma-4-26b ĐÃ XOÁ 2026-08-21 ──────────────────────────────────────
+    # Nó từng là mắt xích 1 của `evaluator` nhờ MỘT phép đo 2026-08-13 trên bộ
+    # `confirm` (0,7917 so với 0,6250 của groq-gpt-oss-20b). Phép đo đó chỉ đặt
+    # nó cạnh Groq, CHƯA BAO GIỜ đặt cạnh Gemini. Đo lại đối đầu 2026-08-21,
+    # cùng phiên cùng prompt, bộ `confirm` n=24 (false_confirm = 0 ở CẢ NĂM):
+    #
+    #   gemini-3.5-flash-lite   0,9583   699ms
+    #   gemini-3.1-flash-lite   0,9167   719ms
+    #   groq-gpt-oss-120b       0,8333   611ms
+    #   gemma-4-26b             0,7917  6062ms   ← đang giữ chỗ
+    #   groq-gpt-oss-20b        0,6250   577ms
+    #
+    # Gemma thua mọi ứng viên và CHẬM GẤP 8. Lý lẽ "ví lớn" (rpd 14 400) không
+    # cứu được: đường LLM của cổng này HIẾM khi chạy (bộ lọc từ khoá nuốt hết
+    # "có"/"không"/"ok"/"huỷ"), tức ví lớn đặt đúng chỗ ít dùng nhất. Kèm hai
+    # dằm vận hành riêng: nhả thẻ <thought> vào content, và có bề mặt "cạn
+    # ngân sách token suy luận" — chính cái từng khiến nó TRẢ RỖNG thật và buộc
+    # đợt router-empty-response dựng cả một lưới đỡ.
 
     # Hai model chủ dự án cấp 2026-08-13. SỐ LIỆU DƯỚI ĐÂY LÀ ĐO THẬT, không
     # phỏng đoán: probe xác nhận model_id gọi được, supports_tools=True (gọi
@@ -135,135 +153,74 @@ CATALOG: dict[str, ModelSpec] = {
     # ─── Groq ───────────────────────────────────────────────────────────────
     # token_multiplier=2.3: đo được Groq tính 133 prompt_tokens cho payload mà
     # Google tính 57. Với trần 8K TPM, ước lượng lệch 2.3× là gọi thẳng vào 429.
-    "groq-gpt-oss-20b": ModelSpec(
-        alias="groq-gpt-oss-20b", provider="groq",
-        model_id="openai/gpt-oss-20b", upstream="groq",
-        quota_scope="model", rpm=30, tpm=8_000, rpd=1_000,
-        token_multiplier=2.3, max_output_tokens=2048, timeout_s=30,
-        supports_tools=True, emits_thought_tags=False),
+    # groq-gpt-oss-20b XOÁ 2026-08-21: kém nhất trong năm model đo trên bộ
+    # `confirm` (0,6250) và max_output_tokens chỉ 2048. Cùng ví hạn mức hạng
+    # với 120b (tpm 8 000, rpd 1 000) nên giữ nó không mua thêm dung lượng gì.
     "groq-gpt-oss-120b": ModelSpec(
         alias="groq-gpt-oss-120b", provider="groq",
         model_id="openai/gpt-oss-120b", upstream="groq",
         quota_scope="model", rpm=30, tpm=8_000, rpd=1_000,
         token_multiplier=2.3, max_output_tokens=4096, timeout_s=30,
         supports_tools=True, emits_thought_tags=False),
-    "groq-llama-3.3-70b": ModelSpec(
-        alias="groq-llama-3.3-70b", provider="groq",
-        model_id="llama-3.3-70b-versatile", upstream="groq",
-        quota_scope="model", rpm=30, tpm=12_000, rpd=1_000,
-        token_multiplier=2.3, max_output_tokens=4096, timeout_s=30,
-        supports_tools=True, emits_thought_tags=False),
+    # groq-llama-3.3-70b CHẾT 2026-08-21: Groq trả "The model
+    # `llama-3.3-70b-versatile` does not exist or you do not have access to
+    # it." Nó là mắt xích 2 của read/fusion/synthesis, nên `fusion` khi đó thực
+    # tế CHỈ CÒN MỘT mắt xích sống. Nó cũng là model Groq duy nhất từng đạt
+    # HEAVY_TPM_FLOOR cũ (12 000) — mất nó là lý do ngưỡng đó phải hạ.
 
-    # ─── OpenRouter (khan hiếm — ~50 lượt/ngày CHUNG cho mọi model free) ────
-    "or-ling": ModelSpec(
-        alias="or-ling", provider="openrouter",
-        model_id="inclusionai/ling-3.0-flash:free", upstream="novita",
-        quota_scope="account", rpm=None, tpm=None, rpd=50,
-        token_multiplier=1.5, max_output_tokens=2048, timeout_s=60,
-        supports_tools=True, emits_thought_tags=False),
-    "or-nemotron": ModelSpec(
-        alias="or-nemotron", provider="openrouter",
-        model_id="nvidia/nemotron-3-super-120b-a12b:free", upstream="nvidia",
-        quota_scope="account", rpm=None, tpm=None, rpd=50,
-        token_multiplier=1.5, max_output_tokens=4096, timeout_s=60,
-        supports_tools=True, emits_thought_tags=False),
+    # ─── OpenRouter XOÁ HẲN 2026-08-21 ──────────────────────────────────────
+    # `or-ling` CHẾT: OpenRouter gỡ slug `:free` ("This model is unavailable for
+    # free. The paid version is available now"). `or-nemotron` vẫn SỐNG, nhưng
+    # bị bỏ cùng cả tầng vì lý do cấu trúc: free tier của OpenRouter là ~50
+    # lượt/ngày DÙNG CHUNG cho mọi model (quota_scope="account"), tức nó chưa
+    # bao giờ là dung lượng thật — chỉ là một mắt xích trông cho yên tâm.
+    #
+    # Ghi rõ để đời sau không "khôi phục" nhầm: hai model google/gemma-*:free
+    # trên OpenRouter BỊ CẤM quay lại (chú thích OPENROUTER phía trên) vì chúng
+    # proxy ngược về Google.
 }
 
-# Gán provider theo TRỌNG LƯỢNG TOKEN của vai, không theo chuỗi "primary →
-# fallback" chung chung. Ràng buộc thật của Groq là TPM chứ không phải RPM:
-# ở 8K TPM chỉ chạy được ~2 request/phút với ngữ cảnh RAG, trong khi RPM 30
-# còn chưa dùng tới 1/15. Ai thiết kế theo RPM sẽ bị TPM đánh úp.
+# MỘT hình dạng chuỗi cho MỌI vai (gom 2026-08-21, spec catalog-consolidation):
+#
+#     [model người dùng chọn] → [Gemini còn lại] → groq-gpt-oss-120b
+#
+# Bảng dưới chỉ ghi hình dạng TĨNH; mắt xích "Gemini còn lại" do
+# `chain_for(prefer=…)` chèn vào — xem docstring của nó.
+#
+# VÌ SAO ĐỒNG BỘ. Trước đợt này mỗi vai một chuỗi riêng, tổng cộng 9 model. Hệ
+# quả đo được ngày 2026-08-21: HAI model đã chết mà không ai biết
+# (groq-llama-3.3-70b, or-ling), `fusion` thực tế chỉ còn MỘT mắt xích, và vai
+# `evaluator` chạy suốt từ 2026-08-13 bằng model KÉM NHẤT trong nhóm — vì phép
+# so sánh hồi đó chỉ đặt gemma cạnh Groq, chưa bao giờ đặt cạnh Gemini. Ít model
+# hơn = ít thứ phải đo, và ít thứ trôi lệch âm thầm.
+#
+# VÌ SAO GIỮ MỘT MẮT XÍCH GROQ. Ba khoá API (xem spec api-key-rotation) chữa
+# HẠN MỨC, không chữa SỰ CỐ NHÀ CUNG CẤP — chúng là ba ví trên cùng một hệ
+# thống Google. `groq-gpt-oss-120b` là đường duy nhất ra khỏi Google, và bất
+# biến #1 tồn tại đúng cho kiểu hỏng đó.
+#
+# SỐ ĐO CÒN GIÁ TRỊ TỪ CÁC ĐỢT TRƯỚC (model đã xoá vẫn ghi để không ai đo lại):
+#
+#   bộ `confirm` n=24, false_confirm = 0 ở CẢ NĂM (2026-08-21, cùng phiên):
+#     gemini-3.5-flash-lite 0,9583 | gemini-3.1-flash-lite 0,9167
+#     groq-gpt-oss-120b     0,8333 | gemma-4-26b           0,7917 (6062ms)
+#     groq-gpt-oss-20b      0,6250
+#
+#   bộ `intent` n=54 + `sop_select` n=17, hijack = 0 ở cả hai (2026-08-13):
+#     gemini-3.1-flash-lite  acc 0,9630  p50 1008ms
+#     gemma-4-26b            acc 0,9444  p50 6103ms  (trả 300-2045 token suy
+#       luận cho một việc phân loại ra ĐÚNG MỘT TỪ — lý do nó rời chuỗi router)
+#
+#   bộ `chitchat` n=16, violations = 0 ở cả ba (2026-08-13):
+#     gemini-3.5-flash 3271ms | gemini-3.6-flash 5048ms | gemma-4-31b 13103ms
+#
+# `gemini-3.5-flash` (rpd=20) CỐ Ý không có mặt: nó chết sau ~20 tin nhắn/ngày.
+# Entry của nó ở lại CATALOG chỉ để `--model gemini-3.5-flash` ghim đo được, và
+# bất biến #5 chặn nó quay lại chuỗi.
 CHAINS: dict[str, tuple[str, ...]] = {
-    # router: gemini-3.1-flash-lite THAY gemma-4-26b ở mắt xích 1 (2026-08-13).
-    # Đo thật, n=54 bộ `intent` và n=17 bộ `sop_select`, mỗi model ghim một lượt:
-    #
-    #   model                   intent acc   intent p50   sop acc   hijack   sop p95
-    #   gemma-4-26b               0.9444       6103ms     0.9412      0      21031ms
-    #   gemini-3.1-flash-lite     0.9630       1008ms     0.9412      0       2861ms
-    #
-    # Chất lượng: 2 ca sai của gemini là TẬP CON THẬT SỰ của 3 ca sai gemma;
-    # cả hai sai đúng một ca giống nhau ở sop_select (ca "quy trình nhập kho cho
-    # đơn mua P00021" — chính ca mà lớp phủ quyết tất định tồn tại để bắt, xem
-    # agents/routing.py). hijack = 0 ở CẢ HAI: cổng an toàn không thụt.
-    #
-    # Vì sao đáng đổi: router chạy trên MỌI tin nhắn trước khi bất cứ việc gì
-    # khác bắt đầu, và gemma trả "thuế suy luận" 300-2045 token cho một việc
-    # phân loại ra đúng MỘT TỪ. gemini-*-flash-lite có emits_thought_tags=False
-    # và max_output_tokens=8192 nên không trả thuế đó.
-    #
-    # gemma-4-26b RỜI HẲN chuỗi này, KHÔNG xuống làm mắt xích 2. Bản nháp đầu
-    # định giữ nó ở vị trí 2 (ví rpd=14_400 làm lưới đỡ khi flash-lite cạn
-    # rpd=500) — SAI, và test_khong_hai_mat_xich_nao_trong_mot_chuoi_chung_upstream
-    # bắt được: cả hai đều upstream="google", nên rơi từ cái này xuống cái kia
-    # là rơi vào lại chính miền lỗi vừa ngã. Bất biến #1 thắng lý lẽ hạn mức.
-    # gemma-4-26b vẫn phục vụ vai `evaluator` (mắt xích 2).
-    #
-    # Chọn 3.1-flash-lite chứ không phải 3.5: 3.5 ĐÃ gánh planner+read, còn 3.1
-    # chỉ gánh fusion+synthesis (hai vai chỉ chạy ở nhánh mixed, thưa hơn) —
-    # chia tải qua hai ví thay vì chất đống lên một.
-    "router":    ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"),
-    # chitchat: gemini-3.5-flash-lite THAY gemini-3.5-flash ở mắt xích 1
-    # (2026-08-21). Số đo bộ `chitchat` (n=16) từ 2026-08-13 GIỮ NGUYÊN giá trị
-    # tham khảo — không lượt nào bị bác:
-    #
-    #   model               violations   p50        p95
-    #   gemma-4-31b              0     13103ms    21090ms
-    #   gemini-3.5-flash         0      3271ms     3940ms
-    #   gemini-3.6-flash         0      5048ms    43891ms
-    #
-    # Gate của bộ này là `violations` (tuyệt đối, không so baseline) — CẢ BA
-    # đều 0, tức chất lượng hoà, khác biệt duy nhất là độ trễ.
-    #
-    # VÌ SAO ĐỔI: lập luận cũ ("rpd=20 chấp nhận được ở ĐÂY vì chitchat rất
-    # thưa") SAI KỂ TỪ KHI CÓ `prefer`. `prefer` đẩy mắt xích 1 cũ xuống vị trí
-    # 2 — tức chỗ MỌI cú tụt đều đi qua. Nghiệm thu sống 2026-08-21: người dùng
-    # chọn 3.5-flash-lite (đã cạn hạn mức ngày), chuỗi thành
-    # `3.5-flash-lite → 3.5-flash → groq`, và câu tán gẫu được phục vụ bằng
-    # đúng model rpd=20 mà MODEL_CHON_DUOC cố ý không cho chọn.
-    #
-    # Vì sao 3.5-flash-lite KHÔNG cần đo lại trên bộ `chitchat`: nó ĐÃ chạy vai
-    # này ở vị trí 1 mỗi lượt người dùng chọn nó ở dropdown. Đưa xuống vị trí 2
-    # không tạo phơi nhiễm mới — nó nghiêm ngặt ÍT hơn thứ production đang làm.
-    #
-    # gemini-3.5-flash GIỮ entry trong CATALOG (khác gemma-4-31b, bị xoá hẳn):
-    # nó vẫn cần cho `--model gemini-3.5-flash` lúc ghim đo, và bất biến #5
-    # (test_hai_mat_xich_dau_phai_du_gank_mot_ngay) chặn nó quay lại chuỗi.
-    "chitchat":  ("gemini-3.5-flash-lite", "groq-gpt-oss-20b"),
-    # evaluator: ĐẢO thứ tự 2026-08-13. Trước: groq-gpt-oss-20b → gemma-4-26b.
-    # Đo bộ `confirm` (n=24) trên CẢ HAI mắt xích, mỗi model ghim một lượt:
-    #
-    #   model               acc      false_confirm   p50
-    #   groq-gpt-oss-20b    0.6250        0          577ms
-    #   gemma-4-26b         0.7917        0         6075ms
-    #   (baseline qwen3-8b  0.6250        0         4048ms)
-    #
-    # Mắt xích 2 TỐT HƠN mắt xích 1 rõ rệt (19/24 so với 15/24), và 5 ca sai của
-    # gemma là TẬP CON THẬT SỰ của 9 ca sai groq. Cụ thể groq không hiểu "chốt
-    # đơn giùm mình" / "lên đơn đi bạn" là đồng ý; gemma hiểu.
-    #
-    # false_confirm = 0 ở CẢ HAI — mọi ca sai đều theo hướng AN TOÀN (đáng lẽ
-    # confirm/cancel thì trả unclear, tức HỎI LẠI chứ không thực thi). Đây là
-    # điều kiện gate tuyệt đối của bộ confirm, và đảo thứ tự không đụng tới nó.
-    #
-    # Giá phải trả: p50 577ms → 6075ms. Chấp nhận được vì đường LLM của cổng này
-    # HIẾM khi chạy — classify_keyword đã nuốt hết "có"/"không"/"ok"/"huỷ", LLM
-    # chỉ vào cuộc với câu mơ hồ kiểu "chắc để lúc khác đi".
-    #
-    # gemma-4-26b có bề mặt "cạn ngân sách token suy luận" (xem chú thích khối
-    # Gemma bên trên). Nếu nó trả rỗng, Router nay TỤT xuống groq-gpt-oss-20b —
-    # đúng lưới đỡ dựng ở đợt router-empty-response (2026-08-13).
-    "evaluator": ("gemma-4-26b", "groq-gpt-oss-20b"),
-    "planner":   ("gemini-3.5-flash-lite", "groq-gpt-oss-120b", "or-nemotron"),
-    "read":      ("gemini-3.5-flash-lite", "groq-llama-3.3-70b", "or-nemotron"),
-    # SP-2b (2026-08-01): node `fusion` trong graph đã bị XOÁ (thay bằng fan-out
-    # mixed → gather_docs ‖ gather_erp → fuse_answer, xem agents/fanout.py).
-    # VAI model tên "fusion" thì SỐNG NGUYÊN: gather_erp và fuse_answer đều dùng
-    # nó. Đổi tên vai sẽ lan sang models.py, router.py, main.py và
-    # eval_gate.py:ROLE_FOR_SET — và QĐ M3 (ADR-009) cấm đổi model/prompt khi
-    # chưa qua eval gate. Tên set đo đã là "multi_source" (trung tính) chính vì
-    # lường trước việc này.
-    "fusion":    ("gemini-3.1-flash-lite", "groq-llama-3.3-70b"),
-    "synthesis": ("gemini-3.1-flash-lite", "groq-llama-3.3-70b", "or-nemotron"),
+    role: ("gemini-3.1-flash-lite", "groq-gpt-oss-120b")
+    for role in ("router", "chitchat", "evaluator", "planner",
+                 "read", "fusion", "synthesis")
 }
 
 
@@ -350,8 +307,30 @@ def chain_for(role: str, prefer: str | None = None) -> tuple[ModelSpec, ...]:
 
     Model đã có sẵn trong chuỗi thì được NHẤC LÊN chứ không nhân đôi: thử cùng
     một model hai lần trong một lượt là đốt hạn mức cho một kết quả đã biết.
+
+    MỌI MODEL TRONG `MODEL_CHON_DUOC` ĐỀU CÓ MẶT (sửa 2026-08-21, mục 8 bảng
+    trạng thái). Trước bản này `prefer` CHỈ chèn lên đầu, nên model vốn đã đứng
+    đầu thì nó không thêm gì — người chọn 3.5 nhận chuỗi NGẮN HƠN người chọn
+    3.1:
+
+        read, prefer=3.1 → 3.1-lite, 3.5-lite, groq-llama, or-nemotron   (4)
+        read, prefer=3.5 → 3.5-lite, groq-llama, or-nemotron             (3)
+
+    Gặp thật: hỏi tồn kho khi chọn 3.5 → `ChainExhausted` trong khi 3.1 vẫn còn
+    hạn mức nhưng KHÔNG nằm trong chuỗi. Nay hai lựa chọn đối xứng nhau.
+
+    Hệ quả có chủ đích: hai mắt xích đầu cùng upstream="google". Bất biến #1
+    (không hai mắt xích chung upstream) chỉ kiểm bảng CHAINS TĨNH, và đó là
+    đúng phạm vi của nó — nó tồn tại để tránh rơi từ một miền lỗi vào lại chính
+    nó, còn hai model Gemini là hai VÍ HẠN MỨC riêng. Đo được 2026-08-21:
+    3.5-flash-lite cạn hạn mức ngày trong khi 3.1-flash-lite vẫn trả 200.
     """
     aliases = list(CHAINS[role])
     if prefer and prefer in CATALOG:
         aliases = [prefer] + [a for a in aliases if a != prefer]
+        # Chèn ngay SAU mắt xích đầu, không phải cuối: đây là dự phòng gần
+        # nhất, phải đứng trước khi tụt sang upstream khác.
+        for khac in reversed(MODEL_CHON_DUOC):
+            if khac != prefer and khac not in aliases:
+                aliases.insert(1, khac)
     return tuple(CATALOG[a] for a in aliases)

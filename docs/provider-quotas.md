@@ -16,13 +16,21 @@ Khớp nguyên `CATALOG` trong `backend/src/llm/catalog.py`.
 |---|---|---|---|---|---|
 | Google | Gemini 3.5 Flash Lite | `gemini-3.5-flash-lite` | 15 | 250,000 | 500 |
 | Google | Gemini 3.1 Flash Lite | `gemini-3.1-flash-lite` | 15 | 250,000 | 500 |
-| Google | Gemma 4 26B | `gemma-4-26b` | 30 | 16,000 | 14,400 |
-| Google | Gemma 4 31B | `gemma-4-31b` | 30 | 16,000 | 14,400 |
-| Groq | openai/gpt-oss-20b | `groq-gpt-oss-20b` | 30 | 8,000 | 1,000 (TPD 200,000) |
+| Google | Gemini 3.5 Flash | `gemini-3.5-flash` | 5 | 250,000 | **20** (chỉ để `--model` ghim đo, KHÔNG vào chuỗi nào) |
 | Groq | openai/gpt-oss-120b | `groq-gpt-oss-120b` | 30 | 8,000 | 1,000 (TPD 200,000) |
-| Groq | llama-3.3-70b-versatile | `groq-llama-3.3-70b` | 30 | 12,000 | 1,000 (TPD 100,000) |
-| OpenRouter | `inclusionai/ling-3.0-flash:free` | `or-ling` | — | — | ~50/ngày, theo TÀI KHOẢN (chung với mọi model free khác) |
-| OpenRouter | `nvidia/nemotron-3-super-120b-a12b:free` | `or-nemotron` | — | — | ~50/ngày, theo TÀI KHOẢN (chung với mọi model free khác) |
+
+Nhân **ba** cho mọi dòng Google: hạn mức tính theo PROJECT, và `.env` có ba
+khoá của ba project (xem spec `2026-08-21-api-key-rotation.md`).
+
+**Đã XOÁ khỏi catalog 2026-08-21** (spec `2026-08-21-catalog-consolidation.md`):
+
+| Alias | Vì sao |
+|---|---|
+| `groq-llama-3.3-70b` | **CHẾT** — Groq trả *"model does not exist"* |
+| `or-ling` | **CHẾT** — OpenRouter gỡ slug `:free` |
+| `or-nemotron` | còn sống, nhưng cả tầng OpenRouter bị bỏ: ~50 lượt/ngày DÙNG CHUNG cho mọi model free, chưa bao giờ là dung lượng thật |
+| `gemma-4-26b` | thua mọi ứng viên trên bộ `confirm` (0,7917) và chậm gấp 8 |
+| `groq-gpt-oss-20b` | kém nhất trên `confirm` (0,6250), cùng ví hạn mức với 120b nên không mua thêm gì |
 
 **Không có trong catalog:**
 

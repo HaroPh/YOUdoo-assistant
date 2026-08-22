@@ -24,8 +24,8 @@ from tests.llm.conftest import (FakeChatClient, FakeRateLimit, FakeServerError,
                                 fake_ai)
 
 MSGS = [HumanMessage("Tồn kho ABC?")]
-MAT_XICH_DAU = "gemini-3.5-flash-lite"       # mắt xích 1 của vai `read`
-MAT_XICH_HAI = "groq-llama-3.3-70b"          # mắt xích 2 (khác upstream)
+MAT_XICH_DAU = "gemini-3.1-flash-lite"       # mắt xích 1 của mọi vai
+MAT_XICH_HAI = "groq-gpt-oss-120b"           # mắt xích cuối (khác upstream)
 
 
 def _ba_khoa(monkeypatch) -> None:
@@ -79,8 +79,8 @@ def test_luot_sau_bat_dau_tu_khoa_DANG_DUNG(clock, monkeypatch):
 
 
 def test_loi_KHONG_phai_429_thi_KHONG_xoay_khoa(clock, monkeypatch):
-    """`or-nemotron` trả 404 "Provider returned error" 16/16 lượt (2026-08-21).
-    Xoay khoá ở đó chỉ đốt thêm lượt gọi cho một provider đang hỏng."""
+    """Lỗi 5xx/404 là hỏng phía nhà cung cấp — đổi khoá không liên quan, chỉ
+    đốt thêm lượt gọi cho một thứ đang hỏng."""
     _ba_khoa(monkeypatch)
     k1 = FakeChatClient([FakeServerError("sập")])
     k2 = FakeChatClient([fake_ai("khong-duoc-goi")])

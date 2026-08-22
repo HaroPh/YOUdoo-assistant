@@ -1,14 +1,23 @@
 import pytest
 
 from src.llm.budget import BudgetLedger, Verdict
-from src.llm.catalog import spec_for
+from src.llm.catalog import ModelSpec, spec_for
 from src.llm.store import InMemoryUsageStore
 from tests.llm.conftest import ExplodingStore, FakeClock
 
-GEMMA = spec_for("gemma-4-26b")          # rpm 30, tpm 16_000, rpd 14_400, x1.0
-GROQ = spec_for("groq-gpt-oss-20b")      # rpm 30, tpm  8_000, rpd  1_000, x2.3
-OR_LING = spec_for("or-ling")            # rpd 50, quota_scope="account"
-OR_NEMO = spec_for("or-nemotron")        # rpd 50, quota_scope="account"
+GEMMA = spec_for("gemini-3.5-flash-lite")  # rpm 15, tpm 250_000, rpd 500, x1.0
+GROQ = spec_for("groq-gpt-oss-120b")       # rpm 30, tpm   8_000, rpd 1_000, x2.3
+
+# Spec TỔNG HỢP cho `quota_scope="account"`. Sau đợt gom 2026-08-21, cả tầng
+# OpenRouter bị xoá và KHÔNG model nào trong CATALOG còn dùng scope này — lấy
+# từ catalog thì hai test dưới sẽ không đo được gì. Logic gộp ví theo tài khoản
+# vẫn còn trong budget.py và vẫn đúng, nên nó phải còn test.
+_ACC = dict(provider="openrouter", upstream="x", quota_scope="account",
+            rpm=None, tpm=None, rpd=50, token_multiplier=1.5,
+            max_output_tokens=2048, timeout_s=60, supports_tools=True,
+            emits_thought_tags=False)
+OR_LING = ModelSpec(alias="acc-a", model_id="acc-a", **_ACC)
+OR_NEMO = ModelSpec(alias="acc-b", model_id="acc-b", **_ACC)
 
 
 def _ledger(clock, store=None):
@@ -39,9 +48,12 @@ def test_qua_mot_phut_thi_rpm_hoi_lai(clock):
 
 
 def test_cham_tran_tpm_thi_chan(clock):
+    """Dùng GROQ (tpm 8 000) chứ không phải GEMMA: sau đợt gom 2026-08-21 mọi
+    model Gemini còn lại có tpm 250 000, nên ngưỡng cũ 15 900 không còn chạm
+    trần và test sẽ XANH GIẢ — nó vẫn chạy nhưng không đo gì."""
     led = _ledger(clock)
-    _fill(led, GEMMA, 1, total_tokens=15_900)
-    assert led.can_afford(GEMMA, 200) is Verdict.TPM
+    _fill(led, GROQ, 1, total_tokens=7_900)
+    assert led.can_afford(GROQ, 200) is Verdict.TPM
 
 
 def test_he_so_token_cua_provider_duoc_ap_dung(clock):
@@ -84,7 +96,7 @@ def test_quota_scope_account_gop_chung_moi_model_openrouter(clock):
 
 
 def test_quota_scope_model_khong_gop_chung(clock):
-    """Ngược lại: gemma-4-26b cạn không kéo theo groq-gpt-oss-20b."""
+    """Ngược lại: một model quota_scope="model" cạn không kéo theo model khác."""
     led = _ledger(clock)
     _fill(led, GEMMA, 30)
     assert led.can_afford(GROQ, 10) is Verdict.OK
@@ -126,9 +138,10 @@ def test_han_muc_None_thi_khong_kiem(clock):
 
 
 def test_record_dung_total_tokens_khong_phai_prompt_cong_completion(clock):
-    """Gemma: p=11, c=36, total=337. Cộng p+c đếm thiếu 7 lần."""
+    """Đo trên gemma-4-26b (đã xoá): p=11, c=36, total=337 — cộng p+c đếm
+    thiếu 7 lần. Con số giữ nguyên vì tính chất không phụ thuộc model."""
     store = InMemoryUsageStore()
     led = _ledger(clock, store=store)
     led.record(GEMMA, prompt_tokens=11, completion_tokens=36, total_tokens=337)
-    got = store.usage_since(since=clock() , alias="gemma-4-26b")
+    got = store.usage_since(since=clock(), alias=GEMMA.alias)
     assert got.total_tokens == 337

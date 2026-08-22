@@ -41,7 +41,7 @@ def test_loc_theo_provider_gop_moi_alias_cua_provider_do():
     store = InMemoryUsageStore()
     _record(store, T0, alias="or-ling", provider="openrouter", total=30)
     _record(store, T0, alias="or-nemotron", provider="openrouter", total=70)
-    _record(store, T0, alias="gemma-4-26b", provider="google", total=999)
+    _record(store, T0, alias="gemini-3.1-flash-lite", provider="google", total=999)
     got = store.usage_since(since=T0 - timedelta(minutes=1),
                             provider="openrouter")
     assert got == Usage(requests=2, total_tokens=100)

@@ -34,8 +34,8 @@ def test_get_handler_khong_throw_khi_thieu_bien_moi_truong(monkeypatch):
 
 def _fake_decision_and_result():
     decision = RouteDecision(
-        role="router", spec=spec_for("gemma-4-26b"), fallback_depth=1,
-        skipped=(SkippedLink("groq-gpt-oss-20b", Verdict.COOLDOWN),),
+        role="router", spec=spec_for("gemini-3.1-flash-lite"), fallback_depth=1,
+        skipped=(SkippedLink("groq-gpt-oss-120b", Verdict.COOLDOWN),),
         base_tokens=123)
     result = InvokeResult(
         message=AIMessage(content="ok"), decision=decision,
@@ -78,11 +78,11 @@ def test_annotate_span_gan_dung_field_qua_fake_span():
     tracing.annotate_span(_FakeSpan(), decision, result)
 
     assert captured["role"] == "router"
-    assert captured["alias"] == "gemma-4-26b"
+    assert captured["alias"] == "gemini-3.1-flash-lite"
     assert captured["provider"] == "google"
     assert captured["upstream"] == "google"
     assert captured["fallback_depth"] == 1
-    assert captured["budget_verdict"] == [("groq-gpt-oss-20b", "cooldown")]
+    assert captured["budget_verdict"] == [("groq-gpt-oss-120b", "cooldown")]
     assert captured["est_tokens"] == 123
     assert captured["actual_tokens"] == 30
 
@@ -101,8 +101,8 @@ def test_annotate_span_tach_empty_skip_khoi_budget_verdict():
             captured.update(metadata)
 
     decision = RouteDecision(
-        role="router", spec=spec_for("groq-gpt-oss-20b"), fallback_depth=2,
-        skipped=(SkippedLink("gemma-4-26b", Verdict.EMPTY),
+        role="router", spec=spec_for("groq-gpt-oss-120b"), fallback_depth=2,
+        skipped=(SkippedLink("gemini-3.1-flash-lite", Verdict.EMPTY),
                  SkippedLink("gemini-3.5-flash-lite", Verdict.COOLDOWN)),
         base_tokens=123)
     result = InvokeResult(
@@ -112,7 +112,7 @@ def test_annotate_span_tach_empty_skip_khoi_budget_verdict():
     tracing.annotate_span(_FakeSpan(), decision, result)
 
     assert captured["budget_verdict"] == [("gemini-3.5-flash-lite", "cooldown")]
-    assert captured["empty_skips"] == ["gemma-4-26b"]
+    assert captured["empty_skips"] == ["gemini-3.1-flash-lite"]
 
 
 def test_metadata_mang_chi_phi_that_cua_luot_tut_mat_xich():
@@ -127,7 +127,7 @@ def test_metadata_mang_chi_phi_that_cua_luot_tut_mat_xich():
             captured.update(metadata)
 
     decision = RouteDecision(
-        role="router", spec=spec_for("groq-gpt-oss-20b"), fallback_depth=1,
+        role="router", spec=spec_for("groq-gpt-oss-120b"), fallback_depth=1,
         skipped=(SkippedLink("gemini-3.1-flash-lite", Verdict.EMPTY),),
         base_tokens=123)
     result = InvokeResult(
@@ -155,12 +155,12 @@ def test_metadata_cat_ngan_loi_nguyen_van_cua_nha_cung_cap():
     decision, result = _fake_decision_and_result()
     dai = "x" * 500
     result = dataclasses.replace(
-        result, attempts=(AttemptError("groq-gpt-oss-20b", dai),))
+        result, attempts=(AttemptError("groq-gpt-oss-120b", dai),))
 
     tracing.annotate_span(_FakeSpan(), decision, result)
 
     alias, loi = captured["attempts"][0]
-    assert alias == "groq-gpt-oss-20b"
+    assert alias == "groq-gpt-oss-120b"
     assert len(loi) == 200
 
 
@@ -222,7 +222,7 @@ def test_routed_span_gan_dung_span_lam_cha_qua_otel_that(monkeypatch):
     # một list các tuple — được SDK tự json.dumps() thành chuỗi.
     attrs = dict(span_thoat.attributes)
     assert attrs["langfuse.observation.metadata.role"] == "router"
-    assert attrs["langfuse.observation.metadata.alias"] == "gemma-4-26b"
+    assert attrs["langfuse.observation.metadata.alias"] == "gemini-3.1-flash-lite"
     assert attrs["langfuse.observation.metadata.provider"] == "google"
     assert attrs["langfuse.observation.metadata.upstream"] == "google"
     assert attrs["langfuse.observation.metadata.fallback_depth"] == 1
@@ -232,7 +232,7 @@ def test_routed_span_gan_dung_span_lam_cha_qua_otel_that(monkeypatch):
     import json
     budget_verdict = json.loads(
         attrs["langfuse.observation.metadata.budget_verdict"])
-    assert budget_verdict == [["groq-gpt-oss-20b", "cooldown"]]
+    assert budget_verdict == [["groq-gpt-oss-120b", "cooldown"]]
 
 
 # ── metadata định tuyến đi theo config, để nằm CÙNG trace hội thoại ──────────

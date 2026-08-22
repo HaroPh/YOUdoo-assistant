@@ -21,10 +21,10 @@ def _router(clock, by_alias):
 
 def test_goi_thanh_cong_tra_ve_message_va_quyet_dinh(clock):
     client = FakeChatClient([fake_ai("Còn 42 cái.")])
-    r = _router(clock, {"gemini-3.5-flash-lite": client})
+    r = _router(clock, {"gemini-3.1-flash-lite": client})
     got = r.invoke("read", MSGS)
     assert got.message.content == "Còn 42 cái."
-    assert got.decision.spec.alias == "gemini-3.5-flash-lite"
+    assert got.decision.spec.alias == "gemini-3.1-flash-lite"
     assert got.decision.fallback_depth == 0
     assert len(client.calls) == 1
 
@@ -39,7 +39,7 @@ def test_ghi_so_ngan_sach_bang_total_tokens_khong_phai_p_cong_c(clock):
     client = FakeChatClient([fake_ai("ok", prompt=11, completion=36, total=337)])
     r = Router(ledger, client_factory=lambda spec, api_key=None: client)
     r.invoke("evaluator", MSGS)
-    got = store.usage_since(since=clock(), alias="gemma-4-26b")
+    got = store.usage_since(since=clock(), alias="gemini-3.1-flash-lite")
     assert got.total_tokens == 337
 
 
@@ -56,26 +56,26 @@ def test_usage_metadata_cua_google_duoc_doc_dung_khong_qua_response_metadata(clo
                                             total=337, reasoning=290)])
     r = Router(ledger, client_factory=lambda spec, api_key=None: client)
     r.invoke("evaluator", MSGS)
-    got = store.usage_since(since=clock(), alias="gemma-4-26b")
+    got = store.usage_since(since=clock(), alias="gemini-3.1-flash-lite")
     assert got.total_tokens == 337
 
 
 def test_429_thi_dat_cooldown_va_tut_xuong_mat_xich_ke(clock):
     hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
     tot = FakeChatClient([fake_ai("Còn 42 cái.")])
-    r = _router(clock, {"gemini-3.5-flash-lite": hong,
-                        "groq-llama-3.3-70b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": hong,
+                        "groq-gpt-oss-120b": tot})
     got = r.invoke("read", MSGS)
-    assert got.decision.spec.alias == "groq-llama-3.3-70b"
+    assert got.decision.spec.alias == "groq-gpt-oss-120b"
     assert got.decision.fallback_depth == 1
-    assert [a.alias for a in got.attempts] == ["gemini-3.5-flash-lite"]
+    assert [a.alias for a in got.attempts] == ["gemini-3.1-flash-lite"]
 
 
 def test_sau_429_mat_xich_do_bi_cooldown_o_luot_sau(clock):
     hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
     tot = FakeChatClient([fake_ai("ok")])
-    r = _router(clock, {"gemini-3.5-flash-lite": hong,
-                        "groq-llama-3.3-70b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": hong,
+                        "groq-gpt-oss-120b": tot})
     r.invoke("read", MSGS)
     assert len(hong.calls) == 1
     r.invoke("read", MSGS)          # lượt 2: không được chạm vào cái đang ốm
@@ -91,26 +91,33 @@ def test_cooldown_cua_429_dai_hon_cooldown_cua_loi_khac(clock):
 def test_loi_5xx_cung_lam_tut_mat_xich(clock):
     hong = FakeChatClient([FakeServerError("sập")])
     tot = FakeChatClient([fake_ai("ok")])
-    r = _router(clock, {"gemini-3.5-flash-lite": hong,
-                        "groq-llama-3.3-70b": tot})
-    assert r.invoke("read", MSGS).decision.spec.alias == "groq-llama-3.3-70b"
+    r = _router(clock, {"gemini-3.1-flash-lite": hong,
+                        "groq-gpt-oss-120b": tot})
+    assert r.invoke("read", MSGS).decision.spec.alias == "groq-gpt-oss-120b"
 
 
 def test_moi_mat_xich_deu_hong_thi_nem_ChainExhausted(clock):
     hong = FakeChatClient([FakeServerError("sập")])
     r = _router(clock, {"gemini-3.1-flash-lite": hong,
-                        "groq-llama-3.3-70b": hong})
+                        "groq-gpt-oss-120b": hong})
     with pytest.raises(ChainExhausted):
         r.invoke("fusion", MSGS)      # chuỗi fusion chỉ có 2 mắt xích
 
 
-def test_go_thought_cho_model_gemma(clock):
-    """evaluator chạy gemma-4-26b ở mắt xích 1 (emits_thought_tags=True).
+def test_go_thought_khi_spec_bat_co_emits_thought_tags(clock, monkeypatch):
+    """Bóc <thought> phải chạy trên ĐƯỜNG ROUTER, không chỉ ở strip_thought().
 
-    Trước 2026-08-13 test này dùng vai `chitchat`; vai đó nay chạy
-    gemini-3.5-flash (emits_thought_tags=False). Đổi sang `evaluator` chứ
-    KHÔNG sửa kỳ vọng — sửa kỳ vọng sẽ xoá âm thầm phần phủ của strip_thought,
-    trong khi hành vi đó vẫn sống ở production."""
+    Sau đợt gom 2026-08-21, KHÔNG model nào trong CATALOG còn
+    emits_thought_tags=True (gemma-4-26b — chủ nhân duy nhất của cờ đó — đã bị
+    xoá). Nếu chỉ sửa kỳ vọng thì phần phủ này biến mất âm thầm, trong khi
+    NHÁNH CODE vẫn còn và vẫn phải đúng nếu mai có model họ Gemma quay lại.
+    Nên test tự bật cờ trên một spec, thay vì dựa vào catalog."""
+    from dataclasses import replace
+
+    from src.llm import catalog as cat
+    spec = replace(cat.CATALOG["gemini-3.1-flash-lite"], emits_thought_tags=True)
+    monkeypatch.setitem(cat.CATALOG, "gemini-3.1-flash-lite", spec)
+
     client = FakeChatClient([fake_ai("<thought>nghĩ ngợi</thought>Chào bạn!")])
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                client_factory=lambda spec, api_key=None: client)
@@ -140,7 +147,7 @@ def test_ghim_khong_tut_khi_loi_ma_nem_thang_ra(clock):
     r = Router(BudgetLedger(InMemoryUsageStore(), clock=clock),
                client_factory=lambda spec, api_key=None: hong)
     with pytest.raises(ChainExhausted):
-        r.invoke("read", MSGS, pin="or-nemotron")
+        r.invoke("read", MSGS, pin="groq-gpt-oss-120b")
     assert len(hong.calls) == 1
 
 
@@ -155,10 +162,10 @@ async def test_ainvoke_hoat_dong_giong_invoke(clock):
 async def test_ainvoke_cung_tut_mat_xich_khi_429(clock):
     hong = FakeChatClient([FakeRateLimit("quá hạn mức")])
     tot = FakeChatClient([fake_ai("ok")])
-    r = _router(clock, {"gemini-3.5-flash-lite": hong,
-                        "groq-llama-3.3-70b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": hong,
+                        "groq-gpt-oss-120b": tot})
     got = await r.ainvoke("read", MSGS)
-    assert got.decision.spec.alias == "groq-llama-3.3-70b"
+    assert got.decision.spec.alias == "groq-gpt-oss-120b"
 
 
 async def test_ainvoke_khong_chan_event_loop_khi_store_cham(clock):
@@ -266,12 +273,12 @@ def test_phan_hoi_rong_thi_tut_mat_xich(clock):
     ĐO ĐƯỢC THẬT (từ gemma), dùng để mô phỏng bất kỳ mắt xích nào trả rỗng."""
     rong = FakeChatClient([fake_ai_rong()])
     tot = FakeChatClient([fake_ai("intent: erp_write")])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot})
 
     got = r.invoke("router", MSGS)
 
     assert got.message.content == "intent: erp_write"
-    assert got.decision.spec.alias == "groq-gpt-oss-20b"
+    assert got.decision.spec.alias == "groq-gpt-oss-120b"
     assert len(rong.calls) == 1        # gọi ĐÚNG một lần, không lặp lại
     assert len(tot.calls) == 1
 
@@ -282,12 +289,12 @@ def test_phan_hoi_rong_NHUNG_co_tool_call_thi_KHONG_tut(clock):
     erp_write_planner và mọi node SOP."""
     goi_tool = FakeChatClient([fake_ai_tool_call()])
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi tới đây")])
-    r = _router(clock, {"gemini-3.5-flash-lite": goi_tool,
-                        "groq-llama-3.3-70b": khong_duoc_cham})
+    r = _router(clock, {"gemini-3.1-flash-lite": goi_tool,
+                        "groq-gpt-oss-120b": khong_duoc_cham})
 
     got = r.invoke("read", MSGS)
 
-    assert got.decision.spec.alias == "gemini-3.5-flash-lite"
+    assert got.decision.spec.alias == "gemini-3.1-flash-lite"
     assert got.message.tool_calls[0]["name"] == "get_stock"
     assert len(khong_duoc_cham.calls) == 0
 
@@ -300,14 +307,14 @@ def test_luot_bi_bo_van_duoc_ghi_so_ngan_sach(clock):
     rong = FakeChatClient([fake_ai_rong(total=2406)])
     tot = FakeChatClient([fake_ai("ok", total=800)])
     r = Router(ledger, client_factory=lambda spec, api_key=None: {
-        "gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot}[spec.alias])
+        "gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot}[spec.alias])
 
     r.invoke("router", MSGS)
 
     assert store.usage_since(since=clock(),
                              alias="gemini-3.1-flash-lite").total_tokens == 2406
     assert store.usage_since(since=clock(),
-                             alias="groq-gpt-oss-20b").total_tokens == 800
+                             alias="groq-gpt-oss-120b").total_tokens == 800
 
 
 def test_phan_hoi_rong_KHONG_dat_cooldown(clock):
@@ -315,7 +322,7 @@ def test_phan_hoi_rong_KHONG_dat_cooldown(clock):
     này. Lượt sau vẫn phải thử lại mắt xích 1."""
     rong = FakeChatClient([fake_ai_rong(), fake_ai("intent: erp_read")])
     tot = FakeChatClient([fake_ai("intent: erp_write")])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot})
 
     r.invoke("router", MSGS)          # lượt 1: rỗng → tụt
     got = r.invoke("router", MSGS)    # lượt 2: mắt xích 1 PHẢI được thử lại
@@ -330,7 +337,7 @@ def test_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem(clock):
     ra đường crash mới. Không caller nào trong repo bắt ChainExhausted."""
     rong = FakeChatClient([fake_ai_rong()])
     r = _router(clock, {"gemini-3.1-flash-lite": rong,
-                        "groq-llama-3.3-70b": rong})
+                        "groq-gpt-oss-120b": rong})
 
     got = r.invoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
 
@@ -358,23 +365,23 @@ async def test_ainvoke_cung_tut_khi_phan_hoi_rong(clock):
     dễ xảy ra ở file này."""
     rong = FakeChatClient([fake_ai_rong()])
     tot = FakeChatClient([fake_ai("intent: erp_write")])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot})
 
     got = await r.ainvoke("router", MSGS)
 
-    assert got.decision.spec.alias == "groq-gpt-oss-20b"
+    assert got.decision.spec.alias == "groq-gpt-oss-120b"
     assert got.message.content == "intent: erp_write"
 
 
 async def test_ainvoke_phan_hoi_rong_co_tool_call_thi_KHONG_tut(clock):
     goi_tool = FakeChatClient([fake_ai_tool_call()])
     khong_duoc_cham = FakeChatClient([fake_ai("SAI")])
-    r = _router(clock, {"gemini-3.5-flash-lite": goi_tool,
-                        "groq-llama-3.3-70b": khong_duoc_cham})
+    r = _router(clock, {"gemini-3.1-flash-lite": goi_tool,
+                        "groq-gpt-oss-120b": khong_duoc_cham})
 
     got = await r.ainvoke("read", MSGS)
 
-    assert got.decision.spec.alias == "gemini-3.5-flash-lite"
+    assert got.decision.spec.alias == "gemini-3.1-flash-lite"
     assert len(khong_duoc_cham.calls) == 0
 
 
@@ -385,7 +392,7 @@ async def test_ainvoke_moi_mat_xich_deu_rong_thi_tra_ket_qua_cuoi_KHONG_nem(cloc
     `await llm.ainvoke`)."""
     rong = FakeChatClient([fake_ai_rong()])
     r = _router(clock, {"gemini-3.1-flash-lite": rong,
-                        "groq-llama-3.3-70b": rong})
+                        "groq-gpt-oss-120b": rong})
 
     got = await r.ainvoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
 
@@ -414,21 +421,21 @@ async def test_ainvoke_luot_bi_bo_van_duoc_ghi_so_ngan_sach(clock):
     rong = FakeChatClient([fake_ai_rong(total=2406)])
     tot = FakeChatClient([fake_ai("ok", total=800)])
     r = Router(ledger, client_factory=lambda spec, api_key=None: {
-        "gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot}[spec.alias])
+        "gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot}[spec.alias])
 
     await r.ainvoke("router", MSGS)
 
     assert store.usage_since(since=clock(),
                              alias="gemini-3.1-flash-lite").total_tokens == 2406
     assert store.usage_since(since=clock(),
-                             alias="groq-gpt-oss-20b").total_tokens == 800
+                             alias="groq-gpt-oss-120b").total_tokens == 800
 
 
 async def test_ainvoke_phan_hoi_rong_KHONG_dat_cooldown(clock):
     """Bản ainvoke của test_phan_hoi_rong_KHONG_dat_cooldown."""
     rong = FakeChatClient([fake_ai_rong(), fake_ai("intent: erp_read")])
     tot = FakeChatClient([fake_ai("intent: erp_write")])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot})
 
     await r.ainvoke("router", MSGS)          # lượt 1: rỗng → tụt
     got = await r.ainvoke("router", MSGS)    # lượt 2: mắt xích 1 PHẢI được thử lại
@@ -447,7 +454,7 @@ def test_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_nem(clock):
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     rong = FakeChatClient([fake_ai_rong()])
     r = Router(ledger, client_factory=lambda spec, api_key=None: rong)
-    ledger.cooldown(spec_for("groq-llama-3.3-70b"), 60.0)
+    ledger.cooldown(spec_for("groq-gpt-oss-120b"), 60.0)
 
     got = r.invoke("fusion", MSGS)      # chuỗi fusion: gemini-3.1-flash-lite, groq-llama-3.3-70b
 
@@ -460,7 +467,7 @@ async def test_ainvoke_resolve_can_chuoi_giua_chung_van_tra_ket_qua_rong_KHONG_n
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     rong = FakeChatClient([fake_ai_rong()])
     r = Router(ledger, client_factory=lambda spec, api_key=None: rong)
-    ledger.cooldown(spec_for("groq-llama-3.3-70b"), 60.0)
+    ledger.cooldown(spec_for("groq-gpt-oss-120b"), 60.0)
 
     got = await r.ainvoke("fusion", MSGS)
 
@@ -480,16 +487,16 @@ def test_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
     r = Router(ledger, client_factory=lambda spec, api_key=None: khong_duoc_cham)
-    for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"):
+    for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-120b"):
         ledger.cooldown(spec_for(alias), 60.0)
 
     with pytest.raises(ChainExhausted) as exc:
         r.invoke("router", MSGS)
 
-    # Lỗi phải là lỗi THẬT từ resolve(), mang đủ 3 mắt xích và lý do —
-    # không phải cái vỏ rỗng sinh ra ở cuối hàm.
+    # Lỗi phải là lỗi THẬT từ resolve(), mang ĐỦ mắt xích và lý do — không
+    # phải cái vỏ rỗng sinh ra ở cuối hàm (chuỗi tĩnh còn 2 từ 2026-08-21).
     assert [s.alias for s in exc.value.skipped] == [
-        "gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"]
+        "gemini-3.1-flash-lite", "groq-gpt-oss-120b"]
     assert len(khong_duoc_cham.calls) == 0
 
 
@@ -497,14 +504,14 @@ async def test_ainvoke_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
     ledger = BudgetLedger(InMemoryUsageStore(), clock=clock)
     khong_duoc_cham = FakeChatClient([fake_ai("SAI — không được gọi model")])
     r = Router(ledger, client_factory=lambda spec, api_key=None: khong_duoc_cham)
-    for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"):
+    for alias in ("gemini-3.1-flash-lite", "groq-gpt-oss-120b"):
         ledger.cooldown(spec_for(alias), 60.0)
 
     with pytest.raises(ChainExhausted) as exc:
         await r.ainvoke("router", MSGS)
 
     assert [s.alias for s in exc.value.skipped] == [
-        "gemini-3.1-flash-lite", "groq-gpt-oss-20b", "or-ling"]
+        "gemini-3.1-flash-lite", "groq-gpt-oss-120b"]
     assert len(khong_duoc_cham.calls) == 0
 
 
@@ -517,7 +524,7 @@ async def test_ainvoke_can_chuoi_ngay_vong_dau_van_nem_nhu_cu(clock):
 def test_token_luot_bi_bo_vao_discarded_khong_vao_total(clock):
     rong = FakeChatClient([fake_ai_rong(total=2406)])
     tot = FakeChatClient([fake_ai("ok", total=800)])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot})
 
     got = r.invoke("router", MSGS)
 
@@ -543,7 +550,7 @@ def test_moi_mat_xich_deu_rong_thi_khong_dem_hai_lan_luot_cuoi(clock):
     rong1 = FakeChatClient([fake_ai_rong(total=2406)])
     rong2 = FakeChatClient([fake_ai_rong(total=1500)])
     r = _router(clock, {"gemini-3.1-flash-lite": rong1,
-                        "groq-llama-3.3-70b": rong2})
+                        "groq-gpt-oss-120b": rong2})
 
     got = r.invoke("fusion", MSGS)    # chuỗi fusion chỉ có 2 mắt xích
 
@@ -557,7 +564,7 @@ async def test_ainvoke_cung_dem_discarded(clock):
     production, và lớp lỗi 'sửa một quên một' đã xảy ra thật ở file này."""
     rong = FakeChatClient([fake_ai_rong(total=2406)])
     tot = FakeChatClient([fake_ai("ok", total=800)])
-    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-20b": tot})
+    r = _router(clock, {"gemini-3.1-flash-lite": rong, "groq-gpt-oss-120b": tot})
 
     got = await r.ainvoke("router", MSGS)
 
@@ -569,7 +576,7 @@ async def test_ainvoke_moi_mat_xich_deu_rong_khong_dem_hai_lan(clock):
     rong1 = FakeChatClient([fake_ai_rong(total=2406)])
     rong2 = FakeChatClient([fake_ai_rong(total=1500)])
     r = _router(clock, {"gemini-3.1-flash-lite": rong1,
-                        "groq-llama-3.3-70b": rong2})
+                        "groq-gpt-oss-120b": rong2})
 
     got = await r.ainvoke("fusion", MSGS)
 

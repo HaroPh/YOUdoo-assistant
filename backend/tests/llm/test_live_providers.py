@@ -38,7 +38,7 @@ def _skip_neu_thieu_key(provider: str) -> None:
 # ─── Tool-calling qua cả ba nhà ─────────────────────────────────────────────
 
 @pytest.mark.parametrize("alias", [
-    "gemini-3.5-flash-lite", "groq-gpt-oss-20b", "or-nemotron",
+    "gemini-3.5-flash-lite", "groq-gpt-oss-120b", "or-nemotron",
 ])
 def test_tool_calling_hoat_dong_voi_tieng_viet(alias):
     spec = CATALOG[alias]
@@ -90,7 +90,7 @@ def test_gemma_van_nha_thought_vao_content():
     llm/router.py) đã chuẩn hoá đúng dạng này — test_dau_cuoi.py trả về plain
     string sạch qua đúng đường đó."""
     _skip_neu_thieu_key("google")
-    spec = CATALOG["gemma-4-26b"]
+    spec = CATALOG["gemini-3.1-flash-lite"]
     response = client_for(spec).invoke([HumanMessage("Xin chào, bạn khoẻ không?")])
     assert "<thought>" in (response.content or ""), (
         "Gemma không còn nhả <thought> — cân nhắc gỡ strip_thought() và cờ "
@@ -111,7 +111,7 @@ def test_gemma_van_co_thought_token_rieng_trong_usage_metadata():
     suy luận gián tiếp qua chênh lệch tổng, vì đó là cách chính xác hơn để xác
     nhận Gemma vẫn còn token thinking ẩn."""
     _skip_neu_thieu_key("google")
-    spec = CATALOG["gemma-4-26b"]
+    spec = CATALOG["gemini-3.1-flash-lite"]
     response = client_for(spec).invoke([HumanMessage("Xin chào, bạn khoẻ không?")])
     usage = response.usage_metadata
     reasoning = (usage.get("output_token_details") or {}).get("reasoning") or 0

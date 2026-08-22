@@ -1,14 +1,27 @@
 import pytest
 from langchain_openai import ChatOpenAI
 
+from dataclasses import replace
+
 from src.llm.catalog import spec_for
 from src.llm.providers import (BASE_URLS, ENV_KEYS, client_for, keys_for,
                                strip_thought)
 
-GEMMA = spec_for("gemma-4-26b")            # emits_thought_tags=True
-GEMINI = spec_for("gemini-3.5-flash-lite")  # emits_thought_tags=False
-GROQ = spec_for("groq-gpt-oss-20b")
-OR_LING = spec_for("or-ling")
+GEMINI = spec_for("gemini-3.5-flash-lite")
+GROQ = spec_for("groq-gpt-oss-120b")
+
+# Spec TỔNG HỢP, cố ý KHÔNG lấy từ CATALOG. Sau đợt gom 2026-08-21, cả 4 model
+# còn lại đều có `model_id == alias`, nên dùng chúng thì test "client phải gửi
+# model_id GỐC chứ không phải alias" KHÔNG CÒN PHÂN BIỆT ĐƯỢC gì — nó xanh kể
+# cả khi code gửi nhầm alias. Trước đó gemma-4-26b (model_id
+# "gemma-4-26b-a4b-it") giữ vai đó.
+KHAC_ID = replace(GEMINI, alias="alias-khac-id", model_id="id-goc-that")
+
+# Spec TỔNG HỢP cho provider "openrouter": cả tầng OpenRouter bị xoá khỏi
+# CATALOG 2026-08-21, nhưng NHÁNH CODE của nó trong client_for/BASE_URLS vẫn
+# còn và vẫn phải đúng. Không có spec này thì nhánh đó thành mã không ai chạy.
+OR = replace(GROQ, alias="or-tong-hop", model_id="nha/model:free",
+             provider="openrouter", upstream="x")
 
 
 # ─── strip_thought ──────────────────────────────────────────────────────────
@@ -71,9 +84,9 @@ def test_google_dung_ChatGoogleGenerativeAI_groq_openrouter_dung_ChatOpenAI(monk
     monkeypatch.setenv("GROQ_API_KEY", "k")
     monkeypatch.setenv("OPENROUTER_API_KEY", "k")
     assert isinstance(client_for(GEMINI), ChatGoogleGenerativeAI)
-    assert isinstance(client_for(GEMMA), ChatGoogleGenerativeAI)
+    assert isinstance(client_for(KHAC_ID), ChatGoogleGenerativeAI)
     assert isinstance(client_for(GROQ), ChatOpenAI)
-    assert isinstance(client_for(OR_LING), ChatOpenAI)
+    assert isinstance(client_for(OR), ChatOpenAI)
 
 
 def test_moi_provider_co_ten_bien_moi_truong_rieng():
@@ -91,22 +104,22 @@ def test_groq_va_openrouter_co_base_url_google_thi_khong():
 def test_client_google_dung_model_id_goc_qua_truong_model(monkeypatch):
     """ChatGoogleGenerativeAI dùng trường `model`, KHÔNG phải `model_name`."""
     monkeypatch.setenv("GOOGLE_API_KEY", "k")
-    client = client_for(GEMMA)
-    assert client.model == "gemma-4-26b-a4b-it"   # KHÔNG phải "gemma-4-26b"
+    client = client_for(KHAC_ID)
+    assert client.model == "id-goc-that"          # KHÔNG phải "alias-khac-id"
 
 
 def test_client_groq_dung_model_id_goc_qua_truong_model_name(monkeypatch):
     """ChatOpenAI dùng trường `model_name` (alias `model` lúc khởi tạo)."""
     monkeypatch.setenv("GROQ_API_KEY", "k")
     client = client_for(GROQ)
-    assert client.model_name == "openai/gpt-oss-20b"
+    assert client.model_name == "openai/gpt-oss-120b"
 
 
 def test_client_groq_openrouter_lay_dung_base_url_theo_provider(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "k")
     monkeypatch.setenv("OPENROUTER_API_KEY", "k")
     assert "groq.com" in str(client_for(GROQ).openai_api_base)
-    assert "openrouter.ai" in str(client_for(OR_LING).openai_api_base)
+    assert "openrouter.ai" in str(client_for(OR).openai_api_base)
 
 
 def test_client_groq_lay_timeout_va_max_tokens_tu_catalog(monkeypatch):
@@ -164,7 +177,7 @@ def test_temperature_luon_bang_khong_ca_hai_loai_client(monkeypatch):
 # Không chốt tường minh thì một lần `pip install -U` là hạn mức lại lặng lẽ
 # bốc hơi.
 
-@pytest.mark.parametrize("spec", [GEMINI, GEMMA, GROQ, OR_LING],
+@pytest.mark.parametrize("spec", [GEMINI, GROQ],
                          ids=lambda s: s.alias)
 def test_client_khong_de_sdk_tu_thu_lai(monkeypatch, spec):
     monkeypatch.setenv(ENV_KEYS[spec.provider], "khoa-gia-cho-test")

@@ -31,10 +31,7 @@ Quy ước:
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 6 | `gemma-4-26b` (rpd 14 400) — model DUY NHẤT đủ gánh cả hệ một mình, chưa đo nên chưa cho chọn | chưa ai | **căn cứ sau 2026-08-21**: mục 8 cho thấy chuỗi dự phòng có thể cạn SẠCH trên đường ERP thật (`ChainExhausted`). Không trích số `llm_usage` làm căn cứ hạn mức — xem mục 9 |
-| 8 | ⚠️ **Chọn 3.5 cho chuỗi NGẮN HƠN chọn 3.1** — `prefer` chỉ chèn lên đầu, nên model vốn đã đứng đầu thì không thêm mắt xích nào. Gặp thật: hỏi tồn kho khi chọn 3.5 → `ChainExhausted` dù 3.1 còn hạn mức | chưa ai | phạm vi mới, chờ quyết (spec `2026-08-21-model-picker.md` §8.5) |
 | 9 | ⚠️ **Bộ test tích hợp XOÁ SỔ NGÂN SÁCH `llm_usage`** — `tests/llm/test_store_postgres.py::test_thieu_migration_thi_nem_RuntimeError_ro_rang` chạy `DROP TABLE` trên chính `DATABASE_URL` thật rồi tạo lại bảng RỖNG | chưa ai | phạm vi mới. Hệ quả: sau mỗi lượt `pytest -m integration`, ledger tưởng chưa dùng gì và mọi chẩn đoán hạn mức đọc sau đó đều sai |
-| 10 | ⚠️ **`or-nemotron` CHẾT** — 16 lần gọi, **0 lần thành công**, luôn 404 "Provider returned error / Nvidia". Nó là mắt xích CUỐI của `read`/`planner`/`synthesis` ⇒ ba chuỗi đó ngắn hơn vẻ ngoài một mắt xích | chưa ai | phạm vi mới; thành phần chết im lặng thứ BA của dự án (sau chân sparse và reranker) |
 
 ## Ai giữ vùng nào
 
@@ -51,6 +48,9 @@ báo trước.
 
 | kết luận | chứng cứ |
 |---|---|
+| Catalog gom còn **4 model**, một hình dạng chuỗi cho mọi vai | spec `2026-08-21-catalog-consolidation.md` |
+| `gemma-4-26b` THUA mọi ứng viên trên bộ `confirm` (0,7917 · 6062ms) — đã xoá | cùng spec §4; bảng 5 model đo cùng phiên |
+| Cổng xác nhận ghi: `gemini-3.5-flash-lite` 0,9583 · `3.1` 0,9167 · `120b` 0,8333 — false_confirm = 0 ở CẢ NĂM | cùng spec §4 |
 | Xoay khoá API: xoay BÊN TRONG một mắt xích, KHÔNG thành mắt xích mới — bất biến #1 vẫn nguyên | spec `2026-08-21-api-key-rotation.md` §2, nghiệm thu sống §4 |
 | Chỉ xoay khoá khi **429**; lỗi khác (404/5xx) không xoay | cùng spec §2.1; `or-nemotron` 404 16/16 lượt là ca phản chứng |
 | Ký ức **không** vào prompt tổng hợp RAG — cả ba loại fact đều không dương | spec `2026-08-20-memory-synthesis-eval.md` §3, §7 |
