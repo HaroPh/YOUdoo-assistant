@@ -80,11 +80,11 @@ async def test_chat_completions_tra_error_msg_khi_agent_nem_loi(monkeypatch):
         async def chat(self, *a, **k):
             raise RuntimeError("lỗi giả lập agent")
 
-    # Request không có header đăng nhập ⇒ role sẽ là None trừ khi có escape
-    # hatch dev tường minh. Đặt YOUDOO_FALLBACK_ROLE để yêu cầu này đi tới
-    # agent.chat() thật sự — mục đích của test là kiểm tra lỗi từ agent.chat
-    # được bọc thành ERROR_MSG, không phải kiểm tra đường từ chối vì thiếu vai.
-    monkeypatch.setenv("YOUDOO_FALLBACK_ROLE", "admin")
+    # Gửi user-id THẬT (ánh xạ qua YOUDOO_ROLE_MAP giả) thay vì
+    # YOUDOO_FALLBACK_ROLE — biến đó đã bị gỡ 2026-08-22 vì nó cho một request
+    # không có danh tính nhận vai bất kỳ. Mục đích test không đổi: kiểm lỗi từ
+    # agent.chat được bọc thành ERROR_MSG.
+    _cho_phep(monkeypatch)
     main_module._state["agent"] = _FakeAgentThrows()
     try:
         transport = httpx.ASGITransport(app=main_module.app)
@@ -92,7 +92,8 @@ async def test_chat_completions_tra_error_msg_khi_agent_nem_loi(monkeypatch):
                                      base_url="http://test") as client:
             resp = await client.post("/v1/chat/completions",
                                      json={"messages": [{"role": "user",
-                                                         "content": "hi"}]})
+                                                         "content": "hi"}]},
+                                     headers=_dau())
         assert resp.status_code == 200
         body = resp.json()
         assert body["choices"][0]["message"]["content"] == main_module.ERROR_MSG
@@ -120,17 +121,42 @@ async def test_health_endpoint_khi_chua_co_agent():
 # đúng lớp lỗi "danh sách khai báo mà không ai gác" đã tái phát nhiều lần ở
 # repo này.
 
-async def _post_chat(main_module, body, monkeypatch):
+TOKEN_THU = "token-thu-cho-test"
+UID_THU = "uid-thu"
+
+
+def _cho_phep(monkeypatch):
+    """Dựng môi trường tối thiểu để một request /v1 đi lọt.
+
+    Đặt CẢ token LẪN bản đồ vai bằng giá trị GIẢ, không mượn `.env` thật: bài
+    học 2026-08-21 — test đọc `.env` thì kết quả phụ thuộc máy đang chạy.
+    """
+    monkeypatch.setenv("YOUDOO_API_TOKEN", TOKEN_THU)
+    monkeypatch.setenv("YOUDOO_ROLE_MAP", f"{UID_THU}:admin")
+
+
+def _dau(token=TOKEN_THU, uid=UID_THU):
+    h = {}
+    if token is not None:
+        h["Authorization"] = f"Bearer {token}"
+    if uid is not None:
+        h["x-openwebui-user-id"] = uid
+    return h
+
+
+async def _post_chat(main_module, body, monkeypatch, headers=None):
     import httpx
-    monkeypatch.setenv("YOUDOO_FALLBACK_ROLE", "admin")
+    _cho_phep(monkeypatch)
     transport = httpx.ASGITransport(app=main_module.app)
     async with httpx.AsyncClient(transport=transport,
                                  base_url="http://test") as client:
-        return await client.post("/v1/chat/completions", json=body)
+        return await client.post("/v1/chat/completions", json=body,
+                                 headers=_dau() if headers is None else headers)
 
 
 @pytest.mark.asyncio
-async def test_v1_models_chi_liet_ke_model_chon_duoc():
+async def test_v1_models_chi_liet_ke_model_chon_duoc(monkeypatch):
+    _cho_phep(monkeypatch)
     """Ba ô nhưng hai hành vi là hỏng: `erp-assistant` map về MODEL_MAC_DINH nên
     nó trùng y hệt `gemini-3.1-flash-lite`."""
     import httpx
@@ -140,7 +166,7 @@ async def test_v1_models_chi_liet_ke_model_chon_duoc():
     transport = httpx.ASGITransport(app=main_module.app)
     async with httpx.AsyncClient(transport=transport,
                                  base_url="http://test") as client:
-        resp = await client.get("/v1/models")
+        resp = await client.get("/v1/models", headers=_dau())
     ids = [m["id"] for m in resp.json()["data"]]
     assert ids == list(MODEL_CHON_DUOC)
     assert main_module.MODEL_ID not in ids

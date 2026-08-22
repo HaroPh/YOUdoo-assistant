@@ -10,11 +10,12 @@ import hashlib
 import json
 import logging
 import os
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.agents.erp_agent import ERPAgent
@@ -51,13 +52,54 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ERP AI Assistant Backend", lifespan=lifespan)
 
 
+def _doc_token() -> str:
+    """Token bắt buộc cho /v1/*. Thiếu ⇒ CHẾT NGAY, không chạy mở toang.
+
+    Trước 2026-08-22 `/v1` KHÔNG có xác thực nào: backend bind `0.0.0.0:8002`
+    và quyền được suy DUY NHẤT từ header `x-openwebui-user-id` — một chuỗi do
+    client tự khai. Ai trong cùng mạng LAN gửi header của admin là mở khoá
+    toàn bộ 33 tool ghi Odoo (duyệt đơn, phát hành hoá đơn, gửi mail ra ngoài).
+    Kiểm toán 2026-08-22 gọi đây là FM-1; nó được xác nhận bằng cách KHAI THÁC
+    thật trong chính phiên đó.
+
+    Fail-closed có chủ đích (chủ dự án chốt phương án A): một cổng an toàn có
+    thể tự tắt vì thiếu cấu hình thì không phải cổng an toàn. Cùng khuôn với
+    `providers.client_for` — chết ngay lúc dựng, nêu đúng tên biến phải đặt.
+
+    Đường ống đã có sẵn hai đầu: `docker-compose.yml` vốn đã truyền
+    `OPENAI_API_KEY` cho Open WebUI, tức nó ĐANG gửi `Authorization: Bearer`
+    mỗi lượt — backend chỉ chưa từng đọc.
+    """
+    token = os.environ.get("YOUDOO_API_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "thiếu biến môi trường YOUDOO_API_TOKEN — /v1/* bắt buộc phải có "
+            "token. Đặt nó trong .env, và docker-compose truyền cùng giá trị "
+            "đó cho Open WebUI qua OPENAI_API_KEY. Xem .env.example.")
+    return token
+
+
+def _kiem_token(req: Request) -> None:
+    """Ném HTTPException 401 nếu header Authorization không khớp.
+
+    `compare_digest` chứ không phải `==`: so sánh chuỗi thường thoát sớm ở ký
+    tự lệch đầu tiên, tức thời gian phản hồi rò rỉ từng ký tự của token.
+    """
+    token = _doc_token()
+    header = req.headers.get("authorization") or ""
+    prefix = "bearer "
+    gui = header[len(prefix):] if header.lower().startswith(prefix) else ""
+    if not (gui and secrets.compare_digest(gui, token)):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "agent_ready": "agent" in _state}
 
 
 @app.get("/v1/models")
-async def list_models():
+async def list_models(req: Request):
     """Liệt kê model cho dropdown của Open WebUI.
 
     Dropdown ĐÃ CÓ SẴN ở client — trước đây endpoint này trả đúng một mục nên
@@ -75,6 +117,7 @@ async def list_models():
     vụ — biết model nào đang trả lời. Client cũ không gãy vì nhánh "tên lạ →
     MODEL_MAC_DINH" ở /v1/chat/completions vẫn nhận `erp-assistant`.
     """
+    _kiem_token(req)
     created = int(time.time())
     ids = MODEL_CHON_DUOC
     return {"object": "list", "data": [
@@ -174,6 +217,7 @@ def _derive_thread_id(body: dict, messages: list[dict], headers=None,
 
 @app.post("/v1/chat/completions")
 async def chat_completions(req: Request):
+    _kiem_token(req)
     body = await req.json()
     stream = bool(body.get("stream", False))
     messages = _filter_messages(body.get("messages", []))
@@ -208,9 +252,15 @@ async def chat_completions(req: Request):
             # correctly. Priority: Open WebUI identity headers (R7) > explicit
             # client session_id/id > hash of the first user message (see
             # _derive_thread_id docstring).
+            # `YOUDOO_FALLBACK_ROLE` ĐÃ GỠ 2026-08-22. Nó cho một request KHÔNG
+            # có header người dùng nhận vai bất kỳ — tức vô hiệu hoá đúng cổng
+            # phân quyền mà `roles.py` dựng lên (kiểm toán 2026-08-22).
+            #
+            # Trước đây các script nghiệm thu sống cần nó vì `chat()` không gửi
+            # header vai. Chuyện đó đã được sửa cùng ngày (live_verify_common
+            # nay suy user-id từ YOUDOO_ROLE_MAP), nên biến này không còn ai
+            # cần — giữ lại chỉ là giữ một cửa hậu cho tiện.
             role = _role_from_headers(req.headers)
-            if role is None:
-                role = os.environ.get("YOUDOO_FALLBACK_ROLE") or None
             if role is None:
                 answer = ("Không xác định được quyền truy cập của bạn. "
                           "Vui lòng đăng nhập bằng tài khoản đã được cấp vai, "

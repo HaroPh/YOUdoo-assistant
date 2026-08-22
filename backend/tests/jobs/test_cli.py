@@ -108,7 +108,17 @@ def test_cli_survives_redirected_cp1252_stdout():
     proc = subprocess.run(
         [sys.executable, "-m", "jobs", "run", "e2e-smoke", "--scheduled"],
         cwd=REPO_ROOT / "backend", env=env, capture_output=True, text=True,
-        encoding="cp1252", timeout=30)
+        # 90s chứ không phải 30s: `python -m jobs` kéo theo `evals.role_config`
+        # → `src.agents.erp_agent` → cả `torch` lẫn `google.genai`, và riêng
+        # phần import đó tốn ~10s khi bộ nhớ đệm tệp ẤM, **~40s khi NGUỘI**
+        # (đo 2026-08-22, ngay sau một lần khởi động lại máy — test này đỏ
+        # đúng vì vậy, không phải vì mã hỏng).
+        #
+        # Đây là nới trần cho một mong manh THẬT, không phải giấu lỗi: nhánh
+        # `--scheduled` bị từ chối NGAY, không chạm mạng — nó không cần một
+        # dòng nào của torch. Chi phí đó là do import ở cấp module kéo theo.
+        # Sửa gốc (import lười cho CLI) là việc riêng, chưa làm.
+        encoding="cp1252", timeout=90)
     assert proc.returncode == _INFRA_ERROR
     assert "UnicodeEncodeError" not in proc.stderr
     assert "Traceback" not in proc.stderr

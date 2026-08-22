@@ -117,7 +117,10 @@ services:
       OPENAI_API_BASE_URL: http://host.docker.internal:${BACKEND_PORT:-8002}/v1
       # Backend /v1 không yêu cầu Authorization header — giá trị dưới đây chỉ
       # để điền field bắt buộc của Open WebUI, không phải secret thật.
-      OPENAI_API_KEY: youdoo-local-dev
+      # MOT NGUON DUY NHAT voi backend: cung bien YOUDOO_API_TOKEN trong .env.
+      # Truoc 2026-08-22 day la chuoi ghi cung 'youdoo-local-dev' NAM TRONG GIT,
+      # va backend khong doc no — tuc /v1 mo toang. Nay backend BAT BUOC kiem.
+      OPENAI_API_KEY: ${YOUDOO_API_TOKEN:?can dat YOUDOO_API_TOKEN trong .env}
       WEBUI_NAME: "Youdoo ERP Assistant"
       # Open WebUI tự bật tích hợp Ollama nếu detect được instance khả dụng
       # qua mạng — extra_hosts bên dưới (cần để gọi backend Youdoo) vô tình

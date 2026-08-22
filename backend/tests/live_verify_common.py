@@ -87,6 +87,11 @@ def chat(history: list[dict], sid: str, msg: str,
     uid = user_id if user_id is not None else role_user_id()
     if uid:
         headers["x-openwebui-user-id"] = uid
+    # Token bắt buộc từ 2026-08-22 — /v1/* trả 401 nếu thiếu. Đọc từ cùng biến
+    # môi trường mà backend đọc, để không có nơi thứ hai giữ giá trị này.
+    token = os.environ.get("YOUDOO_API_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     r = requests.post(CHAT_ENDPOINT, json=body, headers=headers, timeout=150)
     r.raise_for_status()
     payload = r.json()

@@ -48,9 +48,13 @@ async def test_endpoint_tu_choi_truoc_khi_cham_agent_khi_khong_suy_duoc_vai(monk
             self.called = True
             return "không nên tới đây"
 
-    # Không có header đăng nhập, không escape hatch dev, không mapping nào
-    # khớp caller ⇒ role phải là None ở mọi nguồn.
-    monkeypatch.delenv("YOUDOO_FALLBACK_ROLE", raising=False)
+    # Không có header đăng nhập, không mapping nào khớp caller ⇒ role phải là
+    # None ở mọi nguồn. (`YOUDOO_FALLBACK_ROLE` đã bị GỠ 2026-08-22 — nó chính
+    # là "escape hatch" mà test này từng phải tắt đi bằng tay.)
+    #
+    # Token thì VẪN phải hợp lệ: test này đo cổng PHÂN QUYỀN, không phải cổng
+    # xác thực. Thiếu token thì request dừng ở 401 và ta không còn đo được gì.
+    monkeypatch.setenv("YOUDOO_API_TOKEN", "token-thu")
     monkeypatch.delenv("YOUDOO_ROLE_MAP", raising=False)
 
     fake_agent = _FakeAgentRecords()
@@ -59,9 +63,10 @@ async def test_endpoint_tu_choi_truoc_khi_cham_agent_khi_khong_suy_duoc_vai(monk
         transport = httpx.ASGITransport(app=main_module.app)
         async with httpx.AsyncClient(transport=transport,
                                      base_url="http://test") as client:
-            resp = await client.post("/v1/chat/completions",
-                                     json={"messages": [{"role": "user",
-                                                         "content": "hi"}]})
+            resp = await client.post(
+                "/v1/chat/completions",
+                json={"messages": [{"role": "user", "content": "hi"}]},
+                headers={"Authorization": "Bearer token-thu"})
         assert resp.status_code == 200
         # Assertion order is deliberate: agent.called is the one that actually
         # proves the refusal happens BEFORE the agent (a bypass regression
