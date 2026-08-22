@@ -31,6 +31,14 @@ Quy ước:
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
+| 14 | 🔴 **`/v1` KHÔNG xác thực** — bind `0.0.0.0:8002`, quyền suy DUY NHẤT từ header `x-openwebui-user-id`. Ai trong LAN gửi header của admin là mở khoá 33 tool ghi Odoo | chưa ai | **chờ chủ dự án quyết cơ chế token**; đổi `BACKEND_HOST=127.0.0.1` phải kiểm trước vì Open WebUI chạy trong Docker |
+| 15 | 🔴 **Guardrail FAIL-OPEN đúng lúc model yếu nhất** — `verify_citations`/`verify_erp_grounding` là lời gọi LLM trên cùng ví quota; cạn quota ⇒ chúng ném ⇒ `except: return answer`. Chống ảo giác tự tắt, mà footer trích dẫn 📄 VẪN in | chưa ai | cần quyết: fail-loud (bỏ footer + gắn cờ) hay tách ví quota |
+| 16 | 🔴 **Không quản lý cửa sổ ngữ cảnh** — `_filter_messages` chuyển nguyên lịch sử, không cắt/tóm tắt/đếm token. Hội thoại dài ⇒ mọi mắt xích cùng lỗi ⇒ đoạn chat chết vĩnh viễn | chưa ai | phạm vi mới |
+| 17 | Vệt kiểm toán ghi `caller = mcp-odoo/<vai>` (tên tiến trình), **không có user HTTP, không có `args_digest`** ⇒ không truy vết được sau sự cố | chưa ai | đi cùng mục 14 |
+| 18 | Xác nhận quá hạn (TTL 300s) **hủy trong im lặng**; `.env.example` để `ODOO_USERNAME=admin`; 4 tài khoản Odoo chung **một** mật khẩu | chưa ai | ba việc nhỏ, gom một đợt |
+| 19 | RAG: **không có Query Transformation**; metadata thiếu `department`/`access_level` ⇒ **RBAC rách ở tầng RAG** (vai kho đọc được tài liệu kế toán) | chưa ai | phạm vi mới |
+| 20 | **Không có CI** (`.github/` không tồn tại) — 2004 test + `eval_gate` đều phải gõ tay | chưa ai | |
+| 21 | UX: **không có streaming** (màn hình trắng 5–20s), **không có Undo**, dữ liệu hiển thị thô (`sale`/`draft`), thiếu vai Bán hàng & Mua hàng trong `RoleCfg` | chưa ai | nhóm P1 của bản kiểm toán |
 
 ## Ai giữ vùng nào
 
