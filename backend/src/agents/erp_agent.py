@@ -2,6 +2,7 @@
 import os
 import uuid
 import time
+import asyncio
 from contextvars import ContextVar
 
 from langchain_core.messages import HumanMessage, RemoveMessage
@@ -14,6 +15,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from .graph import build_graph
+from .tien_trinh import BaoTienTrinh, HANG_TIEN_TRINH
 from .confirmation import CONFIRM, UNCLEAR, classify_confirmation
 from .disambiguation import parse_selection
 from .language import EN, VI, detect_lang
@@ -406,8 +408,13 @@ class ERPAgent:
         da_qua_han = False          # xác nhận cũ bị huỷ vì hết hạn — xem dưới
         tid = thread_id or uuid.uuid4().hex
         config = {"configurable": {"thread_id": tid}}
-        if self._handler:
-            config["callbacks"] = [self._handler]
+        callbacks = [self._handler] if self._handler else []
+        # Chỉ gắn khi CÓ người lắng nghe: lượt không streaming không phải trả
+        # thêm một callback nào.
+        if HANG_TIEN_TRINH.get() is not None:
+            callbacks.append(BaoTienTrinh())
+        if callbacks:
+            config["callbacks"] = callbacks
 
         memory_block = ""
         if user_id:

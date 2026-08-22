@@ -7,6 +7,7 @@ Chạy (host, cần mcp-odoo SSE :8003 đang chạy):
     python run.py
 """
 import hashlib
+import asyncio
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.agents.erp_agent import ERPAgent
+from src.agents.tien_trinh import HANG_TIEN_TRINH
 from src.agents import roles as roles_mod
 
 logger = logging.getLogger(__name__)
@@ -215,6 +217,11 @@ def _derive_thread_id(body: dict, messages: list[dict], headers=None,
             + hashlib.sha1(first_user.encode("utf-8")).hexdigest()[:16])
 
 
+# Cùng một nhãn tiến trình chỉ phát lại sau chừng này giây. Đủ dài để không
+# spam khi agent gọi tool liên tiếp, đủ ngắn để panel không đứng im quá lâu.
+LAP_NHAN_TOI_THIEU_S = 2.0
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: Request):
     _kiem_token(req)
@@ -241,71 +248,151 @@ async def chat_completions(req: Request):
     THUNG_MODEL.set({})
 
     agent: ERPAgent = _state["agent"]
-    try:
-        if _is_owui_task_prompt(messages):
-            # Open WebUI's own background task call (title/tags/follow-up/query
-            # generation) — answer it directly, never touch thread/checkpoint
-            # state (R7 hotfix, spec §8).
-            answer = await agent.answer_stateless(messages[0]["content"])
-        else:
-            # Stable thread per conversation so multi-turn confirmation resumes
-            # correctly. Priority: Open WebUI identity headers (R7) > explicit
-            # client session_id/id > hash of the first user message (see
-            # _derive_thread_id docstring).
-            # `YOUDOO_FALLBACK_ROLE` ĐÃ GỠ 2026-08-22. Nó cho một request KHÔNG
-            # có header người dùng nhận vai bất kỳ — tức vô hiệu hoá đúng cổng
-            # phân quyền mà `roles.py` dựng lên (kiểm toán 2026-08-22).
-            #
-            # Trước đây các script nghiệm thu sống cần nó vì `chat()` không gửi
-            # header vai. Chuyện đó đã được sửa cùng ngày (live_verify_common
-            # nay suy user-id từ YOUDOO_ROLE_MAP), nên biến này không còn ai
-            # cần — giữ lại chỉ là giữ một cửa hậu cho tiện.
-            role = _role_from_headers(req.headers)
-            if role is None:
-                answer = ("Không xác định được quyền truy cập của bạn. "
-                          "Vui lòng đăng nhập bằng tài khoản đã được cấp vai, "
-                          "hoặc liên hệ quản trị viên.")
+
+    async def _tinh_cau_tra_loi() -> str:
+        """Toàn bộ đường tính câu trả lời, KHÔNG đổi một dòng logic.
+
+        Bọc thành coroutine để lượt streaming chạy được nó như một task
+        và vừa chạy vừa phát tiến trình. Lượt không streaming vẫn `await`
+        thẳng, tức đường cũ không đổi hành vi.
+        """
+        answer = None
+        try:
+            if _is_owui_task_prompt(messages):
+                # Open WebUI's own background task call (title/tags/follow-up/query
+                # generation) — answer it directly, never touch thread/checkpoint
+                # state (R7 hotfix, spec §8).
+                answer = await agent.answer_stateless(messages[0]["content"])
             else:
-                thread_id = _derive_thread_id(body, messages, headers=req.headers,
-                                              role=role)
-                answer = await agent.chat(messages, thread_id=thread_id, role=role,
-                                          reset_if_fresh=not _explicit_session(body),
-                                          user_id=req.headers.get("x-openwebui-user-id"))
-    except Exception:
-        # Finding 2 (live-test 2026-07-10): a transient failure (cloud LLM
-        # hiccup/timeout/rate-limit) here used to propagate uncaught → FastAPI
-        # 500, forcing Open WebUI's own retry to paper over it (and the
-        # traceback was never captured — logs on this host truncate on every
-        # restart). rag_node/fuse_answer already degrade to a safe message on
-        # failure; this is the same pattern at the endpoint's outermost layer,
-        # covering EVERY node (chitchat included, which lacked its own guard).
-        logger.exception("chat_completions failed")
-        answer = ERROR_MSG
+                # Stable thread per conversation so multi-turn confirmation resumes
+                # correctly. Priority: Open WebUI identity headers (R7) > explicit
+                # client session_id/id > hash of the first user message (see
+                # _derive_thread_id docstring).
+                # `YOUDOO_FALLBACK_ROLE` ĐÃ GỠ 2026-08-22. Nó cho một request KHÔNG
+                # có header người dùng nhận vai bất kỳ — tức vô hiệu hoá đúng cổng
+                # phân quyền mà `roles.py` dựng lên (kiểm toán 2026-08-22).
+                #
+                # Trước đây các script nghiệm thu sống cần nó vì `chat()` không gửi
+                # header vai. Chuyện đó đã được sửa cùng ngày (live_verify_common
+                # nay suy user-id từ YOUDOO_ROLE_MAP), nên biến này không còn ai
+                # cần — giữ lại chỉ là giữ một cửa hậu cho tiện.
+                role = _role_from_headers(req.headers)
+                if role is None:
+                    answer = ("Không xác định được quyền truy cập của bạn. "
+                              "Vui lòng đăng nhập bằng tài khoản đã được cấp vai, "
+                              "hoặc liên hệ quản trị viên.")
+                else:
+                    thread_id = _derive_thread_id(body, messages, headers=req.headers,
+                                                  role=role)
+                    answer = await agent.chat(messages, thread_id=thread_id, role=role,
+                                              reset_if_fresh=not _explicit_session(body),
+                                              user_id=req.headers.get("x-openwebui-user-id"))
+        except Exception:
+            # Finding 2 (live-test 2026-07-10): a transient failure (cloud LLM
+            # hiccup/timeout/rate-limit) here used to propagate uncaught → FastAPI
+            # 500, forcing Open WebUI's own retry to paper over it (and the
+            # traceback was never captured — logs on this host truncate on every
+            # restart). rag_node/fuse_answer already degrade to a safe message on
+            # failure; this is the same pattern at the endpoint's outermost layer,
+            # covering EVERY node (chitchat included, which lacked its own guard).
+            logger.exception("chat_completions failed")
+            answer = ERROR_MSG
+        return answer
 
     cid = f"chatcmpl-{uuid.uuid4().hex[:24]}"
     created = int(time.time())
-    # Tên model THẬT đã sinh ra câu trả lời, không phải hằng số MODEL_ID. Lượt
-    # hỏng (ERROR_MSG) hoặc lượt chưa tới vai sinh câu trả lời thì rơi về model
-    # người dùng chọn — xem catalog.model_tra_loi.
-    model_da_tra_loi = model_tra_loi(
-        THUNG_MODEL.get(), MODEL_NGUOI_DUNG_CHON.get() or MODEL_MAC_DINH)
+
+    def _model_hien_tai() -> str:
+        # Tên model THẬT đã sinh ra câu trả lời, không phải hằng số MODEL_ID.
+        # Lượt hỏng (ERROR_MSG) hoặc lượt chưa tới vai sinh câu trả lời thì rơi
+        # về model người dùng chọn — xem catalog.model_tra_loi.
+        #
+        # Gọi lại ở từng chunk chứ không chốt một lần: ở lượt streaming, các
+        # chunk tiến trình đi ra TRƯỚC khi vai nào đó kịp ghi vào THUNG_MODEL.
+        return model_tra_loi(THUNG_MODEL.get(),
+                             MODEL_NGUOI_DUNG_CHON.get() or MODEL_MAC_DINH)
 
     if not stream:
+        answer = await _tinh_cau_tra_loi()
         return JSONResponse({
-            "id": cid, "object": "chat.completion", "created": created, "model": model_da_tra_loi,
+            "id": cid, "object": "chat.completion", "created": created,
+            "model": _model_hien_tai(),
             "choices": [{"index": 0,
                          "message": {"role": "assistant", "content": answer},
                          "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         })
 
-    # Streaming: agent trả nguyên câu → emit 1 content chunk + [DONE] (đủ cho Open WebUI)
+    # ── Streaming: báo TIẾN TRÌNH, không phải streaming token ────────────────
+    #
+    # Đo 2026-08-22 trên lượt ERP thật: tổng 9,95s là ~4 lời gọi LLM NỐI TIẾP,
+    # còn câu trả lời cuối chỉ 74 ký tự. Streaming token sẽ cho người dùng 8–9
+    # giây trắng màn hình rồi đổ ra 74 ký tự — gần như không cải thiện gì.
+    #
+    # Tiến trình đi trong khối <think>…</think>: đọc mã Open WebUI đang chạy
+    # (utils/middleware.py, DEFAULT_REASONING_TAGS) thì thẻ này được dựng thành
+    # panel suy nghĩ TÁCH KHỎI câu trả lời, nên chữ tiến trình không nằm lại
+    # trong nội dung người dùng lưu.
+    #
+    # Hậu kỳ của chat() (bóc marker ký ức, dòng báo fallback, dịch) chạy trên
+    # câu HOÀN CHỈNH và KHÔNG bị đụng tới: câu trả lời vẫn đi ra nguyên khối
+    # sau </think>. Đây là lý do chọn hướng này thay vì stream chữ thô — stream
+    # thô sẽ để marker ký ức lọt ra màn hình, đúng lỗi mà đợt write-suggest
+    # marker trailing-fix đã đóng.
     async def sse():
-        base = {"id": cid, "object": "chat.completion.chunk",
-                "created": created, "model": model_da_tra_loi}
-        yield f'data: {json.dumps({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})}\n\n'
-        yield f'data: {json.dumps({**base, "choices": [{"index": 0, "delta": {"content": answer}, "finish_reason": None}]}, ensure_ascii=False)}\n\n'
-        yield f'data: {json.dumps({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})}\n\n'
+        def _chunk(delta, finish=None):
+            return "data: " + json.dumps(
+                {"id": cid, "object": "chat.completion.chunk", "created": created,
+                 "model": _model_hien_tai(),
+                 "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]},
+                ensure_ascii=False) + "\n\n"
+
+        hang: asyncio.Queue = asyncio.Queue()
+        token = HANG_TIEN_TRINH.set(hang)
+        # Task CHÉP ngữ cảnh lúc tạo, nên nó thấy hàng đợi vừa đặt (và cả
+        # THUNG_MODEL/THUNG_FALLBACK — các node sửa TẠI CHỖ nên bản sửa vẫn
+        # nhìn thấy được từ đây).
+        viec = asyncio.create_task(_tinh_cau_tra_loi())
+        try:
+            yield _chunk({"role": "assistant"})
+            da_mo_think = False
+            da_bao: dict[str, float] = {}
+            while True:
+                try:
+                    nhan = await asyncio.wait_for(hang.get(), timeout=0.25)
+                except asyncio.TimeoutError:
+                    if viec.done():
+                        break
+                    continue
+                # Khử trùng lặp theo THỜI GIAN, không theo nhãn.
+                #
+                # Bản đầu khử theo nhãn và đo ra một khoảng 6,9s panel đứng im:
+                # agent gọi nhiều tool nối tiếp, mọi lần sau lần đầu đều mang
+                # cùng nhãn nên bị nuốt sạch — tức bộ khử trùng lặp giấu đúng
+                # chỗ tốn thời gian nhất. Lặp lại nhãn sau vài giây KHÔNG thừa:
+                # nó là bằng chứng hệ vẫn đang chạy.
+                bay_gio = time.monotonic()
+                if bay_gio - da_bao.get(nhan, -99.0) < LAP_NHAN_TOI_THIEU_S:
+                    continue
+                da_bao[nhan] = bay_gio
+                if not da_mo_think:
+                    yield _chunk({"content": "<think>\n"})
+                    da_mo_think = True
+                yield _chunk({"content": nhan + "\n"})
+            if da_mo_think:
+                yield _chunk({"content": "</think>\n"})
+            answer = await viec
+        except Exception:                                   # noqa: BLE001
+            # Đường hiển thị KHÔNG được là nguồn sự cố: hỏng ở đây vẫn phải trả
+            # cho người dùng một câu tử tế.
+            logger.exception("sse tiến trình hỏng")
+            answer = await viec if not viec.done() else (
+                viec.result() if viec.exception() is None else ERROR_MSG)
+        finally:
+            HANG_TIEN_TRINH.reset(token)
+
+        yield _chunk({"content": answer})
+        yield _chunk({}, finish="stop")
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(sse(), media_type="text/event-stream")

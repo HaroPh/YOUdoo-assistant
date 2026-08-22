@@ -10,6 +10,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain.agents import create_agent as _create_agent
 from langgraph.types import interrupt as _interrupt
 
+from .tien_trinh import (NHAN_DOC_TAI_LIEU, NHAN_KIEM_CHUNG,
+                          bao_tien_trinh)
 from .state import ERPAgentState
 # _ttl_expiry sống ở create_order như mọi luồng hỏi-rồi-chờ khác (xem
 # agentic_gate.py) — MỘT nguồn cho hạn sử dụng, không chép lại hằng số.
@@ -55,6 +57,7 @@ def make_erp_read_node(llm, tools):
         new_msgs = result["messages"][len(state["messages"]):]
         tool_outputs = [m.content for m in new_msgs if m.type == "tool"]
         if tool_outputs and new_msgs and new_msgs[-1].type == "ai":
+            bao_tien_trinh(NHAN_KIEM_CHUNG)
             verified = await verify_erp_grounding(new_msgs[-1].content, tool_outputs, llm)
             if verified != new_msgs[-1].content:
                 new_msgs = [*new_msgs[:-1], AIMessage(content=verified)]
@@ -121,6 +124,7 @@ def make_rag_node(llm):
             # test_rag_node_KHONG_nap_khoi_ky_uc gác chiều ngược lại.
             result = await asyncio.to_thread(
                 retrieve, query, TOP_K, None, (prev,) if prev else ())
+            bao_tien_trinh(NHAN_DOC_TAI_LIEU)
             answer = await synthesize(query, result, llm)
         except Exception:
             logger.exception("rag_node failed")
