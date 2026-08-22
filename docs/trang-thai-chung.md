@@ -34,7 +34,7 @@ Quy ước:
 | 15 | Guardrail fail-open: **nửa CHẨN ĐOÁN đã vá** (log + đánh dấu "chưa xác minh" ra người dùng). Nửa còn lại — **tách ví hạn mức** cho verifier — chưa làm | chưa ai | cần quyết: dùng model/ví riêng cho verifier, hay chấp nhận nó tắt khi cạn |
 | 16 | 🔴 **Không quản lý cửa sổ ngữ cảnh** — `_filter_messages` chuyển nguyên lịch sử, không cắt/tóm tắt/đếm token. Hội thoại dài ⇒ mọi mắt xích cùng lỗi ⇒ đoạn chat chết vĩnh viễn | chưa ai | phạm vi mới |
 | 17 | Vệt kiểm toán ghi `caller = mcp-odoo/<vai>` (tên tiến trình), **không có user HTTP, không có `args_digest`** ⇒ không truy vết được sau sự cố | chưa ai | đi cùng mục 14 |
-| 18 | Xác nhận quá hạn (TTL 300s) **hủy trong im lặng**; `.env.example` để `ODOO_USERNAME=admin`; 4 tài khoản Odoo chung **một** mật khẩu | chưa ai | ba việc nhỏ, gom một đợt |
+| 18 | Mật khẩu theo vai: **code đã hết cản đường** (`ODOO_PASSWORD_<VAI>`, lùi về biến chung). Còn **bước hai**: đặt bốn biến trong `.env` VÀ đổi mật khẩu thật trong Odoo | chủ dự án | không phải việc code |
 | 19 | RAG: **không có Query Transformation**; metadata thiếu `department`/`access_level` ⇒ **RBAC rách ở tầng RAG** (vai kho đọc được tài liệu kế toán) | chưa ai | phạm vi mới |
 | 21 | UX: **không có streaming** (màn hình trắng 5–20s), **không có Undo**, dữ liệu hiển thị thô (`sale`/`draft`), thiếu vai Bán hàng & Mua hàng trong `RoleCfg` | chưa ai | nhóm P1 của bản kiểm toán |
 
@@ -53,6 +53,7 @@ báo trước.
 
 | kết luận | chứng cứ |
 |---|---|
+| Xác nhận quá hạn nay BÁO cho người dùng, đặt ở ĐẦU câu trả lời | `erp_agent.QUA_HAN_MSG`; TTL giữ 300s có lý do — xem docstring `_them_bao_qua_han` |
 | `/v1/*` bắt buộc Bearer token, fail-closed khi thiếu biến; `YOUDOO_FALLBACK_ROLE` đã GỠ | spec `2026-08-22-muc-9-12-13.md` + commit `e285c94`; nghiệm thu sống qua Open WebUI thật |
 | CI chạy bộ mặc định trên `windows-latest`, cài ĐÚNG requirements production | spec `2026-08-22-ci.md`; KHÔNG phủ integration/live/eval — xem §3 |
 | `groq-gpt-oss-120b` đã đo trên BA vai: `confirm` 0,8333 · `intent` 0,9630 (bằng Gemini) · `chitchat` violations=0 | spec `2026-08-22-muc-9-12-13.md` |

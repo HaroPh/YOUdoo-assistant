@@ -13,6 +13,24 @@ URL = os.environ["ODOO_URL"]; DB = os.environ["ODOO_DB"]
 ADMIN = os.environ["ODOO_USERNAME"]; PWD = os.environ["ODOO_PASSWORD"]
 NEW_PWD = os.environ["AI_ACCOUNT_PASSWORD"]   # BẮT BUỘC — không đặt mặc định
 
+
+def mat_khau_cho(login: str) -> str:
+    """Mật khẩu RIÊNG cho từng tài khoản AI, lùi về mật khẩu chung nếu chưa đặt.
+
+    Vì sao cần (kiểm toán 2026-08-22, mục 18): bốn tài khoản Odoo dùng CHUNG
+    một `AI_ACCOUNT_PASSWORD`, nên đọc được biến môi trường của tiến trình MCP
+    vai kho là có luôn mật khẩu admin. Ba tiến trình MCP cô lập theo vai — thứ
+    dự án bỏ công dựng để "bug định tuyến vai chỉ gây sai bộ tool, không leo
+    thang quyền" — khi đó **chỉ cô lập trên giấy**.
+
+    Biến riêng: `ODOO_PASSWORD_ADMIN`, `_WAREHOUSE`, `_ACCOUNTING`, `_READONLY`.
+    Lùi về `AI_ACCOUNT_PASSWORD` CÓ CHỦ ĐÍCH: bắt buộc đặt đủ bốn biến ngay sẽ
+    làm hỏng mọi cài đặt đang chạy, và mật khẩu chỉ đổi được khi người ta thật
+    sự đổi trong Odoo. Đây là bước một của hai bước.
+    """
+    hau_to = login.replace("ai-", "").replace("-", "_").upper()
+    return os.environ.get(f"ODOO_PASSWORD_{hau_to}") or NEW_PWD
+
 uid = xmlrpc.client.ServerProxy(URL + "/xmlrpc/2/common").authenticate(DB, ADMIN, PWD, {})
 if not uid:
     sys.exit("Odoo authentication failed")
@@ -193,5 +211,5 @@ for login, gids in PLAN.items():
         call("res.users", "write", [[ex[0]["id"]], vals]); print("  cập nhật:", login, "uid", ex[0]["id"])
     else:
         vals |= {"name": "AI " + login.replace("ai-", "").title(), "login": login,
-                 "password": NEW_PWD, "active": True}
+                 "password": mat_khau_cho(login), "active": True}
         print("  TẠO:", login, "uid", call("res.users", "create", [vals]))

@@ -113,6 +113,24 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
     Write-Host "[0b/2] Không có docker CLI — bỏ qua bước chờ Postgres." -ForegroundColor Yellow
 }
 
+# Mật khẩu RIÊNG cho từng tài khoản AI, lùi về mật khẩu chung nếu chưa đặt.
+#
+# Vì sao (kiểm toán 2026-08-22, mục 18): bốn tài khoản Odoo dùng CHUNG một
+# AI_ACCOUNT_PASSWORD, nên đọc được biến môi trường của tiến trình MCP vai kho
+# là có luôn mật khẩu admin. Ba tiến trình cô lập theo vai — thứ dự án dựng để
+# "bug định tuyến vai chỉ gây sai bộ tool, KHÔNG leo thang quyền" — khi đó chỉ
+# cô lập trên giấy.
+#
+# Lùi về mật khẩu chung CÓ CHỦ ĐÍCH: bắt buộc đủ bốn biến ngay sẽ làm hỏng mọi
+# cài đặt đang chạy, và mật khẩu chỉ đổi được khi người ta thật sự đổi trong
+# Odoo (scripts/odoo_setup_ai_accounts.py đọc cùng bộ biến này).
+function Get-OdooPassword([string]$Login) {
+    $suffix = $Login.Replace("ai-", "").Replace("-", "_").ToUpper()
+    $rieng = [System.Environment]::GetEnvironmentVariable("ODOO_PASSWORD_$suffix")
+    if ($rieng) { return $rieng }
+    return $env:AI_ACCOUNT_PASSWORD
+}
+
 # ── mcp-odoo × 3 vai (:8003 admin / :8004 warehouse / :8005 accounting) ────
 # Mỗi tiến trình CHỈ nắm credential của vai mình — đó là lý do chọn cô lập
 # theo tiến trình: bug định tuyến vai chỉ gây "sai bộ tool", không leo thang.
@@ -131,7 +149,7 @@ foreach ($r in $mcpRoles) {
     }
     $env:MCP_ODOO_PORT = $r.Port
     $env:ODOO_USERNAME = $r.User
-    $env:ODOO_PASSWORD = $env:AI_ACCOUNT_PASSWORD
+    $env:ODOO_PASSWORD = Get-OdooPassword $r.User
 
     # Phạm vi mail theo vai — SUY RA từ roles.py x EmailCfg, không viết tay ở
     # đây (spec 2026-08-12 §4.1). Vai admin nhận giá trị rỗng = không giới hạn.
@@ -179,7 +197,7 @@ foreach ($r in $mcpRoles) {
 # Backend đọc Odoo bằng tài khoản CHỈ ĐỌC — kể cả bị chiếm quyền hoàn toàn
 # cũng không ghi được gì, vì tài khoản không có quyền (không phải vì code từ chối).
 $env:ODOO_USERNAME = "ai-readonly"
-$env:ODOO_PASSWORD = $env:AI_ACCOUNT_PASSWORD
+$env:ODOO_PASSWORD = Get-OdooPassword "ai-readonly"
 
 # ── backend (:8002) ──────────────────────────────────────────────────────
 $backendPort = [int]([System.Environment]::GetEnvironmentVariable("BACKEND_PORT"))

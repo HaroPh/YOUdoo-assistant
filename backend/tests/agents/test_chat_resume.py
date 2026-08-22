@@ -107,7 +107,15 @@ async def test_parked_expired_discards_and_processes_fresh(monkeypatch):
     answer = await agent.chat([{"role": "user", "content": "tồn kho large cabinet?"}],
                               thread_id="T1")
 
-    assert answer == "Tồn kho hiện tại là 500."
+    # Câu trả lời cho lượt MỚI vẫn phải có...
+    assert "Tồn kho hiện tại là 500." in answer
+    # ...NHƯNG người dùng phải được BÁO rằng xác nhận cũ đã bị huỷ (2026-08-22).
+    # Trước đó việc huỷ hoàn toàn im lặng: ai rời máy vài phút rồi quay lại gõ
+    # "có" sẽ tin thao tác đã chạy, trong khi nó đã bị bỏ.
+    assert agent_mod.QUA_HAN_MSG in answer
+    # Lên ĐẦU, không phải cuối: đây là tin đính chính một kỳ vọng SAI mà người
+    # dùng đang mang sẵn, không phải một chú thích đọc sau cũng được.
+    assert answer.index(agent_mod.QUA_HAN_MSG) < answer.index("Tồn kho hiện tại")
     assert graph.ainvoke.await_count == 2
     first_arg = graph.ainvoke.await_args_list[0].args[0]
     assert isinstance(first_arg, Command) and first_arg.resume is False
@@ -201,3 +209,20 @@ async def test_not_parked_overwrites_message_history():
     assert isinstance(msgs[0], RemoveMessage)
     assert msgs[0].id == REMOVE_ALL_MESSAGES
     assert msgs[1:] == incoming
+
+
+async def test_KHONG_qua_han_thi_KHONG_bao_gi(monkeypatch):
+    """Đối chứng: thông báo phải HIẾM. In nó ở lượt bình thường là dạy người
+    dùng bỏ qua nó — rồi lúc nó thật sự quan trọng thì không ai đọc nữa."""
+    import src.agents.erp_agent as agent_mod
+    monkeypatch.setattr(agent_mod.time, "time", lambda: 10_000.0)
+
+    snapshot = _FakeSnapshot(next_=(), tasks=())
+    graph = _FakeGraph(snapshot,
+                       {"messages": [AIMessage(content="Tồn kho hiện tại là 500.")]})
+    agent = _agent_with(graph)
+
+    answer = await agent.chat([{"role": "user", "content": "tồn kho?"}],
+                              thread_id="T2")
+    assert answer == "Tồn kho hiện tại là 500."
+    assert agent_mod.QUA_HAN_MSG not in answer

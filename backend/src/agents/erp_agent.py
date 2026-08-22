@@ -40,6 +40,28 @@ MEMORY_NOTICE_PREFIX = "📝 Đã ghi nhớ:"
 MEMORY_BLOCKED_PREFIX = "⚠️ Không ghi nhớ:"
 
 
+QUA_HAN_MSG = ("⏱️ Yêu cầu xác nhận trước đó đã quá hạn và **bị huỷ** — không "
+               "có thao tác nào được thực hiện. Nếu vẫn cần, bạn nhắn lại yêu "
+               "cầu nhé.")
+
+
+def _them_bao_qua_han(answer: str, da_qua_han: bool) -> str:
+    """Gắn thông báo lên ĐẦU câu trả lời khi một xác nhận cũ vừa bị huỷ vì hết hạn.
+
+    Lên ĐẦU chứ không phải cuối: đây là tin đính chính một kỳ vọng SAI mà người
+    dùng đang mang sẵn ("mình vừa bấm đồng ý"). Đặt ở cuối là để họ đọc hết một
+    câu trả lời không liên quan rồi mới biết mình hiểu nhầm.
+
+    VÌ SAO KHÔNG NÂNG TTL (bản kiểm toán đề xuất 300s → 900s): một khi việc huỷ
+    KHÔNG còn im lặng, cái giá của TTL ngắn chỉ là "phải nhắn lại" — an toàn.
+    Còn TTL dài nới rộng cửa sổ mà một tiếng "có" lạc có thể kích hoạt một
+    thao tác ghi đã cũ, và nguyên tắc bất đối xứng của repo nói rõ: thực thi
+    một lệnh ghi ngoài ý muốn khó gỡ hơn nhiều so với phải hỏi lại. Giữ 300s;
+    ai cần khác thì đã có CONFIRMATION_TTL_SECONDS.
+    """
+    return f"{QUA_HAN_MSG}\n\n{answer}" if da_qua_han else answer
+
+
 def _question_from_interrupts(interrupts) -> str | None:
     """Pull the confirmation question out of a tuple of Interrupt objects."""
     for it in interrupts or ():
@@ -340,6 +362,7 @@ class ERPAgent:
         if graph is None:
             return "Không xác định được quyền truy cập của bạn. Liên hệ quản trị viên."
 
+        da_qua_han = False          # xác nhận cũ bị huỷ vì hết hạn — xem dưới
         tid = thread_id or uuid.uuid4().hex
         config = {"configurable": {"thread_id": tid}}
         if self._handler:
@@ -369,6 +392,16 @@ class ERPAgent:
                     if expires_at is not None and time.time() > expires_at:
                         # Stale confirmation: discard it (resume=False is a no-op
                         # write, result ignored) and process this turn as fresh.
+                        #
+                        # PHẢI BÁO CHO NGƯỜI DÙNG (thêm 2026-08-22, kiểm toán
+                        # mục 18). Trước đó việc huỷ này HOÀN TOÀN IM LẶNG: ai
+                        # rời máy vài phút rồi quay lại gõ "có" sẽ thấy trợ lý
+                        # trả lời như một câu chào — họ tin thao tác đã chạy,
+                        # thực tế nó đã bị huỷ và "có" rơi vào chitchat.
+                        #
+                        # Cùng hạng lỗi với bẫy "dung": hại đúng NGƯỜI DÙNG
+                        # ĐANG LÀM ĐÚNG, không cần ai có ác ý.
+                        da_qua_han = True
                         await graph.ainvoke(Command(resume=False), config=config)
                         result = await self._invoke_fresh(messages, config, graph, memory_block)
                     else:
@@ -393,9 +426,9 @@ class ERPAgent:
         # no final AI message — return its confirmation question to the user.
         question = _question_from_interrupts(result.get("__interrupt__"))
         if question:
-            return question
+            return _them_bao_qua_han(question, da_qua_han)
 
-        return result["messages"][-1].content.strip()
+        return _them_bao_qua_han(result["messages"][-1].content.strip(), da_qua_han)
 
     async def answer_stateless(self, content: str) -> str:
         """Answer a single prompt with no thread/checkpoint state at all.
