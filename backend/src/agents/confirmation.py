@@ -24,7 +24,8 @@ UNCLEAR = "unclear"
 # mixed or empty signals fall through to UNCLEAR (and then the LLM).
 _CONFIRM_WORDS = {
     "có", "co", "yes", "y", "ya", "yeah", "yep", "ừ", "u", "uh",
-    "ok", "oke", "okay", "okie", "đúng", "dung", "chuẩn", "chuan", "confirm",
+    # "dung" (KHÔNG dấu) BỊ GỠ 2026-08-22 — xem chú thích dưới bộ từ.
+    "ok", "oke", "okay", "okie", "đúng", "chuẩn", "chuan", "confirm",
     "đồng ý", "dong y", "xác nhận", "xac nhan", "làm đi", "lam di",
     "tiến hành", "tien hanh", "đồng ý luôn",
 }
@@ -32,6 +33,34 @@ _CANCEL_WORDS = {
     "không", "khong", "ko", "no", "n", "nope", "hủy", "huy", "đừng", "dung lai",
     "thôi", "thoi", "cancel", "khoan", "khỏi", "khoi", "dừng", "dừng lại", "stop",
 }
+
+# ⚠️ "dung" KHÔNG được nằm trong _CONFIRM_WORDS.
+#
+# Không dấu, "dung" là dạng chung của BA từ tiếng Việt, và HAI trong ba nghĩa
+# là TỪ CHỐI:
+#
+#     đúng  -> đồng ý
+#     dừng  -> dừng lại
+#     đừng  -> chớ, không được
+#
+# Trước 2026-08-22 nó nằm ở phía CONFIRM, nên đo được:
+#
+#     "dung"            -> confirm     (người dùng định nói "dừng")
+#     "dung, dung lam"  -> confirm     ("dừng, đừng làm") ⇐ THỰC THI LỆNH GHI
+#
+# Đây không phải lỗi của kẻ tấn công mà là bẫy với NGƯỜI DÙNG ĐÚNG ĐẮN: gõ
+# không dấu để bảo dừng lại thì hệ thống ghi vào Odoo.
+#
+# Bỏ nó đi thì "dung" rơi về UNCLEAR và đi tiếp tới LLM, nơi có ngữ cảnh để
+# phân biệt. Đúng nguyên tắc docstring của chính tệp này đã đặt ra: chỉ
+# CONFIRM/CANCEL khi tín hiệu MỘT CHIỀU và SẠCH — "dung" chưa bao giờ sạch.
+#
+# "đúng" CÓ DẤU vẫn ở lại: _normalize() không bỏ dấu, nên nó không đụng gì
+# tới đường không dấu.
+#
+# KHÔNG chuyển "dung" sang _CANCEL_WORDS: làm vậy là đổi một phỏng đoán nguy
+# hiểm lấy một phỏng đoán an toàn hơn, nhưng vẫn là phỏng đoán — và nó sẽ hủy
+# nhầm thao tác của người gõ "dung" với nghĩa "đúng".
 
 _LLM_PROMPT = (
     "Người dùng được hỏi xác nhận thực hiện một thao tác ghi dữ liệu "

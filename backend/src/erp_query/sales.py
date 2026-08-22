@@ -96,26 +96,49 @@ def get_product_price(product_id, partner_id=None, qty=1.0, *, gw=None):
               f"Giá {rows[0].get('name')}: {price:,.0f} (SL {qty:g}).")
 
 
+# Trần số nhóm khách trong BẢNG PHÂN RÃ. KHÔNG áp cho `total` — xem chú thích
+# trong sales_summary.
+TRAN_NHOM_KHACH = 100
+
+
 def sales_summary(period="month", *, gw=None):
     gw = gw or default_gateway()
     domain = [["state", "in", ["sale", "done"]]]
     df = _period_from(period)
     if df:
         domain.append(["date_order", ">=", df + " 00:00:00"])
+    # HAI lời gọi có chủ đích (sửa 2026-08-22).
+    #
+    # Bản trước tính TỔNG bằng cách cộng các nhóm partner đã bị cắt `limit=100`
+    # và KHÔNG có `orderby`. Doanh nghiệp trên 100 khách vì thế bị báo THIẾU
+    # doanh thu — im lặng, không cờ, không cảnh báo. Đây là kiểu sai nguy hiểm
+    # nhất với một con số tài chính: nó trông hợp lý nên không ai kiểm lại.
+    #
+    # Lời gọi 1: KHÔNG groupby ⇒ Odoo trả đúng một hàng tổng, không cắt được.
+    # Lời gọi 2: vẫn giới hạn nhưng THÊM `orderby` giảm dần, nên số nhóm giữ
+    # lại là những khách LỚN NHẤT chứ không phải một tập tuỳ ý.
     try:
-        groups = gw.read_group("sale.order", domain,
-                               ["amount_total:sum"], ["partner_id"], limit=100)
+        tong_nhom = gw.read_group("sale.order", domain, ["amount_total:sum"], [])
+        groups = gw.read_group("sale.order", domain, ["amount_total:sum"],
+                               ["partner_id"], orderby="amount_total desc",
+                               limit=TRAN_NHOM_KHACH)
     except Exception as e:                                  # noqa: BLE001
         return fail_read("sales_summary",
                          f"Lỗi tổng hợp doanh thu — không lấy được dữ "
                          f"liệu. Nếu lặp lại, báo quản trị viên.", e)
-    total = sum(g.get("amount_total") or 0 for g in groups)
+    total = (tong_nhom[0].get("amount_total") or 0) if tong_nhom else 0
     rows = [{"partner": (g.get("partner_id") or [0, "N/A"])[1],
              "amount": g.get("amount_total") or 0} for g in groups]
     rows.sort(key=lambda r: r["amount"], reverse=True)
+    # `capped`: bảng phân rã theo khách bị cắt, nhưng `total` thì KHÔNG. Nói
+    # rõ ra thay vì để người đọc tự suy — cùng khuôn với get_product_price.
+    capped = len(groups) >= TRAN_NHOM_KHACH
     top = "\n".join(f"  {r['partner']}: {r['amount']:,.0f}" for r in rows[:5])
-    return ok({"period": period, "total": total, "by_partner": rows},
-              f"Doanh thu {period}: {total:,.0f}\nTop khách:\n{top}")
+    ghi_chu = (f"\n(Bảng theo khách chỉ liệt kê {TRAN_NHOM_KHACH} khách lớn "
+               f"nhất; tổng ở trên vẫn là tổng ĐẦY ĐỦ.)") if capped else ""
+    return ok({"period": period, "total": total, "by_partner": rows,
+               "capped": capped},
+              f"Doanh thu {period}: {total:,.0f}\nTop khách:\n{top}{ghi_chu}")
 
 
 def top_products(by="quantity", period=None, limit=10, *, gw=None):

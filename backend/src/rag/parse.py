@@ -1,6 +1,9 @@
 import re
 
 from docx import Document
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+from lxml import etree
 import openpyxl
 import pypdf
 
@@ -169,22 +172,63 @@ def extract_effective_date(text: str | None):
         return None
 
 
+def _bang_thanh_text(tbl) -> str:
+    """Một bảng .docx thành text nhiều dòng, mỗi dòng một hàng, cột ngăn bởi "|".
+
+    Giữ HÀNG TIÊU ĐỀ ở dòng đầu vì đó là thứ mang nghĩa cho mọi hàng dưới: một
+    ô "5%" tách khỏi cột "Chiết khấu" là vô nghĩa.
+
+    Ô gộp (merged) làm `row.cells` lặp lại cùng nội dung — chấp nhận, vì lặp
+    một nhãn còn hơn mất nó.
+    """
+    dong = []
+    for hang in tbl.rows:
+        o = [c.text.strip().replace("\n", " ") for c in hang.cells]
+        if any(o):
+            dong.append(" | ".join(o))
+    return "\n".join(dong)
+
+
 def parse_docx(path: str) -> list[dict]:
-    """Blocks in order; a heading block carries heading_level (1..n), body carries None."""
+    """Blocks in order; a heading block carries heading_level (1..n), body carries None.
+
+    DUYỆT THÂN TÀI LIỆU THEO THỨ TỰ, không phải `doc.paragraphs` rồi `doc.tables`.
+    Trước 2026-08-22 hàm này chỉ đọc `doc.paragraphs`, tức **bỏ 100% bảng biểu** —
+    bảng chính sách chiết khấu, SLA, định mức bị nuốt sạch. Tệ hơn: tệp vẫn sinh
+    chunk từ các đoạn văn nên `IngestError` KHÔNG kích hoạt, và trợ lý tự tin trả
+    lời "chính sách không quy định" cho thứ có trong tài liệu.
+
+    Vì sao không thể chỉ nối thêm `for t in doc.tables`: `chunk_text_blocks` dựng
+    `section_path` theo THỨ TỰ block, nên dồn mọi bảng xuống cuối sẽ gắn chúng vào
+    chương SAI. Bảng bị gắn nhầm chương còn nguy hiểm hơn bảng bị bỏ — nó trả lời
+    sai một cách tự tin thay vì im lặng.
+
+    `doc.element.body` là nơi duy nhất giữ đúng thứ tự xen kẽ đoạn văn / bảng;
+    `doc.paragraphs` cũng KHÔNG chứa đoạn nằm bên trong ô bảng.
+    """
     doc = Document(path)
     blocks: list[dict] = []
-    for p in doc.paragraphs:
-        text = p.text.strip()
-        if not text:
-            continue
-        style = (p.style.name or "") if p.style else ""
-        level = None
-        if style.startswith("Heading"):
-            try:
-                level = int(style.split()[-1])
-            except ValueError:
-                level = 1
-        blocks.append({"text": text, "heading_level": level, "page": None})
+    for child in doc.element.body.iterchildren():
+        tag = etree.QName(child).localname if hasattr(child, "tag") else ""
+        if tag == "p":
+            para = Paragraph(child, doc)
+            text = para.text.strip()
+            if not text:
+                continue
+            style = (para.style.name or "") if para.style else ""
+            level = None
+            if style.startswith("Heading"):
+                try:
+                    level = int(style.split()[-1])
+                except ValueError:
+                    level = 1
+            blocks.append({"text": text, "heading_level": level, "page": None})
+        elif tag == "tbl":
+            text = _bang_thanh_text(Table(child, doc))
+            if text:
+                # heading_level=None: bảng là THÂN, không bao giờ là tiêu đề —
+                # để nó thành heading sẽ phá breadcrumb của cả mục.
+                blocks.append({"text": text, "heading_level": None, "page": None})
     return blocks
 
 

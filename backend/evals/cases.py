@@ -76,6 +76,39 @@ INTENT_CASES = [
     ("hay đấy", "unknown"),
 ]
 
+# Bộ ca ĐI THẲNG vào lối tắt từ khoá — BÙ cho CONFIRM_CASES ở dưới.
+#
+# CONFIRM_CASES cố ý NÉ lối tắt để đo LLM. Hệ quả không ai để ý cho tới
+# 2026-08-22: `classify_keyword` bắt được **0/24** ca của bộ đó, tức lớp từ
+# khoá — thứ quyết định phần lớn lượt xác nhận thật — CHƯA TỪNG được đo. Đó là
+# cách bẫy "dung" (dạng không dấu của "đừng"/"dừng") sống sót tới lúc kiểm toán.
+#
+# Bộ này tất định, KHÔNG gọi LLM, nên chạy được trong suite mặc định thay vì
+# chờ eval đêm. Nhãn `unclear` nghĩa là "lối tắt PHẢI nhường cho LLM".
+KEYWORD_CASES = [
+    # — một chiều, rõ ràng: lối tắt phải chặn —
+    ("có", "confirm"), ("co", "confirm"), ("ok", "confirm"),
+    ("okay", "confirm"), ("đúng", "confirm"), ("chuẩn", "confirm"),
+    ("chuan", "confirm"), ("đồng ý", "confirm"), ("dong y", "confirm"),
+    ("xác nhận", "confirm"), ("xac nhan", "confirm"), ("yes", "confirm"),
+    ("làm đi", "confirm"), ("tien hanh", "confirm"),
+    ("không", "cancel"), ("khong", "cancel"), ("ko", "cancel"),
+    ("no", "cancel"), ("hủy", "cancel"), ("huy", "cancel"),
+    ("đừng", "cancel"), ("dừng", "cancel"), ("thôi", "cancel"),
+    ("thoi", "cancel"), ("khoan", "cancel"), ("khỏi", "cancel"),
+    ("stop", "cancel"), ("dung lai", "cancel"),
+    # — PHẢI nhường cho LLM —
+    # "dung" không dấu = đúng / dừng / đừng; hai trong ba nghĩa là từ chối.
+    ("dung", "unclear"),
+    ("dung, dung lam", "unclear"),
+    # hai tín hiệu ngược chiều trong một câu
+    ("không đồng ý", "unclear"),
+    ("ừ nhưng khoan đã", "unclear"),
+    # câu dài, không phải tín hiệu một chiều
+    ("chắc để lúc khác đi", "unclear"),
+    ("cho mình đổi thành 5 cái được chứ?", "unclear"),
+]
+
 CONFIRM_CASES = [
     # CONFIRM kỳ vọng
     ("chốt luôn đi", "confirm"),
