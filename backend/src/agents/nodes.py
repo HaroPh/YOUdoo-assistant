@@ -472,11 +472,24 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
             return out
 
         summary = plan.get("summary") or plan.get("tool") or "thao tác"
-        # Invariant C tầng 3: hiện tool+args TẤT ĐỊNH — user luôn thấy ref thật
-        # trước khi "có", kể cả khi summary của LLM mơ hồ.
+        # Invariant C tầng 3: hiện ARGS TẤT ĐỊNH — user luôn thấy ref thật trước
+        # khi "có", kể cả khi summary của LLM mơ hồ.
+        #
+        # KHÔNG in tên tool (bỏ 2026-08-22). Trước đó dòng này là
+        # "(deliver_order: order_ref=S00180)", và nó VA THẲNG vào bất biến kia
+        # của repo: `tool_leak_guard` cấm tên tool MCP thô lọt ra người dùng.
+        # Hai bất biến đều CỐ Ý, nên mâu thuẫn tồn tại từ lâu ở cả D:\Project —
+        # nghiệm thu e2e 2026-08-21 mới phơi nó ra (kịch bản draft_order_refused
+        # đỏ vì "lộ tool name: ['deliver_order']").
+        #
+        # Giải được THẬT chứ không phải chấp nhận: mục đích của Invariant C là
+        # để user thấy REF THẬT — mà ref nằm ở `args`, KHÔNG nằm ở tên tool. Tên
+        # tool là định danh nội bộ, người dùng không làm gì được với nó.
+        #
+        # Ngoặc bị BỎ HẲN khi không có args: "()" trơ trọi vừa xấu vừa rỗng.
         args_line = ", ".join(f"{k}={v}" for k, v in (plan.get("args") or {}).items())
-        question = WRITE_CONFIRM_PREFIX + (f"**{summary}**\n"
-                                           f"({plan.get('tool')}: {args_line})"
+        dong_args = f"\n({args_line})" if args_line else ""
+        question = WRITE_CONFIRM_PREFIX + (f"**{summary}**{dong_args}"
                                            f"{plan.get('chain_note') or ''}\n\n"
                                            + WRITE_CONFIRM_SUFFIX)
         ttl = int(os.environ.get("CONFIRMATION_TTL_SECONDS", "300"))

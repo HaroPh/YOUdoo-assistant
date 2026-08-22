@@ -75,8 +75,18 @@ async def test_planner_explicit_ref_overrides_context_biased_plan(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_planner_confirm_question_shows_tool_and_args(monkeypatch):
-    # Invariant C layer 3: deterministic (tool: args) line, independent of summary.
+async def test_planner_confirm_question_shows_args(monkeypatch):
+    """Invariant C tầng 3: dòng args TẤT ĐỊNH, độc lập với `summary` của LLM.
+
+    ĐỔI 2026-08-22: trước đây khẳng định "(confirm_sale_order: order_ref=…)",
+    tức đòi HIỆN TÊN TOOL — va thẳng vào `tool_leak_guard`, bất biến cấm tên
+    tool MCP thô lọt ra người dùng. Hai bất biến đều cố ý; nghiệm thu e2e
+    2026-08-21 mới phơi mâu thuẫn ra.
+
+    Giữ nguyên phần CÓ GIÁ TRỊ (ref thật phải hiện, tất định) và bỏ phần va
+    chạm (tên tool). Xem tests/agents/test_confirm_khong_lo_ten_tool.py — nó
+    khoá cả hai chiều.
+    """
     monkeypatch.setattr(write_gate, "write_actions_enabled", lambda: True)
     captured = _capture_interrupt(monkeypatch)
     llm = make_mock_llm(_plan_json())
@@ -84,4 +94,6 @@ async def test_planner_confirm_question_shows_tool_and_args(monkeypatch):
     with pytest.raises(_FakeInterrupt):
         await node({"messages": [HumanMessage("xác nhận đơn vừa tạo")],
                     "working_context": WC})
-    assert "(confirm_sale_order: order_ref=S00040)" in captured["payload"]["question"]
+    q = captured["payload"]["question"]
+    assert "(order_ref=S00040)" in q
+    assert "confirm_sale_order" not in q

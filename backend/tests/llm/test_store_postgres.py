@@ -12,7 +12,44 @@ from src.llm.store import PostgresUsageStore, Usage
 
 pytestmark = pytest.mark.integration
 
-DSN = os.environ.get("DATABASE_URL")
+_DSN_THAT = os.environ.get("DATABASE_URL")
+
+# SCHEMA RIÊNG cho cả tệp này — KHÔNG chạm `public.llm_usage`.
+#
+# VÌ SAO. `test_thieu_migration_thi_nem_RuntimeError_ro_rang` cần một database
+# KHÔNG có bảng, nên nó chạy `DROP TABLE IF EXISTS llm_usage` rồi dựng lại từ
+# migration. Bản trước chạy thẳng trên DATABASE_URL THẬT, tức mỗi lượt
+# `pytest -m integration` XOÁ SẠCH SỔ NGÂN SÁCH đang sống. Docstring cũ chỉ
+# nghĩ tới "không làm hỏng test khác", không nghĩ tới dữ liệu trong bảng.
+#
+# Hậu quả đo được 2026-08-21: sau một lượt chạy tích hợp, ledger tưởng chưa
+# dùng gì, và tôi đã kết luận SAI hai lần từ số đọc ra sau đó (một lần suýt
+# ghi vào bảng trạng thái rằng một model đã chết).
+#
+# Bảng trong SQL không định danh schema, nên `search_path` là chỗ cô lập đúng
+# và rẻ nhất: cùng database, cùng quyền, chỉ khác nơi bảng nằm.
+SCHEMA_THU = "thu_llm_usage"
+DSN = (None if not _DSN_THAT else
+       _DSN_THAT + ("&" if "?" in _DSN_THAT else "?")
+       + f"options=-csearch_path%3D{SCHEMA_THU}")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _schema_rieng():
+    """Dựng schema trước, xoá sau. Mọi test trong tệp chạy BÊN TRONG nó."""
+    if not _DSN_THAT:
+        yield
+        return
+    import psycopg
+    with psycopg.connect(_DSN_THAT, autocommit=True) as conn:
+        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA_THU}")
+    with open("migrations/001_llm_usage.sql", encoding="utf-8") as f:
+        sql = f.read()
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        conn.execute(sql)
+    yield
+    with psycopg.connect(_DSN_THAT, autocommit=True) as conn:
+        conn.execute(f"DROP SCHEMA IF EXISTS {SCHEMA_THU} CASCADE")
 
 
 @pytest.fixture
@@ -72,10 +109,10 @@ def test_phai_dua_dung_mot_trong_hai_alias_hoac_provider(store):
 
 # ─── Fail-loud khi thiếu migration (review toàn nhánh, không phải task riêng) ─
 #
-# DSN riêng, KHÔNG dùng fixture `store` ở trên: fixture đó giả định bảng
-# llm_usage đã tồn tại (nó DELETE khỏi bảng đó trước mỗi test). Hai test dưới
-# đây cần một database KHÔNG có bảng — phải tự cầm DSN của DATABASE_URL và tự
-# quyết định lúc nào bảng có/không có, không đi qua fixture.
+# KHÔNG dùng fixture `store` ở trên: fixture đó giả định bảng llm_usage đã tồn
+# tại (nó DELETE khỏi bảng đó trước mỗi test). Hai test dưới đây cần lúc CÓ lúc
+# KHÔNG có bảng, nên tự cầm DSN. Chúng an toàn vì DSN nay trỏ vào SCHEMA_THU —
+# `DROP TABLE` bên dưới chỉ chạm bảng của schema đó.
 
 def _skip_neu_thieu_dsn() -> None:
     if not DSN:
@@ -103,7 +140,7 @@ def test_thieu_migration_thi_nem_RuntimeError_ro_rang():
         with open("migrations/001_llm_usage.sql", encoding="utf-8") as f:
             sql = f.read()
         with psycopg.connect(DSN, autocommit=True) as conn:
-            conn.execute(sql)
+            conn.execute(sql)      # DSN mang search_path -> dựng lại trong SCHEMA_THU
 
 
 def test_co_migration_thi_van_dung_binh_thuong():
@@ -127,3 +164,18 @@ def test_co_migration_thi_van_dung_binh_thuong():
         with s._pool.connection() as conn:
             conn.execute("DELETE FROM llm_usage WHERE alias = 'test-fail-loud'")
         s.close()
+
+
+def test_TE_P_NAY_KHONG_DUOC_CHAY_TREN_SCHEMA_MAC_DINH():
+    """Bất biến rẻ nhất chặn lớp lỗi vừa sửa quay lại.
+
+    Không kiểm được trực tiếp "public.llm_usage còn nguyên" từ bên trong pytest
+    — chính tệp này là thứ sẽ phá nó. Nhưng kiểm được TIỀN ĐỀ: mọi kết nối ở
+    đây phải mang `search_path` trỏ ra khỏi schema mặc định. Ai đó bỏ nó đi để
+    "cho gọn" sẽ vấp vào test này chứ không vấp vào một cuốn sổ trống rỗng ba
+    tuần sau.
+    """
+    if not _DSN_THAT:
+        pytest.skip("chưa đặt DATABASE_URL")
+    assert DSN != _DSN_THAT
+    assert f"search_path%3D{SCHEMA_THU}" in DSN
