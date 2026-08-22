@@ -19,7 +19,7 @@ from jobs import registry
 from jobs.registry import (GATE_FAIL, INFRA_ERROR, PASS, Job, JobResult,
                            register)
 from src.agents import roles
-from src.llm.catalog import chain_for
+from src.llm.catalog import chain_for, nhip_toi_thieu, spec_for
 
 # Bộ nào so với baseline (khác cổng TUYỆT ĐỐI). chitchat và sop_select KHÔNG
 # có mặt: chúng là cổng tuyệt đối (violations==0 / hijack==0), không phải phép
@@ -189,12 +189,22 @@ def run(args) -> JobResult:
     detail, any_fail = {}, False
     for set_name in sets:
         role = ROLE_FOR_SET[set_name]
-        spec = chain_for(role)[0]
-        model = args.model if args.model is not None else spec.alias
-        # (60/rpm)*1.2: chậm hơn mức RPM cho phép 20% để có biên — suy trực
-        # tiếp từ catalog, không còn khái niệm "local thì 0s" (không còn
-        # model local nào trong catalog kể từ SP-1).
-        pace = args.pace if args.pace is not None else (60.0 / spec.rpm) * 1.2
+        model = args.model if args.model is not None else chain_for(role)[0].alias
+        # Nhịp suy từ MODEL ĐANG THẬT SỰ CHẠY, không phải từ mắt xích đầu của
+        # chuỗi. Bản trước lấy `chain_for(role)[0]` KỂ CẢ khi có `--model X`,
+        # nên đo một model ứng viên lại chạy theo trần của một model khác —
+        # đúng cách sinh ra một lượt đo hỏng mà không ai nghi ngờ.
+        #
+        # Công thức nằm ở catalog.nhip_toi_thieu (xét CẢ rpm LẪN tpm) — xem
+        # docstring của nó để biết vì sao chỉ xét rpm là sai với Groq.
+        try:
+            spec = spec_for(model)
+        except KeyError:
+            # `--model` có thể là tên ứng viên chưa vào catalog (vd
+            # "candidate-x" trong test). Không đoán trần của nó; rơi về mắt
+            # xích đầu như cũ, và người chạy vẫn đặt `--pace` tay được.
+            spec = chain_for(role)[0]
+        pace = args.pace if args.pace is not None else nhip_toi_thieu(spec)
         try:
             # Đọc baseline TRƯỚC khi chạy eval thật (tốn call LLM, có pacing suy
             # từ rpm catalog) — baseline thiếu/hỏng thì fail nhanh, không đốt

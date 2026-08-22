@@ -920,3 +920,31 @@ def test_sop_select_van_ghi_hijack_va_depth_acc_khi_co_baseline(monkeypatch, tmp
     assert e["depth_acc"] == 1.0
     assert e["hijack"] == 0
     assert e["baseline_acc"] == 0.9259
+
+
+def test_nhip_suy_tu_MODEL_DUOC_GHIM_chu_khong_phai_dau_chuoi(monkeypatch):
+    """Bản trước lấy `chain_for(role)[0]` KỂ CẢ khi có `--model X`, nên đo một
+    model ứng viên lại chạy theo trần của model khác.
+
+    Hậu quả thật 2026-08-22: `--model groq-gpt-oss-120b` (tpm 8 000) chạy theo
+    nhịp của Gemini (tpm 250 000) ⇒ 23/54 ca lỗi, `acc` thu được vô nghĩa.
+    """
+    from src.llm.catalog import chain_for, nhip_toi_thieu, spec_for
+
+    fi, _ = _patch(monkeypatch)
+    eval_gate.run(_args(model="groq-gpt-oss-120b", set_="intent"))
+    assert fi.calls[0]["pace"] == pytest.approx(
+        nhip_toi_thieu(spec_for("groq-gpt-oss-120b")))
+    assert fi.calls[0]["pace"] != pytest.approx(
+        nhip_toi_thieu(chain_for("router")[0])), "vẫn đang lấy nhịp của đầu chuỗi"
+
+
+def test_model_ngoai_catalog_thi_khong_no_ma_roi_ve_dau_chuoi(monkeypatch):
+    """`--model` có thể là tên ứng viên chưa vào catalog (đường đo thăm dò).
+    Không đoán trần của nó, và tuyệt đối không được ném."""
+    from src.llm.catalog import chain_for, nhip_toi_thieu
+
+    fi, _ = _patch(monkeypatch)
+    eval_gate.run(_args(model="candidate-x", set_="intent"))
+    assert fi.calls[0]["pace"] == pytest.approx(
+        nhip_toi_thieu(chain_for("router")[0]))

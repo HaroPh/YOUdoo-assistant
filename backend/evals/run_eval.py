@@ -29,6 +29,7 @@ from evals.retrieval_score import label_of, score_one
 from evals.multiturn_cases import MULTITURN_CASES
 from evals.synthesis_live_cases import SYNTHESIS_LIVE_CASES
 from src.cli_console import use_utf8_streams
+from src.llm.catalog import nhip_toi_thieu, spec_for
 from evals.memory_presets import MEMORY_PRESETS
 from evals.write_suggest_cases import WRITE_SUGGEST_CASES
 from evals.write_suggest_oracle import oracle_proposes_write
@@ -1380,9 +1381,10 @@ async def main(argv=None):
                          "intent/sop_select/planner; các bộ khác bỏ qua)")
     ap.add_argument("--save-baseline", action="store_true")
     ap.add_argument("--baseline")
-    ap.add_argument("--pace", type=float, default=0.0,
-                    help="giây giãn cách giữa 2 call (suy từ catalog: "
-                         "(60/rpm)*1.2 cho model đang ghim — vd rpm=15 → ~4.8)")
+    ap.add_argument("--pace", type=float, default=None,
+                    help="giây giãn cách giữa 2 call. Bỏ trống = SUY TỪ CATALOG "
+                         "cho model đang ghim, xét CẢ rpm LẪN tpm "
+                         "(catalog.nhip_toi_thieu) — vd Gemini 4.8s, Groq 9.0s")
     ap.add_argument("--memory", choices=sorted(MEMORY_PRESETS),
                     help="voi --set synthesis_live hoac --set memory: chay "
                          "CHAN DOI CHUNG voi mot khoi ky uc khac rong")
@@ -1414,6 +1416,15 @@ async def main(argv=None):
                "synthesis_live": eval_synthesis_live,
                "multiturn": eval_multiturn, "memory": eval_memory,
                "write_suggest": eval_write_suggest}
+        # Mặc định SUY TỪ CATALOG, không phải 0.0. Bản trước để default=0.0
+        # trong khi dòng trợ giúp ngay bên cạnh ghi "suy từ catalog" — trợ giúp
+        # NÓI DỐI, và ai tin nó sẽ bắn hết tốc lực vào trần rate limit. Đây là
+        # một trong ba khiếm khuyết cùng gây ra lượt đo hỏng 2026-08-22.
+        if args.pace is None:
+            try:
+                args.pace = nhip_toi_thieu(spec_for(args.model))
+            except KeyError:
+                args.pace = 0.0     # model ngoài catalog: không đoán trần
         kwargs = {"pace": args.pace}
         if args.set in ("memory", "multi_source", "write_suggest",
                         "read", "chitchat"):

@@ -31,9 +31,6 @@ Quy ước:
 | # | mục | ai giữ | chặn bởi |
 |---|---|---|---|
 | 3 | Tham chiếu thứ tự trong câu nối tiếp ("loại đầu tiên", "cái sau") | chưa ai | bài toán mới, chưa mở phạm vi |
-| 9 | ⚠️ **Bộ test tích hợp XOÁ SỔ NGÂN SÁCH `llm_usage`** — `tests/llm/test_store_postgres.py::test_thieu_migration_thi_nem_RuntimeError_ro_rang` chạy `DROP TABLE` trên chính `DATABASE_URL` thật rồi tạo lại bảng RỖNG | chưa ai | phạm vi mới. Hệ quả: sau mỗi lượt `pytest -m integration`, ledger tưởng chưa dùng gì và mọi chẩn đoán hạn mức đọc sau đó đều sai |
-| 12 | ⚠️ **`groq-gpt-oss-120b` chưa đo trên vai nào ngoài `confirm`** — sau đợt gom nó là mắt xích dự phòng DUY NHẤT của cả 7 vai, kể cả ba vai nặng | chưa ai | rủi ro thấp (chỉ chạy khi CẢ HAI Gemini ngã) nhưng đừng nói nó "đã đo" |
-| 13 | **Hai bất biến cố ý mâu thuẫn nhau, CHƯA giải**: `tool_leak_guard` cấm lộ tên tool MCP, còn "Invariant C tầng 3" (`nodes.py:475`) bắt buộc in `(tool: args)` ở cổng xác nhận tầng 1 | chưa ai | hiện không lộ ra vì đường skill dùng mẫu xác nhận riêng; dòng y hệt tồn tại ở `D:\Project` nên KHÔNG phải hồi quy (spec `2026-08-21-e2e-jobs-port.md` §5.1) |
 
 ## Ai giữ vùng nào
 
@@ -50,6 +47,9 @@ báo trước.
 
 | kết luận | chứng cứ |
 |---|---|
+| `groq-gpt-oss-120b` đã đo trên BA vai: `confirm` 0,8333 · `intent` 0,9630 (bằng Gemini) · `chitchat` violations=0 | spec `2026-08-22-muc-9-12-13.md` |
+| Cổng xác nhận ghi hiện **args, KHÔNG hiện tên tool** — hai bất biến nay cùng đúng | cùng spec; `tests/agents/test_confirm_khong_lo_ten_tool.py` khoá hai chiều |
+| Nhịp eval suy từ **CẢ rpm LẪN tpm**, và theo model ĐANG GHIM | cùng spec; Gemini 4,8s (không đổi), Groq 2,4 → 9,0s |
 | Catalog gom còn **4 model**, một hình dạng chuỗi cho mọi vai | spec `2026-08-21-catalog-consolidation.md` |
 | `gemma-4-26b` THUA mọi ứng viên trên bộ `confirm` (0,7917 · 6062ms) — đã xoá | cùng spec §4; bảng 5 model đo cùng phiên |
 | Cổng xác nhận ghi: `gemini-3.5-flash-lite` 0,9583 · `3.1` 0,9167 · `120b` 0,8333 — false_confirm = 0 ở CẢ NĂM | cùng spec §4 |

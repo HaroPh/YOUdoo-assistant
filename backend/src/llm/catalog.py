@@ -224,6 +224,30 @@ CHAINS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Ước lượng token MỖI LƯỢT GỌI của một ca eval, dùng để suy nhịp từ TPM.
+# Đo 2026-08-22 trên groq-gpt-oss-120b: bộ `intent` 857 token/lượt, bộ `confirm`
+# 283–539. Lấy 1000 làm mức trần thận trọng — nhịp sai theo hướng CHẬM chỉ tốn
+# thời gian, còn sai theo hướng NHANH thì hỏng cả lượt đo.
+TOKEN_MOI_LUOT_UOC = 1_000
+
+
+def nhip_toi_thieu(spec: ModelSpec) -> float:
+    """Giây giãn cách tối thiểu giữa hai lượt gọi eval cho `spec`.
+
+    Xét CẢ HAI trần, không chỉ RPM. Trước 2026-08-22 công thức là
+    `(60/rpm)*1.2` — đúng với Gemini (rpm 15, tpm 250 000: rpm là ràng buộc
+    thật) nhưng SAI HẲN với Groq (rpm 30, tpm 8 000: tpm mới là ràng buộc).
+    Hệ quả đo được: bộ `intent` trên groq-gpt-oss-120b chạy ở nhịp suy từ rpm
+    = 25 lượt/phút trong khi trần cho phép ~9 ⇒ **23/54 ca lỗi**, và con số
+    acc thu được (0,5556) hoàn toàn vô nghĩa. Chạy lại đúng nhịp: 0,9630, 0 lỗi.
+
+    Biên 20%: trần là trần cứng, chạm sát nó là đứng ngay mép vực.
+    """
+    nhip_rpm = (60.0 / spec.rpm) if spec.rpm else 0.0
+    nhip_tpm = (60.0 / (spec.tpm / TOKEN_MOI_LUOT_UOC)) if spec.tpm else 0.0
+    return max(nhip_rpm, nhip_tpm) * 1.2
+
+
 def spec_for(alias: str) -> ModelSpec:
     """Ném KeyError nếu alias lạ — cấu hình sai phải chết sớm, không đoán."""
     return CATALOG[alias]

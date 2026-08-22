@@ -1,6 +1,7 @@
 import pytest
 
-from src.llm.catalog import (CATALOG, CHAINS, HEAVY_ROLES, HEAVY_TPM_FLOOR,
+from src.llm.catalog import (CATALOG, CHAINS, TOKEN_MOI_LUOT_UOC,
+                             nhip_toi_thieu, HEAVY_ROLES, HEAVY_TPM_FLOOR,
                              MODEL_CHON_DUOC, ROLES, RPD_SAN_PHUC_VU,
                              TOOL_ROLES, chain_for, spec_for)
 
@@ -142,3 +143,33 @@ def test_ba_bat_bien_duoi_day_HIEN_RONG_CHU_THE():
     assert not [s for s in CATALOG.values() if s.emits_thought_tags], (
         "đã có model nhả <thought> trở lại — xem "
         "test_go_thought_khi_spec_bat_co_emits_thought_tags")
+
+
+# ── nhịp eval: phải xét CẢ hai trần ─────────────────────────────────────────
+def test_nhip_lay_tran_CHAT_HON_giua_rpm_va_tpm():
+    """Bản trước chỉ xét rpm. Đúng với Gemini (tpm rộng thênh thang) nhưng SAI
+    HẲN với Groq, nơi tpm mới là ràng buộc — và cái sai đó tạo ra một lượt đo
+    có `acc` trông như thật (0,5556) trong khi 23/54 ca lỗi."""
+    from dataclasses import replace
+
+    goc = CATALOG["gemini-3.5-flash-lite"]
+    rpm_chat = replace(goc, rpm=15, tpm=10_000_000)     # rpm là ràng buộc
+    tpm_chat = replace(goc, rpm=1_000, tpm=8_000)       # tpm là ràng buộc
+
+    assert nhip_toi_thieu(rpm_chat) == pytest.approx((60 / 15) * 1.2)
+    assert nhip_toi_thieu(tpm_chat) == pytest.approx(
+        (60 / (8_000 / TOKEN_MOI_LUOT_UOC)) * 1.2)
+    assert nhip_toi_thieu(tpm_chat) > nhip_toi_thieu(rpm_chat)
+
+
+def test_nhip_cua_gemini_KHONG_doi_sau_ban_sua():
+    """Đối chứng chống hồi quy: bản sửa chỉ được LÀM CHẬM chỗ đang sai, không
+    được đụng chỗ đang đúng. 4,8s là con số mọi baseline Gemini đã chạy với."""
+    assert nhip_toi_thieu(CATALOG["gemini-3.1-flash-lite"]) == pytest.approx(4.8)
+
+
+def test_nhip_khop_voi_so_DO_THAT_tren_groq():
+    """Đo 2026-08-22: một lượt `intent` trên groq-gpt-oss-120b tốn 857 token.
+    Trần 8 000/phút ⇒ tối đa ~9 lượt/phút ⇒ nhịp tối thiểu ~6,4s. Công thức
+    phải cho ra một con số KHÔNG NHỎ HƠN mức đó."""
+    assert nhip_toi_thieu(CATALOG["groq-gpt-oss-120b"]) >= 60 / (8_000 / 857)
