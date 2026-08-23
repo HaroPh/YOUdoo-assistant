@@ -50,6 +50,20 @@ DEPT_OF = {
     "convert_lead": "Bán hàng", "send_quotation_email": "Bán hàng",
     "send_order_confirmation_email": "Bán hàng",
     "create_rfq": "Mua hàng", "confirm_purchase_order": "Mua hàng",
+    # Mua hàng, bổ sung 2026-08-23 — cùng lý do như nhóm Sản xuất ngay dưới.
+    "create_bulk_rfq": "Mua hàng", "update_rfq_lines": "Mua hàng",
+    "create_vendor": "Mua hàng", "update_vendor_pricing": "Mua hàng",
+    "send_rfq_email": "Mua hàng",
+    # ── Sản xuất, bổ sung 2026-08-23 (mục 24) ──
+    # Năm tool này CHƯA vai AI nào sở hữu, y như nhóm Mua hàng. Không khai ở
+    # đây thì `state_of` trả DENIED thay vì OTHER_DEPT, và lời từ chối nói
+    # "bộ phận khác" chung chung thay vì nêu tên "Sản xuất" — người dùng không
+    # biết hỏi ai. Đây đúng thứ mà DEPT_OF tồn tại để giữ (xem
+    # test_bang_giu_ca_bo_phan_chua_co_vai_ai).
+    "create_bom": "Sản xuất", "update_bom_lines": "Sản xuất",
+    "create_manufacturing_order": "Sản xuất",
+    "confirm_manufacturing_order": "Sản xuất",
+    "complete_manufacturing_order": "Sản xuất",
     "deliver_order": "Kho", "receive_order": "Kho", "validate_picking": "Kho",
     "internal_transfer": "Kho", "inventory_adjustment": "Kho",
     "scrap_product": "Kho", "return_order": "Kho",

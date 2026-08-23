@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from .envelope import ok, err, fail_read
 from .gateway import default_gateway
+from .state_labels import nhan_trang_thai
 from .resolve import resolve_entity, _resolve_single
 
 
@@ -42,7 +43,8 @@ def list_sale_orders(state=None, customer=None, date_from=None, date_to=None, li
                          f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không tìm thấy đơn bán nào phù hợp.")
-    lines = [f"{r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} | {r['state']} "
+    lines = [f"{r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} "
+             f"| {nhan_trang_thai('sale.order', r['state'])} "
              f"| {r['amount_total']:,.0f}" for r in rows]
     return ok({"rows": rows, "count": len(rows)},
               f"{len(rows)} đơn bán:\n" + "\n".join(lines))

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from .envelope import ok, err, fail_read
 from .gateway import default_gateway
+from .state_labels import nhan_trang_thai
 
 _FIELDS = ["name", "partner_id", "invoice_date", "invoice_date_due",
            "amount_total", "amount_residual", "payment_state"]
@@ -136,7 +137,7 @@ def find_posted_invoice(invoice_ref, *, gw=None):
     inv = rows[0]
     if inv["state"] != "posted":
         return err(f"Hóa đơn {inv['name']} chưa phát hành "
-                   f"(trạng thái: {inv['state']}).")
+                   f"(trạng thái: {nhan_trang_thai('account.move', inv['state'])}).")
     return ok({"invoice": inv},
               f"Hóa đơn {inv['name']} | "
               f"{(inv['partner_id'] or [0, 'N/A'])[1]} | "

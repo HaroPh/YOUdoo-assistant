@@ -43,6 +43,16 @@ async def lifespan(app: FastAPI):
     agent = ERPAgent()
     await agent.setup()
     _state["agent"] = agent
+    # Nạp ấm reranker NGAY lúc khởi động (mục 22). Không await/to_thread: nó
+    # là công việc CPU/GPU đồng bộ và ta cố ý chặn ở đây — thà backend lên
+    # chậm hơn vài giây còn hơn người hỏi tài liệu đầu tiên gánh ~10s (đo
+    # 2026-08-23: lượt nguội 15,8s vs lượt ấm 4,9s).
+    from .rag.embed import nap_am as nap_am_embed
+    from .rag.reranker import nap_am as nap_am_rerank
+    print("✓ reranker" + (" đã nạp ấm" if nap_am_rerank() else " KHÔNG nạp ấm (tắt hoặc hỏng)"))
+    # Cả HAI, không chỉ reranker: nạp ấm mình reranker chỉ đưa lượt đầu từ
+    # 15,8s xuống 10,9s — phần còn lại là Ollama nạp model nhúng.
+    print("✓ embedder" + (" đã nạp ấm" if nap_am_embed() else " KHÔNG nạp ấm (hỏng)"))
     print(f"✓ ERP agent ready — tools: {agent.tool_names}")
     yield
     agent = _state.get("agent")

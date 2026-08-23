@@ -78,6 +78,37 @@ def _load():
     return model, tokenizer
 
 
+def nap_am() -> bool:
+    """Nạp sẵn model lúc khởi động. True = đã sẵn sàng, False = tắt/hỏng.
+
+    Vì sao cần (mục 22, đo 2026-08-23): `_load()` chạy LƯỜI, ở lượt rerank đầu
+    tiên. Nên câu hỏi tài liệu ĐẦU TIÊN sau mỗi lần khởi động lại trả **15,8s**
+    trong khi lượt ấm chỉ **4,9s** — người dùng đầu tiên gánh ~10s nạp trọng số
+    thay cho cả hệ, và với một buổi demo thì đó đúng là câu hỏi tệ nhất để chậm.
+
+    KHÔNG ném: giữ nguyên hợp đồng fail-open của module. Hỏng ở đây chỉ có
+    nghĩa "vẫn nạp lười như cũ", không có nghĩa backend không khởi động được —
+    reranker là thứ tăng chất lượng, không phải thứ bắt buộc.
+
+    Tôn trọng cả hai công tắc tắt sẵn có (`RAG_RERANK_ENABLED=0` và sentinel
+    `_state["model"] is False`), nếu không nó sẽ lặng lẽ nạp một model mà cấu
+    hình đã bảo đừng dùng.
+    """
+    if os.environ.get("RAG_RERANK_ENABLED", "1") == "0":
+        return False
+    if _state["model"] is False:
+        return False
+    if _state["model"] is not None:
+        return True
+    try:
+        _state["model"], _state["tokenizer"] = _load()
+        return True
+    except Exception:                                       # noqa: BLE001
+        logger.warning("Không nạp ấm được reranker — sẽ thử lại khi có lượt "
+                       "rerank đầu tiên", exc_info=True)
+        return False
+
+
 def score_pairs(query: str, texts: list[str]) -> list[float] | None:
     """Điểm relevance từng cặp (query, text). None = tắt/hỏng (fail-open)."""
     if os.environ.get("RAG_RERANK_ENABLED", "1") == "0":

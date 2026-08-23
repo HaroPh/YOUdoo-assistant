@@ -1,6 +1,7 @@
 """Purchase bounded context — suppliers and purchase orders."""
 from .envelope import ok, err, fail_read
 from .gateway import default_gateway
+from .state_labels import nhan_trang_thai
 from .resolve import resolve_entity, _resolve_single
 
 
@@ -29,7 +30,8 @@ def list_purchase_orders(state=None, vendor=None, date_from=None, date_to=None, 
                          f"Nếu lặp lại, báo quản trị viên.", e)
     if not rows:
         return ok({"rows": [], "count": 0}, "Không tìm thấy đơn mua nào phù hợp.")
-    body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} | {r['state']} "
+    body = "\n".join(f"  {r['name']} | {(r['partner_id'] or [0, 'N/A'])[1]} "
+                     f"| {nhan_trang_thai('purchase.order', r['state'])} "
                      f"| {r['amount_total']:,.0f}" for r in rows)
     return ok({"rows": rows, "count": len(rows)}, f"{len(rows)} đơn mua:\n{body}")
 

@@ -95,6 +95,12 @@ TOOL_ACCESS_MAP = {
     "send_order_confirmation_email": [
         ("mail.template", "read"), ("mail.mail", "create"),
         ("mail.mail", "write"), ("mail.mail", "unlink")],
+    # send_rfq_email vào bảng 2026-08-23 cùng mục 24: nó là coordinator mail
+    # thứ năm và CHƯA vai nào sở hữu (Mua hàng không có vai AI), nhưng khai ở
+    # DEPT_OF nên lưới phủ đòi nó có mặt. Cùng hình dạng truy cập như bốn cái
+    # kia — mọi coordinator mail đều đi qua đúng ba tool preview/send/discard.
+    "send_rfq_email": [("mail.template", "read"), ("mail.mail", "create"),
+                       ("mail.mail", "write"), ("mail.mail", "unlink")],
     # ── Nghiệp vụ chung hai vai (crm.py) ──
     # mail.activity create đã True cho cả ba tài khoản ghi TRƯỚC nhánh
     # log_activity generalisation (đo spec §6) — không đo được cái nhánh đó

@@ -8,13 +8,14 @@ import logging
 
 from .envelope import ok, err, fail_read
 from .gateway import default_gateway
+from .state_labels import nhan_trang_thai
 from .resolve import resolve_entity
 
 logger = logging.getLogger(__name__)
 
-_STATE_LABELS = {"draft": "nháp", "confirmed": "đã xác nhận",
-                 "progress": "đang sản xuất", "to_close": "chờ đóng",
-                 "done": "hoàn tất", "cancel": "đã hủy"}
+# Bảng cục bộ ĐÃ GỘP về state_labels.py (2026-08-23): nó là bản duy nhất tồn
+# tại lúc đó, và bốn miền còn lại (đơn bán/đơn mua/hóa đơn/phiếu kho) vẫn trả
+# chữ Odoo thô ra người dùng. Giữ hai bảng cho cùng một việc là cách chúng trôi.
 
 
 def _resolve_product(name_or_code, *, gw=None):
@@ -186,7 +187,7 @@ def list_manufacturing_orders(state=None, product=None, limit=20, *, gw=None):
         return ok({"rows": [], "count": 0}, "Không có lệnh sản xuất nào phù hợp.")
     body = "\n".join(
         f"  {r['name']} | {(r['product_id'] or [0, 'N/A'])[1]} × "
-        f"{r['product_qty']:g} | {_STATE_LABELS.get(r['state'], r['state'])}"
+        f"{r['product_qty']:g} | {nhan_trang_thai('mrp.production', r['state'])}"
         for r in rows)
     return ok({"rows": rows, "count": len(rows)},
               f"{len(rows)} lệnh sản xuất:\n{body}")

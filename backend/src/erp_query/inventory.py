@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from .envelope import ok, err, fail_read
 from .gateway import default_gateway
+from .state_labels import nhan_trang_thai
 from .resolve import resolve_entity
 
 
@@ -138,7 +139,8 @@ def list_late_deliveries(direction=None, *, gw=None):
     display_rows = rows[:15]
     body = "\n".join(
         f"  {r['name']} | {(r['partner_id'] or [0, '—'])[1]} "
-        f"| hẹn {r['scheduled_date'][:10]} | {r['state']}"
+        f"| hẹn {r['scheduled_date'][:10]} "
+        f"| {nhan_trang_thai('stock.picking', r['state'])}"
         for r in display_rows)
     count = len(rows)
     display_text = f"{count} phiếu trễ hạn"

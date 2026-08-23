@@ -44,6 +44,12 @@ HANDOFF_DOC_OF: dict[str, tuple[str, str]] = {
     "update_quotation_lines":        ("order_ref", "sale.order"),
     "send_quotation_email":          ("order_ref", "sale.order"),
     "send_order_confirmation_email": ("order_ref", "sale.order"),
+    # Thêm 2026-08-23 cùng mục 24. Ba tool nhận `order_ref` — một MÃ người
+    # dùng gõ được — nên bàn giao được.
+    "update_rfq_lines":            ("order_ref", "purchase.order"),
+    "send_rfq_email":              ("order_ref", "purchase.order"),
+    "confirm_manufacturing_order": ("order_ref", "mrp.production"),
+    "complete_manufacturing_order": ("order_ref", "mrp.production"),
 }
 
 # Tool KHÔNG trỏ vào một bản ghi có sẵn: chúng TẠO MỚI hoặc thao tác trên
@@ -59,6 +65,14 @@ NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
     # người dùng nêu ra để giải. Xếp vào đây là đúng hình dạng dữ liệu, không
     # phải né tránh.
     "create_lead", "convert_lead",
+    # Thêm 2026-08-23 cùng mục 24 — TẠO MỚI, không có chứng từ để gắn:
+    "create_bulk_rfq", "create_vendor", "create_bom",
+    "create_manufacturing_order",
+    # Hai tool dưới thao tác trên bản ghi CÓ SẴN nhưng nhận ID nội bộ
+    # (`bom_id`) hoặc tên nhà cung cấp — không phải MÃ chứng từ người dùng gõ
+    # được, mà build_handoff cần một ref như thế để giải. Cùng lý do
+    # convert_lead nằm ở đây.
+    "update_bom_lines", "update_vendor_pricing",
     "inventory_adjustment", "internal_transfer", "scrap_product",
     "log_activity",
     # close_activity tác động lên MỘT activity, không lên một chứng từ có sẵn
@@ -105,6 +119,17 @@ ACTIVITY_MODELS_OF: dict[str, frozenset[str]] = {
     "warehouse": frozenset({"sale.order", "stock.picking"}),
     "accounting": frozenset({"sale.order", "purchase.order",
                              "account.move", "stock.picking"}),
+    # Vai `sales` thêm 2026-08-23. ĐO THẬT (tạo mail.activity trên một bản ghi
+    # CÓ THẬT của từng model rồi xoá đi), không suy từ nhóm quyền:
+    #   ai-sales  gắn được: sale.order, account.move, stock.picking,
+    #                       mrp.production, crm.lead
+    #   KHÔNG gắn được:     purchase.order
+    # Cùng lượt đo xác nhận hai dòng trên vẫn đúng nguyên.
+    #
+    # ⚠️ Phép đo đầu tiên dùng res_id=1 và KHÔNG phân biệt được "cấm" với
+    # "bản ghi không tồn tại" — phải đo lại bằng id thật mới ra bảng này.
+    "sales": frozenset({"sale.order", "account.move", "stock.picking",
+                        "mrp.production", "crm.lead"}),
 }
 
 # Đánh dấu một activity LÀ bàn giao (không phải activity thường có sẵn trên

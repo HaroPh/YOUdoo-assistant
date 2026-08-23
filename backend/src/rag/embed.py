@@ -15,12 +15,15 @@ nhau), Gemini bất đối xứng (task_type phân biệt RETRIEVAL_DOCUMENT v�
 RETRIEVAL_QUERY). Đó là lý do interface tách embed_texts() khỏi embed_query()
 thay vì một hàm embed() dùng chung.
 """
+import logging
 import os
 from typing import Protocol, runtime_checkable
 
 import httpx
 
 from .config import EMBED_DIM, EMBED_MODEL, OLLAMA_URL
+
+logger = logging.getLogger(__name__)
 
 GEMINI_EMBED_MODEL = "gemini-embedding-001"
 GEMINI_EMBED_DIM = 3072
@@ -177,3 +180,23 @@ def assert_embedding_marker(conn) -> None:
             f"({dang_bat.dim} chiều). Vector hai bên nằm ở hai không gian khác "
             f"nhau — truy vấn chéo trả kết quả rác mà KHÔNG báo lỗi. "
             f"Hoặc đổi RAG_EMBED_PROVIDER về đúng, hoặc re-index toàn bộ.")
+
+
+def nap_am() -> bool:
+    """Gọi MỘT lượt nhúng lúc khởi động để Ollama nạp sẵn model vào VRAM.
+
+    Vì sao cần (mục 22, đo 2026-08-23): nạp ấm riêng reranker chỉ kéo câu hỏi
+    tài liệu đầu tiên từ 15,8s xuống **10,9s**, trong khi lượt ấm là 4,2–7,0s.
+    Phần còn lại nằm ở đây — `OllamaEmbedder` gọi HTTP, và Ollama nạp model
+    theo yêu cầu rồi tự gỡ khỏi VRAM sau một lúc nhàn rỗi.
+
+    KHÔNG ném: Ollama chưa lên thì backend vẫn phải khởi động được. Hỏng ở đây
+    chỉ có nghĩa "lượt hỏi tài liệu đầu tiên vẫn chậm như cũ".
+    """
+    try:
+        embed_query("khởi động")
+        return True
+    except Exception:                                       # noqa: BLE001
+        logger.warning("Không nạp ấm được embedder — lượt truy xuất đầu tiên "
+                       "sẽ chậm hơn", exc_info=True)
+        return False
