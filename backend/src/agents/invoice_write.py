@@ -23,7 +23,7 @@ from .tool_result import parse_write_result
 from .create_order import (_by_id, _ttl_expiry, _msg, _disambig_q,
                            WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
-from .prompts import WRITE_CONFIRM_SUFFIX
+from .prompts import WRITE_CONFIRM_SUFFIX, canh_bao_rui_ro
 from ..erp_query import accounting
 
 
@@ -33,7 +33,8 @@ def _finish(tool_name: str, result) -> dict:
             "last_write": {"tool": tool_name, **env} if env else None}
 
 
-def render_invoice_summary(head: str, lines: list, totals: list) -> str:
+def render_invoice_summary(head: str, lines: list, totals: list,
+                           tool: str | None = None) -> str:
     """Bảng tóm tắt hóa đơn, khớp khuôn render_draft của create_order.py.
 
     Tên hiển thị lấy từ product_id[1], KHÔNG lấy line["name"]: đo thật thấy
@@ -42,7 +43,8 @@ def render_invoice_summary(head: str, lines: list, totals: list) -> str:
     body = [f"  - {(l.get('product_id') or [0, '?'])[1]}"
             f" × {(l.get('quantity') or 0):g}"
             f" = {(l.get('price_subtotal') or 0):,.0f}" for l in lines]
-    return "\n".join([head, *body, *totals]) + "\n" + WRITE_CONFIRM_SUFFIX
+    return ("\n".join([head, *body, *totals]) + "\n"
+            + canh_bao_rui_ro(tool) + "\n" + WRITE_CONFIRM_SUFFIX)
 
 
 def _invoice_label(r: dict, amount_field: str = "amount_total") -> str:
@@ -131,7 +133,8 @@ def make_post_invoice_node(tools):
         head = (f"Hóa đơn nháp của {partner} — ngày "
                 f"{inv.get('invoice_date') or 'chưa có'}:")
         draft = render_invoice_summary(
-            head, lines, [f"  Tổng: {(inv.get('amount_total') or 0):,.0f}"])
+            head, lines, [f"  Tổng: {(inv.get('amount_total') or 0):,.0f}"],
+            tool="post_invoice")
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -203,7 +206,8 @@ def make_register_payment_node(tools):
         # payment_state='partial'.
         totals = [f"  Tổng hóa đơn: {(inv.get('amount_total') or 0):,.0f}",
                   f"  Số dư sẽ thanh toán: {(inv.get('amount_residual') or 0):,.0f}"]
-        draft = render_invoice_summary(head, lines, totals)
+        draft = render_invoice_summary(head, lines, totals,
+                                       tool="register_payment")
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:

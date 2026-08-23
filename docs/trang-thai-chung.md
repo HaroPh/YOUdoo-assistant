@@ -32,11 +32,9 @@ Quy ước:
 |---|---|---|---|
 | 15 | Guardrail fail-open: **nửa CHẨN ĐOÁN đã vá** (log + đánh dấu "chưa xác minh" ra người dùng). Nửa còn lại — **tách ví hạn mức** cho verifier — chưa làm | chưa ai | cần quyết: dùng model/ví riêng cho verifier, hay chấp nhận nó tắt khi cạn |
 | 17b | ⚠️ **Đường ĐỌC không có vệt kiểm toán nào.** `erp_query/transport.py` gọi Odoo bằng `ServerProxy` riêng, không qua MCP ⇒ không qua `odoo()` ⇒ không `log_mcp_event`. Cả 35 tool MCP đều là tool GHI. Câu "ai đã đọc công nợ/bảng giá" hiện KHÔNG trả lời được | chưa ai | phát hiện khi đóng mục 17; là mục riêng, không phải phần mở rộng |
-| 18 | Mật khẩu theo vai: **code đã hết cản đường** (`ODOO_PASSWORD_<VAI>`, lùi về biến chung). Còn **bước hai**: đặt bốn biến trong `.env` VÀ đổi mật khẩu thật trong Odoo | chủ dự án | không phải việc code |
 | 19 | RAG: **không có Query Transformation** | chưa ai | recall@20 = 1,0 ⇒ truy xuất không phải nút thắt |
 | 19b | **RBAC tầng RAG — HOÃN CÓ ĐIỀU KIỆN.** Chỉ mở lại khi corpus có **nhiều tài liệu nội bộ**. Hôm nay: 8 tài liệu / 44 chunk nội bộ (98,6% corpus là PDF luật công khai) ⇒ chưa cần | hoãn 2026-08-22 | điều kiện mở lại, không phải "đã xong" — lỗ hổng vẫn còn, xem mục "đã đo" |
-| 21 | UX: ✅ báo tiến trình · ✅ vai `sales` · ✅ hiển thị trạng thái tiếng Việt (2026-08-23). Còn: **không có Undo** | chưa ai | spec `2026-08-23-danh-bong-demo.md` |
-| 23 | ⚠️ **13 khoảng trống vai↔Odoo có sẵn** — `check_role_odoo_consistency.py` thoát mã 1 TỪ TRƯỚC đợt vai `sales` (đo đối chứng bằng `git stash`). Gồm `find_my_activities`, `create_vendor`, 3 tool mail thô, `update_quotation_lines`, `update_rfq_lines` trên vai kho/kế toán | chưa ai | nợ có sẵn, không phải hồi quy |
+| 23 | ⚠️ **3 khoảng trống vai↔Odoo còn lại** (`update_quotation_lines` kho, `update_rfq_lines` kế toán, `find_my_activities`) — nên khai vào `KNOWN_ODOO_GAPS` kèm lý do đo được thay vì để script thoát mã 1 mãi. `create_vendor` ĐÃ ĐÓNG 2026-08-23 | chưa ai | spec `2026-08-23-canh-bao-rui-ro-va-chan-tao-ncc.md` §2 |
 
 ## Ai giữ vùng nào
 
@@ -70,6 +68,10 @@ báo trước.
 | Lượt tài liệu **ấm** chỉ 4,9–5,2s (truy xuất ~1s); con số 15,8s là lượt NGUỘI sau restart (reranker nạp trọng số) | cùng spec §4.2 |
 | `ai-admin` ĐỦ quyền demo: ghi được `sale.order`/`crm.lead`/`purchase.order`/`mrp.*`/`stock.*`/`account.*`; vai kho bị chặn đúng chỗ (cột đối chứng) | spec `2026-08-23-vai-sales.md` §2 |
 | Vai Youdoo suy từ `YOUDOO_ROLE_MAP` theo **user-id** (header `x-openwebui-user-id`), KHÔNG từ trường role của Open WebUI. Ba tài khoản nghiệp vụ (Kho/KeToan/Sale) để role Open WebUI = `user`; `DEFAULT_USER_ROLE` mặc định là `pending` nên tài khoản mới phải được duyệt thủ công | spec `2026-08-23-vai-sales.md` §7 — đọc `webui.db` |
+| **Mục 18 ĐÓNG, không làm** (quyết định chủ dự án 2026-08-23): cả 5 tài khoản AI dùng CHUNG một mật khẩu, nên cách ly theo vai chỉ là trên giấy ở tầng credential. Code đã sẵn sàng; mở lại chỉ là đặt 5 biến | spec `2026-08-23-canh-bao-rui-ro-va-chan-tao-ncc.md` §1 |
+| Odoo có **BỐN tầng phân quyền**, cả bốn đều có mặt: groups (76) · ACL theo model (869) · record rule (220) · field-level. Khoảng trống vai↔Odoo là "chưa ai viết luật", KHÔNG phải "Odoo thiếu cơ chế" | cùng spec §2 |
+| ⚠️ ir.rule chặn ghi PHẢI đặt `perm_read=False` — đặt read=True sẽ giấu mọi NCC khỏi vai kho và bẻ gãy `find_supplier`. Nghiệm thu 3 chiều: tạo khách ✅ · tạo NCC CHẶN · đọc NCC ✅ | cùng spec §3 |
+| **Không làm Undo**: cảnh báo rủi ro TRƯỚC khi xác nhận (15 tool), gợi ý hành động BÙ TRỪ khi lỡ. Tool tạo mới CỐ Ý không cảnh báo — cảnh báo mọi thứ thì chẳng còn gì là cảnh báo | cùng spec §4 |
 | Câu hỏi tài liệu ĐẦU TIÊN sau restart: **15,8s** (không ấm) → **10,9s** (chỉ ấm reranker) → **6,1s** (ấm cả reranker + embedder). Ấm một nửa là chưa đủ | spec `2026-08-23-danh-bong-demo.md` §3 |
 | `parse_selection` nay nhận số trong câu, chữ chỉ thứ tự tiếng Việt, và tên gõ thiếu sau phần số lượng. TÊN ưu tiên hơn số thứ tự; nhiều số trong câu ⇒ hỏi lại chứ không đoán | cùng spec §1 |
 | Nhãn trạng thái tra theo **(model, state)**: `done` = hoàn tất (sản xuất) / đã giao (phiếu kho) / đã khóa (đơn bán). Bảng phẳng là sai | cùng spec §2 |

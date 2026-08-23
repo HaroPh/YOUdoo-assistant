@@ -19,6 +19,7 @@ from .create_order import _ttl_expiry
 from .routing import DEPTH_ABANDONED
 from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
+                      canh_bao_rui_ro,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
 from .roles import OTHER_DEPT, DENIED, DEPT_OF
 from .write_registry import COORDINATED_TOOLS, expand_chain
@@ -493,8 +494,12 @@ def make_erp_write_planner_node(llm, planner_prompt=None, role_cfg=None):
         # Ngoặc bị BỎ HẲN khi không có args: "()" trơ trọi vừa xấu vừa rỗng.
         args_line = ", ".join(f"{k}={v}" for k, v in (plan.get("args") or {}).items())
         dong_args = f"\n({args_line})" if args_line else ""
+        # Cảnh báo rủi ro (mục 21): nói TRƯỚC khi người dùng còn kịp huỷ.
+        # Rỗng với tool tạo mới — xem chú thích RUI_RO_CUA_TOOL.
+        canh_bao = canh_bao_rui_ro(plan.get("tool"))
         question = WRITE_CONFIRM_PREFIX + (f"**{summary}**{dong_args}"
-                                           f"{plan.get('chain_note') or ''}\n\n"
+                                           f"{plan.get('chain_note') or ''}\n"
+                                           f"{canh_bao}\n"
                                            + WRITE_CONFIRM_SUFFIX)
         ttl = int(os.environ.get("CONFIRMATION_TTL_SECONDS", "300"))
         confirmed = _interrupt({

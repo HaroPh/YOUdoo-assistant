@@ -74,7 +74,7 @@ from .state import ERPAgentState
 from .tool_result import parse_write_result
 from .create_order import _ttl_expiry, _msg, WRITE_DISABLED_MSG, fail_write
 from . import write_gate
-from .prompts import WRITE_CONFIRM_SUFFIX
+from .prompts import WRITE_CONFIRM_SUFFIX, canh_bao_rui_ro
 
 
 @dataclass(frozen=True)
@@ -274,6 +274,7 @@ def make_send_template_email_node(tools, cfg: EmailCfg):
         preview_text = (f"{cfg.label.capitalize()} {ref}:\n"
                         f"  Tới: {', '.join(recipients) if recipients else 'không rõ người nhận'}\n"
                         f"  Tiêu đề: {args.get('subject')}\n"
+                        + canh_bao_rui_ro(cfg.tool_name) + "\n"
                         + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": preview_text,
                                 "expires_at": _ttl_expiry()})

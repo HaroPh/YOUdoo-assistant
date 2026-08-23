@@ -13,7 +13,7 @@ from .tool_result import parse_write_result
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
-from .prompts import WRITE_CONFIRM_SUFFIX
+from .prompts import WRITE_CONFIRM_SUFFIX, canh_bao_rui_ro
 from ..erp_query import inventory, accounting
 
 
@@ -94,7 +94,9 @@ def make_return_order_node(tools):
 
         body = "\n".join(lines_txt) if lines_txt else "  (toàn bộ số lượng đã giao)"
         draft = (f"Trả hàng cho đơn {order_ref} (phiếu {picking['name']}):\n"
-                 f"{body}\n" + WRITE_CONFIRM_SUFFIX)
+                 f"{body}\n"
+                 + canh_bao_rui_ro("return_order") + "\n"
+                 + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:

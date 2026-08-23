@@ -10,7 +10,7 @@ from .tool_result import _tool_result_text
 from .create_order import (resolve_entity_for_order, _by_id, _ttl_expiry, _msg,
                            _disambig_q, WRITE_DISABLED_MSG, fail_write)
 from . import write_gate
-from .prompts import WRITE_CONFIRM_SUFFIX
+from .prompts import WRITE_CONFIRM_SUFFIX, canh_bao_rui_ro
 from ..erp_query import inventory
 
 
@@ -61,7 +61,9 @@ def make_inventory_node(tools):
         loc_txt = f" tại {location_name}" if location_name else ""
         cur_txt = f" (hiện tại: {current:g})" if current is not None else ""
         draft = (f"Điều chỉnh tồn kho {product['name']}{loc_txt}{cur_txt} "
-                 f"về {new_qty:g}.\n" + WRITE_CONFIRM_SUFFIX)
+                 f"về {new_qty:g}.\n"
+                 + canh_bao_rui_ro("inventory_adjustment") + "\n"
+                 + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -117,7 +119,9 @@ def make_internal_transfer_node(tools):
             product = val
 
         draft = (f"Chuyển {qty:g} {product['name']} từ {from_location} sang "
-                 f"{to_location}.\n" + WRITE_CONFIRM_SUFFIX)
+                 f"{to_location}.\n"
+                 + canh_bao_rui_ro("internal_transfer") + "\n"
+                 + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})
         if not confirmed:
@@ -173,6 +177,7 @@ def make_scrap_product_node(tools):
         loc_txt = f" tại {location_name}" if location_name else ""
         reason_txt = f" (lý do: {reason})" if reason else ""
         draft = (f"Ghi nhận phế liệu {qty:g} {product['name']}{loc_txt}{reason_txt}.\n"
+                 + canh_bao_rui_ro("scrap_product") + "\n"
                  + WRITE_CONFIRM_SUFFIX)
         confirmed = _interrupt({"kind": "confirm", "question": draft,
                                 "expires_at": _ttl_expiry()})

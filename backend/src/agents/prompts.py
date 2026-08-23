@@ -176,6 +176,51 @@ WRITE_CONFIRM_PREFIX = "Mình sẽ thực hiện thao tác sau giúp bạn:\n\n"
 WRITE_CONFIRM_SUFFIX = ('Bạn xác nhận giúp mình nhé? '
                         '(trả lời "có" để thực hiện, "không" để hủy)')
 
+
+# ── Cảnh báo rủi ro TRƯỚC khi xác nhận (mục 21, 2026-08-23) ─────────────────
+#
+# Quyết định của chủ dự án: KHÔNG làm Undo thật. Lý do đứng vững khi đối chiếu
+# với Odoo — "hoàn tác" mang nghĩa khác nhau ở từng thao tác và có cái không
+# tồn tại: thư đã gửi không thu hồi được, hoá đơn đã phát hành phải bù bằng
+# credit memo (một chứng từ MỚI), hàng đã xuất phải làm phiếu ngược.
+#
+# Thay vào đó: NÓI TRƯỚC khi còn kịp huỷ, và khi người dùng muốn sửa thì gợi ý
+# hành động BÙ TRỪ chứ không hứa hoàn tác.
+#
+# ⚠️ CỐ Ý BỎ TRỐNG các tool tạo mới (create_quotation, create_rfq, create_lead,
+# create_bom…): chúng xoá/huỷ được, và cảnh báo mọi thứ thì chẳng còn gì là
+# cảnh báo — người dùng sẽ học cách lướt qua cả những dòng thật sự quan trọng.
+RUI_RO_CUA_TOOL: dict[str, str] = {
+    # Không thu hồi được — ra khỏi hệ thống.
+    "send_quotation_email": "Thư đã gửi KHÔNG thu hồi được. Nếu cần sửa, chỉ có thể gửi thư mới kèm bản đúng.",
+    "send_order_confirmation_email": "Thư đã gửi KHÔNG thu hồi được. Nếu cần sửa, chỉ có thể gửi thư mới kèm bản đúng.",
+    "send_invoice_email": "Thư đã gửi KHÔNG thu hồi được. Nếu cần sửa, chỉ có thể gửi thư mới kèm bản đúng.",
+    "send_delivery_email": "Thư đã gửi KHÔNG thu hồi được. Nếu cần sửa, chỉ có thể gửi thư mới kèm bản đúng.",
+    "send_rfq_email": "Thư đã gửi KHÔNG thu hồi được. Nếu cần sửa, chỉ có thể gửi thư mới kèm bản đúng.",
+    # Không hoàn tác — phải bù bằng một chứng từ MỚI.
+    "post_invoice": "Hoá đơn đã phát hành KHÔNG sửa/xoá được. Muốn điều chỉnh phải tạo credit memo (một chứng từ mới).",
+    "register_payment": "Thanh toán đã ghi sổ KHÔNG hoàn tác được. Muốn điều chỉnh phải làm bút toán hoàn tiền.",
+    # Đụng hàng thật — tồn kho đổi ngay.
+    "deliver_order": "Tồn kho sẽ giảm ngay. Muốn sửa phải làm phiếu trả hàng.",
+    "receive_order": "Tồn kho sẽ tăng ngay. Muốn sửa phải làm phiếu trả nhà cung cấp.",
+    "validate_picking": "Phiếu đã xác nhận sẽ chuyển hàng thật trong kho. Muốn sửa phải làm phiếu ngược.",
+    "internal_transfer": "Hàng sẽ chuyển kho thật. Muốn sửa phải làm phiếu chuyển ngược.",
+    "inventory_adjustment": "Số tồn sẽ bị GHI ĐÈ, không cộng dồn. Muốn sửa phải điều chỉnh lại lần nữa.",
+    "scrap_product": "Hàng huỷ KHÔNG khôi phục được — số lượng bị trừ khỏi tồn kho vĩnh viễn.",
+    "return_order": "Phiếu trả hàng sẽ chuyển hàng thật. Muốn sửa phải làm phiếu ngược.",
+    "complete_manufacturing_order": "Lệnh hoàn tất sẽ TIÊU HAO nguyên liệu và nhập thành phẩm. Không hoàn tác được.",
+}
+
+
+def canh_bao_rui_ro(tool: str | None) -> str:
+    """Khối cảnh báo chèn TRƯỚC câu chốt xác nhận, hoặc "" nếu tool an toàn.
+
+    Trả về chuỗi đã kèm sẵn xuống dòng để chỗ gọi chỉ việc nối vào — chỗ gọi
+    không phải nhớ định dạng, và mọi cảnh báo trông giống nhau.
+    """
+    loi = RUI_RO_CUA_TOOL.get(tool or "")
+    return f"\n⚠️ {loi}\n" if loi else ""
+
 CHITCHAT_PROMPT = """Bạn là Youdoo, trợ lý ERP nội bộ với giọng chuyên nghiệp, thân thiện.
 Bạn giúp người dùng: tra cứu đơn hàng, tồn kho, khách hàng, nhà cung cấp; tra cứu tài liệu/chính sách nội bộ; và tạo hoặc sửa đơn (báo giá, đơn mua, điều chỉnh tồn kho).
 

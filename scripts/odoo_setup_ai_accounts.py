@@ -69,21 +69,28 @@ def ensure_access(name, gid, tech, perms):
     else:
         call("ir.model.access", "create", [vals]); print("    tạo:", name)
 
-def ensure_rule(name, gid, tech, domain):
-    """ir.rule ĐỌC theo nhóm. Idempotent theo `name`.
+def ensure_rule(name, gid, tech, domain, perms=None):
+    """ir.rule theo nhóm. Idempotent theo `name`.
 
-    Chỉ đặt perm_read: perm_write/create/unlink trên mail.template đã có 2
-    luật gốc của Odoo quản (đo 2026-08-12, cả hai đều perm_read=False), thêm
-    luật ghi ở đây là giẫm lên chúng.
+    MẶC ĐỊNH chỉ đặt perm_read: perm_write/create/unlink trên mail.template đã
+    có 2 luật gốc của Odoo quản (đo 2026-08-12, cả hai đều perm_read=False),
+    thêm luật ghi ở đó là giẫm lên chúng.
+
+    `perms` (thêm 2026-08-23) cho phép LẬT lại — luật chặn tạo nhà cung cấp
+    cần ĐÚNG chiều ngược: chặn create/write, KHÔNG chặn read. Đặt read=True ở
+    đó sẽ giấu luôn mọi NCC khỏi vai kho và làm hỏng các tool tra cứu nhà cung
+    cấp — một luật "an ninh" bẻ gãy nghiệp vụ đọc.
 
     Ngữ nghĩa Odoo: luật THEO NHÓM chỉ áp lên thành viên của nhóm, và OR với
     nhau. Tài khoản không thuộc nhóm nào có luật trên model này thì không bị
     giới hạn — đó là lý do KHÔNG cần (và không nên) tạo nhóm cho admin.
     """
+    q = {"read": True, "write": False, "create": False, "unlink": False}
+    q.update(perms or {})
     vals = {"name": name, "model_id": model_id(tech), "domain_force": domain,
             "groups": [(6, 0, [gid])],
-            "perm_read": True, "perm_write": False,
-            "perm_create": False, "perm_unlink": False}
+            "perm_read": q["read"], "perm_write": q["write"],
+            "perm_create": q["create"], "perm_unlink": q["unlink"]}
     ex = call("ir.rule", "search_read", [[["name", "=", name]]],
               {"fields": ["id"], "limit": 1})
     if ex:
@@ -178,6 +185,29 @@ for _role, _gname in MAIL_ROLE_GROUPS.items():
         _domain = repr([("id", "=", 0)])
     ensure_rule("youdoo_ai_mail_tpl_" + _role, _gid, "mail.template", _domain)
 
+# ── Chặn tạo/sửa NHÀ CUNG CẤP cho mọi vai non-admin (mục 23, 2026-08-23) ────
+# `create_vendor` và `update_vendor_pricing` là tool CHỈ-ADMIN trong roles.py,
+# nhưng chặn đó chỉ nằm ở bộ lọc tool phía backend — tài khoản Odoo của vai
+# kho/kế toán/bán hàng vẫn tạo được nhà cung cấp, vì `res.partner` là CÙNG một
+# model với khách hàng và nhóm "Contact / Creation" không tách hai thứ.
+#
+# Vì sao đáng chặn ở tầng Odoo: ai vừa tạo được nhà cung cấp, vừa đặt được giá
+# mua, vừa xác nhận nhận hàng thì nắm trọn một chuỗi mà nghiệp vụ kế toán cố ý
+# cắt đôi (xem chú thích _SALES_OWN trong roles.py).
+#
+# Odoo PHÂN BIỆT ĐƯỢC: `res.partner.supplier_rank` (integer) — 0 nghĩa là chưa
+# từng là nhà cung cấp. Luật dưới cho phép tạo/sửa ĐÚNG những partner có
+# supplier_rank = 0.
+#
+# ⚠️ perm_read=False CÓ CHỦ ĐÍCH. Đặt read=True sẽ giấu mọi NCC khỏi các vai
+# này và làm hỏng `find_supplier`/`get_supplier_detail` — một luật an ninh bẻ
+# gãy nghiệp vụ đọc. Chỉ chặn create/write.
+g_no_ncc = ensure_group("Youdoo AI / Partner No Vendor")
+ensure_rule("youdoo_ai_partner_khong_tao_ncc", g_no_ncc, "res.partner",
+            repr([("supplier_rank", "=", 0)]),
+            perms={"read": False, "write": True, "create": True,
+                   "unlink": False})
+
 g_ro = ensure_group("Youdoo AI / Read Only")
 for tech in READ_MODELS:
     ensure_access("youdoo_ai_ro_" + tech.replace(".", "_"), g_ro, tech, {"read": 1})
@@ -198,10 +228,10 @@ PLAN = {
         "Inventory / Administrator", "Accounting / Administrator", "Sales / Administrator",
         "Purchase / Administrator", "Manufacturing / Administrator", "Contact / Creation",
         "Role / Administrator")],
-    "ai-warehouse":  [BASE_USER, g_mail, g_act] + ([g_mail_role["warehouse"]]
+    "ai-warehouse":  [BASE_USER, g_no_ncc, g_mail, g_act] + ([g_mail_role["warehouse"]]
                                             if "warehouse" in g_mail_role else []) + [
         gid_by_full_name(n) for n in ("Inventory / User", "Contact / Creation")],
-    "ai-accounting": [BASE_USER, g_mail, g_sinv, g_act] + ([g_mail_role["accounting"]]
+    "ai-accounting": [BASE_USER, g_no_ncc, g_mail, g_sinv, g_act] + ([g_mail_role["accounting"]]
                                                     if "accounting" in g_mail_role else []) + [
         gid_by_full_name(n) for n in ("Accounting / Invoicing", "Contact / Creation")],
     # Vai Bán hàng, thêm 2026-08-23. "Sales / Administrator" chứ không phải
@@ -211,7 +241,7 @@ PLAN = {
     #
     # KHÔNG có nhóm Purchase: `create_vendor`/`update_vendor_pricing` cố ý ở
     # lại admin — xem chú thích _SALES_OWN trong roles.py.
-    "ai-sales":      [BASE_USER, g_mail, g_act] + ([g_mail_role["sales"]]
+    "ai-sales":      [BASE_USER, g_no_ncc, g_mail, g_act] + ([g_mail_role["sales"]]
                                             if "sales" in g_mail_role else []) + [
         gid_by_full_name(n) for n in ("Sales / Administrator", "Contact / Creation")],
 }
