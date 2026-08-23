@@ -298,11 +298,22 @@ def test_nguon_phu_moi_rong_hon_nguon_cu(script_mod):
     moi = _registered_tools()
     # (1) nguồn phủ mới thực sự lấp đúng khoảng trống đã tạo ra task này.
     assert "find_my_activities" in moi - _declared_tools()
-    # (2) chốt CHÍNH XÁC phần không giao nhau: đúng hai tên coordinator tầng
-    # backend, không phải tool MCP thật. Nếu một trong hai trở thành tool
-    # MCP thật sau này, dòng này sẽ đỏ — đúng ý định: buộc người sửa đọc lý
-    # do này thay vì để nó lặng lẽ trôi.
-    assert _declared_tools() - moi == {"send_delivery_email", "send_invoice_email"}
+    # (2) chốt CHÍNH XÁC phần không giao nhau: đúng những tên coordinator tầng
+    # backend, không phải tool MCP thật.
+    #
+    # SUY RA từ mail_write thay vì gõ tay (đổi 2026-08-23 khi thêm vai
+    # `sales`): bản cũ ghim đúng hai tên và đã đỏ khi vai mới mang theo hai
+    # coordinator nữa — đỏ ĐÚNG ý định của nó, nhưng cách sửa đúng là chốt
+    # tính chất ("mọi phần thừa đều là coordinator mail") chứ không phải chép
+    # thêm hai chuỗi. Nếu một coordinator trở thành tool MCP THẬT thì nó rời
+    # tập này và dòng dưới vẫn đỏ.
+    from src.agents import mail_write as _mw
+    ten_coordinator = {c.tool_name for c in _mw.MAIL_COORDINATOR_CFGS}
+    thua = _declared_tools() - moi
+    assert thua, "không còn tên nào chỉ có ở roles.py — khẳng định (2) mất nghĩa"
+    assert thua <= ten_coordinator, (
+        "roles.py khai tên KHÔNG phải tool MCP và cũng KHÔNG phải coordinator "
+        f"mail: {sorted(thua - ten_coordinator)}")
 
 
 def test_model_khai_deu_co_that_trong_nguon_tool(script_mod, funcs, coordinator_aliases):

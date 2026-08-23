@@ -1,4 +1,4 @@
-﻿# start-dev.ps1 — khởi động mcp-odoo × 3 vai (:8003/:8004/:8005) + backend
+﻿# start-dev.ps1 — khởi động mcp-odoo × 4 vai (:8003/:8004/:8005/:8006) + backend
 # (:8002) cho dev hàng ngày, gói gọn lại quy trình thủ công trong
 # docs/getting-started.md.
 #
@@ -134,12 +134,13 @@ function Get-OdooPassword([string]$Login) {
 # ── mcp-odoo × 3 vai (:8003 admin / :8004 warehouse / :8005 accounting) ────
 # Mỗi tiến trình CHỈ nắm credential của vai mình — đó là lý do chọn cô lập
 # theo tiến trình: bug định tuyến vai chỉ gây "sai bộ tool", không leo thang.
-Write-Host "[1/2] Khởi động mcp-odoo theo vai (:8003/:8004/:8005) ..." -ForegroundColor Green
+Write-Host "[1/2] Khởi động mcp-odoo theo vai (:8003/:8004/:8005/:8006) ..." -ForegroundColor Green
 $mcpProcs = @()
 $mcpRoles = @(
     @{ Port = 8003; User = "ai-admin";      Role = "admin";      Log = "mcp-odoo-admin" },
     @{ Port = 8004; User = "ai-warehouse";  Role = "warehouse";  Log = "mcp-odoo-warehouse" },
-    @{ Port = 8005; User = "ai-accounting"; Role = "accounting"; Log = "mcp-odoo-accounting" }
+    @{ Port = 8005; User = "ai-accounting"; Role = "accounting"; Log = "mcp-odoo-accounting" },
+    @{ Port = 8006; User = "ai-sales";      Role = "sales";      Log = "mcp-odoo-sales" }
 )
 foreach ($r in $mcpRoles) {
     if (Test-PortOpen $r.Port) {

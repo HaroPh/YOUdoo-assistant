@@ -146,8 +146,15 @@ from src.agents import roles as _roles          # noqa: E402
 from src.agents import mail_write as _mw        # noqa: E402
 
 _PROFILE = _roles.load_profile()
-MAIL_ROLE_GROUPS = {"warehouse": "Youdoo AI / Mail Warehouse",
-                    "accounting": "Youdoo AI / Mail Accounting"}
+# SUY RA từ hồ sơ vai, KHÔNG gõ tay (đổi 2026-08-23 khi thêm vai `sales`).
+# Bản cũ liệt kê hai vai bằng tay, nên thêm vai thứ ba mà quên dòng này sẽ
+# khiến vai đó chạy KHÔNG có ir.rule giới hạn mail — im lặng, và về phía
+# nới lỏng. Đây là lớp lỗi "danh sách gõ tay trôi khỏi sự thật" mà dự án đã
+# gặp nhiều lần; suy diễn thì thêm vai là xong.
+MAIL_ROLE_GROUPS = {
+    ten: f"Youdoo AI / Mail {ten.capitalize()}"
+    for ten, cfg in _PROFILE.items() if not cfg.unrestricted
+}
 g_mail_role = {}
 for _role, _gname in MAIL_ROLE_GROUPS.items():
     _models = _mw.mail_models_for_role(_PROFILE[_role])
@@ -197,6 +204,16 @@ PLAN = {
     "ai-accounting": [BASE_USER, g_mail, g_sinv, g_act] + ([g_mail_role["accounting"]]
                                                     if "accounting" in g_mail_role else []) + [
         gid_by_full_name(n) for n in ("Accounting / Invoicing", "Contact / Creation")],
+    # Vai Bán hàng, thêm 2026-08-23. "Sales / Administrator" chứ không phải
+    # "Sales / User": quyết định của chủ dự án cho mục đích DEMO — 188 đơn bán
+    # hiện có do tài khoản KHÁC tạo, nên "Sales / User" (chỉ thấy chứng từ của
+    # chính mình) sẽ cho một vai nhìn vào kho dữ liệu gần như trống rỗng.
+    #
+    # KHÔNG có nhóm Purchase: `create_vendor`/`update_vendor_pricing` cố ý ở
+    # lại admin — xem chú thích _SALES_OWN trong roles.py.
+    "ai-sales":      [BASE_USER, g_mail, g_act] + ([g_mail_role["sales"]]
+                                            if "sales" in g_mail_role else []) + [
+        gid_by_full_name(n) for n in ("Sales / Administrator", "Contact / Creation")],
 }
 
 for login, gids in PLAN.items():

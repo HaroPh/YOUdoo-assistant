@@ -38,6 +38,12 @@ HANDOFF_DOC_OF: dict[str, tuple[str, str]] = {
     "register_payment":          ("invoice_ref", "account.move"),
     "validate_picking":          ("picking_ref", "stock.picking"),
     "send_delivery_email":       ("picking_ref", "stock.picking"),
+    # Thêm 2026-08-23 cùng vai `sales`. Ba tool này thao tác trên một đơn bán
+    # ĐÃ CÓ, nên bàn giao được; ref_arg lấy đúng từ EmailCfg tương ứng
+    # (mail_write.QUOTATION_EMAIL_CFG / ORDER_CONFIRMATION_CFG).
+    "update_quotation_lines":        ("order_ref", "sale.order"),
+    "send_quotation_email":          ("order_ref", "sale.order"),
+    "send_order_confirmation_email": ("order_ref", "sale.order"),
 }
 
 # Tool KHÔNG trỏ vào một bản ghi có sẵn: chúng TẠO MỚI hoặc thao tác trên
@@ -47,6 +53,12 @@ HANDOFF_DOC_OF: dict[str, tuple[str, str]] = {
 # giờ là đích của một cuộc bàn giao. Xếp vào đây để lưới đỡ chiều 2 không đỏ.
 NO_DOCUMENT_TOOLS: frozenset[str] = frozenset({
     "post_invoice", "create_quotation", "create_rfq",
+    # create_lead TẠO MỚI ⇒ không có chứng từ để gắn.
+    # convert_lead thao tác trên một lead có sẵn NHƯNG nhận `lead_id` (số nội
+    # bộ), không phải một MÃ mà người dùng gõ được — build_handoff cần một ref
+    # người dùng nêu ra để giải. Xếp vào đây là đúng hình dạng dữ liệu, không
+    # phải né tránh.
+    "create_lead", "convert_lead",
     "inventory_adjustment", "internal_transfer", "scrap_product",
     "log_activity",
     # close_activity tác động lên MỘT activity, không lên một chứng từ có sẵn

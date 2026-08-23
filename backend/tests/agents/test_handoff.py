@@ -39,11 +39,14 @@ def test_tra_nhan_bo_phan_ve_ten_vai():
 
 
 def test_bo_phan_khong_co_vai_thi_tra_None():
-    """Bán hàng / Mua hàng có trong DEPT_OF nhưng KHÔNG có vai nào — 4/20
-    tool luôn rơi về sàn. Hành vi đúng, không phải thiếu sót."""
-    assert role_name_for_label("Bán hàng") is None
+    """MUA HÀNG có trong DEPT_OF nhưng không có vai nào ⇒ rơi về sàn.
+
+    "Bán hàng" ĐÃ RỜI danh sách này ngày 2026-08-23 khi vai `sales` ra đời.
+    Ca cuối khẳng định điều NGƯỢC LẠI cho nó, để test này đỏ đúng lúc ai đó
+    thêm/bớt vai — chứ không im lặng xanh vì một lý do khác."""
     assert role_name_for_label("Mua hàng") is None
     assert role_name_for_label("khác") is None
+    assert role_name_for_label("Bán hàng") == "sales"
 
 
 def _vai(ten):

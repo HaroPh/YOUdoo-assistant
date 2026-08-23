@@ -81,7 +81,14 @@ def test_bang_giu_ca_bo_phan_chua_co_vai_ai():
     owned = _tools_owned_by_any_role()
     khong_vai_nao = {t: d for t, d in roles.DEPT_OF.items() if t not in owned}
     assert khong_vai_nao, "bảng mất hết nghiệp vụ của bộ phận chưa có vai AI"
-    assert set(khong_vai_nao.values()) >= {"Bán hàng", "Mua hàng"}
+    # "Bán hàng" RỜI tập này 2026-08-23 khi vai `sales` ra đời — đúng theo
+    # thiết kế của chính bảng: nó theo dõi bộ phận CHƯA có vai, và danh sách đó
+    # co lại mỗi lần thêm vai. Giữ "Mua hàng" vì đó là bộ phận duy nhất còn lại
+    # có nghiệp vụ trong DEPT_OF mà không vai AI nào sở hữu.
+    assert set(khong_vai_nao.values()) >= {"Mua hàng"}
+    assert "Bán hàng" not in khong_vai_nao.values(), (
+        "vai `sales` phải sở hữu mọi tool Bán hàng trong DEPT_OF — nếu không, "
+        "một tool bán hàng đang rơi về sàn thay vì bàn giao được cho vai đó")
 
 
 def test_dept_of_cua_prompts_van_doc_tu_roles():

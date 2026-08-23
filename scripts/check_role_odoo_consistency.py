@@ -79,7 +79,7 @@ TOOL_ACCESS_MAP = {
     "create_rfq":              [("purchase.order", "create")],
     "confirm_sale_order":      [("sale.order", "write")],             # action_confirm
     "confirm_purchase_order":  [("purchase.order", "write")],         # button_confirm
-    # ── Mail (2 coordinator gửi mail nêu trong roles.py) ──
+    # ── Mail (4 coordinator gửi mail nêu trong roles.py) ──
     # mail.py:87 gọi send_mail trên mail.template CÓ SẴN (chỉ cần đọc template,
     # không tạo template); bản ghi thật sinh ra và bị sửa/xoá là mail.mail
     # (:87 create, :128 write, :163 unlink qua discard_prepared_email).
@@ -87,6 +87,14 @@ TOOL_ACCESS_MAP = {
                             ("mail.mail", "write"), ("mail.mail", "unlink")],
     "send_invoice_email":  [("mail.template", "read"), ("mail.mail", "create"),
                             ("mail.mail", "write"), ("mail.mail", "unlink")],
+    # Hai coordinator của vai `sales` (thêm 2026-08-23) — CÙNG hình dạng truy
+    # cập: mọi coordinator mail đều đi qua đúng ba tool MCP
+    # preview/send/discard_prepared_email, chỉ khác template và res_model.
+    "send_quotation_email": [("mail.template", "read"), ("mail.mail", "create"),
+                             ("mail.mail", "write"), ("mail.mail", "unlink")],
+    "send_order_confirmation_email": [
+        ("mail.template", "read"), ("mail.mail", "create"),
+        ("mail.mail", "write"), ("mail.mail", "unlink")],
     # ── Nghiệp vụ chung hai vai (crm.py) ──
     # mail.activity create đã True cho cả ba tài khoản ghi TRƯỚC nhánh
     # log_activity generalisation (đo spec §6) — không đo được cái nhánh đó
@@ -193,6 +201,21 @@ KNOWN_ODOO_GAPS = {
     ("accounting", "confirm_sale_order"): "ai-accounting vẫn có write trên sale.order.",
     ("accounting", "confirm_purchase_order"): "ai-accounting vẫn có write trên purchase.order (cần cho create_bill_from_po, không tách được).",
     ("accounting", "send_delivery_email"): "cùng lý do như (warehouse, send_invoice_email) — nhóm Youdoo AI / Mail dùng chung.",
+    # ── Bốn cặp mail của vai `sales` (thêm 2026-08-23) ──
+    # CÙNG hình dạng với hai dòng trên, nhưng lý do ở đây ĐƯỢC ĐO chứ không
+    # chép: script kiểm quyền cấp MODEL, mà nhóm "Youdoo AI / Mail" cấp
+    # mail.mail cho mọi vai. Record rule mới là lớp cưỡng chế thật, và nó
+    # CHẠY — đo 2026-08-23 bằng search_read trên mail.template:
+    #   ai-warehouse  → 1 template  (stock.picking)
+    #   ai-accounting → 5 template  (account.move)
+    #   ai-sales      → 4 template  (sale.order)
+    #   ai-admin      → 29 template (tất cả)
+    # Nên vai kho KHÔNG đọc nổi template báo giá ⇒ không gửi được mail báo giá,
+    # dù quyền cấp model nói ngược lại.
+    ("warehouse", "send_quotation_email"): "quyền cấp MODEL mở (nhóm Youdoo AI / Mail chung) nhưng ir.rule youdoo_ai_mail_tpl_warehouse giới hạn mail.template về stock.picking — đo 2026-08-23: vai kho chỉ đọc được 1 template.",
+    ("warehouse", "send_order_confirmation_email"): "cùng lý do như (warehouse, send_quotation_email).",
+    ("accounting", "send_quotation_email"): "cùng lý do — ir.rule youdoo_ai_mail_tpl_accounting giới hạn về account.move (5 template).",
+    ("accounting", "send_order_confirmation_email"): "cùng lý do như (accounting, send_quotation_email).",
 }
 
 ROLE_LOGINS = {"warehouse": "ai-warehouse", "accounting": "ai-accounting"}

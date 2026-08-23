@@ -43,6 +43,12 @@ DEPT_OF = {
     "create_credit_memo": "Kế toán", "create_invoice_from_order": "Kế toán",
     "create_bill_from_po": "Kế toán",
     "create_quotation": "Bán hàng", "confirm_sale_order": "Bán hàng",
+    # bổ sung 2026-08-23 cùng vai `sales`: mọi tool vai đó SỞ HỮU phải có mặt ở
+    # đây, nếu không lời từ chối cho tool đó sẽ nói "bộ phận khác" thay vì nêu
+    # tên bộ phận (test_moi_tool_duoc_so_huu_deu_co_bo_phan gác).
+    "update_quotation_lines": "Bán hàng", "create_lead": "Bán hàng",
+    "convert_lead": "Bán hàng", "send_quotation_email": "Bán hàng",
+    "send_order_confirmation_email": "Bán hàng",
     "create_rfq": "Mua hàng", "confirm_purchase_order": "Mua hàng",
     "deliver_order": "Kho", "receive_order": "Kho", "validate_picking": "Kho",
     "internal_transfer": "Kho", "inventory_adjustment": "Kho",
@@ -144,9 +150,37 @@ _ACC_OWN = frozenset({
 })
 _ACC_SIGN_OFF = frozenset({"post_invoice", "register_payment"})
 
+# ── Vai Bán hàng (thêm 2026-08-23) ──────────────────────────────────────────
+# Vì sao THÊM VAI thay vì nới quyền vai kho: chủ dự án cần một vai đại diện để
+# DEMO trọn vòng bán hàng. Ở doanh nghiệp nhỏ thật, một người kiêm cả kho lẫn
+# bán hàng thì nới quyền vai kho hợp lý hơn — quyết định này là để trình diễn
+# năng lực, không phải để cưỡng chế tách việc.
+#
+# `confirm_sale_order` nằm ở needs_sign_off, KHÔNG phải own: chốt đơn là cam
+# kết giá với khách. Nó vẫn thực hiện được (xem docstring module), chỉ kèm câu
+# nhắc rằng theo quy định nội bộ việc này cần được duyệt.
+#
+# Mail đi qua COORDINATOR (`send_quotation_email`,
+# `send_order_confirmation_email`) chứ không phải ba tool MCP thô
+# (`preview_template_email`/`send_prepared_email`/`discard_prepared_email`) —
+# đó là khuôn mà vai kho và vai kế toán đã dùng, và `mail_write._cfgs_for_role`
+# lọc coordinator theo đúng `allowed_tools()`.
+#
+# KHÔNG cấp `create_vendor`/`update_vendor_pricing` cho bất kỳ vai non-admin
+# nào: ai vừa tạo được nhà cung cấp, vừa đặt được giá mua, vừa xác nhận nhận
+# hàng thì nắm trọn một chuỗi mà nghiệp vụ kế toán cố tình cắt đôi.
+_SALES_OWN = frozenset({
+    "create_quotation", "update_quotation_lines",
+    "create_lead", "convert_lead",
+    "send_quotation_email", "send_order_confirmation_email",
+    "log_activity", "close_activity",
+})
+_SALES_SIGN_OFF = frozenset({"confirm_sale_order"})
+
 MCP_ADMIN = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
 MCP_WAREHOUSE = os.environ.get("MCP_ODOO_URL_WAREHOUSE", "http://localhost:8004/sse")
 MCP_ACCOUNTING = os.environ.get("MCP_ODOO_URL_ACCOUNTING", "http://localhost:8005/sse")
+MCP_SALES = os.environ.get("MCP_ODOO_URL_SALES", "http://127.0.0.1:8006/sse")
 
 PROFILES = {
     "small-business": {
@@ -155,6 +189,8 @@ PROFILES = {
                              own=_WH_OWN, needs_sign_off=_WH_SIGN_OFF),
         "accounting": RoleCfg("accounting", "Kế toán", MCP_ACCOUNTING,
                               own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF),
+        "sales": RoleCfg("sales", "Bán hàng", MCP_SALES,
+                         own=_SALES_OWN, needs_sign_off=_SALES_SIGN_OFF),
     },
     # Doanh nghiệp lớn chia nhỏ trách nhiệm: 3 nghiệp vụ RỜI tập own∪sign_off
     # của vai kho ⇒ quyền bị gỡ khỏi tài khoản Odoo (khác với việc chỉ đổi
@@ -175,6 +211,11 @@ PROFILES = {
                                         "scrap_product", "return_order"})),
         "accounting": RoleCfg("accounting", "Kế toán", MCP_ACCOUNTING,
                               own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF),
+        # Hồ sơ enterprise dùng CÙNG tập với small-business: phỏng vấn phân
+        # quyền chưa từng hỏi tới bộ phận bán hàng, nên chia nhỏ hơn ở đây sẽ
+        # là bịa. Khi có số liệu thì tách như vai kho đã tách.
+        "sales": RoleCfg("sales", "Bán hàng", MCP_SALES,
+                         own=_SALES_OWN, needs_sign_off=_SALES_SIGN_OFF),
     },
 }
 
@@ -189,7 +230,7 @@ def role_for_user(user_id):
     Khoá theo user_id, KHÔNG theo email/tên — quyết định PII tại main.py.
     Trả None khi không xác định được: KHÔNG mặc định thành admin (fail-closed).
 
-    Định dạng YOUDOO_ROLE_MAP: "id1:admin,id2:warehouse,id3:accounting"
+    Định dạng YOUDOO_ROLE_MAP: "id1:admin,id2:warehouse,id3:accounting,id4:sales"
     """
     if not user_id:
         return None
