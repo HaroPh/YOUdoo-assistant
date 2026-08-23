@@ -194,7 +194,7 @@ def _load_entry_module(spec: SkillSpec):
     return module
 
 
-def build_skill_tools(spec: SkillSpec, mcp_tools) -> list:
+def build_skill_tools(spec: SkillSpec, mcp_tools, role_cfg=None) -> list:
     """Tool của một node SOP: ask_human + tool đọc + (wrapper ghi ĐÃ GATE
     HOẶC tool do entry sinh). ask_human luôn được cấp, không cần khai — mọi SOP
     đều cần, bắt khai chỉ tạo chỗ để quên.
@@ -205,7 +205,12 @@ def build_skill_tools(spec: SkillSpec, mcp_tools) -> list:
     registry rỗng. Rỗng → không có hợp đồng MCP để đối chiếu, bỏ qua kiểm tra
     tồn tại, dựng node chỉ-đọc. KHÔNG rỗng mà thiếu tool đã khai → fail-loud."""
     by_name = {t.name: t for t in mcp_tools}
-    read_by_name = {t.name: t for t in build_erp_query_tools()}
+    # role_cfg đi tới đây CHỈ để vệt kiểm toán đường đọc (mục 17b) biết vai —
+    # `build_erp_query_tools` dùng nó làm `caller`. Nghiệm thu sống 2026-08-23
+    # thấy các lượt đọc qua SOP ghi `erp_query/?`, tức mất vai. Nó KHÔNG đổi
+    # tập tool: hai chỗ gọi ở specs_for_role cố ý truyền registry khác nhau để
+    # so, và cả hai vẫn so trên cùng tập tool đọc.
+    read_by_name = {t.name: t for t in build_erp_query_tools(role_cfg)}
 
     tools = [ask_human]
     for rname in spec.read_tools:
@@ -321,7 +326,7 @@ def skill_role_gap(spec: SkillSpec, tools, all_tools, role_cfg) -> str | None:
     return None
 
 
-def build_skill_node(spec: SkillSpec, llm, mcp_tools):
+def build_skill_node(spec: SkillSpec, llm, mcp_tools, role_cfg=None):
     """Node SOP = CompiledStateGraph của create_agent, TRẢ VỀ TRỰC TIẾP.
 
     Node này PHẢI được add_node thẳng vào graph ngoài — không bao giờ bọc trong
@@ -332,7 +337,7 @@ def build_skill_node(spec: SkillSpec, llm, mcp_tools):
     minh binding giữ nguyên interrupt/resume; spike v10b chứng minh KHÔNG có nó
     thì subgraph chạy không giới hạn (mặc định 25 của LangGraph không truyền
     vào subgraph-as-node, chỉ giá trị tường minh trong config mới kế thừa)."""
-    agent = create_agent(llm, build_skill_tools(spec, mcp_tools),
+    agent = create_agent(llm, build_skill_tools(spec, mcp_tools, role_cfg),
                          system_prompt=spec.prose)
     return agent.with_config({"recursion_limit": spec.max_steps})
 

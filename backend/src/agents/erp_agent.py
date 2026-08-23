@@ -14,6 +14,7 @@ from langgraph.errors import GraphRecursionError
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from ..phien import NGUOI_DUNG_HIEN_TAI
 from .graph import build_graph
 from .tien_trinh import BaoTienTrinh, HANG_TIEN_TRINH
 from .confirmation import CONFIRM, UNCLEAR, classify_confirmation
@@ -207,16 +208,10 @@ def _them_dong_bao_fallback(answer: str) -> str:
 # đối chiếu hai chuỗi.
 HEADER_NGUOI_DUNG = "x-youdoo-user"
 
-# Người dùng của lượt chat hiện tại. Đặt ở chat(), đọc ở interceptor.
-#
-# Vì sao ContextVar chứ không truyền tham số: đường từ chat() tới lời gọi tool
-# đi qua LangGraph (graph → node → create_react_agent → ToolNode), không chặng
-# nào trong đó nhận thêm tham số của ta được. ContextVar truyền được vì asyncio
-# CHÉP ngữ cảnh vào task con lúc tạo — chiều cha→con. (Chiều ngược lại KHÔNG
-# chạy, và đợt tracing 2026-07 đã trả giá cho điều đó; ở đây ta chỉ cần chiều
-# cha→con.)
-NGUOI_DUNG_HIEN_TAI: ContextVar[str | None] = ContextVar(
-    "nguoi_dung_hien_tai", default=None)
+# Người dùng của lượt chat hiện tại — nay sống ở `src/phien.py` (module LÁ).
+# Chuyển 2026-08-23 khi `src/erp_query/audit.py` cũng cần đọc nó: nhập ngược
+# từ erp_query về đây là vòng (agents/graph.py đã nhập erp_query.tools).
+# Vẫn re-export để mọi chỗ đang nhập từ module này không phải đổi.
 
 
 async def _gan_nguoi_dung_vao_header(request, handler):

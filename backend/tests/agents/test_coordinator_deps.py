@@ -140,10 +140,19 @@ def test_erp_write_executor_va_skill_node_khong_di_qua_tools_for_coordinator():
         f"không phải {m.group(1)!r} — nếu đây là tools_for_coordinator(...), "
         f"deps mail đã lọt vào planner/erp_write_executor")
 
-    m2 = re.search(r'build_skill_node\((.*?)\)', src)
+    # re.S: lời gọi trải HAI DÒNG từ 2026-08-23 (thêm role_cfg), regex một
+    # dòng không bắt được và test đỏ với thông điệp sai hẳn bản chất
+    # ("không tìm thấy build_skill_node" trong khi nó vẫn ở đó).
+    m2 = re.search(r'build_skill_node\((.*?)\)', src, re.S)
     assert m2, "không tìm thấy build_skill_node(...) trong graph.py"
     args = [a.strip() for a in m2.group(1).split(",")]
-    assert args[-1] == "tools", (
-        f"build_skill_node phải nhận đúng `tools` làm tham số cuối, "
-        f"không phải {args[-1]!r} — nếu đây là tools_for_coordinator(...), "
+    # Ghim theo VỊ TRÍ THAM SỐ mcp_tools (thứ ba), không phải "tham số cuối".
+    # Bản cũ ghim `args[-1]` và đỏ ngày 2026-08-23 khi `role_cfg` được thêm
+    # vào SAU nó cho vệt kiểm toán đường đọc — bất biến thật (mcp_tools phải
+    # là `tools`, không phải tools_for_coordinator(...)) không hề đổi, chỉ vị
+    # trí đổi. Ghim vị trí cuối là ghim một thứ không phải bất biến.
+    assert len(args) >= 3, f"build_skill_node(...) thiếu tham số: {args}"
+    assert args[2] == "tools", (
+        f"build_skill_node phải nhận đúng `tools` làm mcp_tools (tham số thứ "
+        f"ba), không phải {args[2]!r} — nếu đây là tools_for_coordinator(...), "
         f"deps mail đã lọt vào node SOP/skill")

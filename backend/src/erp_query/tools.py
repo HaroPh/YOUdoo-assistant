@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from pydantic import model_validator
 
 from . import sales, inventory, purchase, accounting, crm, mrp, work_queue
+from .audit import boc_ghi_vet
 
 
 def _json(envelope) -> str:
@@ -255,7 +256,12 @@ def build_erp_query_tools(role_cfg=None) -> list:
              list_reorder_needed, get_bom_detail, list_manufacturing_orders,
              list_late_deliveries, check_po_matching, list_po_mismatches,
              get_partner_balance, list_pending_work, list_my_activities]
+    # Vệt kiểm toán đường ĐỌC (mục 17b) — MỘT chỗ, phủ cả 28 tool. Đặt ở đây
+    # chứ không ở `transport.call()`: gateway chỉ biết model+method, và một
+    # tool gọi gateway vài lượt (xem docstring audit.py).
+    caller = f"erp_query/{role_cfg.name}" if role_cfg is not None else "erp_query/?"
     for t in tools:
         _forbid_extra_kwargs(t)
         _reject_ref_shaped_partner_names(t)
+        boc_ghi_vet(t, caller)
     return tools

@@ -94,7 +94,8 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
         # Node SOP add THẲNG vào graph ngoài (không bọc hàm async viết tay) —
         # điều kiện để interrupt() trong tool của nó compose đúng với
         # checkpointer. recursion_limit áp trong build_skill_node (wiring).
-        g.add_node(spec.name, build_skill_node(spec, llms["planner"], tools))
+        g.add_node(spec.name, build_skill_node(spec, llms["planner"], tools,
+                                               role_cfg))
         g.add_edge(spec.name, "agentic_context_sync")
     g.add_node("agentic_context_sync", make_agentic_context_sync_node())
     g.add_edge("agentic_context_sync", END)
