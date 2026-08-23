@@ -72,6 +72,7 @@ báo trước.
 | Độ trễ lượt ERP KHÔNG phải "4 lời gọi LLM nối tiếp" như từng ghi: chặng đắt nhất là **lời gọi tool** (6,45s trước khi sửa). Phép đo rời bỏ sót vì lời gọi thử của tôi hỏng ngay do sai tham số | cùng spec §4.1 |
 | Lượt tài liệu **ấm** chỉ 4,9–5,2s (truy xuất ~1s); con số 15,8s là lượt NGUỘI sau restart (reranker nạp trọng số) | cùng spec §4.2 |
 | `ai-admin` ĐỦ quyền demo: ghi được `sale.order`/`crm.lead`/`purchase.order`/`mrp.*`/`stock.*`/`account.*`; vai kho bị chặn đúng chỗ (cột đối chứng) | spec `2026-08-23-vai-sales.md` §2 |
+| Vai Youdoo suy từ `YOUDOO_ROLE_MAP` theo **user-id** (header `x-openwebui-user-id`), KHÔNG từ trường role của Open WebUI. Ba tài khoản nghiệp vụ (Kho/KeToan/Sale) để role Open WebUI = `user`; `DEFAULT_USER_ROLE` mặc định là `pending` nên tài khoản mới phải được duyệt thủ công | spec `2026-08-23-vai-sales.md` §7 — đọc `webui.db` |
 | ir.rule mail cưỡng chế THẬT theo vai: warehouse đọc 1 template, accounting 5, sales 4, admin 29 | cùng spec §4 — `search_read` trên `mail.template` từng tài khoản |
 | `send_delivery_email`/`send_invoice_email`/`send_quotation_email`/`send_order_confirmation_email` là **coordinator tầng backend**, KHÔNG phải tool MCP. Đừng đối chiếu chúng với registry MCP rồi kết luận "tool không tồn tại" | cùng spec §5 — tôi đã mắc đúng lỗi đó |
 | Nhịp eval suy từ **CẢ rpm LẪN tpm**, và theo model ĐANG GHIM | cùng spec; Gemini 4,8s (không đổi), Groq 2,4 → 9,0s |
