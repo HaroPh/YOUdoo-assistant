@@ -32,7 +32,18 @@ from src.llm.router import THUNG_FALLBACK
 MCP_ODOO_URL = os.environ.get("MCP_ODOO_URL", "http://localhost:8003/sse")
 PG_CONN      = os.environ.get(
     "DATABASE_URL",
-    "postgresql://admin:changeme@localhost:5433/ai_assistant",
+    # ⚠️ Cổng 5434 là của Youdoo. KHÔNG đổi thành 5433 — đó là container
+    # postgres của D:\Project, dự án anh em chạy trên CÙNG máy dev với CÙNG
+    # tên database `ai_assistant`. Giá trị mặc định này từng trỏ vào 5433: nếu
+    # `DATABASE_URL` không được đặt, Youdoo lặng lẽ nói chuyện với corpus RAG
+    # của dự án kia (đo 2026-08-23: 3 300 chunk bên đó vs 3 151 bên này). Thứ
+    # DUY NHẤT chặn lại là mật khẩu `changeme` sai — một lớp bảo vệ tình cờ,
+    # không phải lớp bảo vệ được thiết kế.
+    #
+    # Vẫn giữ giá trị mặc định thay vì os.environ[...] fail-loud: `rag/config.py`
+    # được nhập ở cấp module và CI cố ý chạy KHÔNG có DATABASE_URL (xem spec
+    # 2026-08-22-ci.md §2.3 — đúng lớp lỗi đó đã làm 73 test đỏ một lần).
+    "postgresql://admin:changeme@localhost:5434/ai_assistant",
 )
 RECURSION_MSG = ("Yêu cầu này chạy quá số bước xử lý cho phép nên đã được "
                  "dừng an toàn. Nếu bạn vừa yêu cầu một thao tác ghi, hãy "

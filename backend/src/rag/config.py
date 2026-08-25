@@ -21,8 +21,11 @@ EMBED_DIM = 1024
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11435")
 
 # Store
+# ⚠️ 5434 là cổng của Youdoo, KHÔNG phải 5433 (container postgres của
+# D:\Project, cùng máy dev, CÙNG tên db `ai_assistant`). Xem chú thích đầy
+# đủ ở agents/erp_agent.py cạnh PG_CONN.
 RAG_DB_DSN = os.environ.get("DATABASE_URL",
-                            "postgresql://admin:changeme@localhost:5433/ai_assistant")
+                            "postgresql://admin:changeme@localhost:5434/ai_assistant")
 RAG_SCHEMA = os.environ.get("RAG_SCHEMA", "public")
 
 # Retrieval
