@@ -80,3 +80,33 @@ def test_bang_bat_dau_ngay_hang_dau_van_dung():
     ]
     g = find_header(rows)
     assert g is not None and g.row_index == 0
+
+
+def test_hang_danh_so_cot_khong_duoc_chon_lam_tieu_de():
+    """Vòng sửa 1: sheet thật `PB CPTT - TK 242`/`BC KQKD` có hàng "(1)(2)(3)..."
+    NGAY DƯỚI hàng tiêu đề thật; trước vòng sửa hàng đó ăn điểm cao hơn hoặc
+    bằng chính hàng tiêu đề. Hàng đánh số cột không bao giờ được chọn."""
+    rows = [
+        ["STT", "Chỉ tiêu", "Mã", "Số năm nay", "Số năm trước"],
+        ["(1)", "(2)", "(3)", "(4)", "(5)"],
+        [1, "Doanh thu bán hàng", 1, 1000, 900],
+        [2, "Giá vốn hàng bán", 11, 700, 650],
+    ]
+    g = find_header(rows)
+    assert g is not None and g.row_index == 0
+    assert g.labels[0] == "STT"
+
+
+def test_bieu_mau_trong_van_do_duoc_tieu_de():
+    """Vòng sửa 1: sheet thật `DM KH`/`DM NCC`/`DMHH` có hàng tiêu đề HOÀN HẢO
+    nhưng chưa điền dữ liệu — trước vòng sửa, data_ratio=0 kéo điểm hàng tiêu
+    đề xuống dưới ngưỡng, trả về None dù hàng tiêu đề thật hoàn toàn rõ ràng."""
+    rows = [
+        ["Công ty TNHH Thương mại Dịch vụ Thiên Ưng", None, None, None, None],
+        ["STT", "Mã", "Tên Khách hàng", "Mã số thuế", "Số Tài Khoản"],
+        [None, None, None, None, None],
+        [None, None, None, None, None],
+    ]
+    g = find_header(rows)
+    assert g is not None and g.row_index == 1
+    assert g.labels[0] == "STT"
