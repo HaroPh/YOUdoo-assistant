@@ -53,3 +53,5 @@ uvicorn==0.46.0
 # skill_manifest.py parse frontmatter SKILL.md bằng yaml.safe_load. Ghim
 # tường minh để một lần gỡ dep bắc cầu không lặng lẽ làm app không lên.
 PyYAML==6.0.3
+# python-pptx: parser slide .pptx (Task 4, spec tang-nap-tai-lieu §5.1).
+python-pptx==1.0.2

@@ -8,7 +8,7 @@ from . import db as _db
 from .config import RAG_SCHEMA
 from .embed import EmbeddingError, embed_texts, get_embedder
 from .parse import (extract_effective_date, parse_docx, parse_pdf,
-                    parse_xlsx)
+                    parse_pptx, parse_xlsx)
 from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
 from .ingest_report import IngestReport, Rejection
 from src.cli_console import use_utf8_streams
@@ -20,6 +20,7 @@ _EXT = {
     ".xlsx": "xlsx",
     ".xlsm": "xlsx",     # sổ kế toán Việt Nam gần như luôn là .xlsm (có macro)
     ".xltx": "xlsx",
+    ".pptx": "pptx",
 }
 
 # Đuôi ĐƯỢC COI LÀ TÀI LIỆU — rộng hơn `_EXT`. Tệp mang đuôi ở đây mà không
@@ -67,7 +68,13 @@ def _doc_id(path: str) -> str:
 def _chunks_for(path: str, kind: str, doc_id: str) -> list[dict]:
     if kind == "xlsx":
         return chunk_xlsx_sheets(parse_xlsx(path), doc_id=doc_id, source_file=path)
-    blocks = parse_pdf(path) if path.lower().endswith(".pdf") else parse_docx(path)
+    low = path.lower()
+    if low.endswith(".pdf"):
+        blocks = parse_pdf(path)
+    elif low.endswith(".pptx"):
+        blocks = parse_pptx(path)
+    else:
+        blocks = parse_docx(path)
     if not blocks:
         return []
     return chunk_text_blocks(blocks, doc_id=doc_id, source_file=path)

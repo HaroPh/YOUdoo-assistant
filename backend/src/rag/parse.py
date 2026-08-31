@@ -264,6 +264,58 @@ def parse_pdf(path: str) -> list[dict]:
     return blocks
 
 
+def _pptx_table_to_text(tbl) -> str:
+    """Bảng trong slide thành text nhiều dòng, mỗi dòng một hàng, cột ngăn
+    bởi "|" — CÙNG khuôn với `_bang_thanh_text` của .docx, để tầng chunk và
+    tầng tổng hợp chỉ phải hiểu một dạng bảng."""
+    rows = []
+    for row in tbl.rows:
+        cells = [c.text.strip().replace("\n", " ") for c in row.cells]
+        if any(cells):
+            rows.append(" | ".join(cells))
+    return "\n".join(rows)
+
+
+def parse_pptx(path: str) -> list[dict]:
+    """Blocks theo thứ tự slide; `page` mang SỐ SLIDE (từ 1).
+
+    Tiêu đề slide thành heading cấp 1 — đó là phân cấp duy nhất một bộ slide
+    có. Ghi chú thuyết trình được giữ vì trong tài liệu nội bộ chúng thường
+    chứa điều kiện và ngoại lệ mà slide chỉ nói tóm tắt.
+    """
+    from pptx import Presentation
+
+    prs = Presentation(path)
+    blocks: list[dict] = []
+    for idx, slide in enumerate(prs.slides, start=1):
+        title = None
+        if slide.shapes.title is not None:
+            title = (slide.shapes.title.text or "").strip()
+        if title:
+            blocks.append({"text": title, "heading_level": 1, "page": idx})
+
+        for shape in slide.shapes:
+            if shape.has_table:
+                text = _pptx_table_to_text(shape.table)
+                if text:
+                    blocks.append({"text": text, "heading_level": None, "page": idx})
+                continue
+            if not shape.has_text_frame:
+                continue
+            if slide.shapes.title is not None and shape is slide.shapes.title:
+                continue
+            text = shape.text_frame.text.strip()
+            if text:
+                blocks.append({"text": text, "heading_level": None, "page": idx})
+
+        if slide.has_notes_slide:
+            note = (slide.notes_slide.notes_text_frame.text or "").strip()
+            if note:
+                blocks.append({"text": f"Ghi chú: {note}",
+                               "heading_level": None, "page": idx})
+    return blocks
+
+
 def parse_xlsx(path: str) -> list[dict]:
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     sheets: list[dict] = []
