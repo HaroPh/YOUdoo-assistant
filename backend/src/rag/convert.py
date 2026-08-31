@@ -4,8 +4,29 @@ Task 3 hoàn thiện; Task 2 chỉ cần `soffice_path()` để nhánh từ ch�
 """
 import os
 import shutil
+import subprocess
+import tempfile
 
 SOFFICE_ENV = "SOFFICE_PATH"
+CONVERT_CACHE_ENV = "YOUDOO_CONVERT_CACHE"
+
+# Đuôi cũ → đuôi đích (không có dấu chấm, đúng dạng soffice --convert-to nhận)
+TARGET_EXT = {
+    ".doc": "docx", ".rtf": "docx", ".odt": "docx",
+    ".xls": "xlsx", ".ods": "xlsx",
+    ".ppt": "pptx", ".odp": "pptx",
+}
+
+CONVERT_TIMEOUT_S = 180
+
+
+class ConverterMissing(RuntimeError):
+    """Không tìm thấy LibreOffice."""
+
+
+class ConvertFailed(RuntimeError):
+    """Đã gọi LibreOffice nhưng không có tệp đầu ra dùng được."""
+
 
 _FALLBACK_PATHS = (
     r"C:\Users\ADMIN\scoop\apps\libreoffice\current\LibreOffice\program\soffice.exe",
@@ -31,3 +52,65 @@ def soffice_path() -> str | None:
         if os.path.isfile(p):
             return p
     return None
+
+
+def cache_dir() -> str:
+    d = os.environ.get(CONVERT_CACHE_ENV) or os.path.join(
+        tempfile.gettempdir(), "youdoo_convert")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _profile_uri() -> str:
+    """Profile LibreOffice dùng lại giữa các lượt gọi.
+
+    Đo 2026-08-30: lượt chuyển ĐẦU tốn 17,5 giây vì dựng profile, các lượt
+    sau 5,2 giây. Không giữ profile thì mọi tệp đều trả giá lượt đầu."""
+    p = os.path.join(cache_dir(), "lo_profile").replace("\\", "/")
+    return "file:///" + p.lstrip("/")
+
+
+def _run_soffice(soffice: str, path: str, target: str, outdir: str) -> str | None:
+    """Gọi soffice, trả đường dẫn tệp đầu ra nếu thấy, không thì None.
+
+    CỐ Ý KHÔNG dựa vào mã thoát: đợt cài 2026-08-30 gặp ba mã thoát nói dối,
+    trong đó có một cái báo HỎNG khi thật ra đã THÀNH CÔNG."""
+    subprocess.run(
+        [soffice, "--headless", f"-env:UserInstallation={_profile_uri()}",
+         "--convert-to", target, "--outdir", outdir, path],
+        capture_output=True, timeout=CONVERT_TIMEOUT_S, check=False)
+    stem = os.path.splitext(os.path.basename(path))[0]
+    out = os.path.join(outdir, f"{stem}.{target}")
+    return out if os.path.isfile(out) else None
+
+
+def convert_file(path: str, content_hash: str) -> str:
+    """Chuyển tệp định dạng cũ, trả đường dẫn bản đã chuyển.
+
+    Dùng lại bản cũ khi `content_hash` trùng — mỗi lượt gọi soffice tốn ~5s.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    target = TARGET_EXT.get(ext)
+    if target is None:
+        raise ConvertFailed(f"{path}: không có đích chuyển đổi cho đuôi {ext}")
+
+    soffice = soffice_path()
+    if soffice is None:
+        raise ConverterMissing(
+            f"{path}: cần LibreOffice để chuyển {ext} sang .{target}, nhưng "
+            f"không tìm thấy soffice. Đặt biến môi trường {SOFFICE_ENV} trỏ "
+            f"tới soffice.exe, hoặc cài LibreOffice.")
+
+    outdir = os.path.join(cache_dir(), content_hash)
+    stem = os.path.splitext(os.path.basename(path))[0]
+    cached = os.path.join(outdir, f"{stem}.{target}")
+    if os.path.isfile(cached):
+        return cached
+
+    os.makedirs(outdir, exist_ok=True)
+    out = _run_soffice(soffice, path, target, outdir)
+    if out is None:
+        raise ConvertFailed(
+            f"{path}: LibreOffice chạy xong nhưng không sinh tệp .{target} "
+            f"trong {outdir}. Tệp có thể hỏng hoặc được bảo vệ bằng mật khẩu.")
+    return out

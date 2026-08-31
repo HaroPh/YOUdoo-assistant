@@ -84,16 +84,31 @@ def _ingest_file(path: str, conn) -> IngestReport:
 
 
 def _ingest_convertible(path: str, ext: str, conn) -> IngestReport:
+    """Định dạng cũ: chuyển sang đuôi hiện đại rồi nạp bản đã chuyển.
+
+    `doc_id` giữ nguyên theo tệp GỐC, không theo bản đã chuyển — nếu không,
+    cùng một quy chế sẽ có hai doc_id khi bộ chuyển đổi đổi thư mục cache."""
     from . import convert
-    if convert.soffice_path() is None:
+    try:
+        converted = convert.convert_file(path, _hash(path))
+    except (convert.ConverterMissing, convert.ConvertFailed) as e:
+        return IngestReport(rejected=[Rejection(path, str(e))])
+
+    kind = _EXT.get(os.path.splitext(converted)[1].lower())
+    if kind is None:
         return IngestReport(rejected=[Rejection(
-            path, f"định dạng {ext} cần LibreOffice để chuyển đổi, "
-                  f"nhưng không tìm thấy soffice (đặt biến {convert.SOFFICE_ENV})")])
-    return IngestReport(rejected=[Rejection(path, f"định dạng {ext} chưa nạp được")])
+            path, f"đã chuyển thành {converted} nhưng đuôi đó vẫn không nạp được")])
+    return _ingest_known(converted, kind, conn, doc_id_source=path)
 
 
-def _ingest_known(path: str, kind: str, conn) -> IngestReport:
-    doc_id, content_hash = _doc_id(path), _hash(path)
+def _ingest_known(path: str, kind: str, conn,
+                  doc_id_source: str | None = None) -> IngestReport:
+    """`path` là tệp ĐỌC được (có thể là bản đã chuyển đổi).
+    `doc_id_source` là tệp GỐC người dùng đưa vào — dùng cho định danh và
+    content_hash, để một quy chế `.doc` không đổi doc_id mỗi lần thư mục
+    cache chuyển đổi thay đổi."""
+    origin = doc_id_source or path
+    doc_id, content_hash = _doc_id(origin), _hash(origin)
     existing = conn.execute(
         "SELECT content_hash FROM rag_documents WHERE doc_id = %s", (doc_id,)
     ).fetchone()
