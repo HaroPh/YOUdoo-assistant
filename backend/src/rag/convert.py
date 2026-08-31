@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
 
 SOFFICE_ENV = "SOFFICE_PATH"
 CONVERT_CACHE_ENV = "YOUDOO_CONVERT_CACHE"
@@ -95,6 +96,21 @@ def _run_soffice(soffice: str, path: str, target: str, outdir: str) -> str | Non
     return out if os.path.isfile(out) else None
 
 
+def _ooxml_mo_duoc(path: str) -> bool:
+    """Tệp đầu ra có phải một gói OOXML mở được không.
+
+    Mọi đích trong `TARGET_EXT` (docx/xlsx/pptx) đều là zip có
+    `[Content_Types].xml`. Phép kiểm này RẺ: `zipfile` chỉ đọc central
+    directory ở cuối tệp, không giải nén gì — nhưng nó bắt đúng ca một tệp
+    bị ghi dở, vì central directory là thứ được ghi SAU CÙNG. Không tin mã
+    thoát, kiểm bằng SẢN PHẨM (bài học cài đặt 2026-08-30)."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            return "[Content_Types].xml" in z.namelist()
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 def convert_file(path: str, content_hash: str) -> str:
     """Chuyển tệp định dạng cũ, trả đường dẫn bản đã chuyển.
 
@@ -119,9 +135,26 @@ def convert_file(path: str, content_hash: str) -> str:
         return cached
 
     os.makedirs(outdir, exist_ok=True)
-    out = _run_soffice(soffice, path, target, outdir)
-    if out is None:
-        raise ConvertFailed(
-            f"{path}: LibreOffice chạy xong nhưng không sinh tệp .{target} "
-            f"trong {outdir}. Tệp có thể hỏng hoặc được bảo vệ bằng mật khẩu.")
-    return out
+    # GHI RA THƯ MỤC TẠM RỒI ĐỔI TÊN NGUYÊN TỬ. Trước 2026-08-31 soffice ghi
+    # THẲNG vào vị trí cache: một lượt bị cắt ngang (timeout giết tiến trình
+    # con, Ctrl-C, đầy đĩa) để lại một .docx CỤT ĐẦU ở đúng chỗ cache, và lượt
+    # sau `os.path.isfile(cached)` trả nguyên tệp cụt mà không kiểm gì. Khoá
+    # cache là hash của tệp GỐC nên nội dung không đổi thì hash không đổi →
+    # BẨN VĨNH VIỄN, không bao giờ tự lành, và `parse_docx` ném
+    # PackageNotFoundError làm sập trọn lượt nạp.
+    staging = tempfile.mkdtemp(prefix="dangchuyen-", dir=cache_dir())
+    try:
+        out = _run_soffice(soffice, path, target, staging)
+        if out is None:
+            raise ConvertFailed(
+                f"{path}: LibreOffice chạy xong nhưng không sinh tệp .{target}. "
+                f"Tệp có thể hỏng hoặc được bảo vệ bằng mật khẩu.")
+        if not _ooxml_mo_duoc(out):
+            raise ConvertFailed(
+                f"{path}: LibreOffice sinh ra {os.path.basename(out)} nhưng tệp "
+                f"đó không mở được (không phải gói OOXML hợp lệ) — nhiều khả "
+                f"năng lượt chuyển bị cắt ngang. KHÔNG đưa vào cache.")
+        os.replace(out, cached)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return cached
