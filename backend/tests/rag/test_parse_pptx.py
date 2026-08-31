@@ -65,3 +65,57 @@ def test_slide_rong_khong_sinh_block_rac(tmp_path):
     p = str(tmp_path / "trong.pptx")
     prs = Presentation(); prs.slides.add_slide(prs.slide_layouts[6]); prs.save(p)
     assert parse_pptx(p) == []
+
+
+def test_bang_trong_group_shape_khong_bi_bo_sot(tmp_path):
+    """Vòng sửa 1 (reviewer). Group shape của PowerPoint có `has_table=False`
+    và `has_text_frame=False` ở chính nó — bảng/textbox thật nằm trong
+    `shape.shapes`. Không mở group ra thì cả hai biến mất im lặng, dù slide
+    vẫn có tiêu đề nên báo cáo nạp vẫn "thành công"."""
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    p = str(tmp_path / "group.pptx")
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+    table_shape = slide.shapes.add_table(3, 2, Inches(1), Inches(1), Inches(4), Inches(2))
+    tbl = table_shape.table
+    tbl.cell(0, 0).text = "Sản lượng"; tbl.cell(0, 1).text = "Chiết khấu"
+    tbl.cell(1, 0).text = "dưới 100";  tbl.cell(1, 1).text = "5%"
+    tbl.cell(2, 0).text = "từ 100";    tbl.cell(2, 1).text = "10%"
+
+    textbox = slide.shapes.add_textbox(Inches(1), Inches(4), Inches(4), Inches(1))
+    textbox.text_frame.text = "Ghi chú nằm trong group"
+
+    slide.shapes.add_group_shape([table_shape, textbox])
+    prs.save(p)
+
+    text = "\n".join(b["text"] for b in parse_pptx(p))
+    assert "dưới 100 | 5%" in text
+    assert "Ghi chú nằm trong group" in text
+
+
+def test_group_long_nhieu_tang_van_lay_duoc(tmp_path):
+    """Bắt lỗi 'chỉ mở một tầng': group chứa group, textbox mang chuỗi nhận
+    dạng riêng nằm ở tầng trong cùng. Đệ quy đúng thì xanh; mở một tầng rồi
+    dừng thì đỏ."""
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    p = str(tmp_path / "nested_group.pptx")
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+    marker = "CHUOI_NHAN_DANG_RIENG_LONG_SAU_HAI_TANG_GROUP"
+    inner_textbox = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+    inner_textbox.text_frame.text = marker
+    inner_group = slide.shapes.add_group_shape([inner_textbox])
+
+    other_textbox = slide.shapes.add_textbox(Inches(1), Inches(3), Inches(4), Inches(1))
+    other_textbox.text_frame.text = "shape khác ở tầng ngoài"
+    slide.shapes.add_group_shape([inner_group, other_textbox])
+    prs.save(p)
+
+    text = "\n".join(b["text"] for b in parse_pptx(p))
+    assert marker in text

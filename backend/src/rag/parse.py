@@ -276,6 +276,37 @@ def _pptx_table_to_text(tbl) -> str:
     return "\n".join(rows)
 
 
+def _pptx_shape_blocks(shape, page: int, title_shape) -> list[dict]:
+    """Blocks từ MỘT shape của slide, ĐỆ QUY vào group shape.
+
+    Sự thật đo được (python-pptx 1.0.2): một group shape (PowerPoint "Group
+    Objects") xuất hiện ở `slide.shapes` như MỘT shape duy nhất, và chính
+    shape đó có `has_table = False` VÀ `has_text_frame = False` — bảng/textbox
+    thật nằm bên trong `shape.shapes` (con của group), không lộ ra ở cấp
+    ngoài. Vòng lặp cũ chỉ kiểm `has_table`/`has_text_frame` ở cấp ngoài nên
+    bỏ qua toàn bộ group: nội dung bên trong biến mất KHỎI CORPUS MÀ KHÔNG CÓ
+    CẢNH BÁO NÀO — slide vẫn có tiêu đề nên vẫn sinh block, báo cáo nạp vẫn
+    "thành công". Group có thể lồng nhiều tầng (group trong group), nên đây
+    phải là đệ quy thật — mở đúng MỘT tầng rồi dừng vẫn để lọt group lồng.
+    """
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+        blocks: list[dict] = []
+        for sub_shape in shape.shapes:
+            blocks.extend(_pptx_shape_blocks(sub_shape, page, title_shape))
+        return blocks
+    if shape.has_table:
+        text = _pptx_table_to_text(shape.table)
+        return [{"text": text, "heading_level": None, "page": page}] if text else []
+    if not shape.has_text_frame:
+        return []
+    if title_shape is not None and shape is title_shape:
+        return []
+    text = shape.text_frame.text.strip()
+    return [{"text": text, "heading_level": None, "page": page}] if text else []
+
+
 def parse_pptx(path: str) -> list[dict]:
     """Blocks theo thứ tự slide; `page` mang SỐ SLIDE (từ 1).
 
@@ -288,25 +319,13 @@ def parse_pptx(path: str) -> list[dict]:
     prs = Presentation(path)
     blocks: list[dict] = []
     for idx, slide in enumerate(prs.slides, start=1):
-        title = None
-        if slide.shapes.title is not None:
-            title = (slide.shapes.title.text or "").strip()
+        title_shape = slide.shapes.title
+        title = (title_shape.text or "").strip() if title_shape is not None else None
         if title:
             blocks.append({"text": title, "heading_level": 1, "page": idx})
 
         for shape in slide.shapes:
-            if shape.has_table:
-                text = _pptx_table_to_text(shape.table)
-                if text:
-                    blocks.append({"text": text, "heading_level": None, "page": idx})
-                continue
-            if not shape.has_text_frame:
-                continue
-            if slide.shapes.title is not None and shape is slide.shapes.title:
-                continue
-            text = shape.text_frame.text.strip()
-            if text:
-                blocks.append({"text": text, "heading_level": None, "page": idx})
+            blocks.extend(_pptx_shape_blocks(shape, idx, title_shape))
 
         if slide.has_notes_slide:
             note = (slide.notes_slide.notes_text_frame.text or "").strip()
