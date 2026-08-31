@@ -5,7 +5,7 @@ Vì sao có tệp này: `_ingest_file` từng trả dict ba số đếm, nên t�
 trả toàn 0 và KHÔNG phân biệt được với "thư mục không có gì để làm". Ba
 trạng thái phải là ba thứ đọc được, không phải ba con số.
 """
-from src.rag.ingest_report import IngestReport, Rejection
+from src.rag.ingest_report import IngestReport, Rejection, Warning
 
 
 def test_bao_cao_rong_la_ok():
@@ -49,3 +49,32 @@ def test_render_goi_TEN_tung_tep_bi_tu_choi():
     assert "quy_che.doc" in out and "không có LibreOffice" in out
     assert "slide.pptx" in out and "parse ra rỗng" in out
     assert "3" in out and "1" in out
+
+
+def test_canh_bao_khong_lam_bao_cao_that_bai():
+    """Cảnh báo mức sheet KHÁC từ chối mức tệp: tệp vẫn nạp được."""
+    r = IngestReport(ingested=1, warnings=[Warning("a.xlsx", "DM KH", "tiêu đề độ tin cậy thấp")])
+    assert r.ok is True
+
+
+def test_merge_cong_don_ca_canh_bao():
+    a = IngestReport(ingested=1)
+    b = IngestReport(warnings=[Warning("b.xlsx", "Sheet2", "lý do")])
+    a.merge(b)
+    assert [w.where for w in a.warnings] == ["Sheet2"]
+
+
+def test_hai_bao_cao_rong_khong_dung_chung_danh_sach_canh_bao():
+    a, b = IngestReport(), IngestReport()
+    a.merge(IngestReport(warnings=[Warning("x", "y", "z")]))
+    assert b.warnings == []
+
+
+def test_render_goi_TEN_tung_cho_bi_canh_bao():
+    r = IngestReport(ingested=2, warnings=[
+        Warning("so_ke_toan.xlsm", "BK NHẬP - XUẤT", "nhãn cột trông như công thức"),
+    ])
+    out = r.render()
+    assert "so_ke_toan.xlsm" in out
+    assert "BK NHẬP - XUẤT" in out
+    assert "nhãn cột trông như công thức" in out

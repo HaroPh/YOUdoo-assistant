@@ -21,18 +21,35 @@ class Rejection:
     reason: str
 
 
+@dataclass(frozen=True)
+class Warning:
+    """Mối lo ở mức SHEET/BẢNG, không phải mức tệp.
+
+    Tệp vẫn được nạp; chỗ đáng ngờ phải được GỌI TÊN chứ không nuốt. Nuốt
+    cảnh báo chính là lỗi mà cả spec 2026-08-29 đi đóng.
+
+    Cố ý KHÔNG làm `ok` thành False: ba trạng thái ở spec mục 4 nói về TỆP.
+    Nếu cảnh báo làm hỏng lượt nạp, người dùng sẽ tắt nó, và ta mất tín hiệu.
+    """
+    path: str
+    where: str
+    reason: str
+
+
 @dataclass
 class IngestReport:
     ingested: int = 0
     unchanged: int = 0
     chunks: int = 0
     rejected: list[Rejection] = field(default_factory=list)
+    warnings: list[Warning] = field(default_factory=list)
 
     def merge(self, other: "IngestReport") -> None:
         self.ingested += other.ingested
         self.unchanged += other.unchanged
         self.chunks += other.chunks
         self.rejected.extend(other.rejected)
+        self.warnings.extend(other.warnings)
 
     @property
     def ok(self) -> bool:
@@ -40,7 +57,8 @@ class IngestReport:
 
     def render(self) -> str:
         lines = [f"đã nạp {self.ingested} · không đổi {self.unchanged} · "
-                 f"chunk {self.chunks} · từ chối {len(self.rejected)}"]
+                 f"chunk {self.chunks} · từ chối {len(self.rejected)} · "
+                 f"cảnh báo {len(self.warnings)}"]
         if not (self.ingested or self.unchanged or self.rejected):
             # Không tệp nào rơi vào bất kỳ trạng thái nào. Thư mục rỗng (hoặc
             # chỉ chứa tệp không phải tài liệu) là HỢP LỆ, không phải lỗi —
@@ -50,4 +68,6 @@ class IngestReport:
                          "không có gì được nạp. Kiểm lại đường dẫn và đuôi tệp.")
         for r in self.rejected:
             lines.append(f"  TỪ CHỐI  {r.path}  —  {r.reason}")
+        for w in self.warnings:
+            lines.append(f"  CẢNH BÁO  {w.path} [{w.where}]  —  {w.reason}")
         return "\n".join(lines)
