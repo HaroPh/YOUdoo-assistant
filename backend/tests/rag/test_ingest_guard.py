@@ -72,3 +72,60 @@ def test_moi_duoi_nap_duoc_deu_nam_trong_danh_sach_tai_lieu():
 def test_dinh_dang_cu_pho_bien_deu_duoc_coi_la_tai_lieu():
     for ext in (".doc", ".xls", ".ppt", ".rtf", ".odt", ".pptx", ".xlsm"):
         assert ext in _ing.DOCUMENT_EXT, ext
+
+
+class _RecordingConn(_FakeConn):
+    """Như `_FakeConn` (chưa từng ingest tệp này) nhưng CÒN GHI LẠI tham số
+    của mọi lệnh INSERT INTO rag_documents, để test đọc lại doc_id đã ghi."""
+
+    def __init__(self):
+        self.doc_inserts = []
+
+    def execute(self, sql, params=None):
+        if params is not None and "INSERT INTO rag_documents" in sql:
+            self.doc_inserts.append(params)
+        return self
+
+    def transaction(self):
+        import contextlib
+        return contextlib.nullcontext()
+
+
+def test_doc_chuyen_thanh_cong_thi_doc_id_theo_TEP_GOC(monkeypatch, tmp_path):
+    """Vòng sửa 2 (Task 3): trọng tâm ý nghĩa của Step 4 là `doc_id` và
+    `content_hash` tính theo TỆP GỐC, nội dung đọc từ bản đã chuyển đổi.
+    Trước test này, KHÔNG tệp test nào chạy qua một lượt convert THÀNH CÔNG —
+    nếu ai lỡ đổi `doc_id_source=path` thành `doc_id_source=converted` trong
+    `_ingest_convertible`, toàn bộ suite vẫn xanh. Test này khoá đúng chỗ đó
+    bằng cách đi qua đường thật `_ingest_file` → `_ingest_convertible` →
+    `_ingest_known`, với `convert.soffice_path`/`_run_soffice` giả lập thay vì
+    gọi `_ingest_known` trực tiếp (gọi trực tiếp sẽ bỏ qua đúng dòng nối cần
+    khoá)."""
+    from docx import Document
+    from src.rag import convert as _conv
+
+    goc = tmp_path / "quy_che.doc"
+    goc.write_bytes(b"\xd0\xcf\x11\xe0 fake OLE")
+
+    converted_dir = tmp_path / "converted"
+    converted_dir.mkdir()
+    converted_path = converted_dir / "quy_che.docx"
+    doc = Document()
+    doc.add_heading("Điều 1", level=1)
+    doc.add_paragraph("Nội dung thử nghiệm.")
+    doc.save(str(converted_path))
+
+    monkeypatch.setenv(_conv.CONVERT_CACHE_ENV, str(tmp_path / "kho"))
+    monkeypatch.setattr(_conv, "soffice_path", lambda: "/gia/soffice")
+    monkeypatch.setattr(_conv, "_run_soffice",
+                        lambda soffice, path, target, outdir: str(converted_path))
+    monkeypatch.setattr(_ing, "embed_texts", lambda texts: [[0.0, 0.0] for _ in texts])
+
+    conn = _RecordingConn()
+    rep = _ing._ingest_file(str(goc), conn)
+
+    assert rep.ingested == 1
+    assert len(conn.doc_inserts) == 1
+    doc_id = conn.doc_inserts[0][0]
+    assert doc_id.endswith("quy_che.doc"), doc_id
+    assert not doc_id.endswith("quy_che.docx"), doc_id

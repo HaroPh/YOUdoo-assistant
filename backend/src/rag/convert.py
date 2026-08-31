@@ -75,10 +75,21 @@ def _run_soffice(soffice: str, path: str, target: str, outdir: str) -> str | Non
 
     CỐ Ý KHÔNG dựa vào mã thoát: đợt cài 2026-08-30 gặp ba mã thoát nói dối,
     trong đó có một cái báo HỎNG khi thật ra đã THÀNH CÔNG."""
-    subprocess.run(
-        [soffice, "--headless", f"-env:UserInstallation={_profile_uri()}",
-         "--convert-to", target, "--outdir", outdir, path],
-        capture_output=True, timeout=CONVERT_TIMEOUT_S, check=False)
+    try:
+        subprocess.run(
+            [soffice, "--headless", f"-env:UserInstallation={_profile_uri()}",
+             "--convert-to", target, "--outdir", outdir, path],
+            capture_output=True, timeout=CONVERT_TIMEOUT_S, check=False)
+    except subprocess.TimeoutExpired:
+        # Không để TimeoutExpired lọt ra ngoài: `_ingest_convertible` chỉ bắt
+        # ConvertFailed/ConverterMissing, và vòng lặp ingest_path không có lá
+        # chắn nào cho lỗi khác — một tệp .doc treo sẽ sập TRỌN lượt nạp và
+        # mất báo cáo của mọi tệp đã xử lý trước đó. Ném ConvertFailed để
+        # _ingest_convertible bắt được, tệp thành `rejected` CÓ TÊN thay vì
+        # sập cả lượt.
+        raise ConvertFailed(
+            f"{path}: LibreOffice không phản hồi sau {CONVERT_TIMEOUT_S} giây, "
+            f"đã huỷ. Tệp có thể quá lớn hoặc soffice bị treo.")
     stem = os.path.splitext(os.path.basename(path))[0]
     out = os.path.join(outdir, f"{stem}.{target}")
     return out if os.path.isfile(out) else None

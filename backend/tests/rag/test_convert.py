@@ -6,6 +6,7 @@ một cầu chuyển đổi chỉ chạy được trên máy có LibreOffice th�
 không ai kiểm, và nó sẽ chết âm thầm — đúng lớp lỗi dự án đang đóng.
 """
 import os
+import subprocess
 import pytest
 
 from src.rag import convert
@@ -114,6 +115,26 @@ def test_run_soffice_tra_duong_dan_khi_CO_tep_dau_ra_du_ma_thoat_khac_0(monkeypa
 
     out = convert._run_soffice("/gia/soffice", str(src), "docx", str(outdir))
     assert out == str(outdir / "a.docx")
+
+
+def test_soffice_treo_thi_nem_ConvertFailed_khong_lot_TimeoutExpired(monkeypatch, tmp_path):
+    """Vòng sửa 2: soffice treo quá CONVERT_TIMEOUT_S ném TimeoutExpired.
+    Không ai bắt loại lỗi đó phía trên (_ingest_convertible chỉ bắt
+    ConverterMissing/ConvertFailed, vòng lặp ingest_path không có lá chắn) —
+    một tệp .doc treo sẽ sập TRỌN lượt nạp và mất báo cáo của mọi tệp đã xử
+    lý trước đó. convert_file phải biến nó thành ConvertFailed CÓ TÊN."""
+    monkeypatch.setenv(convert.CONVERT_CACHE_ENV, str(tmp_path / "kho"))
+    monkeypatch.setattr(convert, "soffice_path", lambda: "/gia/soffice")
+
+    def _fake_subprocess_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd="soffice", timeout=180)
+    monkeypatch.setattr(convert.subprocess, "run", _fake_subprocess_run)
+
+    src = tmp_path / "a.doc"
+    src.write_bytes(b"fake")
+    with pytest.raises(convert.ConvertFailed) as e:
+        convert.convert_file(str(src), "hash-treo")
+    assert "180" in str(e.value)
 
 
 @pytest.mark.live
