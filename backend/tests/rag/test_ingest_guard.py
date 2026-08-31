@@ -34,15 +34,41 @@ def test_tep_duoc_nhan_nhung_ra_rong_thi_nem_loi(monkeypatch, tmp_path):
     assert "scan.pdf" in str(e.value)
 
 
-def test_tep_duoi_la_khong_nem_va_khong_dem_la_skipped(tmp_path):
-    """Đuôi lạ vẫn đi nhánh cũ, KHÔNG ném — chỉ tệp ĐƯỢC NHẬN mà ra rỗng
-    mới là lỗi.
-
-    Giá trị kỳ vọng chép từ hành vi THẬT của `_ingest_file` (`skipped: 0`),
-    không phải từ trí nhớ: tệp đuôi lạ không được tính là "bỏ qua" vì nó chưa
-    bao giờ là tài liệu để mà bỏ. Bản đầu của test này đoán `skipped: 1` và
-    đỏ — code đúng, test sai."""
+def test_duoi_KHONG_PHAI_tai_lieu_van_bo_qua_im_lang(tmp_path):
+    """Giữ nguyên lý lẽ của bản 2026-08-19: `.txt` chưa bao giờ là tài liệu
+    để mà bỏ, nên nó KHÔNG phải `rejected`. Nếu tính nó là từ chối thì một
+    tệp `.gitkeep` trong thư mục sẽ làm tiến trình thoát khác 0."""
     f = tmp_path / "ghi_chu.txt"
-    f.write_text("khong phai tai lieu duoc ho tro", encoding="utf-8")
-    assert _ing._ingest_file(str(f), conn=None) == {
-        "ingested": 0, "skipped": 0, "chunks": 0}
+    f.write_text("khong phai tai lieu", encoding="utf-8")
+    rep = _ing._ingest_file(str(f), conn=None)
+    assert rep.ingested == 0 and rep.unchanged == 0
+    assert rep.rejected == []
+    assert rep.ok is True
+
+
+def test_duoi_LA_TAI_LIEU_nhung_chua_nap_duoc_thi_bi_TU_CHOI(tmp_path, monkeypatch):
+    """Đây là lỗi cả spec đi đóng: `.doc` là tài liệu thật, người dùng nghĩ
+    đã nạp, nhưng hệ trả toàn 0 và không nói gì.
+
+    Giả lập KHÔNG có LibreOffice để test không phụ thuộc máy chạy."""
+    from src.rag import convert as _conv
+    monkeypatch.setattr(_conv, "soffice_path", lambda: None)
+    f = tmp_path / "quy_che.doc"
+    f.write_bytes(b"\xd0\xcf\x11\xe0 fake OLE")
+    rep = _ing._ingest_file(str(f), conn=None)
+    assert rep.ok is False
+    assert len(rep.rejected) == 1
+    assert rep.rejected[0].path.endswith("quy_che.doc")
+    assert "LibreOffice" in rep.rejected[0].reason
+
+
+def test_moi_duoi_nap_duoc_deu_nam_trong_danh_sach_tai_lieu():
+    """Chống trôi hai chiều: không thể thêm một đuôi vào `_EXT` mà quên khai
+    nó là tài liệu. Danh sách gõ tay trôi khỏi sự thật là lớp lỗi đã tái phát
+    nhiều lần trong dự án này."""
+    assert set(_ing._EXT) <= _ing.DOCUMENT_EXT
+
+
+def test_dinh_dang_cu_pho_bien_deu_duoc_coi_la_tai_lieu():
+    for ext in (".doc", ".xls", ".ppt", ".rtf", ".odt", ".pptx", ".xlsm"):
+        assert ext in _ing.DOCUMENT_EXT, ext

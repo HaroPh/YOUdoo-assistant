@@ -10,9 +10,29 @@ from .embed import EmbeddingError, embed_texts, get_embedder
 from .parse import (extract_effective_date, parse_docx, parse_pdf,
                     parse_xlsx)
 from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
+from .ingest_report import IngestReport, Rejection
 from src.cli_console import use_utf8_streams
 
-_EXT = {".pdf": "text", ".docx": "text", ".xlsx": "xlsx"}
+# Đuôi nạp được TRỰC TIẾP → loại parser.
+_EXT = {
+    ".pdf": "text",
+    ".docx": "text",
+    ".xlsx": "xlsx",
+    ".xlsm": "xlsx",     # sổ kế toán Việt Nam gần như luôn là .xlsm (có macro)
+    ".xltx": "xlsx",
+}
+
+# Đuôi ĐƯỢC COI LÀ TÀI LIỆU — rộng hơn `_EXT`. Tệp mang đuôi ở đây mà không
+# nạp được thì phải bị TỪ CHỐI CÓ TÊN, không được im lặng.
+#
+# Vì sao cần hai danh sách: trước 2026-08-30 chỉ có `_EXT`, nên `.doc` và
+# `.gitkeep` rơi vào cùng một nhánh "đuôi lạ, bỏ qua". Một cái là rác trong
+# thư mục, cái kia là quy chế công ty biến mất khỏi corpus.
+DOCUMENT_EXT = frozenset(_EXT) | {
+    ".doc", ".xls", ".ppt",          # định dạng cũ, cần LibreOffice
+    ".rtf", ".odt", ".ods", ".odp",  # định dạng khác LibreOffice đọc được
+    ".pptx",                          # có parser riêng, xem Task 4
+}
 
 
 class IngestError(RuntimeError):
@@ -53,16 +73,32 @@ def _chunks_for(path: str, kind: str, doc_id: str) -> list[dict]:
     return chunk_text_blocks(blocks, doc_id=doc_id, source_file=path)
 
 
-def _ingest_file(path: str, conn) -> dict:
-    kind = _EXT.get(os.path.splitext(path)[1].lower())
-    if not kind:
-        return {"ingested": 0, "skipped": 0, "chunks": 0}
+def _ingest_file(path: str, conn) -> IngestReport:
+    ext = os.path.splitext(path)[1].lower()
+    kind = _EXT.get(ext)
+    if kind is None:
+        if ext not in DOCUMENT_EXT:
+            return IngestReport()          # không phải tài liệu — im lặng ĐÚNG
+        return _ingest_convertible(path, ext, conn)
+    return _ingest_known(path, kind, conn)
+
+
+def _ingest_convertible(path: str, ext: str, conn) -> IngestReport:
+    from . import convert
+    if convert.soffice_path() is None:
+        return IngestReport(rejected=[Rejection(
+            path, f"định dạng {ext} cần LibreOffice để chuyển đổi, "
+                  f"nhưng không tìm thấy soffice (đặt biến {convert.SOFFICE_ENV})")])
+    return IngestReport(rejected=[Rejection(path, f"định dạng {ext} chưa nạp được")])
+
+
+def _ingest_known(path: str, kind: str, conn) -> IngestReport:
     doc_id, content_hash = _doc_id(path), _hash(path)
     existing = conn.execute(
         "SELECT content_hash FROM rag_documents WHERE doc_id = %s", (doc_id,)
     ).fetchone()
     if existing and existing[0] == content_hash:
-        return {"ingested": 0, "skipped": 1, "chunks": 0}
+        return IngestReport(unchanged=1)
 
     chunks = _chunks_for(path, kind, doc_id)
     if not chunks:
@@ -103,10 +139,10 @@ def _ingest_file(path: str, conn) -> dict:
                  c["chunk_text"], vec,
                  segment_vi(index_text(c["section_path"], c["chunk_text"]))),
             )
-    return {"ingested": 1, "skipped": 0, "chunks": len(chunks)}
+    return IngestReport(ingested=1, chunks=len(chunks))
 
 
-def ingest_path(path: str, conn=None) -> dict:
+def ingest_path(path: str, conn=None) -> IngestReport:
     own = conn is None
     if own:
         conn = _db.connect()
@@ -119,13 +155,12 @@ def ingest_path(path: str, conn=None) -> dict:
             "INSERT INTO rag_embedding_marker (embedding_model, dim) "
             "SELECT %s, %s WHERE NOT EXISTS (SELECT 1 FROM rag_embedding_marker)",
             (e.model_name, e.dim))
-        totals = {"ingested": 0, "skipped": 0, "chunks": 0}
+        report = IngestReport()
         files = ([path] if os.path.isfile(path)
                  else [os.path.join(r, f) for r, _, fs in os.walk(path) for f in fs])
         for f in files:
-            for k, v in _ingest_file(f, conn).items():
-                totals[k] += v
-        return totals
+            report.merge(_ingest_file(f, conn))
+        return report
     finally:
         if own:
             conn.close()
@@ -134,7 +169,13 @@ def ingest_path(path: str, conn=None) -> dict:
 def main() -> None:
     use_utf8_streams()
     target = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("DOCUMENTS_PATH", ".")
-    print(ingest_path(target))
+    report = ingest_path(target)
+    print(report.render())
+    # Thoát khác 0 khi có tài liệu bị từ chối: một lượt nạp bỏ sót tài liệu
+    # KHÔNG phải là một lượt nạp thành công, và người gọi (script, CI) phải
+    # biết được điều đó mà không cần đọc chữ.
+    if not report.ok:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
