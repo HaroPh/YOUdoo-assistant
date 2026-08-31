@@ -20,16 +20,18 @@ def price_xlsx(tmp_path_factory):
 
 def test_parse_xlsx_header_and_rows(price_xlsx):
     from src.rag.parse import parse_xlsx
-    sheets = parse_xlsx(price_xlsx)
+    sheets, warnings = parse_xlsx(price_xlsx)
     assert sheets[0]["sheet"] == "Bảng giá"
     assert sheets[0]["columns"] == ["Sản phẩm", "Đơn giá", "Hiệu lực"]
     assert len(sheets[0]["rows"]) == 2
+    assert warnings == []
 
 
 def test_chunk_xlsx_emits_schema_and_header_qualified_rows(price_xlsx):
     from src.rag.parse import parse_xlsx
     from src.rag.chunking import chunk_xlsx_sheets
-    chunks = chunk_xlsx_sheets(parse_xlsx(price_xlsx), doc_id="bg", source_file=price_xlsx)
+    sheets, _ = parse_xlsx(price_xlsx)
+    chunks = chunk_xlsx_sheets(sheets, doc_id="bg", source_file=price_xlsx)
     # exactly one schema chunk for the sheet + one per data row
     schema = [c for c in chunks if c["row_range"] == "schema"]
     assert len(schema) == 1 and "Sản phẩm" in schema[0]["chunk_text"]

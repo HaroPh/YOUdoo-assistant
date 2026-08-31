@@ -7,6 +7,8 @@ from lxml import etree
 import openpyxl
 import pypdf
 
+from .xlsx_header import compose_two_tier, find_header
+
 # Nhánh số CHỈ nhận numbering đa cấp ("1.1", "3.2.1"), sub-level 1-2 chữ số:
 # numbering 1 cấp ("1. ...") là KHOẢN (nội dung) trong luật VN chứ không phải
 # heading, còn nhóm 3 chữ số là dấu phân cách nghìn ("5.000.000.000 đồng.")
@@ -393,15 +395,53 @@ def parse_pptx(path: str) -> list[dict]:
     return blocks
 
 
-def parse_xlsx(path: str) -> list[dict]:
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+def _spread_merged(ws) -> list[list]:
+    """Lưới giá trị của sheet, với ô gộp được TRẢI ra toàn vùng.
+
+    openpyxl chỉ đặt giá trị ở ô trên-trái của vùng gộp, các ô còn lại là
+    None. Không trải thì nhãn cha ("Quý II" trải B:C) chỉ dính vào cột B, và
+    cột C mất nhãn — đúng bốn con số 1250/1100/2400/2050 không phân biệt được.
+    """
+    grid = [list(r) for r in ws.iter_rows(values_only=True)]
+    for rng in ws.merged_cells.ranges:
+        r0, c0, r1, c1 = rng.min_row, rng.min_col, rng.max_row, rng.max_col
+        if r0 - 1 >= len(grid) or c0 - 1 >= len(grid[r0 - 1]):
+            continue
+        value = grid[r0 - 1][c0 - 1]
+        if value is None:
+            continue
+        for r in range(r0 - 1, min(r1, len(grid))):
+            for c in range(c0 - 1, min(c1, len(grid[r]))):
+                grid[r][c] = value
+    return grid
+
+
+def parse_xlsx(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
+    """Trả (sheets, warnings). `warnings` là các cặp (tên sheet, lý do).
+
+    KHÔNG dùng `read_only=True`: chế độ đó không nạp `ws.merged_cells`, mà
+    nhãn cột của báo cáo tài chính Việt Nam gần như luôn nằm trong ô gộp.
+    Đã thử trên sổ kế toán thật 12,5 MB / 84 sheet: mở được, chấp nhận được.
+    """
+    wb = openpyxl.load_workbook(path, read_only=False, data_only=True)
     sheets: list[dict] = []
+    warnings: list[tuple[str, str]] = []
     for ws in wb.worksheets:
-        rows = [list(r) for r in ws.iter_rows(values_only=True)]
-        rows = [r for r in rows if any(c is not None for c in r)]
+        grid = _spread_merged(ws)          # trải giá trị ô gộp ra toàn vùng
+        rows = [r for r in grid if any(c is not None for c in r)]
         if not rows:
             continue
-        header = [str(c) if c is not None else "" for c in rows[0]]
-        sheets.append({"sheet": ws.title, "columns": header, "rows": rows[1:]})
+        guess = find_header(rows)
+        if guess is None:
+            warnings.append((ws.title, "không dò được hàng tiêu đề — "
+                                       "nhãn cột để trống thay vì đoán bừa"))
+            columns = ["" for _ in rows[0]]
+            body = rows
+        else:
+            parent = rows[guess.row_index - 1] if guess.row_index > 0 else None
+            columns = (compose_two_tier(parent, guess.labels)
+                       if parent is not None else guess.labels)
+            body = rows[guess.row_index + 1:]
+        sheets.append({"sheet": ws.title, "columns": columns, "rows": body})
     wb.close()
-    return sheets
+    return sheets, warnings
