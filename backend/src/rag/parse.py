@@ -276,6 +276,36 @@ def _pptx_table_to_text(tbl) -> str:
     return "\n".join(rows)
 
 
+def _pptx_shape_type(shape):
+    """`shape.shape_type` đọc PHÒNG THỦ — trả None khi không đọc được.
+
+    python-pptx ném `NotImplementedError("Shape instance of unrecognized shape
+    type")` với một `<p:sp>` không placeholder, không `prstGeom`, không
+    `custGeom` và không cờ `txBox`. Đó là loại shape mà công cụ NGOÀI
+    PowerPoint sinh ra — KỂ CẢ LibreOffice, tức chính cầu chuyển đổi
+    `.ppt → .pptx` mà nhánh này vừa dựng. Không ai bắt lỗi đó ở phía trên nên
+    nó sẽ sập TRỌN `ingest_path` và mất báo cáo của mọi tệp trước đó."""
+    try:
+        return shape.shape_type
+    except NotImplementedError:
+        return None
+
+
+def _pptx_xml_text(shape) -> str:
+    """Mọi nút `a:t` trong XML của shape, nối bằng xuống dòng.
+
+    Lưới an toàn cuối cùng cho shape không có `text_frame` mà vẫn mang chữ."""
+    el = getattr(shape, "element", None)
+    if el is None:
+        return ""
+    ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+    try:
+        parts = [(t.text or "").strip() for t in el.findall(".//a:t", ns)]
+    except Exception:
+        return ""
+    return "\n".join(p for p in parts if p).strip()
+
+
 def _pptx_shape_blocks(shape, page: int, title_shape) -> list[dict]:
     """Blocks từ MỘT shape của slide, ĐỆ QUY vào group shape.
 
@@ -291,20 +321,42 @@ def _pptx_shape_blocks(shape, page: int, title_shape) -> list[dict]:
     """
     from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-    if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+    if _pptx_shape_type(shape) is MSO_SHAPE_TYPE.GROUP:
         blocks: list[dict] = []
-        for sub_shape in shape.shapes:
+        for sub_shape in getattr(shape, "shapes", ()):
             blocks.extend(_pptx_shape_blocks(sub_shape, page, title_shape))
         return blocks
-    if shape.has_table:
+    if getattr(shape, "has_table", False):
         text = _pptx_table_to_text(shape.table)
         return [{"text": text, "heading_level": None, "page": page}] if text else []
-    if not shape.has_text_frame:
-        return []
-    if title_shape is not None and shape is title_shape:
-        return []
-    text = shape.text_frame.text.strip()
-    return [{"text": text, "heading_level": None, "page": page}] if text else []
+    if getattr(shape, "has_text_frame", False):
+        if title_shape is not None and shape is title_shape:
+            return []
+        text = shape.text_frame.text.strip()
+        return [{"text": text, "heading_level": None, "page": page}] if text else []
+
+    # Không rơi vào nhánh nào ở trên. KHÔNG được trả [] ngay: đó đúng là cách
+    # group shape từng mất im lặng. Quét mọi nút văn bản `a:t` trong XML của
+    # shape — bắt được các shape lạ có chữ mà python-pptx không dựng thành
+    # text_frame.
+    text = _pptx_xml_text(shape)
+    if text:
+        return [{"text": text, "heading_level": None, "page": page}]
+
+    # Vẫn không có chữ nào. Nếu ĐỌC ĐƯỢC loại shape (ảnh, đường kẻ, media...)
+    # thì im lặng là đúng — chúng vốn không mang chữ. Nhưng `shape_type` bằng
+    # None nghĩa là python-pptx KHÔNG NHẬN RA shape: với GraphicFrame đó gần
+    # như luôn là SmartArt (`GraphicFrame.shape_type` trả None khi graphicData
+    # không phải table/chart/OLE). Nội dung SmartArt nằm trong một part sơ đồ
+    # riêng mà parser này chưa đọc — nên phải để lại DẤU VẾT QUAN SÁT ĐƯỢC,
+    # đúng nguyên tắc "không bao giờ mất im lặng" của spec 2026-08-29 mục 4.
+    if _pptx_shape_type(shape) is None:
+        name = (getattr(shape, "name", "") or "").strip() or "không tên"
+        return [{"text": f"[NỘI DUNG CHƯA ĐỌC ĐƯỢC] shape \"{name}\" trên slide "
+                         f"{page} thuộc loại python-pptx không nhận ra (thường "
+                         f"là SmartArt). Nội dung của nó KHÔNG có trong corpus.",
+                 "heading_level": None, "page": page}]
+    return []
 
 
 def parse_pptx(path: str) -> list[dict]:
