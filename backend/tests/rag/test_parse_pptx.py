@@ -193,6 +193,28 @@ class _ShapeKhongNhanDangDuoc:
     element = None
 
 
+def test_tieu_de_slide_chi_vao_corpus_MOT_lan(tmp_path):
+    """Đóng lỗi: python-pptx dựng PROXY MỚI mỗi lần truy cập
+    `slide.shapes.title` (đo được `s.shapes.title is s.shapes.title` → False),
+    nên gác `shape is title_shape` KHÔNG BAO GIỜ khớp — tiêu đề lọt qua nhánh
+    text_frame và vào corpus LẦN THỨ HAI (lần đầu là heading cấp 1 do
+    `parse_pptx` tự sinh). Test này ĐỎ nếu quay lại so danh tính proxy."""
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    p = str(tmp_path / "tieu_de_kep.pptx")
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.shapes.title.text = "Slide thu"
+    textbox = slide.shapes.add_textbox(Inches(1), Inches(3), Inches(4), Inches(1))
+    textbox.text_frame.text = "Nội dung khác của slide"
+    prs.save(p)
+
+    blocks = parse_pptx(p)
+    khop = [b for b in blocks if b["text"] == "Slide thu"]
+    assert len(khop) == 1, f"tiêu đề vào corpus {len(khop)} lần, phải đúng 1"
+
+
 def test_shape_khong_nhan_dang_duoc_KHONG_bien_mat_im_lang():
     """C2(b): SmartArt phải để lại dấu vết QUAN SÁT ĐƯỢC.
 

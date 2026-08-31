@@ -57,8 +57,11 @@ MIEN_TRU = {
     "backend/src/rag/ingest.py": (
         2, 2, "CLI nạp tài liệu — hai chỗ khớp đều đi ra CONSOLE CỦA NGƯỜI "
               "CHẠY `python -m src.rag.ingest`, không có đường nào tới hội "
-              "thoại (không module runtime nào import ingest; xem grep "
-              "2026-08-31). Nguyên văn lỗi CHÍNH LÀ kết quả cần đọc: spec "
+              "thoại. `retrieve.py` CÓ import `segment_vi` từ module này "
+              "(runtime thật, qua agents/nodes.py và agents/fanout.py), "
+              "nhưng hai chỗ khớp nằm trong `ingest_path`/`main` — không "
+              "đường runtime nào gọi tới hai hàm đó (xem grep 2026-08-31). "
+              "Nguyên văn lỗi CHÍNH LÀ kết quả cần đọc: spec "
               "2026-08-29 mục 4 đòi mỗi tệp bị từ chối phải được GỌI TÊN KÈM "
               "LÝ DO, và \"PackageNotFoundError\" là thứ nói cho người vận "
               "hành biết tệp .docx của họ hỏng hay bị khoá mật khẩu. Giấu nó "

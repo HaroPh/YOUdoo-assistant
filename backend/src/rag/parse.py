@@ -330,7 +330,13 @@ def _pptx_shape_blocks(shape, page: int, title_shape) -> list[dict]:
         text = _pptx_table_to_text(shape.table)
         return [{"text": text, "heading_level": None, "page": page}] if text else []
     if getattr(shape, "has_text_frame", False):
-        if title_shape is not None and shape is title_shape:
+        # python-pptx dựng PROXY MỚI mỗi lần truy cập `slide.shapes.title`
+        # (đo được: `s.shapes.title is s.shapes.title` → False), nên so danh
+        # tính proxy (`shape is title_shape`) KHÔNG BAO GIỜ khớp — tiêu đề lọt
+        # qua nhánh này và vào corpus LẦN THỨ HAI (lần đầu ở `parse_pptx` khi
+        # sinh heading cấp 1). So phần tử XML nền — `_element` — vì đó là thứ
+        # ổn định giữa hai lần truy cập, proxy chỉ bọc quanh nó.
+        if title_shape is not None and shape._element is title_shape._element:
             return []
         text = shape.text_frame.text.strip()
         return [{"text": text, "heading_level": None, "page": page}] if text else []
