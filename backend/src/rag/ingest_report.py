@@ -41,6 +41,13 @@ class IngestReport:
     def render(self) -> str:
         lines = [f"đã nạp {self.ingested} · không đổi {self.unchanged} · "
                  f"chunk {self.chunks} · từ chối {len(self.rejected)}"]
+        if not (self.ingested or self.unchanged or self.rejected):
+            # Không tệp nào rơi vào bất kỳ trạng thái nào. Thư mục rỗng (hoặc
+            # chỉ chứa tệp không phải tài liệu) là HỢP LỆ, không phải lỗi —
+            # nhưng dòng số đếm toàn 0 ở trên đọc y hệt một lượt nạp đã xong,
+            # nên phải nói thẳng ra.
+            lines.append("  KHÔNG THẤY TÀI LIỆU NÀO trong đường dẫn đã cho — "
+                         "không có gì được nạp. Kiểm lại đường dẫn và đuôi tệp.")
         for r in self.rejected:
             lines.append(f"  TỪ CHỐI  {r.path}  —  {r.reason}")
         return "\n".join(lines)

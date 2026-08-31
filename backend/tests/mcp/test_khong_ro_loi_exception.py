@@ -54,6 +54,17 @@ MIEN_TRU = {
               "trình viên, app không lên chứ không lên sai"),
     "backend/src/rag/embed.py": (
         1, 1, "raise EmbeddingError — lỗi hạ tầng lúc index, không ra người dùng"),
+    "backend/src/rag/ingest.py": (
+        2, 2, "CLI nạp tài liệu — hai chỗ khớp đều đi ra CONSOLE CỦA NGƯỜI "
+              "CHẠY `python -m src.rag.ingest`, không có đường nào tới hội "
+              "thoại (không module runtime nào import ingest; xem grep "
+              "2026-08-31). Nguyên văn lỗi CHÍNH LÀ kết quả cần đọc: spec "
+              "2026-08-29 mục 4 đòi mỗi tệp bị từ chối phải được GỌI TÊN KÈM "
+              "LÝ DO, và \"PackageNotFoundError\" là thứ nói cho người vận "
+              "hành biết tệp .docx của họ hỏng hay bị khoá mật khẩu. Giấu nó "
+              "đi là dựng lại đúng lỗi 'mất mát âm thầm' mà cả spec đi đóng. "
+              "Cùng lý lẽ đã áp cho run_eval.py, e2e_common.py, "
+              "check_role_odoo_consistency.py."),
     "backend/evals/role_config.py": (
         1, 1, "RuntimeError nói rõ bộ đo thiếu biến môi trường nào — người chạy "
               "eval bằng CLI đọc, không phải người dùng chat"),

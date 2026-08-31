@@ -29,11 +29,21 @@ _EXT = {
 # Vì sao cần hai danh sách: trước 2026-08-30 chỉ có `_EXT`, nên `.doc` và
 # `.gitkeep` rơi vào cùng một nhánh "đuôi lạ, bỏ qua". Một cái là rác trong
 # thư mục, cái kia là quy chế công ty biến mất khỏi corpus.
-DOCUMENT_EXT = frozenset(_EXT) | {
-    ".doc", ".xls", ".ppt",          # định dạng cũ, cần LibreOffice
-    ".rtf", ".odt", ".ods", ".odp",  # định dạng khác LibreOffice đọc được
-    ".pptx",                          # có parser riêng, xem Task 4
-}
+#
+# LIÊN TỤC LIỆT KÊ ĐỦ, KHÔNG suy ra từ `_EXT`. Bản trước viết
+# `frozenset(_EXT) | {...}`, và vì thế bất biến `set(_EXT) <= DOCUMENT_EXT`
+# ĐÚNG THEO ĐỊNH NGHĨA — nó không gác được gì. Đo 2026-08-31: thêm
+# `".epub": "text"` vào `_EXT` (đúng kịch bản docstring của test nói phải
+# chặn) thì test VẪN XANH. Danh sách độc lập làm bất biến đó có nghĩa trở lại:
+# thêm một đuôi nạp được mà quên khai nó là tài liệu thì test ĐỎ.
+DOCUMENT_EXT = frozenset({
+    # nạp được TRỰC TIẾP — phải khớp với `_EXT` ở trên
+    ".pdf", ".docx", ".xlsx", ".xlsm", ".xltx", ".pptx",
+    # định dạng cũ, cần LibreOffice
+    ".doc", ".xls", ".ppt",
+    # định dạng khác LibreOffice đọc được
+    ".rtf", ".odt", ".ods", ".odp",
+})
 
 
 class IngestError(RuntimeError):
@@ -65,19 +75,34 @@ def _doc_id(path: str) -> str:
     return os.path.abspath(path).replace("\\", "/")
 
 
-def _chunks_for(path: str, kind: str, doc_id: str) -> list[dict]:
+def _chunks_for(read_path: str, kind: str, doc_id: str,
+                source_file: str) -> list[dict]:
+    """`read_path` là tệp ĐỌC nội dung (có thể là bản đã chuyển đổi trong
+    thư mục cache tạm); `source_file` là tệp GỐC người dùng đưa vào.
+
+    HAI THAM SỐ TÁCH RỜI, không phải một. Trước 2026-08-31 chỉ có một tham
+    số và nó vừa dùng để đọc vừa dùng làm nhãn, nên tệp `.doc/.xls/.ppt` ghi
+    ĐƯỜNG DẪN CACHE TẠM vào `source_file`. Đường dẫn đó chảy tiếp:
+    chunking.py:52 lùi `doc_title` về `source_file` khi tài liệu không có
+    heading → chunking.py:61 lùi `crumb` về `doc_title` → `index_text()` nối
+    nó vào chuỗi đem đi EMBED và vào `ts_vector`. Chuỗi bị nhúng có dạng
+    `.../Temp/youdoo_convert/<content_hash>/quyche_taichinh.docx`: nó chứa
+    hash nên ĐỔI mỗi lần tài liệu đổi và KHÁC NHAU giữa các máy, lại GIỐNG
+    HỆT nhau ở mọi chunk của tài liệu nên còn làm giảm khả năng phân biệt
+    giữa chính các chunk đó."""
     if kind == "xlsx":
-        return chunk_xlsx_sheets(parse_xlsx(path), doc_id=doc_id, source_file=path)
-    low = path.lower()
+        return chunk_xlsx_sheets(parse_xlsx(read_path), doc_id=doc_id,
+                                 source_file=source_file)
+    low = read_path.lower()
     if low.endswith(".pdf"):
-        blocks = parse_pdf(path)
+        blocks = parse_pdf(read_path)
     elif low.endswith(".pptx"):
-        blocks = parse_pptx(path)
+        blocks = parse_pptx(read_path)
     else:
-        blocks = parse_docx(path)
+        blocks = parse_docx(read_path)
     if not blocks:
         return []
-    return chunk_text_blocks(blocks, doc_id=doc_id, source_file=path)
+    return chunk_text_blocks(blocks, doc_id=doc_id, source_file=source_file)
 
 
 def _ingest_file(path: str, conn) -> IngestReport:
@@ -122,7 +147,8 @@ def _ingest_known(path: str, kind: str, conn,
     if existing and existing[0] == content_hash:
         return IngestReport(unchanged=1)
 
-    chunks = _chunks_for(path, kind, doc_id)
+    # `path` CHỈ để đọc nội dung; mọi nhãn ghi ra ngoài dùng `origin`.
+    chunks = _chunks_for(path, kind, doc_id, source_file=origin)
     if not chunks:
         raise IngestError(
             f"{path}: tệp được nhận ({kind}) nhưng không sinh được chunk nào. "
@@ -148,7 +174,7 @@ def _ingest_known(path: str, kind: str, conn,
         conn.execute(
             "INSERT INTO rag_documents (doc_id, source_file, content_hash, "
             "effective_date) VALUES (%s, %s, %s, %s)",
-            (doc_id, path, content_hash, eff),
+            (doc_id, origin, content_hash, eff),
         )
         for c, vec in zip(chunks, vectors):
             conn.execute(
@@ -164,7 +190,25 @@ def _ingest_known(path: str, kind: str, conn,
     return IngestReport(ingested=1, chunks=len(chunks))
 
 
+class IngestTargetMissing(IngestError):
+    """Đường dẫn đích của cả LƯỢT NẠP không tồn tại.
+
+    Trước 2026-08-31 `ingest_path("d:/khong/he/ton/tai")` trả
+    `IngestReport(0, 0, 0, [])` với `ok=True` và `main()` thoát 0: gõ sai
+    đường dẫn cho ra một BÁO CÁO THÀNH CÔNG. Đó là mâu thuẫn nội tại — chính
+    hình dạng "0 mọi thứ, ok=True" đã được `test_ingest_kho_that.py` gọi tên
+    là IM_LANG khi nó xảy ra với một TỆP, rồi lại được chấp nhận khi nó xảy
+    ra với cả LƯỢT.
+
+    Thư mục CÓ THẬT mà không chứa tài liệu nào thì KHÔNG phải lỗi (thư mục
+    rỗng là hợp lệ) — `render()` nói rõ là không thấy tài liệu nào."""
+
+
 def ingest_path(path: str, conn=None) -> IngestReport:
+    if not os.path.exists(path):
+        raise IngestTargetMissing(
+            f"{path}: đường dẫn không tồn tại. Không có gì được nạp — đây là "
+            f"lỗi của lượt chạy, không phải một lượt nạp thành công với 0 tệp.")
     own = conn is None
     if own:
         conn = _db.connect()
@@ -172,16 +216,39 @@ def ingest_path(path: str, conn=None) -> IngestReport:
     try:
         # Ghi marker nếu chưa có — để lần khởi động sau assert_embedding_marker()
         # bắt được cú đổi provider mà không re-index.
-        e = get_embedder()
+        embedder = get_embedder()
         conn.execute(
             "INSERT INTO rag_embedding_marker (embedding_model, dim) "
             "SELECT %s, %s WHERE NOT EXISTS (SELECT 1 FROM rag_embedding_marker)",
-            (e.model_name, e.dim))
+            (embedder.model_name, embedder.dim))
         report = IngestReport()
         files = ([path] if os.path.isfile(path)
                  else [os.path.join(r, f) for r, _, fs in os.walk(path) for f in fs])
         for f in files:
-            report.merge(_ingest_file(f, conn))
+            try:
+                report.merge(_ingest_file(f, conn))
+            except EmbeddingError:
+                # NGOẠI LỆ CỦA LÁ CHẮN. Embedder chết là hỏng HẠ TẦNG, không
+                # phải khiếm khuyết của tệp này: biến nó thành `rejected` sẽ
+                # cho ra một báo cáo "117 tài liệu bị từ chối" trong khi sự
+                # thật là "Ollama không chạy" — che đúng nguyên nhân và đổ lỗi
+                # cho tài liệu của người dùng. Để nó nổ, và nổ ngay tệp đầu.
+                raise
+            except Exception as e:
+                # LÁ CHẮN MỘT TỆP — spec 2026-08-29 mục 4: MỖI tệp phải ra ở
+                # đúng một trong ba trạng thái, và "PDF không lớp text, parse
+                # ra rỗng" được nêu ĐÍCH DANH là nguyên nhân `rejected`. Trước
+                # 2026-08-31 `IngestError` (và PackageNotFoundError của .docx
+                # hỏng/khoá mật khẩu, InvalidFileException/BadZipFile của
+                # .xlsx, NotImplementedError của .pptx) không ai bắt: một tệp
+                # hỏng làm SẬP TRỌN lượt nạp và xoá sạch báo cáo của mọi tệp
+                # đã xử lý trước đó — tức là để đóng một lỗi "mất im lặng" ta
+                # lại mất báo cáo của tất cả những tệp khác.
+                #
+                # KHÔNG nuốt ngoại lệ: loại lỗi và thông điệp đi vào lý do
+                # từ chối, hiện trong `render()` và làm `main()` thoát khác 0.
+                report.merge(IngestReport(rejected=[
+                    Rejection(f, f"{type(e).__name__}: {e}")]))
         return report
     finally:
         if own:
@@ -191,7 +258,13 @@ def ingest_path(path: str, conn=None) -> IngestReport:
 def main() -> None:
     use_utf8_streams()
     target = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("DOCUMENTS_PATH", ".")
-    report = ingest_path(target)
+    try:
+        report = ingest_path(target)
+    except IngestTargetMissing as e:
+        # To tiếng nhưng ĐỌC ĐƯỢC: một dòng nói rõ chuyện gì, không phải
+        # traceback, và vẫn thoát khác 0.
+        print(f"LỖI  {e}")
+        sys.exit(1)
     print(report.render())
     # Thoát khác 0 khi có tài liệu bị từ chối: một lượt nạp bỏ sót tài liệu
     # KHÔNG phải là một lượt nạp thành công, và người gọi (script, CI) phải
