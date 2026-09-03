@@ -11,6 +11,12 @@ không lời nào, tài liệu biến mất khỏi corpus.
 
 Chữ `skipped` cũ bị bỏ có chủ ý: nó mang HAI nghĩa ("không đổi nên bỏ qua"
 và "không hiểu nên bỏ qua") và chính sự mơ hồ đó là chỗ lỗi nấp được.
+
+Module này còn một khái niệm THỨ HAI, KHÁC ba trạng thái tệp ở trên: cảnh
+báo mức SHEET/BẢNG (`Warning`, thêm ở Kế hoạch 2 — dò hàng tiêu đề Excel).
+Một tệp vẫn `ingested` bình thường trong khi một phần bên trong nó (một
+sheet không dò được hàng tiêu đề, chẳng hạn) sinh cảnh báo riêng; cố ý
+KHÔNG ảnh hưởng `ok`, xem docstring của `Warning`.
 """
 from dataclasses import dataclass, field
 
@@ -59,8 +65,13 @@ class IngestReport:
         lines = [f"đã nạp {self.ingested} · không đổi {self.unchanged} · "
                  f"chunk {self.chunks} · từ chối {len(self.rejected)} · "
                  f"cảnh báo {len(self.warnings)}"]
-        if not (self.ingested or self.unchanged or self.rejected):
-            # Không tệp nào rơi vào bất kỳ trạng thái nào. Thư mục rỗng (hoặc
+        if not (self.ingested or self.unchanged or self.rejected
+                or self.warnings):
+            # Không tệp nào rơi vào bất kỳ trạng thái nào, và cũng không có
+            # cảnh báo mức sheet/bảng nào (xem `Warning` ở trên) — nếu chỉ
+            # kiểm ba trạng thái TỆP thì một IngestReport CHỈ có warnings
+            # (không tệp nào `ingested`) vẫn có thể bị in nhầm là "không thấy
+            # tài liệu nào", dù thực ra có cảnh báo cần đọc. Thư mục rỗng (hoặc
             # chỉ chứa tệp không phải tài liệu) là HỢP LỆ, không phải lỗi —
             # nhưng dòng số đếm toàn 0 ở trên đọc y hệt một lượt nạp đã xong,
             # nên phải nói thẳng ra.

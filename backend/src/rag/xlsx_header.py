@@ -136,6 +136,13 @@ _REF_EXPR_RE = re.compile(r"^(?=.*[()\[\]=])[\d()\[\]=+\-*/.,\s]+$")
 # Bằng chứng dương khi hàng ĐÁNH SỐ CỘT nằm NGAY DƯỚI ứng viên: quy ước rất
 # mạnh trong biểu mẫu hành chính VN (tên cột / (1)(2)(3) / dữ liệu), đáng tin
 # hơn `data_ratio`. Cộng thêm điểm, giới hạn trần ở 1.0.
+#
+# CHƯA được hiệu chỉnh RIÊNG bằng đo — thêm ở vòng sửa 1 Task 3 cùng lúc với
+# hai cơ chế khác, và số đo ở vòng đó chỉ đo TÁC ĐỘNG TỔNG của cả ba gộp lại
+# (xem task-3-report.md mục "Vòng sửa 1"), chưa tách riêng phần đóng góp của
+# bằng chứng dương này. Dù vậy, ablation độc lập khi review Task 3 xác nhận
+# nó CẦN THIẾT ở điểm vận hành hiện tại (scan=15, min=0.92): gỡ nó (bonus=0)
+# làm mất 4/17 ca đúng trên 23 sheet có đáp án.
 _COLUMN_INDEX_BONUS = 0.15
 
 # Chuỗi tối thiểu các ô LIỀN KỀ, PHÂN BIỆT, đều là ký hiệu cột thì đủ để kết
