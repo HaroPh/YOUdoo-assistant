@@ -30,7 +30,7 @@ class _FakeConn:
 def test_tep_duoc_nhan_nhung_ra_rong_thi_nem_loi(monkeypatch, tmp_path):
     f = tmp_path / "scan.pdf"
     f.write_bytes(b"%PDF-1.4 fake")
-    monkeypatch.setattr(_ing, "_chunks_for", lambda *a, **k: [])
+    monkeypatch.setattr(_ing, "_chunks_for", lambda *a, **k: ([], []))
     with pytest.raises(_ing.IngestError) as e:
         _ing._ingest_file(str(f), conn=_FakeConn())
     assert "scan.pdf" in str(e.value)

@@ -10,7 +10,7 @@ from .embed import EmbeddingError, embed_texts, get_embedder
 from .parse import (extract_effective_date, parse_docx, parse_pdf,
                     parse_pptx, parse_xlsx)
 from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
-from .ingest_report import IngestReport, Rejection
+from .ingest_report import IngestReport, Rejection, Warning
 from src.cli_console import use_utf8_streams
 
 # Đuôi nạp được TRỰC TIẾP → loại parser.
@@ -76,7 +76,7 @@ def _doc_id(path: str) -> str:
 
 
 def _chunks_for(read_path: str, kind: str, doc_id: str,
-                source_file: str) -> list[dict]:
+                source_file: str) -> tuple[list[dict], list[tuple[str, str]]]:
     """`read_path` là tệp ĐỌC nội dung (có thể là bản đã chuyển đổi trong
     thư mục cache tạm); `source_file` là tệp GỐC người dùng đưa vào.
 
@@ -91,8 +91,9 @@ def _chunks_for(read_path: str, kind: str, doc_id: str,
     HỆT nhau ở mọi chunk của tài liệu nên còn làm giảm khả năng phân biệt
     giữa chính các chunk đó."""
     if kind == "xlsx":
-        return chunk_xlsx_sheets(parse_xlsx(read_path), doc_id=doc_id,
-                                 source_file=source_file)
+        sheets, sheet_warnings = parse_xlsx(read_path)
+        return (chunk_xlsx_sheets(sheets, doc_id=doc_id, source_file=source_file),
+                sheet_warnings)
     low = read_path.lower()
     if low.endswith(".pdf"):
         blocks = parse_pdf(read_path)
@@ -101,8 +102,8 @@ def _chunks_for(read_path: str, kind: str, doc_id: str,
     else:
         blocks = parse_docx(read_path)
     if not blocks:
-        return []
-    return chunk_text_blocks(blocks, doc_id=doc_id, source_file=source_file)
+        return [], []
+    return (chunk_text_blocks(blocks, doc_id=doc_id, source_file=source_file), [])
 
 
 def _ingest_file(path: str, conn) -> IngestReport:
@@ -148,7 +149,7 @@ def _ingest_known(path: str, kind: str, conn,
         return IngestReport(unchanged=1)
 
     # `path` CHỈ để đọc nội dung; mọi nhãn ghi ra ngoài dùng `origin`.
-    chunks = _chunks_for(path, kind, doc_id, source_file=origin)
+    chunks, sheet_warnings = _chunks_for(path, kind, doc_id, source_file=origin)
     if not chunks:
         raise IngestError(
             f"{path}: tệp được nhận ({kind}) nhưng không sinh được chunk nào. "
@@ -187,7 +188,10 @@ def _ingest_known(path: str, kind: str, conn,
                  c["chunk_text"], vec,
                  segment_vi(index_text(c["section_path"], c["chunk_text"]))),
             )
-    return IngestReport(ingested=1, chunks=len(chunks))
+    report = IngestReport(ingested=1, chunks=len(chunks))
+    for sheet, reason in sheet_warnings:
+        report.warnings.append(Warning(origin, sheet, reason))
+    return report
 
 
 class IngestTargetMissing(IngestError):

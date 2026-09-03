@@ -94,7 +94,7 @@ def test_PDF_khong_lop_text_ra_rejected_CO_TEN_chu_khong_sap_luot(
     """C4, ca được spec mục 4 nêu ĐÍCH DANH: "PDF không lớp text, parse ra
     rỗng" phải là `rejected` có tên. Trước bản sửa nó `raise IngestError` và
     không ai bắt."""
-    monkeypatch.setattr(_ing, "_chunks_for", lambda *a, **k: [])
+    monkeypatch.setattr(_ing, "_chunks_for", lambda *a, **k: ([], []))
     (tmp_path / "scan.pdf").write_bytes(b"%PDF-1.4 fake")
 
     rep = _ing.ingest_path(str(tmp_path), conn=_FakeConn())
