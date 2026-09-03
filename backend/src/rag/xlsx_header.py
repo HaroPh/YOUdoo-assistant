@@ -27,11 +27,29 @@ from dataclasses import dataclass
 #
 # MIN_SCORE=0.92, HẠ từ 0.99 của vòng 1. Sau khi bốn cơ chế bên dưới loại
 # được các hàng "trông như nhãn nhưng không phải tiêu đề", điểm không còn phải
-# gánh việc phân biệt đó nữa, nên ngưỡng có thể hạ xuống để vớt các hàng tiêu
-# đề THẬT bị điểm thấp. Biên đo được: hàng tiêu đề đúng thấp nhất đạt 0.9250
-# (`PL 43-2022-QH15`), hàng cao nhất mà bộ dò PHẢI từ chối đạt 0.9135 (`Data`
-# hàng 0, dòng tiêu đề tài liệu). Khe hở chỉ rộng 0.0115 — đây là chỗ MỎNG
-# NHẤT của bộ hằng số, ghi rõ để người sau biết mà đo lại khi đổi công thức.
+# gánh việc phân biệt đó nữa, nên ngưỡng hạ được để vớt các hàng tiêu đề THẬT
+# bị điểm thấp. Biên trên 23 sheet có đáp án: hàng tiêu đề đúng thấp nhất đạt
+# 0.9250 (`PL 43-2022-QH15`), hàng cao nhất mà bộ dò PHẢI từ chối đạt 0.9135
+# (`Data` hàng 0). Khe hở rộng 0.0115.
+#
+# CÁI GIÁ ĐÃ BIẾT của việc hạ ngưỡng, đo bằng phép so TỪNG SHEET base↔head
+# trên CẢ 81 sheet (phép đo vòng sửa 2 đã THIẾU, review độc lập chỉ ra): hai
+# sheet chuyển từ `None` (an toàn) sang một câu trả lời TỰ TIN SAI —
+#   `BHBB`  hàng 13 (0.9500) — một dòng gạch đầu dòng VĂN XUÔI trong văn bản
+#           quy định bảo hiểm; sheet này không có bảng nào cả.
+#   `Data2` hàng 0  (0.9375) — dòng chú thích của một sheet phụ trợ.
+# Cả hai đều không có ô `STT` nên nằm NGOÀI 23 sheet có đáp án.
+#
+# VÌ SAO KHÔNG NÂNG NGƯỠNG ĐỂ LOẠI CHÚNG — đã thử 0.96 và ĐO, rồi RÚT LẠI:
+# ở đúng mức 0.9500000000 có CẢ hàng SAI của `BHBB` LẪN hai hàng tiêu đề
+# ĐÚNG (`SỔ CT VT-HH` hàng 5, `PB CPMH` hàng 3 — cùng dạng header hai tầng,
+# đã soi tay). Chúng BẰNG ĐIỂM NHAU tuyệt đối, nên KHÔNG ngưỡng nào tách nổi:
+# nâng lên 0.96 loại được 2 ca sai nhưng giết luôn 3 ca đúng (`SỔ CT VT-HH`,
+# `PB CPMH`, và `PL 43-2022-QH15` ở 0.9250). Đổi 3 lấy 2 là lỗ.
+#
+# Muốn đóng `BHBB` phải có CƠ CHẾ nhận ra VĂN XUÔI (câu có dấu chấm cuối,
+# nhiều từ) chứ không phải một con số ngưỡng — và cơ chế đó lại chỉ hiệu chỉnh
+# được trên đúng một sheet, nên để lại làm việc tương lai có đo đàng hoàng.
 #
 # KẾT QUẢ trên 23 sheet có đáp án: đúng=17 sai=0 None=6
 # (baseline trước vòng sửa 2: đúng=10 sai=7 None=6).
@@ -147,19 +165,48 @@ _RIVAL_SCAN_LIMIT = 200
 _SCORE_EPS = 1e-9
 
 
-def _looks_like_column_index(v) -> bool:
-    """Một Ô đánh số cột: số trần, "(n)", "[n]", một chữ cái đơn, hoặc biểu
-    thức tham chiếu kiểu "(3)=(1)/(2)" hay "(3)=(1)/[(2)*12/1000]"."""
+def _looks_like_index_symbol(v) -> bool:
+    """KÝ HIỆU cột theo nghĩa CHẶT: chuỗi hoá rồi mới so khớp, nên giới hạn
+    "số trần 1-2 chữ số" áp cho CẢ ô số lẫn ô chuỗi.
+
+    Khác `_looks_like_column_index` đúng một điểm: không có nhánh tắt "mọi
+    `int`/`float` đều là ký hiệu cột". Nhánh tắt đó làm giới hạn 1-2 chữ số
+    thành VÔ NGHĨA với ô số — mà openpyxl trả ô số dưới dạng `int`/`float`,
+    tức gần như MỌI ô số thật đều đi qua nhánh tắt.
+
+    Vì sao tách làm hai hàm thay vì sửa thẳng `_looks_like_column_index`:
+    nhánh tắt đó có từ vòng sửa 1 và tiêu chí TỈ LỆ (>50%) cùng
+    `_COLUMN_INDEX_BONUS` đã được hiệu chỉnh CÙNG nó. Bỏ nó trên toàn cục thì
+    hai sheet thật `CĐTK` và `Thẻ giá thành DV` RỜI KHỎI hàng tiêu đề đúng
+    (4 → 3, đo trên 81 sheet). Nên chỉ tiêu chí CHUỖI LIỀN KỀ — thứ vòng sửa
+    2 mới thêm — dùng bản chặt này; phần còn lại giữ nguyên hành vi cũ.
+    """
     if v is None:
         return False
-    if isinstance(v, (int, float)):
-        return True
     s = str(v).strip()
     if not s:
         return False
     return bool(_BARE_NUM_RE.match(s) or _PAREN_NUM_RE.match(s)
                 or _BRACKET_NUM_RE.match(s) or _SINGLE_LETTER_RE.match(s)
                 or _REF_EXPR_RE.match(s))
+
+
+def _looks_like_column_index(v) -> bool:
+    """Một Ô đánh số cột: số trần, "(n)", "[n]", một chữ cái đơn, hoặc biểu
+    thức tham chiếu kiểu "(3)=(1)/(2)" hay "(3)=(1)/[(2)*12/1000]".
+
+    CẢNH BÁO — nhánh tắt `isinstance(v, (int, float))` coi MỌI ô số là ký
+    hiệu cột, kể cả `24000000`. Đó là NỢ CÓ SẴN từ vòng sửa 1, được giữ vì
+    tiêu chí tỉ lệ và `_COLUMN_INDEX_BONUS` đã hiệu chỉnh cùng nó (xem
+    `_looks_like_index_symbol`). Hệ quả còn lại: một hàng dữ liệu toàn số
+    PHÂN BIỆT (vd `1 | Chiết khấu | 5211 | 100 | 200 | 300`) vẫn bị tiêu chí
+    tỉ lệ nhận nhầm là hàng đánh số cột. Không gây hại đo được (hàng như vậy
+    có `label_ratio` rất thấp nên vốn đã không thể thắng), nhưng đừng đọc
+    tên hàm rộng hơn thực tế nó làm.
+    """
+    if isinstance(v, (int, float)):
+        return True
+    return _looks_like_index_symbol(v)
 
 
 def _index_symbol_run(row: list) -> int:
@@ -179,12 +226,20 @@ def _index_symbol_run(row: list) -> int:
     oan — đúng thứ đã đẩy `TT THUẾ TNDN` chọn hàng 10 thay vì hàng 5. Một
     hàng đánh số cột thật thì LIỆT KÊ các chỉ số khác nhau, không lặp lại một
     giá trị.
+
+    Dùng `_looks_like_index_symbol` (bản CHẶT), KHÔNG dùng
+    `_looks_like_column_index`. Bản đầu của hàm này dùng bản lỏng, và vì bản
+    lỏng coi MỌI ô số là ký hiệu cột, ba ô số PHÂN BIỆT bất kỳ cũng thành một
+    "chuỗi ký hiệu" — kể cả một hàng TIÊU ĐỀ THẬT mang nhãn năm dạng SỐ
+    (`['Chỉ tiêu','Ghi chú',2020,2021,2022,…]`, hình dạng rất phổ biến trong
+    báo cáo tài chính), khiến `_score_row` chấm nó 0 điểm DỨT KHOÁT. Đó là
+    hồi quy do chính vòng sửa 2 gây ra, review độc lập bắt được.
     """
     best = run = 0
     seen: set[str] = set()
     for c in row:
         s = _cell_text(c)
-        if s and _looks_like_column_index(c):
+        if s and _looks_like_index_symbol(c):
             if s in seen:
                 run, seen = 1, {s}
             else:

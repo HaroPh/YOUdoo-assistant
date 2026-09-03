@@ -140,7 +140,7 @@ def test_hang_danh_so_cot_lan_nhan_thang_that_van_bi_loai():
     assert g.labels[0] == "STT"
 
 
-def test_hang_du_lieu_toan_so_khong_bi_coi_la_hang_danh_so_cot():
+def test_hang_du_lieu_lap_lai_so_0_khong_bi_coi_la_hang_danh_so_cot():
     """Vòng sửa 2, nhóm 2: sheet thật `TT THUẾ TNDN`.
 
     Hàng dữ liệu `1 | Chiết khấu thương mại | 5211 | 0 | 0 | 0` từng bị coi
@@ -148,10 +148,20 @@ def test_hang_du_lieu_toan_so_khong_bi_coi_la_hang_danh_so_cot():
     nó được cộng oan `_COLUMN_INDEX_BONUS` và vọt lên 1.0, thắng hàng tiêu đề
     thật. Hàng đánh số cột thật thì LIỆT KÊ các chỉ số KHÁC NHAU; hàng dữ
     liệu lặp đi lặp lại số 0.
+
+    TÊN TEST NÓI ĐÚNG PHẠM VI (sửa sau review độc lập): chỉ hàng dữ liệu có
+    số LẶP mới thoát. Một hàng dữ liệu toàn số PHÂN BIỆT —
+    `[1, 'Chiết khấu', 5211, 100, 200, 300]` — VẪN bị tiêu chí tỉ lệ nhận
+    nhầm, vì `_looks_like_column_index` coi mọi `int`/`float` là ký hiệu cột
+    (nợ có sẵn từ vòng sửa 1, giữ lại có chủ đích — bỏ nó trên toàn cục làm
+    hai sheet thật rời khỏi hàng tiêu đề đúng). Tên cũ
+    "..._toan_so_..." khẳng định rộng hơn điều test chứng minh.
     """
     assert not is_column_index_row(
         [1, "Chiết khấu thương mại", 5211, 0, 0, 0])
     assert is_column_index_row(["(1)", "(2)", "(3)", "(4)", "(5)"])
+    # Giới hạn ĐÃ BIẾT, khoá lại để không ai đọc tên hàm rộng hơn thực tế:
+    assert is_column_index_row([1, "Chiết khấu", 5211, 100, 200, 300])
 
     rows = [
         ["STT", "Chỉ tiêu", "TK SD", "PS Bên Nợ", "PS Bên Có", "Số tiền"],
@@ -237,3 +247,32 @@ def test_sheet_nhieu_bang_thi_tra_None_thay_vi_chon_bang_vi_du():
         [2, "Tour Cửa Lò", 0, 1200000, 22307692, 25007692, 900000, ""],
     ]
     assert find_header(rows) is None
+
+
+def test_nhan_nam_dang_SO_khong_bien_hang_tieu_de_thanh_hang_danh_so_cot():
+    """Hồi quy do CHÍNH vòng sửa 2 gây ra, review độc lập bắt được.
+
+    `_index_symbol_run` ban đầu dùng `_looks_like_column_index`, mà hàm đó
+    coi MỌI `int`/`float` là ký hiệu cột. Ba ô số PHÂN BIỆT liền kề bất kỳ
+    liền thành một "chuỗi ký hiệu cột" — kể cả nhãn NĂM dạng SỐ của một hàng
+    tiêu đề THẬT, hình dạng rất phổ biến trong báo cáo tài chính. Hậu quả:
+    `_score_row` chấm hàng tiêu đề thật 0 điểm DỨT KHOÁT, tức sheet mất luôn
+    nhãn cột. Fixture BCTC của Task 3 thoát nạn chỉ vì "2026"/"2025" ở đó
+    viết dạng CHUỖI chứ không phải số.
+
+    Bản sửa: `_index_symbol_run` dùng `_looks_like_index_symbol` (chuỗi hoá
+    trước khi so khớp, nên giới hạn "số trần 1-2 chữ số" áp cho cả ô số).
+    """
+    header = ["Chỉ tiêu", "Ghi chú", 2020, 2021, 2022,
+              "Ghi chú 2", "Tổng cộng", "Tỷ lệ"]
+    assert not is_column_index_row(header)
+
+    rows = [
+        header,
+        ["Doanh thu thuần", "", 1250, 1100, 2400, "", 4750, "38%"],
+        ["Giá vốn hàng bán", "", 900, 820, 1750, "", 3470, "28%"],
+        ["Lợi nhuận gộp", "", 350, 280, 650, "", 1280, "10%"],
+    ]
+    g = find_header(rows)
+    assert g is not None and g.row_index == 0
+    assert g.labels[0] == "Chỉ tiêu"
