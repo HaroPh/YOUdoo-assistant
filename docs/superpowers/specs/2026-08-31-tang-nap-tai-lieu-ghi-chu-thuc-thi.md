@@ -270,6 +270,32 @@ tiêu đề task, sửa test để gồm cả `.doc` (chuyển qua `convert.conv
 Không cần sửa gì ở `convert.py`/`ingest.py` — chỉ test tự lo phần chuyển đổi bằng cách gọi lại đúng
 hàm production đã có sẵn.
 
+### 2.4 BỐN lỗi trong kế hoạch
+
+Review toàn nhánh gọi tên bốn lỗi cùng lớp (chỉ dẫn / phép đo TRÔNG như đủ để kết luận nhưng không
+đủ), ba cái từ việc thực thi, một cái từ chính brief của Task 4:
+
+(1) Chỉ dẫn phép thử phá ở Task 1 Step 6 đủ mơ hồ để ba cách đọc hợp lý khác nhau, một cách không
+    kích hoạt đột biến. Sửa chỉ dẫn trong plan cho hết mơ hồ thay vì chạy lại người (mục 2.1).
+
+(2) Brief Task 4 có code mẫu chỉ lọc `.docx` trong khi tiêu đề task nói "12 tệp", bỏ lọt đúng tệp
+    kiểm cầu chuyển đổi LibreOffice mà spec đặt tên riêng. Chỉ dẫn phải tuyệt đối rõ ràng (mục 2.3).
+
+(3) Task 4 Step 3 yêu cầu thử ba biến thể `roman`/`letter` ở ba vị trí khác nhau, nhưng không đặt
+    rõ nên implementer không biết nên thử các vị trí nào là chính (không quy định chi tiết → không
+    xác minh được hiệu chỉnh).
+
+(4) Task 4 Step 4 tự nhận "ba dòng số này trả lời đúng câu hỏi spec mục 5 đặt ra" — SAI: ba con số
+    TỔNG trên cả 12 tệp không trả lời được câu hỏi thật (mẫu số trần `arabic_ok` gây hại ở THỂ
+    LOẠI tài liệu nào), phải có phép phân định theo TỪNG TỆP mới ra được ruling có trách nhiệm —
+    và phép đó KHÔNG có trong plan, controller phải tự viết thêm giữa chừng. Cùng lớp lỗi với ba
+    lỗi trên (chỉ dẫn/phép đo TRÔNG như đủ để kết luận nhưng không đủ).
+
+**Quy tắc rút ra**: bất kỳ phép đo nào trong một plan sẽ dẫn tới một RULING có hệ quả sản xuất
+(đặc biệt hệ quả tới retrieval) phải chỉ định SẴN độ chi tiết cần thiết (theo tệp / theo thể loại
+tài liệu, không chỉ số tổng) ngay trong bước đo của plan — không được để lại cho controller ứng biến
+sau khi thấy một con số tổng mơ hồ.
+
 ## 3. Giả thuyết bị số đo bác bỏ
 
 - **"Hàm dò chữ có sẵn (`heading_level()`) là đủ, chỉ cần nối vào docx"** — SAI, đo ra `B09a-DN`
@@ -334,6 +360,15 @@ hàm production đã có sẵn.
 
 ### Đã biết, cần controller quyết định (không phải bỏ sót)
 
+- **Cổng cứng "0 chunk mang đường dẫn tệp" trên 12 tệp Word thật KHÔNG nhạy riêng với Task 3** —
+  Đo lại bằng cách dựng lại logic `chunking.py` TRƯỚC Task 3 (doc_title lùi về source_file, crumb
+  lùi về doc_title) nhưng GIỮ NGUYÊN bộ dò Task 1+2, vẫn ra 0/12 tệp dính đường dẫn. Lý do: Task
+  1+2 đã khiến MỌI tệp trong 12 tệp có ít nhất một heading (kể cả chỉ nhờ dòng IN HOA tiêu đề tài
+  liệu), nên kịch bản Task 3 sửa ("tài liệu KHÔNG có heading nào") không còn xảy ra trên corpus này.
+  Bảo vệ hồi quy THẬT của Task 3 nằm trọn trong fixture tổng hợp `test_chunking_khong_duong_dan.py`
+  (đã xác nhận đỏ được bằng phép thử phá). Nếu sau này có tệp thật hoàn toàn không phân cấp được (0
+  heading dù đã qua Task 1+2), chỉ fixture tổng hợp mới bắt được hồi quy ở đó — cổng trên corpus
+  thật sẽ không thấy.
 - **Nhánh `arabic_ok` có dấu hiệu cắt vụn `Điều` thành khoản** — số đo ba dòng ở mục 3 trên. Phương
   án lùi (bỏ `arabic_ok`, chỉ giữ bằng chứng `n in parents`) đã có sẵn trong spec nhưng KHÔNG được
   tự áp dụng ở Task 4. Cần một quyết định rõ ràng + (nếu áp) một lượt đo lại 12 tệp thật để xác

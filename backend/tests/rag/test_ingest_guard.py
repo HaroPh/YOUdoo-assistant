@@ -147,16 +147,17 @@ def test_doc_chuyen_thanh_cong_thi_source_file_theo_TEP_GOC(monkeypatch, tmp_pat
     """C1 (review toàn nhánh 2026-08-31): `source_file` phải là TỆP GỐC, không
     phải bản đã chuyển đổi nằm trong thư mục cache tạm.
 
-    Vì sao nghiêm trọng hơn một nhãn hiển thị sai: tài liệu KHÔNG CÓ HEADING
-    (đúng ca `quyche_taichinh.doc` thật — 51/51 block heading_level=None) thì
-    chunking.py:52 lùi `doc_title` về `source_file`, :61 lùi `crumb` về
-    `doc_title`, rồi `index_text()` nối crumb vào chuỗi đem đi EMBED và vào
-    `ts_vector`. Đường dẫn cache chứa content_hash nên nó ĐỔI theo nội dung và
-    KHÁC giữa các máy, lại GIỐNG HỆT ở mọi chunk nên làm giảm khả năng phân
-    biệt giữa chính các chunk đó.
+    Chuỗi lỗi TỪ TRƯỚC: tài liệu KHÔNG CÓ HEADING (đúng ca `quyche_taichinh.doc`
+    thật — 51/51 block heading_level=None) thì chunking.py:52 lùi `doc_title` về
+    `source_file`, :61 lùi `crumb` về `doc_title`, rồi `index_text()` nối crumb
+    vào chuỗi đem đi EMBED và vào `ts_vector`. Đường dẫn cache chứa content_hash
+    nên nó ĐỔI theo nội dung và KHÁC giữa các máy, lại GIỐNG HỆT ở mọi chunk nên
+    làm giảm khả năng phân biệt giữa chính các chunk đó.
 
-    Docx dựng ở đây CỐ Ý không có heading nào — đó là điều kiện kích hoạt
-    đường lùi. Có heading thì lỗi ẩn đi và test không đo được gì."""
+    Chuỗi này ĐÃ ĐƯỢC ĐÓNG ở B3 (Task 3, 2026-09-04): `crumb` không còn lùi về
+    `doc_title` nữa. Test vẫn kiểm một thứ có thật: đường dẫn cache không rò vào
+    `source_file`/`doc_title`/`section_path`. Docx dựng ở đây CỐ Ý không có heading
+    nào để tạo điều kiện xác nhận assertion."""
     from docx import Document
     from src.rag import convert as _conv
 
