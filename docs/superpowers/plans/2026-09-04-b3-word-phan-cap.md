@@ -96,6 +96,20 @@ def test_bang_chung_khong_doi_hoi_hai_dong_LIEN_NHAU():
     assert out[4] == DOCX_LEVEL["roman"]
 
 
+def test_ho_chu_cai_cung_can_bang_chung_va_co_cap_rieng():
+    """Mẫu thứ tư của spec. `A.` một mình không đủ; `A.` rồi `B.` thì đủ.
+    Và họ chữ cái phải THẤP HƠN họ La Mã trong cây (35 < 38)."""
+    thieu = docx_heading_levels(["A. Một mục lẻ", "Nội dung."])
+    assert thieu[0] is None
+
+    du = docx_heading_levels(["A. Tài sản ngắn hạn",
+                              "Nội dung.",
+                              "B. Tài sản dài hạn"])
+    assert du[0] == DOCX_LEVEL["letter"]
+    assert du[2] == DOCX_LEVEL["letter"]
+    assert DOCX_LEVEL["roman"] < DOCX_LEVEL["letter"]
+
+
 def test_so_tran_co_con_mang_cung_tien_to_thi_la_tieu_de():
     """`12.` là tiêu đề VÌ `12.1` tồn tại — bằng chứng nằm trong chính tài
     liệu. Đây là ca thật của `b09-dn.docx`: trước bản sửa, CON là tiêu đề mà
@@ -306,7 +320,7 @@ def docx_heading_levels(texts: list[str]) -> list[int | None]:
 - [ ] **Step 4: Chạy để thấy XANH**
 
 Run: `PYTHONIOENCODING=utf-8 d:/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/rag/test_docx_heading.py -v -m "not integration and not live"`
-Expected: PASS 11/11
+Expected: PASS 12/12
 
 - [ ] **Step 5: Phép thử phá — quy tắc bằng chứng**
 
@@ -323,7 +337,7 @@ Expected: `test_muc_La_Ma_IN_HOA_CUNG_CAP_voi_muc_La_Ma_thuong` **ĐỎ**. Hoàn
 - [ ] **Step 7: Chạy toàn suite, đối chiếu SỐ**
 
 Run: `PYTHONIOENCODING=utf-8 d:/Youdoo/backend/.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: `2294 passed, 1 skipped` — đúng 2283 + 11 test mới. **Đối chiếu con số, đừng chỉ nhìn chữ "passed".**
+Expected: `2295 passed, 1 skipped` — đúng 2283 + 12 test mới. **Đối chiếu con số, đừng chỉ nhìn chữ "passed".**
 
 - [ ] **Step 8: Commit**
 
@@ -506,7 +520,7 @@ Expected: `test_style_Heading_duoc_ANH_XA_sang_cung_thang` **ĐỎ**. Hoàn tác
 - [ ] **Step 6: Chạy toàn suite, đối chiếu SỐ**
 
 Run: `PYTHONIOENCODING=utf-8 d:/Youdoo/backend/.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: `2299 passed, 1 skipped` — đúng 2294 + 5 test mới. Nếu có test CŨ chuyển sang đỏ, dừng và báo: đó là hồi quy thật, không được sửa test cho xanh.
+Expected: `2300 passed, 1 skipped` — đúng 2295 + 5 test mới. Nếu có test CŨ chuyển sang đỏ, dừng và báo: đó là hồi quy thật, không được sửa test cho xanh.
 
 - [ ] **Step 7: Commit**
 
@@ -672,7 +686,7 @@ Sửa đoạn từ `Đường dẫn đó chảy tiếp:` tới hết docstring t
 - [ ] **Step 7: Chạy toàn suite, đối chiếu SỐ**
 
 Run: `PYTHONIOENCODING=utf-8 d:/Youdoo/backend/.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: `2303 passed, 1 skipped` — đúng 2299 + 4. **Chú ý đặc biệt**: bản sửa này đổi hành vi cho MỌI định dạng, nên nếu có test cũ đỏ thì đó là thông tin thật — đọc kỹ trước khi làm gì, **đừng sửa test cho xanh**. Đặc biệt để ý `tests/rag/test_chunking_text.py` (có test khẳng định `doc_title`).
+Expected: `2304 passed, 1 skipped` — đúng 2300 + 4. **Chú ý đặc biệt**: bản sửa này đổi hành vi cho MỌI định dạng, nên nếu có test cũ đỏ thì đó là thông tin thật — đọc kỹ trước khi làm gì, **đừng sửa test cho xanh**. Đặc biệt để ý `tests/rag/test_chunking_text.py` (có test khẳng định `doc_title`).
 
 - [ ] **Step 8: Commit**
 
@@ -852,7 +866,7 @@ Ba dòng số này trả lời đúng câu hỏi spec mục 5 đặt ra. Nếu s
 - [ ] **Step 5: Chạy lại toàn suite lần cuối**
 
 Run: `PYTHONIOENCODING=utf-8 d:/Youdoo/backend/.venv/Scripts/python.exe -m pytest -m "not integration and not live" -q`
-Expected: `2303 passed, 1 skipped`, `deselected` tăng đúng 2 (hai test `live` mới).
+Expected: `2304 passed, 1 skipped`, `deselected` tăng đúng 2 (hai test `live` mới).
 
 - [ ] **Step 6: Commit**
 
