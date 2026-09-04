@@ -330,9 +330,22 @@ Expected: `test_mot_muc_La_Ma_dung_mot_minh_KHONG_phai_tieu_de` **ĐỎ**. Hoàn
 
 - [ ] **Step 6: Phép thử phá — thứ tự kiểm**
 
-Tạm chuyển khối `found = _ENUM_RE.match(text)` xuống SAU lời gọi `heading_level(text)` trong `_docx_level`.
+Đột biến phải là "`heading_level()` THẮNG, enum chỉ là dự phòng" — tức đảo đúng cái thứ tự mà code thật đang khẳng định là quan trọng. Viết `_docx_level` tạm thành:
+
+```python
+def _docx_level(text, roman_ok, letter_ok, arabic_ok, parents):
+    shared = heading_level(text)
+    if shared is not None:                      # ĐỘT BIẾN: shared thắng
+        return {1: DOCX_LEVEL["chuong"], 2: DOCX_LEVEL["upper"],
+                3: DOCX_LEVEL["muc"], 4: DOCX_LEVEL["dieu"],
+                5: DOCX_LEVEL["multi"]}[shared]
+    # ... phần enum + PHẦN giữ nguyên, chạy sau
+```
+
 Run: lệnh ở Step 5.
-Expected: `test_muc_La_Ma_IN_HOA_CUNG_CAP_voi_muc_La_Ma_thuong` **ĐỎ**. Hoàn tác.
+Expected: `test_muc_La_Ma_IN_HOA_CUNG_CAP_voi_muc_La_Ma_thuong` **ĐỎ** với `[35, 20]` — dòng `II. CÁ NHÂN CƯ TRÚ` rơi về `upper` vì nó IN HOA, trong khi `I. Đặc điểm hoạt động` vẫn là `roman`. Hai mục cùng họ ra hai cấp khác nhau, đúng thứ hại mà thứ tự kiểm sinh ra để chặn. Hoàn tác.
+
+**Đừng đột biến theo cách khác.** Chỉ "chuyển khối enum xuống dưới" chung chung là không đủ: nếu đặt nó SAU `shared = heading_level(text)` nhưng TRƯỚC `if shared is None: return None` thì kết quả vẫn `[35, 35]` — **không đỏ**, và phép thử phá không chứng minh gì cả. Ghi rõ vì bản đầu của step này đúng là mơ hồ như vậy và review đã bắt được.
 
 - [ ] **Step 7: Chạy toàn suite, đối chiếu SỐ**
 
