@@ -96,14 +96,15 @@ def _chunks_for(read_path: str, kind: str, doc_id: str,
                 sheet_warnings)
     low = read_path.lower()
     if low.endswith(".pdf"):
-        blocks = parse_pdf(read_path)
+        blocks, pdf_warnings = parse_pdf(read_path)
     elif low.endswith(".pptx"):
-        blocks = parse_pptx(read_path)
+        blocks, pdf_warnings = parse_pptx(read_path), []
     else:
-        blocks = parse_docx(read_path)
+        blocks, pdf_warnings = parse_docx(read_path), []
     if not blocks:
         return [], []
-    return (chunk_text_blocks(blocks, doc_id=doc_id, source_file=source_file), [])
+    return (chunk_text_blocks(blocks, doc_id=doc_id, source_file=source_file),
+            pdf_warnings)
 
 
 def _ingest_file(path: str, conn) -> IngestReport:
