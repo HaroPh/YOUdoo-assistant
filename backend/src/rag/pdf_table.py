@@ -80,16 +80,27 @@ def split_header_body(rows: list[list]) -> tuple[list[list], list[list], bool]:
 
     Bốn nhánh, THEO THỨ TỰ ưu tiên cho mỗi hàng CHƯA vào thân:
       1. `is_column_index_row` (TÁI DÙNG từ `xlsx_header.py`, không viết lại)
-         → header. Kiểm TRƯỚC nhánh 3 vì một hàng đánh số cột cũng có ô số
+         → header. Kiểm TRƯỚC nhánh 2 vì một hàng đánh số cột cũng có ô số
          thuần nhưng KHÔNG BAO GIỜ là dữ liệu.
-      2. Đa số ô (>50%) rỗng/None → header (dòng đệm/nhãn phụ thưa).
-      3. Có ô không rỗng khớp mẫu SỐ LIỆU THUẦN (toàn chữ số + dấu phân
+      2. Có ô không rỗng khớp mẫu SỐ LIỆU THUẦN (toàn chữ số + dấu phân
          cách, không lẫn chữ) → THÂN bắt đầu từ đây, mọi dòng sau (kể cả
-         không khớp nhánh nào) đều là thân.
-      4. Không khớp gì ở trên → VẪN header (mặc định — chỉ nhánh 3 mới
+         không khớp nhánh nào) đều là thân. Kiểm TRƯỚC nhánh "đa số ô rỗng"
+         (BUG THẬT tìm ra 2026-09-04 khi nghiệm thu `bieumau_bctc_hopnhat.pdf`:
+         trên bảng biểu mẫu THƯA — nhãn + mã số có giá trị, các cột số tiền
+         để TRỐNG — MỌI hàng thân thật chỉ có 2/5 ô khác rỗng, tức <50%. Nếu
+         kiểm "đa số ô rỗng" trước, mọi hàng thân thật đó rơi vào header và
+         KHÔNG BAO GIỜ chạm nhánh số liệu thuần — `column_names()` sau đó
+         nối nhãn của nhiều hàng dữ liệu không liên quan thành một tên cột
+         rác, đắp vào các hàng thân thật phía sau. Ưu tiên tín hiệu số liệu
+         thuần trước đóng đúng lỗ hổng này mà không đổi hành vi 16 ca gốc
+         của Task 1 — không ca nào trong các fixture đó vừa có ô số liệu
+         thuần vừa đa số ô rỗng cùng lúc).
+      3. Đa số ô (>50%) rỗng/None → header (dòng đệm/nhãn phụ thưa, KHÔNG có
+         ô số liệu thuần nào — nếu có đã rẽ vào nhánh 2 ở trên).
+      4. Không khớp gì ở trên → VẪN header (mặc định — chỉ nhánh 2 mới
          chuyển sang thân, đừng đọc "không khớp" thành "vậy là thân").
 
-    CHỐT AN TOÀN: nếu duyệt hết mà không hàng nào từng khớp nhánh 3 (0 hàng
+    CHỐT AN TOÀN: nếu duyệt hết mà không hàng nào từng khớp nhánh 2 (0 hàng
     thân) — bảng toàn chữ, không có tín hiệu số nào — bảng không được biến
     mất. Còn >=2 hàng: dòng đầu làm header, phần còn lại làm thân. Đúng 1
     hàng: hàng đó tự nó thành thân, header rỗng (không có gì đứng trước nó
@@ -104,13 +115,13 @@ def split_header_body(rows: list[list]) -> tuple[list[list], list[list], bool]:
         if is_column_index_row(row):
             header.append(row)
             continue
-        filled = sum(1 for c in row if _to_text(c))
-        if filled < len(row) / 2:
-            header.append(row)
-            continue
         if any(_la_so_lieu_thuan(c) for c in row):
             started = True
             body.append(row)
+            continue
+        filled = sum(1 for c in row if _to_text(c))
+        if filled < len(row) / 2:
+            header.append(row)
             continue
         header.append(row)
     if not body:

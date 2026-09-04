@@ -414,7 +414,7 @@ trong bốn test KHÔNG pass ngay lần đầu — mục 2.2 dưới đây ghi l
 | 100 `invoice_*.pdf` — tự kiểm SL × đơn giá = thành tiền | **0/455 hàng tự kiểm sai** (1652 chunk tổng, 455 hàng đủ 3 trường để tự kiểm được) |
 | `ssc_bieumau.pdf` — checksum đứt đoạn | **0 đứt đoạn** |
 | `ssc_bieumau.pdf` — hàng bảng LẶP qua ranh giới trang | **4 hàng trùng lặp** (đo, không phải 0 giả định — xem 2.1) |
-| `bieumau_bctc_hopnhat.pdf` — không chunk lẫn mã cột đầu hàng khác | **BUG THẬT, 2 hàng lẫn** (`xfail(strict=True)`, không phải lỗi thước đo — xem 2.2) |
+| `bieumau_bctc_hopnhat.pdf` — không chunk lẫn mã cột đầu hàng khác | **BUG THẬT, 2 hàng lẫn → ĐÃ VÁ 2026-09-04**, còn 2 hàng đỏ vì lý do KHÁC (`xfail(strict=True)` vẫn giữ — xem 2.2 mục "Vá sau nghiệm thu") |
 | 6 tệp PDF luật thật (`d:/Documents/luat-*.pdf`, 372 trang) — byte-identical trên trang KHÔNG bảng | **6/6 tệp khớp 100%** đối chiếu trực tiếp với `parse_pdf` bản TRƯỚC B4 (xem 2.3) |
 | tiền đề "683/683 trang PDF luật không bảng" trên corpus HIỆN CÓ | **KHÔNG khớp** — 4/6 tệp luật thật có bảng thật (phụ lục danh mục); xem 2.3 |
 | test suite mặc định | 2327 passed, 1 skipped, 77 deselected → **2327 passed, 1 skipped, 81 deselected** (không đổi — 4 test mới đều `-m live`, không vào suite nhanh) |
@@ -486,6 +486,42 @@ là bug thật, có thể là thước đo sai — đừng nới lỏng phép so
   số rỗng") trước khi merge nếu chủ dự án muốn đóng B4 mà không mang theo bug này — quyết định của
   controller, không tự vá đơn phương trong task nghiệm thu.
 
+#### Vá sau nghiệm thu (2026-09-04, fix round riêng — vẫn còn xfail, CHƯA đóng hoàn toàn)
+
+Fix round đã đổi đúng thứ tự nhánh như dự đoán ở trên: `split_header_body` giờ kiểm "có ô số liệu
+thuần → thân" TRƯỚC "đa số ô rỗng → header" (nhánh đánh số cột `is_column_index_row` vẫn kiểm đầu
+tiên, không đổi). Viết test đơn vị mới (`test_split_header_body_bang_thua_hang_than_nhieu_o_rong_van_vao_than`
+trong `test_pdf_table.py`) mô phỏng đúng ca bảng thưa 5 cột (2/5 ô có giá trị) — xác nhận FAIL trên
+code cũ trước khi sửa, PASS sau khi sửa. Toàn bộ 16 test gốc của Task 1 vẫn PASS (đúng dự đoán ở
+trên: không ca nào trong fixture cũ vừa có ô số liệu thuần vừa đa số ô rỗng cùng lúc).
+
+**Đo lại trên chính `bieumau_bctc_hopnhat.pdf`, đối chiếu TRƯỚC/SAU cùng file** (đổi code qua lại,
+không đổi gì khác):
+
+| phép đo | TRƯỚC vá | SAU vá |
+|---|---|---|
+| Tổng số chunk | 1678 | 1719 (+41) |
+| Tổng số hàng bảng (`" \| "` trong chunk_text) | 1106 | 1147 (+41 — hàng thân thật trước đây bị nuốt vào header giờ tách ra đúng thành hàng riêng) |
+| Prefix cột dài >60 ký tự lặp lại >5 lần trong TOÀN tài liệu (proxy gần đúng cho "tên cột rác dồn nhiều nhãn") | 15 mẫu, tổng 473 lượt | 12 mẫu, tổng 310 lượt |
+| Trong đó: mẫu MANG DẤU HIỆU RÕ của bug gốc (nhãn của NHIỀU dòng dữ liệu không liên quan dồn thành một prefix, ví dụ `"TÀI SẢN A – TÀI SẢN NGẮN HẠN I. Tiền và các khoản tương đươn"` 37 lượt, `"1. Chi phí sản xuất, kinh doanh dở dang dài hạn 2. Chi phí x"` 67 lượt, `"CHỈ TIÊU I. Lưu chuyển tiền từ hoạt động kinh doanh 1. Tiền"` 53 lượt, + 2 mẫu khác) | **5 mẫu, 260 lượt** | **0 mẫu — biến mất hoàn toàn** |
+| Test tự kiểm `test_bctc_khong_chunk_nao_lan_ma_cot_dau_hang_khac` (assert `lan == []`) | 2 chunk lẫn: cột 2 chứa `"251 252 260 261 262 263: 280"` — 6 mã số của 6 hàng cân đối tài sản KHÁC NHAU dồn vào MỘT ô | vẫn 2 chunk đỏ, nhưng cột 2 giờ ĐÚNG (chỉ `"280"`, `"440"` — một giá trị) — 2 chunk còn lại là hàng TỔNG CỘNG có NHÃN (cột 1) chứa công thức tham chiếu hợp lệ `"(280 = 100 + 200)"`/`"(440 = 300 + 400)"`, không phải lẫn hàng |
+
+Kết luận đo được: **cơ chế bug gốc đã đóng** — không còn chunk nào có nhiều mã số của nhiều hàng
+khác nhau dồn vào một cột, 5/5 mẫu prefix rác đặc trưng cho garbage-header-merge đã biến mất. Nhưng
+test tự kiểm ban đầu (viết ở Task 5, phép so sánh cứng `assert lan == []`) vẫn đỏ vì MỘT nguyên nhân
+KHÁC, hẹp hơn nhiều: quy tắc đếm "cột đầu có >1 số liệu là nghi lẫn hàng" không phân biệt được "công
+thức tham chiếu hợp lệ trong ngoặc ở nhãn hàng TỔNG CỘNG" với "mã số lẫn từ hàng khác" — CHƯA xác
+định chắc chắn đây là lỗi thước đo (giống lớp lỗi `": "` đã sửa ở Step 4) hay dấu hiệu của một bug
+CÒN LẠI khác (ví dụ cột bị lệch 1 vị trí đúng tại hàng TỔNG CỘNG). Theo đúng chỉ dẫn của fix round
+này: **KHÔNG gỡ `xfail`, KHÔNG tự ý sửa thước đo lần nữa** — giữ nguyên `xfail(strict=True)` với lý
+do cập nhật đầy đủ số liệu trên, để controller quyết định bước tiếp theo (sửa test hay điều tra thêm
+`split_header_body`/`column_names` cho đúng ca hàng TỔNG CỘNG).
+
+Không hồi quy: `pytest tests/rag/test_pdf_table.py -v` → 17 passed (16 gốc + 1 mới); `pytest
+tests/rag/test_pdf_kho_that.py -v -m live` → 3 passed, 1 xfailed (3 test còn lại — 100 hoá đơn, ssc
+checksum, ssc trùng lặp — không đổi); `pytest -m "not integration and not live" -q` → 2328 passed
+(tăng đúng 1 so với 2327 trước đó — test đơn vị mới không phải `-m live`), 1 skipped, 81 deselected.
+
 ### 2.3 Tiền đề "683/683 trang PDF luật không bảng" KHÔNG khớp corpus hiện có — nhưng bất biến an toàn thật vẫn đứng vững
 
 `d:/Youdoo/tmp-docs` hiện KHÔNG còn tệp `.pdf` nào tên "luật" (thư mục gitignore, nội dung đổi theo
@@ -544,11 +580,14 @@ trực tiếp, không chỉ suy luận từ số 0 bảng.
 ### Đã biết, cần controller quyết định (không phải bỏ sót)
 
 - **`split_header_body` nuốt hàng thân vào header trên bảng biểu mẫu THƯA** (mục 2.2) — bug thật,
-  chưa vá, đánh dấu `xfail(strict=True)` trong `test_pdf_kho_that.py`. Ảnh hưởng ước lượng ~79/1106
-  hàng bảng của RIÊNG `bieumau_bctc_hopnhat.pdf`; chưa đo trên tài liệu khác có cùng đặc điểm "biểu
-  mẫu chưa điền" (nếu corpus mở rộng có thêm loại này, cần đo lại). Hướng sửa khả dĩ: đổi thứ tự
-  kiểm nhánh 2/3, hoặc thêm điều kiện ưu tiên nhánh 3 khi CHÍNH hàng đang xét có ô số liệu thuần dù
-  đa số ô khác rỗng — cả hai đều cần fix round + re-test đầy đủ 16 ca Task 1 trước khi merge.
+  **ĐÃ VÁ 2026-09-04** (đổi thứ tự nhánh 2/3, xem "Vá sau nghiệm thu" ở mục 2.2): cơ chế gốc (nhiều
+  mã số của nhiều hàng khác nhau dồn vào một cột) đã biến mất, 5 mẫu prefix rác đặc trưng cho bug
+  này (473 lượt) không còn xuất hiện. **Còn lại, CHƯA đóng hoàn toàn**: `xfail(strict=True)` vẫn giữ
+  vì test tự kiểm gốc còn 2 chunk đỏ do MỘT nguyên nhân KHÁC — nhãn hàng TỔNG CỘNG chứa công thức
+  tham chiếu hợp lệ (`"(280 = 100 + 200)"`) khiến quy tắc đếm "cột đầu >1 số liệu = nghi lẫn" báo
+  sai; chưa xác định đây là lỗi thước đo hay bug thật khác — để controller quyết định bước tiếp
+  theo. Chưa đo trên tài liệu khác có cùng đặc điểm "biểu mẫu chưa điền" (nếu corpus mở rộng có thêm
+  loại này, cần đo lại).
 - **`ssc_bieumau.pdf` — 4 hàng bảng lặp qua ranh giới trang** (mục 2.1) — giới hạn CHẤP NHẬN, không
   cần vá, chỉ đo (đã có tiền lệ chấp nhận biến thể mất-hàng ở B3/B4).
 - **Tiền đề "683 trang PDF luật" trong 2 spec cũ (`2026-08-29-tang-nap-tai-lieu.md`,

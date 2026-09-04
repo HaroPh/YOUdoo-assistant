@@ -78,6 +78,31 @@ def test_split_header_body_mot_hang_duy_nhat_khong_tin_hieu_so_van_thanh_than():
     assert dung_mac_dinh is True
 
 
+# Bảng biểu mẫu THƯA thật (bieumau_bctc_hopnhat.pdf) — mọi hàng thân chỉ có
+# nhãn + mã số điền (2/5 ô), ba cột số tiền để TRỐNG (form chưa điền). Đây
+# đúng ca đo được ~79/1106 hàng bị lẫn cột do split_header_body nuốt hàng
+# thân vào header (bug tìm ra khi nghiệm thu Task 5, xem ghi chú thực thi).
+_BANG_THUA = [
+    ["", "Thuyết", "Số cuối", "kỳ", "Số đầu kỳ"],
+    ["TÀI SẢN", None, None, None, None],
+    ["1", "2", "3", "4", "5"],                       # hàng đánh số cột
+    ["I. Tiền", "100", None, None, None],            # hàng thân THƯA (2/5 ô)
+    ["1. Tiền mặt", "111", None, None, None],        # hàng thân THƯA (2/5 ô)
+]
+
+
+def test_split_header_body_bang_thua_hang_than_nhieu_o_rong_van_vao_than():
+    # Bug thật (đo 2026-09-04): nhánh "đa số ô rỗng → header" kiểm TRƯỚC
+    # nhánh "có ô số liệu thuần → thân" nuốt MỌI hàng thân thật của bảng
+    # biểu mẫu thưa vào header, vì các hàng đó có >50% ô rỗng. Ưu tiên tín
+    # hiệu số liệu thuần TRƯỚC mới phân đúng — hàng có mã số ('100', '111')
+    # phải vào THÂN dù đa số ô khác rỗng.
+    header, body, dung_mac_dinh = split_header_body(_BANG_THUA)
+    assert header == _BANG_THUA[:3]
+    assert body == _BANG_THUA[3:]
+    assert dung_mac_dinh is False
+
+
 def test_column_names_ghep_nhieu_dong_bo_qua_hang_danh_so_cot():
     # header trả về từ split_header_body của _BANG_BCTC ở Step 6 — GỒM CẢ
     # hàng đánh số cột ['1','2','3'] (nó thuộc header, không thuộc thân).
