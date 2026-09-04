@@ -83,6 +83,152 @@ def heading_level(text: str) -> int | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Suy phân cấp cho .docx — spec 2026-09-04
+#
+# Vì sao KHÔNG nới `heading_level()` ở trên: nó đang phục vụ corpus LUẬT và đã
+# hiệu chỉnh kỹ (nhánh `Điều` từng bị siết vì sinh 15 mục là mảnh câu). Nới nó
+# ra là rủi ro hồi quy trên đường đang chạy tốt, để chữa một đường khác. Ở đây
+# dùng LẠI các regex của nó nhưng xếp thứ tự kiểm khác và thêm mẫu hành chính.
+#
+# Thang RỘNG HƠN thang 1-5 của `heading_level()` để chèn được các tầng hành
+# chính vào giữa. `chunk_text_blocks` chỉ so cấp bằng `>=` nên thang không cần
+# liền mạch. Số ở đây là ĐỀ XUẤT, hiệu chỉnh ở Task 4.
+DOCX_LEVEL = {
+    "phan": 5,
+    "chuong": 10,
+    "upper": 20,
+    "muc": 30,
+    "roman": 35,
+    "letter": 38,
+    "dieu": 40,
+    "arabic": 45,
+    "multi": 50,
+}
+
+# Cấp của style Word (`Heading 1..9`) nhân với hệ số này để về CÙNG thang.
+# Dùng thô là sai: `Heading 2` sẽ thành cấp 2, cao hơn cả `phan` (5) lẫn
+# `chuong` (10), và hất sạch mọi thứ phía trên nó.
+STYLE_SCALE = 10
+
+_PHAN_RE = re.compile(r"^\s*PHẦN\s+\S", re.IGNORECASE)
+
+# Một dòng mở đầu bằng ký hiệu đánh số TRẦN: "I.", "A.", "12.", "3)".
+# `\s+\S` bắt buộc có khoảng trắng rồi mới tới nội dung — nhờ đó
+# "5.000.000 đồng" không khớp (sau dấu chấm là chữ số, không phải khoảng trắng).
+_ENUM_RE = re.compile(r"^\s*([A-ZĐ]+|\d{1,2})\s*[.)]\s+\S")
+
+# Mục đánh số ĐA CẤP: "12.1", "3.2.1". Dùng để lấy TIỀN TỐ làm bằng chứng cho
+# mục cha ("12." là tiêu đề vì "12.1" tồn tại).
+_MULTI_RE = re.compile(r"^\s*(\d{1,2})\.\d{1,2}")
+
+_ROMAN_VALUE = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+
+
+def _roman_to_int(token: str) -> int | None:
+    """Giá trị của một số La Mã, hoặc None nếu không phải số La Mã."""
+    if not token or any(c not in _ROMAN_VALUE for c in token):
+        return None
+    total = 0
+    highest = 0
+    for char in reversed(token):
+        value = _ROMAN_VALUE[char]
+        total = total - value if value < highest else total + value
+        highest = max(highest, value)
+    return total or None
+
+
+def _has_consecutive(numbers: set[int]) -> bool:
+    """Tập có chứa hai số KẾ TIẾP NHAU không (n và n+1).
+
+    Đây là "bằng chứng" của một họ đánh số: một tài liệu có `I.` rồi `II.` thì
+    họ La Mã là thật; một `I.` đứng một mình có thể chỉ là chữ cái lạc.
+    Nói về THỨ TỰ ĐÁNH SỐ, không phải khoảng cách dòng."""
+    return any(n + 1 in numbers for n in numbers)
+
+
+def _collect_evidence(texts: list[str]) -> tuple[bool, bool, bool, set[int]]:
+    """Bằng chứng đánh số mà CHÍNH tài liệu đưa ra.
+
+    Trả `(roman_ok, letter_ok, arabic_ok, multi_parents)`.
+
+    Một token một ký tự như "I" được tính vào CẢ họ La Mã lẫn họ chữ cái; việc
+    nó thuộc họ nào do bằng chứng quyết định sau, không đoán trước.
+    """
+    romans: set[int] = set()
+    letters: set[int] = set()
+    arabics: set[int] = set()
+    parents: set[int] = set()
+
+    for text in texts:
+        multi = _MULTI_RE.match(text)
+        if multi:
+            parents.add(int(multi.group(1)))
+            continue
+        found = _ENUM_RE.match(text)
+        if not found:
+            continue
+        token = found.group(1)
+        if token.isdigit():
+            arabics.add(int(token))
+            continue
+        value = _roman_to_int(token)
+        if value is not None:
+            romans.add(value)
+        if len(token) == 1:
+            letters.add(ord(token))
+
+    return (_has_consecutive(romans), _has_consecutive(letters),
+            _has_consecutive(arabics), parents)
+
+
+def _docx_level(text: str, roman_ok: bool, letter_ok: bool,
+                arabic_ok: bool, parents: set[int]) -> int | None:
+    """Cấp của MỘT dòng, với bằng chứng của cả tài liệu đã tính sẵn.
+
+    THỨ TỰ KIỂM quan trọng: nhánh đánh số phải đứng TRƯỚC nhánh dòng IN HOA
+    của `heading_level()`. Nếu không, "II. CÁ NHÂN CƯ TRÚ" (in hoa) ra cấp
+    khác "I. Đặc điểm hoạt động" (thường) dù cùng một họ, và stack breadcrumb
+    lồng sai.
+    """
+    found = _ENUM_RE.match(text)
+    if found:
+        token = found.group(1)
+        if token.isdigit():
+            number = int(token)
+            if number in parents or arabic_ok:
+                return DOCX_LEVEL["arabic"]
+            return None
+        if roman_ok and _roman_to_int(token) is not None:
+            return DOCX_LEVEL["roman"]
+        if letter_ok and len(token) == 1:
+            return DOCX_LEVEL["letter"]
+        # Có đánh số nhưng tài liệu không đưa ra bằng chứng nào — rơi xuống
+        # các nhánh dưới thay vì đoán bừa.
+
+    if _PHAN_RE.match(text):
+        return DOCX_LEVEL["phan"]
+
+    shared = heading_level(text)
+    if shared is None:
+        return None
+    return {1: DOCX_LEVEL["chuong"], 2: DOCX_LEVEL["upper"],
+            3: DOCX_LEVEL["muc"], 4: DOCX_LEVEL["dieu"],
+            5: DOCX_LEVEL["multi"]}[shared]
+
+
+def docx_heading_levels(texts: list[str]) -> list[int | None]:
+    """Cấp tiêu đề cho từng dòng của MỘT tài liệu .docx, hoặc None.
+
+    Nhận cả tài liệu chứ không chấm từng dòng độc lập, vì quy tắc "đánh số
+    trần phải tự chứng minh" (spec mục 5) cần bằng chứng ở phạm vi tài liệu.
+    Nhận `list[str]` chứ KHÔNG nhận đối tượng docx — module giữ nguyên tính
+    lá thuần, và test không cần tệp thật.
+    """
+    roman_ok, letter_ok, arabic_ok, parents = _collect_evidence(texts)
+    return [_docx_level(t, roman_ok, letter_ok, arabic_ok, parents)
+            for t in texts]
+
 
 _DIGITS_RE = re.compile(r"\d+")
 
