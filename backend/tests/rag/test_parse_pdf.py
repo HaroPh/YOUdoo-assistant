@@ -291,3 +291,107 @@ def test_trang_co_bang_phu_het_thi_dong_van_xuoi_pypdf_bien_mat(monkeypatch):
     assert van_xuoi == [], (
         "trang có bảng phủ hết trang vẫn còn dòng văn xuôi từ pypdf — "
         "gate 'chỉ chạm trang có bảng' không có tác dụng đo được")
+
+
+# ── Fix review: detect_page_furniture không được lệch bởi tài liệu HỖN HỢP ───
+# Finding (Important, controller xác nhận thật): trước fix, `pages` truyền vào
+# detect_page_furniture() dùng dải-text pdfplumber cho trang có bảng nhưng
+# pypdf cho trang không bảng — hai đường tách dòng khác nhau đủ để một dòng
+# furniture thật (header/footer lặp lại) bị đếm lệch tần suất/vị-trí-rìa, đổi
+# TẬP FURNITURE CỦA CẢ TÀI LIỆU, kể cả ảnh hưởng tới trang KHÔNG bảng — dù bản
+# thân trang đó không đổi gì trong đường trích của chính nó. Test `_khong_bang`
+# (toàn tài liệu 0 bảng) không bắt được vì nó không bao giờ tạo `pages` KHÔNG
+# ĐỒNG NHẤT. Test này dựng đúng tình huống đó: tài liệu vừa có trang bảng vừa
+# có trang văn xuôi thuần (dạng bieumau_bctc_hopnhat.pdf).
+class _FakeBangNho:
+    """Bảng giả NHỎ, bbox chỉ chiếm dải trên cùng trang (không phủ hết) — mô
+    phỏng trang bảng THẬT trong tài liệu hỗn hợp, khác _FakeBangToanTrang."""
+    def __init__(self, bbox):
+        self.bbox = bbox
+
+    def extract(self):
+        return []
+
+
+class _FakePlumberPageHonHop:
+    """Trang giả CÓ bảng nhỏ ở đầu trang — dải-text (dùng để BUILD BLOCK) chỉ
+    trả dòng nội dung, CHỦ Ý không mang dòng furniture, mô phỏng đúng lệch trích
+    giữa pypdf và pdfplumber đã gây ra finding: nếu detect_page_furniture nhận
+    nhầm dải-text này thay vì pypdf toàn trang, dòng furniture sẽ KHÔNG được
+    đếm trên các trang này, tụt dưới ngưỡng page_ratio và mất tác dụng lọc
+    trên CẢ các trang không bảng."""
+    width, height = 100, 100
+
+    def __init__(self, dong_noi_dung):
+        self._dong_noi_dung = dong_noi_dung
+        self._bang = _FakeBangNho((10, 0, 90, 20))  # dải bảng: y 0..20
+
+    def find_tables(self, table_settings=None):
+        return [self._bang] if table_settings is None else []
+
+    def within_bbox(self, bbox, relative=False):
+        return self
+
+    def extract_text(self):
+        # Dùng chung cho MỌI within_bbox() (kể cả bbox của chính bảng khi
+        # _trich_mot_bang gọi) lẫn dải y=20..100 khi parse_pdf dựng dai_lines
+        # — chỉ dải DƯỚI bảng (y>20) mới sinh ra dòng khác rỗng trong thực tế
+        # (dải TRÊN bảng, y=0..0, bị loại vì y1>y0 sai ở parse_pdf), nên fake
+        # đơn giản hoá: luôn trả về ĐÚNG nội dung không-furniture.
+        return self._dong_noi_dung
+
+
+class _FakePlumberPDFHonHop:
+    def __init__(self, plumber_pages):
+        self.pages = plumber_pages
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_trang_khong_bang_van_duoc_loc_furniture_dung_trong_tai_lieu_hon_hop(monkeypatch):
+    import pypdf
+    import pdfplumber
+    from src.rag import parse
+
+    FURNITURE = "CONFIDENTIAL - Internal Use Only"
+    # QUAN TRỌNG: nội dung mỗi trang phải khác nhau ở CHỮ, không chỉ ở CHỮ SỐ —
+    # _normalize_digits() gộp "Điều 1. ..." và "Điều 2. ..." thành cùng một
+    # khoá "Điều #. ..." nếu chỉ số khác nhau, khiến chính nội dung thân bài
+    # cũng bị hiểu nhầm là furniture (giả dương tính riêng của fixture, không
+    # phải lỗi cần test ở đây) — dùng câu khác hẳn nhau cho mỗi trang.
+    NOI_DUNG = {
+        1: "Nội dung mở đầu của trang một.",
+        2: "Thông tin chi tiết trang hai.",
+        3: "Đoạn văn kết thúc trang ba.",
+        4: "Diễn giải số liệu trang bốn.",
+        5: "Ghi chú bổ sung trang năm.",
+        6: "Kết luận cuối trang sáu.",
+    }
+    n_pages = 6
+    # Trang 1-3: KHÔNG bảng. Trang 4-6: CÓ bảng nhỏ ở đầu trang.
+    pypdf_texts = [f"{FURNITURE}\n{NOI_DUNG[i]}" for i in range(1, n_pages + 1)]
+    fake_reader = _FakeReader(pypdf_texts)
+    plumber_pages = (
+        [_FakePlumberPage() for _ in range(3)]
+        + [_FakePlumberPageHonHop(NOI_DUNG[i]) for i in range(4, n_pages + 1)])
+    monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake_reader)
+    monkeypatch.setattr(pdfplumber, "open",
+                        lambda path: _FakePlumberPDFHonHop(plumber_pages))
+
+    blocks, _ = parse.parse_pdf("hon_hop.pdf")
+
+    khong_bang_texts = [b["text"] for b in blocks if b["page"] in (1, 2, 3)]
+    assert FURNITURE not in khong_bang_texts, (
+        "dòng furniture lặp lại vẫn còn trong output của trang KHÔNG bảng — "
+        "tập furniture bị trang CÓ bảng trong cùng tài liệu làm lệch "
+        "(detect_page_furniture nhận nhầm đầu vào dải-text thay vì pypdf "
+        "toàn trang cho trang có bảng)")
+    # Sanity: nội dung thật của các trang không bảng vẫn còn nguyên, không bị
+    # lọc oan theo furniture.
+    assert NOI_DUNG[1] in khong_bang_texts
+    assert NOI_DUNG[2] in khong_bang_texts
+    assert NOI_DUNG[3] in khong_bang_texts

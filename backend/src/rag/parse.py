@@ -464,13 +464,24 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
     all_warnings: list[tuple[str, str]] = []
     with pdfplumber.open(path) as pdf:
         pages: list[list[str]] = []
+        # Đầu vào RIÊNG cho detect_page_furniture — LUÔN pypdf toàn trang, kể
+        # cả trang có bảng. `pages` (build block) dùng dải-text pdfplumber cho
+        # trang có bảng, khác cách tách dòng của pypdf; nếu detect_page_furniture
+        # nhận thẳng `pages`, một dòng furniture thật trích lệch chút giữa hai
+        # đường có thể đổi tần suất/vị-trí-rìa của nó và lệch tập furniture của
+        # CẢ TÀI LIỆU — kể cả ảnh hưởng tới trang KHÔNG bảng, dù trang đó không
+        # đổi gì trong đường trích của chính nó (review Task 2, tài liệu hỗn hợp
+        # dạng bieumau_bctc_hopnhat.pdf mới lộ ra, test đồng nhất không bắt được).
+        pages_cho_furniture: list[list[str]] = []
         page_bangs: list[list] = []
         for pageno, page in enumerate(reader.pages, start=1):
+            text_toan_trang = _lines_tu_text(page.extract_text() or "")
+            pages_cho_furniture.append(text_toan_trang)
             plumber_page = pdf.pages[pageno - 1]
             bangs = sorted(plumber_page.find_tables(), key=lambda b: b.bbox[1])
             page_bangs.append(bangs)
             if not bangs:
-                pages.append(_lines_tu_text(page.extract_text() or ""))
+                pages.append(text_toan_trang)
                 continue
             width, height = plumber_page.width, plumber_page.height
             y_bien = [0.0] + [y for b in bangs for y in (b.bbox[1], b.bbox[3])] + [height]
@@ -482,7 +493,7 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                     dai_lines.extend(_lines_tu_text(dai.extract_text() or ""))
             pages.append(dai_lines)
 
-        furniture = detect_page_furniture(pages)
+        furniture = detect_page_furniture(pages_cho_furniture)
         blocks: list[dict] = []
         for pageno, lines in enumerate(pages, start=1):
             plumber_page = pdf.pages[pageno - 1]
