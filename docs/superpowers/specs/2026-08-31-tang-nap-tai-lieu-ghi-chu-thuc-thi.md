@@ -213,3 +213,124 @@ Task 5 (nghiệm thu trên 81 sheet thật) đo ra `dung=17, sai=6, canh_bao=21`
 - **`DV` vẫn KHÔNG dò đúng**, chỉ lùi về `None` an toàn — khái niệm "nhiều bảng trong một sheet" chưa có thiết kế, cổng hiện tại chỉ là lời nhận-không-biết.
 - **Nợ `isinstance(v, (int, float)) → True`** trong `_looks_like_column_index` (nhánh lỏng) — một hàng dữ liệu toàn số PHÂN BIỆT vẫn có thể bị tiêu chí tỉ lệ nhận nhầm là hàng đánh số cột; giữ có chủ đích (bỏ toàn cục làm 2 sheet thật rời hàng tiêu đề đúng), đã khoá bằng assert.
 - **Khuyến nghị tái cấu trúc `_score_row` / gộp hai predicate `_looks_like_column_index`/`_looks_like_index_symbol`** — final review toàn nhánh tự đặt câu hỏi kiến trúc và tìm bằng chứng CỤ THỂ của "vá chồng vá": hai predicate gần giống hệt, khác biệt CHỈ nằm trong docstring chứ không nằm ở tên/chữ ký, và chính sự nhầm lẫn này đã gây MỘT hồi quy thật (nhãn năm dạng số bị chấm 0 điểm dứt khoát ở vòng sửa 2, đã fix ở fix round kế tiếp — mục 2.2). `_score_row` tích luỹ 5 cổng loại trừ tuần tự qua các vòng, if-chain đang phình. **ĐÃ PARK có chủ ý** ở fix wave này (không phải bỏ sót) — controller ruling: đây là quy trình CHỈ MỘT fix wave, một tái cấu trúc thật (không phải dòng an toàn) mà chỉ được đúng một lượt re-review scoped để bắt hồi quy là rủi ro không tương xứng, nhất là khi tệp này đã có tiền lệ hồi quy tinh vi từ refactor tưởng an toàn. Ghi lại làm khuyến nghị sẵn sàng thực thi khi có vòng sửa 3 (đo 58 sheet còn lại) hoặc lý do thật khác để chạm lại file — đây chính là điều mục "Sau khi xong kế hoạch này" của kế hoạch cần người thực thi việc tương lai biết trước khi bắt đầu.
+
+---
+
+# Tầng nạp tài liệu — ghi chú thực thi kế hoạch 3
+
+**Ngày**: 2026-09-04. **Nhánh**: `worktree-tang-nap-tai-lieu-1`.
+**Spec**: `2026-09-04-b3-word-phan-cap-design.md` · **Kế hoạch**: `plans/2026-09-04-b3-word-phan-cap.md`
+**Ledger**: `.superpowers/sdd/2026-09-04-b3-word-phan-cap/progress.md`
+
+Ghi lại khó khăn, hướng đã chọn, và giới hạn còn lại của đợt B3 (Word suy phân cấp từ chữ) — kể cả
+giả thuyết bị số đo bác bỏ. Nối tiếp phần Kế hoạch 1-2 ở trên. Sửa lỗi 3 trong bảng bốn lỗi của
+`2026-08-29-tang-nap-tai-lieu.md` mục 5.3: `parse_docx` chỉ nhận tiêu đề qua style Word nên tài
+liệu không dùng style (0/10 biểu mẫu BCTC thật) mất sạch breadcrumb, và tệ hơn — breadcrumb rỗng đó
+từng lùi về ĐƯỜNG DẪN TỆP, nhúng thẳng vào vector embedding của mọi chunk.
+
+## 1. Kết quả
+
+| | trước | sau |
+|---|---|---|
+| test suite mặc định | 2283 passed, 1 skipped, 74 deselected | **2304 passed, 1 skipped, 76 deselected** |
+| `b09-dn.docx` — chunk dính đường dẫn tệp làm breadcrumb | **74/74** | **0/109** |
+| `b09-dn.docx` — chunk có breadcrumb thật | 0 (mọi breadcrumb đều là đường dẫn) | **108/109** |
+| nghiệm thu 12 tệp Word thật (`.docx` + `.doc`) | chưa có | cổng cứng ĐẠT — 0/191 chunk toàn corpus dính đường dẫn |
+
+## 2. Khó khăn đã gặp
+
+### 2.1 Chỉ dẫn phép thử phá của controller đủ mơ hồ để một cách đọc hợp lý không đỏ (Task 1)
+
+Reviewer dựng lại đột biến Step 6 theo ba cách đọc hợp lý khác nhau của cùng một câu chỉ dẫn: một
+cách **không đỏ** (đặt khối enum trước `if shared is None`), một cách đỏ nhưng **sai lý do** (đặt
+sau `return None`, đỏ vì return sớm chứ không vì thứ tự kiểm), và một cách đỏ **đúng lý do** (đột
+biến "tự nhiên" — `heading_level` thắng, enum là dự phòng — ra `[35, 20]` khớp đúng docstring). Số
+báo cáo ban đầu của implementer không tái lập được bằng bất kỳ cách đọc nào — nghi là chép sai báo
+cáo, không phải bịa. Ruling: KHÔNG mở fix round — tính chất cần chứng minh (thứ tự kiểm là cần
+thiết) đã được một nguồn nghiêm ngặt hơn (reviewer tự dựng) xác nhận bằng số cụ thể khớp docstring;
+chạy lại qua implementer không thêm thông tin. Sửa CHỈ DẪN trong plan cho hết mơ hồ thay vì chạy
+lại người.
+
+### 2.2 Đáp án nền cho Task 4 phải đo trước khi giao việc, không suy từ spec
+
+Controller tự đo cổng cứng số 1 trên `b09-dn.docx` thật (không chỉ tin diff) trước khi dispatch
+Task 4, cấp sẵn con số `109 chunk / 0 dính đường dẫn / 108 có breadcrumb` cho implementer đối chiếu
+thay vì để họ đo lại từ đầu — tránh lãng phí một lượt đo trùng và cho một điểm neo độc lập để phát
+hiện lệch ngay nếu môi trường implementer khác đi.
+
+### 2.3 Brief Task 4 tự mâu thuẫn với chính tiêu đề của nó: "12 tệp" nhưng code mẫu chỉ lọc `.docx`
+
+Mẫu code trong brief (`_tep_docx()`) lọc đúng đuôi `.docx`, nhưng kho `tmp-docs/` có 11 tệp `.docx`
++ 1 tệp `.doc` (`quyche_taichinh.doc`) — dùng nguyên mẫu chỉ nghiệm thu được 11/12 tệp, và bỏ lọt
+đúng ca kiểm cầu chuyển đổi LibreOffice mà spec mục 12 nêu tên minh thị ("`quyche_taichinh.doc` đi
+qua cầu LibreOffice trước khi tới `parse_docx`, nên nó cũng gián tiếp kiểm đường chuyển đổi của kế
+hoạch 1"). Implementer Task 4 tự phát hiện khi đối chiếu số tệp trong thư mục với con số "12" ở
+tiêu đề task, sửa test để gồm cả `.doc` (chuyển qua `convert.convert_file` trước `parse_docx`,
+đúng khuôn `read_path`/`source_file` tách rời của `ingest._chunks_for`/`_ingest_convertible`).
+Không cần sửa gì ở `convert.py`/`ingest.py` — chỉ test tự lo phần chuyển đổi bằng cách gọi lại đúng
+hàm production đã có sẵn.
+
+## 3. Giả thuyết bị số đo bác bỏ
+
+- **"Hàm dò chữ có sẵn (`heading_level()`) là đủ, chỉ cần nối vào docx"** — SAI, đo ra `B09a-DN`
+  vẫn 0/28 tiêu đề dò được (spec mục 1). Giả thuyết đầu tiên của thiết kế, bị chính số đo bác trước
+  khi viết code.
+- **"Ba biến thể roman/letter khác nhau sẽ tách bạch được thang cấp đúng"** (Task 4 Step 3) — không
+  hẳn SAI nhưng **không xác nhận được**: đo cả 12 tệp thật với `roman/letter` đặt ở ba vị trí khác
+  nhau trong thang (35/38 hiện tại, 22/25 sát `upper`, 42/43 dưới `Điều`) cho **CHÍNH XÁC cùng một
+  con số** (191 chunk, 182 breadcrumb) ở cả ba biến thể. Truy nguyên: họ `letter` (`A.`/`B.`)
+  **không xuất hiện lần nào** trong 12 tệp thật, và họ `roman` chỉ xuất hiện ở 2 tệp mà cả hai đều
+  không đồng thời có tiêu đề cấp `Điều` — nên không tài liệu nào từng tạo ra một cặp cha-con thật
+  để thang cấp phải phân xử. Dải phẳng đúng cách kế hoạch 2 đã chốt `SCAN_LIMIT`: **giữ nguyên đề
+  xuất** (`roman=35, letter=38`), không đổi `parse.py`.
+- **Ngầm định "mẫu số trần (`arabic_ok`) không có tác dụng phụ đáng kể"** — số đo phân bố chunk
+  (Task 4 Step 4) cho tín hiệu ngược: bật đầy đủ suy phân cấp làm chunk tăng từ 146 lên 191
+  (+31%), nhưng tắt riêng nhánh `arabic_ok` (chỉ giữ bằng chứng cha-con `n in parents`) thì chỉ còn
+  156 (+7% so với trước B3, kích thước trung vị 710 ký tự — gần khớp 726 của "trước"). Phần lớn
+  mức tăng chunk đến từ đúng nhánh spec mục 5 đã cảnh báo trước: mẫu số trần không có bằng chứng
+  cha-con (chỉ có "hai số trần kế tiếp ở cấp tài liệu") đang cắt `Điều`/mục thành khoản nhỏ hơn.
+  **Chưa áp phương án lùi** — đây là quyết định có hệ quả tới retrieval, để ngỏ chờ controller,
+  không phải một hằng số chỉnh cho đẹp (chỉ thị cứng #3 của brief Task 4).
+
+## 4. Hướng đã chọn, và vì sao
+
+| quyết định | vì sao |
+|---|---|
+| Lớp mẫu RIÊNG cho docx (`docx_heading_levels`), gọi `heading_level()` trước rồi mới thử mẫu mở rộng, KHÔNG nới `heading_level()` gốc | `heading_level()` đang phục vụ corpus luật đã hiệu chỉnh kỹ (nhánh `Điều` từng bị siết vì sinh mảnh câu) — nới nó ra là rủi ro hồi quy trên đường đang chạy tốt để chữa một đường khác. Đường luật không đổi một bit; cổng cứng số 2 của spec mục 10 xác nhận suite PDF giữ nguyên số. |
+| Đánh số trần (`I.`, `A.`, `1.`) chỉ tính là tiêu đề khi CHÍNH tài liệu đưa bằng chứng (hai mục kế tiếp cùng họ, hoặc có con mang cùng tiền tố) | Số trần một cấp là thứ văn bản luật cố tình loại vì đó là khoản — nhận bừa vỡ một `Điều` có 4 khoản thành 4 mảnh. Nhưng số đo Task 4 (mục 3 ở trên) cho thấy chính quy tắc bằng chứng này KHÔNG hoàn hảo — nhánh `arabic_ok` (bằng chứng yếu hơn: chỉ cần hai số trần kế tiếp, không cần con) vẫn để lọt một phần "cắt vụn" — ghi lại làm giới hạn đã biết, không phải khiếm khuyết mới phát sinh. |
+| Ánh xạ style Word `Heading N` → `N × STYLE_SCALE(10)`, không dùng cấp thô | Dùng thô thì `Heading 2` (cấp 2) cao hơn cả `PHẦN`(5) lẫn `Chương`(10), hất sạch mọi thứ phía trên nó — lỗi tìm được khi tự soát spec, không phải khi chạy, thuộc loại "hai thang số gặp nhau ở một chỗ không ai nhìn". |
+| `crumb` không lùi về `doc_title` khi rỗng; `doc_title` (cột riêng cho hiển thị/trích dẫn) lùi về BASENAME chứ không phải rỗng — LỆCH có chủ ý so với spec mục 8 (spec viết "phải rỗng") | Đọc code trước khi thực thi: `doc_title` là cột schema.sql riêng, `retrieve.py` SELECT ra để hiển thị, KHÔNG đi vào `index_text()`/`ts_vector` — tác hại nằm TRỌN ở `crumb`. Tách đôi giữ được nhãn trích dẫn đọc được (basename) mà vẫn đóng đúng lỗ hổng embedding (crumb rỗng thật). Đã nêu với chủ dự án trước khi bắt đầu, không phản đối. |
+| Task 4: mở rộng nghiệm thu sang cả `.doc` qua cầu LibreOffice, dù brief mẫu chỉ lọc `.docx` | Tiêu đề task và spec mục 12 đều nói "12 tệp" — kho thật có đúng 12 tệp Word (11 `.docx` + 1 `.doc`); dùng nguyên mẫu bỏ sót đúng ca kiểm cầu chuyển đổi mà spec đặt tên riêng. |
+| Task 4 Step 3: giữ nguyên `DOCX_LEVEL`, không đổi số dù đã thử 2 biến thể khác vị trí | Số đo ra dải phẳng tuyệt đối (3 biến thể, cùng 191/182 y hệt) — đổi số mà không có bằng chứng phân biệt là "chỉnh cho đẹp", đúng điều dự án đã tự cấm sau khi bỏ ngưỡng `đúng >= 20` ở kế hoạch 2. |
+| Task 4 Step 4: chỉ đo, không tự áp phương án lùi (bỏ nhánh `arabic_ok`) dù số đo có tín hiệu rõ | Đánh đổi có hệ quả tới retrieval (hình dạng chunk đem đi embed), không phải một cấu hình cục bộ — chỉ thị cứng của brief, và đúng tinh thần "đo trước, quyết sau" đã xuyên suốt cả ba kế hoạch. |
+
+## 5. Giới hạn còn lại
+
+### Đã biết, cần controller quyết định (không phải bỏ sót)
+
+- **Nhánh `arabic_ok` có dấu hiệu cắt vụn `Điều` thành khoản** — số đo ba dòng ở mục 3 trên. Phương
+  án lùi (bỏ `arabic_ok`, chỉ giữ bằng chứng `n in parents`) đã có sẵn trong spec nhưng KHÔNG được
+  tự áp dụng ở Task 4. Cần một quyết định rõ ràng + (nếu áp) một lượt đo lại 12 tệp thật để xác
+  nhận không mất ca đúng nào.
+- **Thang cấp `roman`(35)/`letter`(38) chưa từng được số đo THẬT xác nhận đúng vị trí** — dải phẳng
+  nghĩa là "chưa có bằng chứng SAI", không phải "đã có bằng chứng ĐÚNG". Riêng `letter` (`A.`/`B.`)
+  chưa xuất hiện lần nào trong 12 tệp thật hiện có; hiệu chỉnh này cần chờ kho mở rộng.
+
+### Chưa chạm tới / ngoài phạm vi (theo spec mục 11)
+
+- **Tín hiệu định dạng** (đậm, in hoa, căn giữa) từ python-docx — hoãn có chủ ý (phương án D, spec
+  mục 3). Mở lại chỉ nếu số đo sau khi mở rộng mẫu chữ cho thấy còn thiếu thật; 12 tệp thật hiện
+  tại chưa cho bằng chứng cần nó.
+- **Bảng trong `.docx` vẫn là THÂN, không bao giờ là tiêu đề** — B4 (PDF bóc bảng) không chạm tới
+  ca này; bảng docx là một khoảng trống thiết kế riêng, chưa có kế hoạch.
+- **Tách module riêng cho bộ dò docx** — quy mô hiện tại (4 mẫu + 1 quy tắc bằng chứng) chưa đáng
+  một module lá như `xlsx_header.py`. Nếu nó phình lên (ví dụ khi thêm tín hiệu định dạng) thì tách
+  sau.
+
+### Đại diện của kho thật
+
+- **12 tệp thật đều là biểu mẫu BCTC/quy chế** — không có tài liệu Word văn xuôi dài (hợp đồng, báo
+  cáo dài) trong kho. Mẫu hành chính có thể không đại diện cho loại đó; 8/12 tệp trong nghiệm thu
+  Task 4 thực chất chỉ có ĐÚNG MỘT tiêu đề (dòng tiêu đề tài liệu), tức không có phân cấp đa tầng
+  thật — "12/12 tài liệu có phân cấp" ở báo cáo Task 4 chỉ đúng theo định nghĩa "≥1 tiêu đề", dễ
+  đọc nhầm thành phân cấp sâu nếu không xem cột "tiêu đề" trong bảng chi tiết.
