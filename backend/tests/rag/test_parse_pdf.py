@@ -1,3 +1,29 @@
+class _FakePlumberPage:
+    """Giả trang `pdfplumber` KHÔNG có bảng nào — `find_tables()` rỗng."""
+    def find_tables(self, table_settings=None):
+        return []
+
+
+class _FakePlumberPDF:
+    def __init__(self, n_pages):
+        self.pages = [_FakePlumberPage() for _ in range(n_pages)]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _khong_bang(monkeypatch, n_pages=1):
+    """Monkeypatch `pdfplumber.open` để MỌI trang báo 'không có bảng' — dùng
+    cho các test hiện có, vốn chỉ kiểm logic heading/furniture trên pypdf,
+    không liên quan gì tới bảng."""
+    import pdfplumber
+    monkeypatch.setattr(pdfplumber, "open",
+                        lambda path: _FakePlumberPDF(n_pages))
+
+
 class _FakePage:
     def __init__(self, text):
         self._text = text
@@ -21,9 +47,11 @@ def test_parse_pdf_strips_nul_bytes_from_unmapped_glyphs(monkeypatch):
 
     fake = _FakeReader(["\x00 Verify the delivered supplies against the PO."])
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
+    _khong_bang(monkeypatch)
 
-    blocks = parse.parse_pdf("irrelevant.pdf")
+    blocks, warnings = parse.parse_pdf("irrelevant.pdf")
 
+    assert warnings == []
     assert len(blocks) == 1
     assert "\x00" not in blocks[0]["text"]
     assert blocks[0]["text"] == "Verify the delivered supplies against the PO."
@@ -40,7 +68,9 @@ def test_khoan_single_level_number_is_not_heading(monkeypatch):
         "1. Người nộp thuế có tiền thuế nợ quá 90 ngày kể từ ngày hết thời hạn nộp theo quy định."
     ])
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
-    blocks = parse.parse_pdf("x.pdf")
+    _khong_bang(monkeypatch)
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert warnings == []
     # Cấp 4 = "Điều" trong thang phân cấp (2026-08-20). Ghim số cụ thể
     # chứ không chỉ "is not None": đổi thang mà không ai hay thì
     # breadcrumb dựng sai âm thầm — đúng lớp lỗi thang phẳng đã gây ra.
@@ -55,7 +85,9 @@ def test_multilevel_numeric_heading_still_detected(monkeypatch):
     from src.rag import parse
     fake = _FakeReader(["1.1 Giới thiệu hệ thống\n3.2.1. Cấu hình chi tiết"])
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
-    blocks = parse.parse_pdf("x.pdf")
+    _khong_bang(monkeypatch)
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert warnings == []
     # Cấp 5 = sâu nhất: numbering đa cấp là mục con của Điều,
     # không phải anh em với nó.
     assert blocks[0]["heading_level"] == 5
@@ -69,7 +101,9 @@ def test_money_and_hs_code_lines_are_not_headings(monkeypatch):
     from src.rag import parse
     fake = _FakeReader(["5.000.000.000 đồng.\n2931.9080 77-81-6"])
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
-    blocks = parse.parse_pdf("x.pdf")
+    _khong_bang(monkeypatch)
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert warnings == []
     assert all(b["heading_level"] is None for b in blocks)
 
 
@@ -179,3 +213,81 @@ def test_heading_that_van_duoc_nhan(line):
 ])
 def test_tham_chieu_giua_cau_khong_phai_heading(line):
     assert not _HEADING_RE.match(line), f"{line!r} KHÔNG được là heading"
+
+
+# ── B4: pdfplumber cho trang có bảng (spec 2026-09-04-b4-pdf-bang) ───────────
+import os
+
+KHO = "d:/Youdoo/tmp-docs"
+
+
+@pytest.mark.live
+@pytest.mark.skipif(not os.path.isdir(KHO), reason="chưa có tmp-docs")
+def test_parse_pdf_bang_that_moi_hang_la_mot_block_atomic():
+    from src.rag.parse import parse_pdf
+    blocks, warnings = parse_pdf(os.path.join(KHO, "ssc_bieumau.pdf"))
+    bang_blocks = [b for b in blocks if b.get("atomic")]
+    assert bang_blocks, "phải có ít nhất 1 block bảng atomic"
+    # Mỗi block bảng tự mang tên cột — không phải chỉ số/giá trị trần.
+    assert any(":" in b["text"] for b in bang_blocks)
+    assert all(b["heading_level"] is None for b in bang_blocks)
+    # Đo thật 2026-09-04 (find_tables() từng trang, xem ghi chú thực thi):
+    # trang 1 có bảng TT đếm 1..4 liên mạch; trang 2-8 có bảng khác đánh số
+    # PHÂN CẤP ("1", "1.1", "1.2"...) — cột đầu KHÔNG toàn chữ số thuần nên
+    # checksum_gap() không áp dụng (im lặng đúng, không phải lỗ hổng). CẢ
+    # HAI trường hợp đã đo đều không sinh cảnh báo, nên warnings==[] đúng
+    # với 2 file mẫu đã đo — nếu implementer đo ra khác, SỬA assertion theo
+    # số thật, đừng ép về [] cho khớp dòng này.
+    assert warnings == []
+
+
+class _FakeBangToanTrang:
+    """Một 'bảng' giả có bbox = TOÀN TRANG, không hàng nào — đủ để buộc
+    parse_pdf rẽ sang nhánh 'trang có bảng', không cần mô phỏng đúng cấu
+    trúc bảng thật (đã kiểm bằng file thật ở Step 5)."""
+    def __init__(self, w, h):
+        self.bbox = (0, 0, w, h)
+
+    def extract(self):
+        return []
+
+
+class _FakePlumberPageCoBang:
+    width, height = 100, 100
+
+    def find_tables(self, table_settings=None):
+        # Chế độ mặc định (table_settings=None) thấy 1 bảng phủ hết trang;
+        # chế độ text không thấy gì — không cần khớp nhau cho test này.
+        return [_FakeBangToanTrang(self.width, self.height)] if table_settings is None else []
+
+    def within_bbox(self, bbox, relative=False):
+        return self
+
+    def extract_text(self):
+        return ""
+
+
+class _FakePlumberPDFCoBang:
+    def __init__(self):
+        self.pages = [_FakePlumberPageCoBang()]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_trang_co_bang_phu_het_thi_dong_van_xuoi_pypdf_bien_mat(monkeypatch):
+    import pypdf
+    import pdfplumber
+    from src.rag import parse
+    fake = _FakeReader(["Điều 1. Nội dung không liên quan bảng."])
+    monkeypatch.setattr(pypdf, "PdfReader", lambda path: fake)
+    monkeypatch.setattr(pdfplumber, "open", lambda path: _FakePlumberPDFCoBang())
+
+    blocks, _ = parse.parse_pdf("x.pdf")
+    van_xuoi = [b for b in blocks if not b.get("atomic")]
+    assert van_xuoi == [], (
+        "trang có bảng phủ hết trang vẫn còn dòng văn xuôi từ pypdf — "
+        "gate 'chỉ chạm trang có bảng' không có tác dụng đo được")

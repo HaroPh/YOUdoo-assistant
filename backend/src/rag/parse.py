@@ -6,7 +6,10 @@ from docx.text.paragraph import Paragraph
 from lxml import etree
 import openpyxl
 import pypdf
+import pdfplumber
 
+from .pdf_table import (checksum_gap, column_names, merge_table_rows,
+                        row_to_text, split_header_body)
 from .xlsx_header import compose_two_tier, find_header
 
 # Nhánh số CHỈ nhận numbering đa cấp ("1.1", "3.2.1"), sub-level 1-2 chữ số:
@@ -403,36 +406,97 @@ def parse_docx(path: str) -> list[dict]:
     return blocks
 
 
-def parse_pdf(path: str) -> list[dict]:
-    """Heuristic headings (no font info): numbered/keyword headings & short ALL-CAPS lines.
+def _lines_tu_text(text: str) -> list[str]:
+    out = []
+    for line in (text or "").splitlines():
+        t = line.replace("\x00", "").strip()
+        if t:
+            out.append(t)
+    return out
+
+
+def _trich_mot_bang(plumber_page, bbox) -> tuple[list[list], list[list]]:
+    """(hàng chế độ mặc định, hàng chế độ text) của MỘT vùng bbox trên trang.
+
+    Đối chiếu bằng SỐ LƯỢNG bảng dò được trong đúng bbox này ở cả hai chế
+    độ — không khớp thì bỏ chế độ `text` cho vùng này (an toàn hơn đoán sai
+    tương ứng bảng nào với bảng nào, spec §3.3 chỉ nói gộp TRONG một bảng,
+    không nói gộp bảng CHÉO NHAU)."""
+    vung = plumber_page.within_bbox(bbox, relative=False)
+    mac_dinh = vung.find_tables()
+    theo_text = vung.find_tables(table_settings={"horizontal_strategy": "text"})
+    hang_mac_dinh = mac_dinh[0].extract() if mac_dinh else []
+    hang_text = theo_text[0].extract() if len(theo_text) == 1 else []
+    return hang_mac_dinh, hang_text
+
+
+def _khoi_bang(plumber_page, bang, pageno: int
+               ) -> tuple[list[dict], list[tuple[str, str]]]:
+    """Blocks + warnings của MỘT bảng đã dò được trên trang `pageno`."""
+    x0, top, x1, bottom = bang.bbox
+    hang_mac_dinh, hang_text = _trich_mot_bang(plumber_page, (x0, top, x1, bottom))
+    if not hang_mac_dinh:
+        hang_mac_dinh = bang.extract()
+    gop = merge_table_rows(hang_mac_dinh, hang_text)
+    tat_ca_hang = [r for r, _ in gop]
+    header_rows, body_rows, _ = split_header_body(tat_ca_hang)
+    columns = column_names(header_rows)
+    blocks = [{"text": row_to_text(row, columns), "heading_level": None,
+              "page": pageno, "atomic": True} for row in body_rows]
+    warnings: list[tuple[str, str]] = []
+    gap = checksum_gap(body_rows)
+    if gap:
+        warnings.append((f"trang {pageno}, bảng", gap))
+    return blocks, warnings
+
+
+def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
+    """Heuristic headings (no font info): numbered/keyword headings & short
+    ALL-CAPS lines. Trang CÓ bảng đi qua `pdfplumber` (spec 2026-09-04-b4);
+    trang KHÔNG có bảng giữ NGUYÊN đường `pypdf` — bất biến byte-identical
+    bắt buộc, xem test `test_trang_khong_bang_byte_identical`.
 
     HAI LƯỢT từ 2026-08-19: gom dòng theo trang trước, nhận diện rác
     header/footer trên toàn tài liệu, rồi mới dựng block. Một lượt thì không
     thể biết một dòng có lặp trên phần lớn số trang hay không.
     """
     reader = pypdf.PdfReader(path)
-    pages: list[list[str]] = []
-    for page in reader.pages:
-        lines = []
-        for line in (page.extract_text() or "").splitlines():
-            # pypdf maps some unrecognized glyphs (e.g. a custom bullet-point
-            # font) to U+0000 instead of dropping them; Postgres text columns
-            # reject NUL bytes outright, so strip them at the source.
-            text = line.replace("\x00", "").strip()
-            if text:
-                lines.append(text)
-        pages.append(lines)
-
-    furniture = detect_page_furniture(pages)
-    blocks: list[dict] = []
-    for pageno, lines in enumerate(pages, start=1):
-        for text in lines:
-            if _normalize_digits(text) in furniture:
+    all_warnings: list[tuple[str, str]] = []
+    with pdfplumber.open(path) as pdf:
+        pages: list[list[str]] = []
+        page_bangs: list[list] = []
+        for pageno, page in enumerate(reader.pages, start=1):
+            plumber_page = pdf.pages[pageno - 1]
+            bangs = sorted(plumber_page.find_tables(), key=lambda b: b.bbox[1])
+            page_bangs.append(bangs)
+            if not bangs:
+                pages.append(_lines_tu_text(page.extract_text() or ""))
                 continue
-            blocks.append({"text": text,
-                           "heading_level": heading_level(text),
-                           "page": pageno})
-    return blocks
+            width, height = plumber_page.width, plumber_page.height
+            y_bien = [0.0] + [y for b in bangs for y in (b.bbox[1], b.bbox[3])] + [height]
+            dai_lines: list[str] = []
+            for k in range(0, len(y_bien), 2):
+                y0, y1 = y_bien[k], y_bien[k + 1]
+                if y1 > y0:
+                    dai = plumber_page.within_bbox((0, y0, width, y1), relative=False)
+                    dai_lines.extend(_lines_tu_text(dai.extract_text() or ""))
+            pages.append(dai_lines)
+
+        furniture = detect_page_furniture(pages)
+        blocks: list[dict] = []
+        for pageno, lines in enumerate(pages, start=1):
+            plumber_page = pdf.pages[pageno - 1]
+            bangs = page_bangs[pageno - 1]
+            for text in lines:
+                if _normalize_digits(text) in furniture:
+                    continue
+                blocks.append({"text": text, "heading_level": heading_level(text),
+                               "page": pageno})
+            for bang in bangs:
+                bang_blocks, bang_warnings = _khoi_bang(plumber_page, bang, pageno)
+                blocks.extend(bang_blocks)
+                all_warnings.extend(bang_warnings)
+    return blocks, all_warnings
 
 
 def _pptx_table_to_text(tbl) -> str:
