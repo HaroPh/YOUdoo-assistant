@@ -620,3 +620,167 @@ trực tiếp, không chỉ suy luận từ số 0 bảng.
 - **Nghiệm thu Task 5 không có eval RETRIEVAL nào** — toàn bộ số liệu ở đây là cấu trúc dữ liệu
   (đúng/sai số học, checksum, byte-identical), không phải chất lượng truy hồi. Giống ranh giới đã
   ghi ở B3 mục 3: ruling dựa trên cấu trúc, chưa dựa trên recall.
+
+---
+
+## 6. Fix wave sau review toàn nhánh (2026-09-04)
+
+Review toàn nhánh cuối cùng (đọc diff + TỰ ĐO trên corpus THẬT, ngoài 3 tệp mà Task 5 dùng nghiệm
+thu) báo 2 lỗi Critical + 1 Important. Cả ba đều là **B4 làm mất/làm hỏng nội dung trên tài liệu
+sản xuất thật** — đúng lớp lỗi B4 sinh ra để đóng nhưng tái xuất hiện ở tầng khác. Dưới đây là số
+đo trước/sau của từng phần.
+
+### 6.1 Thước đo dùng chung: PHỦ TỪ VỰNG (token) so với `pypdf` thô
+
+Đường `pypdf` toàn trang là **hành vi TRƯỚC B4** — mốc so sánh đúng nghĩa "B4 có làm mất gì
+không". Đếm multiset các token `[0-9\w]+` của từng trang theo `pypdf`, trừ đi multiset token của
+mọi block `parse_pdf` phát ra cho trang đó; phần dư là **token biến mất**.
+
+| tệp | phủ token TRƯỚC fix (c0d6627) | phủ token SAU fix |
+|---|---|---|
+| `USA_Employee_Handbook-Freely_Available.pdf` (34 tr.) | **18.6%** | **99.7%** |
+| `ssc_bieumau.pdf` (8 tr.) | **39.5%** | **78.6%** (xem ghi chú) |
+| `bieumau_bctc_hopnhat.pdf` (53 tr.) | **72.9%** | **92.5%** |
+| `luat-thuexuatnhapkhau.pdf` (25 tr.) | **89.6%** | **97.7%** |
+| `luat-dautu.pdf` (61 tr.) | **93.4%** | **97.5%** |
+| `invoice_51109301.pdf` | 100.0% | 100.0% |
+
+Ghi chú `ssc`: phần "thiếu" còn lại KHÔNG phải mất nội dung mà là **khác cách tách từ** — `pypdf`
+trả ra chữ vỡ (`"Trong th ời hạn 10 ng ày"`), `pdfplumber` trả đúng (`"Trong thời hạn 10 ngày"`),
+nên token `"th"`/`"ời"` của `pypdf` không khớp token `"thời"`. Con số 78.6% là **cận DƯỚI**, chất
+lượng chữ thực tế tốt hơn mốc so sánh. Cùng hiệu ứng có mặt ở mọi tệp tiếng Việt.
+
+### 6.2 Critical #1 — mất CẢ MỘT CỘT của bảng biểu thuế suất
+
+**Triệu chứng đo được**: số dòng mang mức thuế suất (regex `\b\d{1,3}\s*-\s*\d{1,3}\b`, kiểu
+"0-10"/"15-25") trên trang 12-25 của `luat-thuexuatnhapkhau.pdf`:
+
+| | số dòng |
+|---|---|
+| `pypdf` thô (trước B4) | **247** |
+| B4 tại c0d6627 | **14** (5.7%) |
+| sau fix | **240** (97.2%) |
+
+**Nguyên nhân THẬT — khác với chẩn đoán ban đầu của review.** Review cho rằng `merge_table_rows`
+gộp nhầm hai lưới 23x4 (mặc định) và 53x2 (`text`). Đo lại từng bước cho thấy nguyên nhân nằm
+SỚM HƠN một bậc, trong `_trich_mot_bang`: nó **dò lại bảng bằng `find_tables()` bên trong chính
+bbox của bảng** (`page.within_bbox(bbox).find_tables()`). Cắt trang theo đúng bbox làm **mất các
+đường kẻ nằm ĐÚNG TRÊN biên cắt**, nên lần dò lại ra lưới **nghèo hơn hẳn**:
+
+| trang | `bang.extract()` (dò trên TOÀN trang) | dò lại trong bbox |
+|---|---|---|
+| 13 | 15 hàng × **4 cột** (STT / Nhóm hàng / Mô tả / **Khung thuế suất**) | 13 hàng × **2 cột** |
+| 16 | 25 hàng × **4 cột** | 23 hàng × **2 cột** |
+
+Cột "Khung thuế suất" rơi khỏi lưới, **và vì nó nằm TRONG bbox nên `parse_pdf` cũng cắt nó khỏi
+dải văn xuôi** → mất hẳn, không còn đường nào phát ra. Nhánh dự phòng `if not hang_mac_dinh:
+hang_mac_dinh = bang.extract()` chỉ chạy khi dò lại trả về RỖNG, không cứu được ca "dò lại ra
+lưới nghèo hơn nhưng không rỗng". Chẩn đoán "23x4 vs 53x2" của review chính là **so lưới đúng
+(`bang.extract()`) với lưới `text`** — đúng con số, nhưng mã tại c0d6627 chưa bao giờ nhìn thấy
+lưới 4 cột đó.
+
+**Đã sửa, hai lớp:**
+
+1. `_trich_mot_bang` nhận thẳng đối tượng `bang` và trả `bang.extract()` làm lưới chế độ mặc định
+   — KHÔNG dò lại chế độ mặc định trong bbox nữa. Chế độ `text` vẫn phải dò trong `within_bbox`
+   (không có đường nào khác giới hạn `horizontal_strategy="text"` vào một bảng).
+2. Cổng `bat_dong_so_cot()` (mới, trong `pdf_table.py` — module thuật toán thuần): nếu số cột đại
+   diện của hai lưới LỆCH nhau thì **bỏ hẳn chế độ `text`**, để `merge_table_rows(..., [])` rơi vào
+   đúng đường dự phòng sẵn có. Kèm cảnh báo mới `("trang N, bảng", "hai chế độ trích xuất bất đồng
+   số cột (n1 vs n2) — dùng riêng chế độ mặc định")` — bỏ chế độ `text` là một quyết định mất dữ
+   liệu tiềm tàng (hàng vắt trang chỉ chế độ `text` thấy), phải LỚN TIẾNG.
+
+**Hệ quả cần biết**: sau lớp (1), lưới mặc định gần như luôn NHIỀU CỘT HƠN lưới `text` (lưới `text`
+chịu đúng thiệt hại cắt-bbox nói trên), nên cổng (2) kích hoạt trên hầu hết bảng thật: 13 cảnh báo
+trên `luat-thuexuatnhapkhau.pdf`, 78 trên `bctc`, 3 trên `ssc`, 2 trên `invoice_51109301`. Nghĩa là
+**cơ chế gộp hai chế độ của spec §3.3 nay hiếm khi có tác dụng** — đổi lại phủ token tăng ở TẤT CẢ
+tệp đo được (bảng 6.1) và test tự kiểm số học 100 hoá đơn vẫn xanh. Nếu sau này muốn khôi phục lợi
+ích của chế độ `text` (hàng vắt trang), hướng cần thử là dò chế độ `text` trên bbox NỚI RỘNG chút
+để không mất đường kẻ biên — chưa làm, chưa đo.
+
+**Test**: `test_bat_dong_so_cot_*`, `test_lech_so_cot_thi_ket_qua_chi_dung_che_do_mac_dinh`,
+`test_doi_chung_gop_thang_hai_luoi_lech_cot_lam_mat_cot_cuoi` (ca ĐỐI CHỨNG, ghi lại chính lỗi),
+`test_khoi_bang_lech_so_cot_thi_bo_che_do_text_va_canh_bao`,
+`test_khoi_bang_khop_so_cot_thi_van_gop_hai_che_do` (phép thử phá: cổng không được chặn luôn chế độ
+`text` khi số cột KHỚP), và 2 test live `test_luat_thue_*` trên corpus thật.
+
+### 6.3 Critical #2 — cổng "đây có THẬT là bảng không": KHÔNG tìm được ngưỡng, CHƯA làm
+
+**Triệu chứng review báo**: `find_tables()` báo dương tính giả trên **34/34 trang** văn xuôi của
+`USA_Employee_Handbook-Freely_Available.pdf` (đã xác nhận lại: đúng 34/34), và 78% token biến mất.
+
+**Số đo lại sau fix 6.2**: mất token trên tệp này giảm **7624/9364 (81.4%) → 24/9364 (0.3%)**. Nói
+cách khác **phần MẤT NỘI DUNG của Critical #2 có chung nguyên nhân gốc với Critical #1** (lưới
+nghèo do cắt bbox → `split_header_body` nuốt hàng vào header) và đã đóng theo.
+
+**Phần CÒN LẠI vẫn thật, nhưng là lỗi CHẤT LƯỢNG, không phải mất nội dung**: trang văn xuôi vẫn bị
+xử lý như bảng, nên câu văn được phát ra dưới dạng hàng-bảng giả với khung tên cột rác — trang 5
+cho **0 block văn xuôi + 29 block atomic**, toàn tài liệu **10 block văn xuôi + 928 block atomic**,
+mỗi block dạng:
+
+```
+Cột 1:  | x.: xi. | Cột 3:  | Screen and interview candidates.: Run background checks... | Cột 5:  | ... | Cột 12:
+```
+
+Mỗi câu thành một chunk atomic riêng (không gộp đoạn, không có `heading_level`), index đầy chuỗi
+`"Cột 5: | Cột 6:"`. Xấu cho truy hồi — nhưng KHÔNG mất chữ.
+
+**Vì sao cổng theo tỉ lệ nội dung KHÔNG dùng được — số đo, không phải phỏng đoán.** Đo tỉ lệ
+`độ_dài(nội dung đường bảng) / độ_dài(nội dung pypdf toàn trang)` (đếm ký tự không-khoảng-trắng;
+"nội dung đường bảng" = dải văn xuôi ngoài bbox + giá trị ô của các hàng THÂN thực sự được phát,
+tức đúng thứ sống sót tới output) trên 93 trang bảng THẬT và 34 trang dương-tính-giả:
+
+| nhóm | n trang | tỉ lệ min | tỉ lệ max |
+|---|---|---|---|
+| bảng THẬT (`ssc`, `bctc`, `thue`, `dautu`, hoá đơn) | 93 | **0.682** | 1.000 |
+| dương tính GIẢ (`handbook`) | 34 | 0.766 | **1.000** |
+
+**Hai nhóm chồng lấn hoàn toàn** — không có ngưỡng nào tách được. Nguyên nhân: sau fix 6.2, đường
+bảng trên trang văn xuôi trích được gần như TOÀN BỘ chữ (~0.95 trung bình), cao hơn nhiều trang
+bảng thật thưa ô (`thue` tr.25 = 0.682; `bctc` tr.24 = 0.743). Đo thêm 3 đặc trưng thay thế ở mức
+từng bảng (127 bảng thật / 49 bảng giả) cũng đều chồng lấn:
+
+| đặc trưng | bảng THẬT | dương tính GIẢ | tách được? |
+|---|---|---|---|
+| tỉ lệ ô có nội dung | 0.143 – 1.000 | 0.044 – 0.500 | KHÔNG (biểu mẫu `bctc` thưa tới 0.143) |
+| trung bình ô đầy / hàng | 1.00 – 8.00 | 0.54 – 2.00 | KHÔNG |
+| tỉ lệ cột rỗng hoàn toàn | 0.000 – 0.857 | 0.000 – 0.944 | KHÔNG |
+| số cột | 2 – 10 | 2 – 27 | KHÔNG |
+
+Theo đúng chỉ dẫn của brief ("nếu KHÔNG tìm được ranh giới sạch, đừng chọn liều một con số"),
+**cổng khả tín KHÔNG được thêm vào mã**. Việc này trả lại controller quyết định hướng khác. Ứng
+viên đáng thử tiếp (chưa đo): dựa vào **chứng cứ hình học** thay vì tỉ lệ nội dung — số đường kẻ
+(`page.lines`/`rects`) thật sự bao quanh bbox, hoặc dùng `table_settings` chặt hơn
+(`vertical_strategy="lines_strict"`) để `find_tables()` bớt dương tính giả ngay từ đầu.
+
+### 6.4 Important #3 — hàng atomic RỖNG HOÀN TOÀN
+
+`row_to_text` phát block cho mọi hàng thân, kể cả hàng mà MỌI ô đều rỗng (chỉ còn khung
+`"Cột 1: | Cột 2: "`), làm loãng index.
+
+| `bieumau_bctc_hopnhat.pdf` | trước | sau |
+|---|---|---|
+| tổng block | 2309 | 1335 |
+| block atomic | 1625 | 651 |
+| **atomic không mang giá trị nào** | **951 (58.5%)** | **0** |
+
+Sửa: `hang_khong_gia_tri()` (thuần, trong `pdf_table.py`) + điều kiện lọc ngay trước
+`blocks.append` trong `_khoi_bang`. Không cảnh báo — ô đệm rỗng của biểu mẫu không phải nội dung
+bị mất, im lặng ở đây là đúng. (Lưu ý khi đọc bảng số: phần giảm 1625 → 651 gồm CẢ tác động của
+fix 6.2, hai thay đổi cùng chạm lưới hàng nên không tách rời tuyệt đối được.)
+
+### 6.5 Test cũ ĐỔI KẾT QUẢ — một, và có lý do
+
+`test_parse_pdf_bang_that_moi_hang_la_mot_block_atomic` (live) khẳng định `warnings == []` cho
+`ssc_bieumau.pdf`. Nay tệp này sinh 3 cảnh báo LOẠI MỚI "bất đồng số cột" (6 vs 4, trang 1-3) —
+cảnh báo CỐ Ý của 6.2, không phải hồi quy. Chính chú thích của test đã dặn "nếu implementer đo ra
+khác, SỬA assertion theo số thật, đừng ép về [] cho khớp dòng này". Ý định gốc của dòng đó là
+"không có cảnh báo CHECKSUM", nên assertion được **thu hẹp đúng vào ý định** (`"đứt đoạn"`), kèm
+một assertion mới chốt rằng mọi cảnh báo còn lại đều thuộc loại đã biết — chặt hơn, không nới lỏng.
+
+### 6.6 Kết quả test
+
+- `tests/rag/test_pdf_table.py` + `tests/rag/test_parse_pdf.py`: **51 passed** (kể cả live).
+- `tests/rag/test_pdf_kho_that.py -m live`: **6 passed** — 4 bất biến có sẵn (100 hoá đơn, ssc
+  checksum, ssc trùng lặp, bctc công thức) đều còn xanh, cộng 2 test mới của 6.2.
+- `pytest -m "not integration and not live" -q`: **2337 passed, 1 skipped**.
