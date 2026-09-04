@@ -56,10 +56,11 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
     # Giữ một nhãn đọc được thì có ích; giữ nguyên đường dẫn thì không.
     doc_title = next((b["text"] for b in blocks if b["heading_level"]),
                      os.path.basename(source_file))
-    # Build (section_path, page, body_text) leaf sections in order.
+    # Build (section_path, page, body) leaf sections in order. `body` mang
+    # theo cờ atomic per-block (text, atomic) để giai đoạn sau tách RUN.
     path_stack: list[tuple[int, str]] = []  # (level, text)
-    sections: list[tuple[str, int | None, list[str]]] = []
-    cur_body: list[str] = []
+    sections: list[tuple[str, int | None, list[tuple[str, bool]]]] = []
+    cur_body: list[tuple[str, bool]] = []
     cur_page: int | None = None
 
     def _flush():
@@ -76,6 +77,7 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
             sections.append((crumb, cur_page, cur_body[:]))
 
     for b in blocks:
+        atomic = bool(b.get("atomic"))
         if b["heading_level"]:
             lvl = b["heading_level"]
             if not cur_body and path_stack and path_stack[-1][0] >= lvl:
@@ -86,7 +88,7 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
                 # (spec 2026-07-15 §3B).
                 if cur_page is None:
                     cur_page = b["page"]
-                cur_body.append(b["text"])
+                cur_body.append((b["text"], atomic))
                 continue
             _flush()
             cur_body.clear()
@@ -97,17 +99,33 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
         else:
             if cur_page is None:
                 cur_page = b["page"]
-            cur_body.append(b["text"])
+            cur_body.append((b["text"], atomic))
     _flush()
 
     out: list[dict] = []
     idx = 0
     for section_path, page, body in sections:
-        text = " ".join(body).strip()
-        if not text:
-            continue
-        pieces = ([text] if count_tokens(text) <= MIN_CHUNK_TOKENS
-                  else _split_section_text(text))
+        # Tách thành các RUN: văn xuôi liên tục (không atomic) hoặc một
+        # block atomic đứng riêng — atomic KHÔNG được gộp với run liền kề dù
+        # cộng dồn vẫn dưới CHUNK_SIZE_TOKENS (spec 2026-09-04-b4 §3.5).
+        pieces: list[str] = []
+        run: list[str] = []
+        for text, atomic in body:
+            if atomic:
+                if run:
+                    joined = " ".join(run).strip()
+                    if joined:
+                        pieces.extend([joined] if count_tokens(joined) <= MIN_CHUNK_TOKENS
+                                      else _split_section_text(joined))
+                    run = []
+                pieces.append(text)
+            else:
+                run.append(text)
+        if run:
+            joined = " ".join(run).strip()
+            if joined:
+                pieces.extend([joined] if count_tokens(joined) <= MIN_CHUNK_TOKENS
+                              else _split_section_text(joined))
         for piece in pieces:
             out.append({
                 "doc_id": doc_id, "source_file": source_file, "doc_title": doc_title,
