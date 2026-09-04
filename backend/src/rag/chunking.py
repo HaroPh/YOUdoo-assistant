@@ -1,3 +1,4 @@
+import os
 import re
 
 import tiktoken
@@ -49,7 +50,12 @@ def index_text(section_path: str | None, chunk_text: str) -> str:
 
 def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> list[dict]:
     """Structure-aware: group body under its heading path, chunk within a leaf section only."""
-    doc_title = next((b["text"] for b in blocks if b["heading_level"]), source_file)
+    # `doc_title` lùi về TÊN TỆP, không phải đường dẫn đầy đủ và cũng không
+    # phải rỗng: nó là cột metadata cho hiển thị/trích dẫn (`schema.sql`,
+    # `retrieve.py` SELECT ra), KHÔNG đi vào `index_text()` lẫn `ts_vector`.
+    # Giữ một nhãn đọc được thì có ích; giữ nguyên đường dẫn thì không.
+    doc_title = next((b["text"] for b in blocks if b["heading_level"]),
+                     os.path.basename(source_file))
     # Build (section_path, page, body_text) leaf sections in order.
     path_stack: list[tuple[int, str]] = []  # (level, text)
     sections: list[tuple[str, int | None, list[str]]] = []
@@ -58,7 +64,15 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
 
     def _flush():
         if cur_body:
-            crumb = " › ".join(t for _, t in path_stack) or doc_title
+            # KHÔNG lùi về `doc_title`: `crumb` là thứ `index_text()` nối vào
+            # chuỗi đem đi EMBED và vào `ts_vector`. Trước 2026-09-04 nó lùi
+            # về `doc_title` (khi đó đang là `source_file`), nên đường dẫn
+            # Windows bị nhúng vào vector của MỌI chunk trong tài liệu, giống
+            # hệt nhau — vừa vô nghĩa vừa làm GIẢM khả năng phân biệt giữa
+            # chính các chunk đó (spec 2026-08-29 mục 1.1). Không có phân cấp
+            # thì breadcrumb phải RỖNG: "không biết" phải trông như không
+            # biết. Lỗi này CHUNG cho mọi định dạng, không riêng .docx.
+            crumb = " › ".join(t for _, t in path_stack)
             sections.append((crumb, cur_page, cur_body[:]))
 
     for b in blocks:

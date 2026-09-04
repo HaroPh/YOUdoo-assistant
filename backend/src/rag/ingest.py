@@ -82,14 +82,14 @@ def _chunks_for(read_path: str, kind: str, doc_id: str,
 
     HAI THAM SỐ TÁCH RỜI, không phải một. Trước 2026-08-31 chỉ có một tham
     số và nó vừa dùng để đọc vừa dùng làm nhãn, nên tệp `.doc/.xls/.ppt` ghi
-    ĐƯỜNG DẪN CACHE TẠM vào `source_file`. Đường dẫn đó chảy tiếp:
-    chunking.py:52 lùi `doc_title` về `source_file` khi tài liệu không có
-    heading → chunking.py:61 lùi `crumb` về `doc_title` → `index_text()` nối
-    nó vào chuỗi đem đi EMBED và vào `ts_vector`. Chuỗi bị nhúng có dạng
-    `.../Temp/youdoo_convert/<content_hash>/quyche_taichinh.docx`: nó chứa
-    hash nên ĐỔI mỗi lần tài liệu đổi và KHÁC NHAU giữa các máy, lại GIỐNG
-    HỆT nhau ở mọi chunk của tài liệu nên còn làm giảm khả năng phân biệt
-    giữa chính các chunk đó."""
+    ĐƯỜNG DẪN CACHE TẠM vào `source_file` — một chuỗi chứa content_hash, ĐỔI
+    mỗi lần tài liệu đổi và KHÁC NHAU giữa các máy.
+
+    Chuỗi đó từng chảy tiếp vào embedding qua `chunking.py` (doc_title lùi về
+    source_file → crumb lùi về doc_title → `index_text()`). Nhánh đó đã bị
+    CẮT 2026-09-04 (B3): `crumb` không còn lùi về `doc_title` nữa. Việc tách
+    hai tham số ở đây vẫn cần — `source_file` là nhãn người dùng thấy, và nó
+    phải là tệp GỐC dù đường rò kia đã đóng."""
     if kind == "xlsx":
         sheets, sheet_warnings = parse_xlsx(read_path)
         return (chunk_xlsx_sheets(sheets, doc_id=doc_id, source_file=source_file),
