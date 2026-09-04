@@ -296,6 +296,10 @@ TUYỆT ĐỐI KHÔNG ghi nhớ:
 - mã chứng từ hay bản ghi cụ thể (P00003, INV/2026/00004) — dữ liệu đó đã ở
   trong hệ thống ERP và tra được bất cứ lúc nào
 - câu hỏi hay yêu cầu dùng một lần
+- thông tin định danh hay bảo mật cá nhân (số CCCD/CMND, số tài khoản, mật
+  khẩu, mã OTP) — kể cả khi người dùng tự đọc ra
+- sức khoẻ, tôn giáo, quan điểm chính trị — kể cả khi người dùng tự kể, vì đây
+  là ghi nhớ LÂU DÀI sẽ quay lại ở những lượt chuyện không liên quan
 
 Phần lớn lượt trò chuyện KHÔNG có gì đáng ghi nhớ. Không có thì đừng thêm dòng
 nào — ghi nhớ vu vơ làm nhiễu, không làm nên trí nhớ."""

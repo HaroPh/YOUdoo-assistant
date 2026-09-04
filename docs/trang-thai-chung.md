@@ -1,6 +1,6 @@
 # Trạng thái chung — hai phiên làm việc song song
 
-Cập nhật lần cuối: **2026-08-23**.
+Cập nhật lần cuối: **2026-09-04**.
 
 ## Cách dùng tệp này
 
@@ -100,9 +100,6 @@ báo trước.
 
 ## CHƯA đo — danh sách "ta chưa biết"
 
-- Khối ký ức trên `FUSE_PROMPT` (mục 1 ở trên).
-- **Mọi phép đo ký ức tới nay đều dùng đúng MỘT fact.** Người dùng thật đang có
-  5. Không có gì cho biết nó bắt đầu hại ở đâu.
 - Thứ hạng bên trong top-6 có đổi câu trả lời cuối không (docstring `rerank()`).
 
 ## Bẫy vận hành

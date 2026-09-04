@@ -87,6 +87,19 @@ async def test_fact_mang_ma_chung_tu_bi_chan_va_noi_ro(agent, monkeypatch):
     assert MEMORY_BLOCKED_PREFIX in out   # và KHÔNG im lặng
 
 
+async def test_fact_nhay_cam_bi_chan_va_noi_ro(agent, monkeypatch):
+    async def fake_inner(*args, **kwargs):
+        return "Ừ.\nGHI_NHỚ: số tài khoản = 19012345678"
+    monkeypatch.setattr(ERPAgent, "_chat_inner", fake_inner)
+
+    out = await agent.chat([{"role": "user", "content": "nhớ số tài khoản giúp tôi"}],
+                           thread_id="t1", user_id="u1")
+
+    assert agent._pool.saved == []        # cổng phủ quyết thứ hai đã chặn
+    assert MEMORY_BLOCKED_PREFIX in out   # và KHÔNG im lặng
+    assert "19012345678" not in out       # giá trị nhạy cảm không lộ trong công bố
+
+
 async def test_quen_duoc_thuc_hien(agent, monkeypatch):
     async def fake_inner(*args, **kwargs):
         return "Đã bỏ.\nQUÊN: kho chính"

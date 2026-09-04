@@ -71,6 +71,58 @@ def is_document_code(value: str) -> bool:
     return bool(_DOC_CODE.search(value or ""))
 
 
+# Nhãn báo hiệu dữ liệu định danh/nhạy cảm — so khớp NGUYÊN TOKEN sau khi
+# normalize_key() cả key lẫn value (bỏ dấu, hạ chữ thường, cắt theo "_").
+# Chỉ phủ quyết loại CÓ CẤU TRÚC nhận ra được: định danh + bảo mật. Sức khoẻ /
+# tôn giáo / chính trị giao cho MEMORY_RULE (prompts.py) vì cần đọc NGHĨA —
+# việc regex không làm được, và cố làm sẽ vướng đúng cái bẫy is_document_code
+# từng vướng: "danh sách tiền tố" luôn thiếu tiền tố mới.
+_SENSITIVE_LABELS = (
+    "stk", "so_tai_khoan", "tai_khoan_ngan_hang", "cccd", "cmnd", "can_cuoc",
+    "the_tin_dung", "so_the", "mat_khau", "password", "pin", "ma_pin", "otp",
+)
+
+# Dãy số LIỀN NHAU từ 9 chữ số trở lên: CCCD (12), CMND cũ (9), điện thoại
+# (10), MST (10/13), thẻ ngân hàng (16), số tài khoản (thường 8-14).
+#
+# CỐ Ý chỉ bắt số LIỀN NHAU, không dấu phân cách: giá tiền Việt viết
+# "1.234.567.890" có 10 chữ số nhưng CÓ dấu chấm ngăn cách giữa các nhóm —
+# phải lọt qua, nếu không mọi số tiền lớn đều bị chặn nhầm thành "nhạy cảm".
+#
+# GIỚI HẠN CỐ Ý: số tài khoản đúng 8 chữ số lọt qua — ngưỡng 9 chừa chỗ cho
+# ngày viết gọn kiểu "20260904" (8 chữ số) không bị chặn nhầm. Đối xứng với
+# GIỚI HẠN CỐ Ý KHÁC: một số tiền lớn viết LIỀN không dấu chấm (VD doanh số
+# "5000000000") sẽ bị chặn nhầm — chưa có ranh giới cấu trúc nào tách được
+# "số tiền liền" khỏi "số định danh liền" chỉ từ bản thân chuỗi số.
+_LONG_DIGIT_RUN = re.compile(r"\d{9,}")
+
+
+def is_sensitive(key: str, value: str) -> bool:
+    """Fact có phải dữ liệu định danh/nhạy cảm cá nhân không?
+
+    Cùng khuôn "model đề xuất, code phủ quyết" của is_document_code — cổng
+    THỨ HAI, độc lập với cổng mã chứng từ. Chặn LƯU TRỮ, không chặn LỘ: giá
+    trị nhạy cảm vẫn nằm trong lượt chat và checkpointer như bình thường; cái
+    cổng này ngăn đúng một việc — secret bị PHÁT LẠI vào MỌI prompt tương lai
+    qua render_memory_block(), vì user_memory là bảng APPEND-ONLY (không bao
+    giờ tự hết hạn).
+
+    So khớp nhãn theo TOKEN (bọc "_" hai đầu chuỗi đã normalize), không phải
+    substring thô: substring thô sẽ khớp nhầm "pin" bên trong "spin".
+
+    KEY và VALUE so khớp RIÊNG, không nối chuỗi rồi so chung: nối chuỗi từng
+    làm ("mã số", "thẻ kho A") — hai fact rời rạc, vô hại — ghép thành
+    "..._ma_so_the_kho_a_...", vô tình chứa đúng chuỗi token của nhãn
+    "so_the" (số thẻ) bắc ngang ranh giới key/value. Review bắt được trước
+    merge.
+    """
+    for text in (key, value):
+        norm = f"_{normalize_key(text)}_"
+        if any(f"_{label}_" in norm for label in _SENSITIVE_LABELS):
+            return True
+    return bool(_LONG_DIGIT_RUN.search(value or ""))
+
+
 def render_memory_block(facts: list[tuple[str, str]]) -> str:
     """Khối ký ức ghép vào ĐẦU system prompt. Rỗng khi không có fact nào.
 

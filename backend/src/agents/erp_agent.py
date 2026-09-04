@@ -24,8 +24,8 @@ from .localize import localize
 from .models import make_llms
 from . import roles as roles_mod
 from .user_memory import (extract_memory_markers, forget_fact, is_document_code,
-                          load_active_facts, normalize_key, render_memory_block,
-                          save_fact)
+                          is_sensitive, load_active_facts, normalize_key,
+                          render_memory_block, save_fact)
 from src.llm import tracing
 from src.llm.router import THUNG_FALLBACK
 
@@ -364,6 +364,10 @@ class ERPAgent:
             if is_document_code(value):
                 notices.append(f"{MEMORY_BLOCKED_PREFIX} {key} — ký ức chỉ "
                                "giữ quy ước, không giữ mã chứng từ cụ thể.")
+                continue
+            if is_sensitive(key, value):
+                notices.append(f"{MEMORY_BLOCKED_PREFIX} {key} — ký ức không "
+                               "giữ thông tin định danh hay bảo mật cá nhân.")
                 continue
             try:
                 await save_fact(self._pool, user_id, key, value, thread_id)

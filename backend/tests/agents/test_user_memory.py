@@ -7,7 +7,8 @@ nếu không, người dùng sửa một fact mà bản cũ vẫn còn hiệu l�
 import pytest
 
 from src.agents.user_memory import (
-    MEMORY_CAP, is_document_code, normalize_key, render_memory_block)
+    MEMORY_CAP, is_document_code, is_sensitive, normalize_key,
+    render_memory_block)
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -58,6 +59,50 @@ def test_chan_fact_mang_ma_chung_tu_cu_the(value):
 ])
 def test_cho_qua_fact_noi_ve_loai_hoac_quy_uoc(value):
     assert is_document_code(value) is False
+
+
+@pytest.mark.parametrize("key,value", [
+    # Nhãn trong VALUE.
+    ("ghi chú", "số tài khoản của tôi là 19012345678"),
+    ("ghi chú", "CCCD 012345678901"),
+    ("ghi chú", "mật khẩu là conmeo123"),
+    ("ghi chú", "mã OTP hôm nay là 482910"),
+    # Nhãn trong KEY.
+    ("số tài khoản", "chi nhánh Sài Gòn"),
+    ("mật khẩu wifi", "matkhau123"),
+    ("CCCD", "012345678901"),
+    # Chỉ cần dãy số liền ≥9 chữ số, không cần nhãn đi kèm.
+    ("ghi chú", "gọi số 0901234567 khi cần gấp"),
+    ("mã số thuế", "0312345678"),
+    ("số thẻ", "4111111111111111"),
+])
+def test_chan_fact_dinh_danh_hoac_bao_mat(key, value):
+    assert is_sensitive(key, value) is True
+
+
+@pytest.mark.parametrize("key,value", [
+    ("kho_chinh", "WH/Stock"),
+    ("don_khan", "giao trong 24h"),
+    ("muc_phat_toi_da", "công ty tôi áp dụng mức phạt tối đa 15%"),
+    ("uu_tien", "Q3/2026"),
+    ("xung_ho", "gọi tôi là anh Hào"),
+    ("do_dai_phan_hoi", "ngan_gon"),
+    # Số tiền lớn CÓ dấu chấm phân cách: nhóm ≤3 chữ số, không phải dãy liền.
+    ("doanh_so_muc_tieu", "1.234.567.890 đồng"),
+    # Ngày viết gọn 8 chữ số: dưới ngưỡng 9, cố ý cho qua.
+    ("han_chot", "20260904"),
+    # "pin" là NHÃN, nhưng chỉ khi đứng riêng một token — "spin" không phải
+    # "pin" nằm trong từ khác, đúng lý do dùng so khớp theo token.
+    ("ghi chú", "khách hàng thích uống spin class buổi sáng"),
+    # BẮT NGANG RANH GIỚI key/value: hai fact rời rạc, mỗi bên vô hại, nhưng
+    # đuôi key nối đầu value từng vô tình ghép thành đúng chuỗi token của một
+    # nhãn ("mã SỐ" + "THẺ kho A" → "so_the" = "số thẻ"). Review bắt trước
+    # merge — key và value PHẢI so khớp riêng, không nối chuỗi rồi so chung.
+    ("mã số", "thẻ kho A"),
+    ("tong so", "the nhan vien nam nay"),
+])
+def test_cho_qua_fact_khong_nhay_cam(key, value):
+    assert is_sensitive(key, value) is False
 
 
 def test_render_khoi_ky_uc_rong_thi_tra_chuoi_rong():
