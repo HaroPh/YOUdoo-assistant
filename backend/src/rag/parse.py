@@ -353,9 +353,17 @@ def parse_docx(path: str) -> list[dict]:
 
     `doc.element.body` là nơi duy nhất giữ đúng thứ tự xen kẽ đoạn văn / bảng;
     `doc.paragraphs` cũng KHÔNG chứa đoạn nằm bên trong ô bảng.
+
+    HAI LƯỢT từ 2026-09-04: gom tất cả text trước (chưa quyết định cấp), suy cấp
+    từ mẫu chữ của toàn tài liệu, rồi mới dựng block. Một lượt thì không thể biết
+    một mẫu "(I., II., III.)" hay chỉ lạc chữ cái, cần bằng chứng ở phạm vi tài
+    liệu (spec 2026-09-04 mục 7). Style Heading được ánh xạ sang thang DOCX_LEVEL
+    bằng `N * STYLE_SCALE`, không dùng cấp thô.
     """
     doc = Document(path)
-    blocks: list[dict] = []
+
+    # Lượt 1: gom theo ĐÚNG thứ tự thân tài liệu, chưa quyết định cấp.
+    items: list[tuple[str, str, int | None]] = []   # (kind, text, style_level)
     for child in doc.element.body.iterchildren():
         tag = etree.QName(child).localname if hasattr(child, "tag") else ""
         if tag == "p":
@@ -364,19 +372,34 @@ def parse_docx(path: str) -> list[dict]:
             if not text:
                 continue
             style = (para.style.name or "") if para.style else ""
-            level = None
+            style_level = None
             if style.startswith("Heading"):
                 try:
-                    level = int(style.split()[-1])
+                    style_level = int(style.split()[-1]) * STYLE_SCALE
                 except ValueError:
-                    level = 1
-            blocks.append({"text": text, "heading_level": level, "page": None})
+                    style_level = DOCX_LEVEL["chuong"]
+            items.append(("p", text, style_level))
         elif tag == "tbl":
             text = _bang_thanh_text(Table(child, doc))
             if text:
-                # heading_level=None: bảng là THÂN, không bao giờ là tiêu đề —
-                # để nó thành heading sẽ phá breadcrumb của cả mục.
-                blocks.append({"text": text, "heading_level": None, "page": None})
+                items.append(("tbl", text, None))
+
+    # Lượt 2: suy cấp từ chữ, CHỈ trên đoạn văn. Không đưa text bảng vào: một
+    # ô bảng chứa "1." sẽ làm nhiễu bằng chứng đánh số của cả tài liệu.
+    para_levels = docx_heading_levels([t for kind, t, _ in items if kind == "p"])
+
+    blocks: list[dict] = []
+    para_index = 0
+    for kind, text, style_level in items:
+        if kind == "tbl":
+            # heading_level=None: bảng là THÂN, không bao giờ là tiêu đề —
+            # để nó thành heading sẽ phá breadcrumb của cả mục.
+            blocks.append({"text": text, "heading_level": None, "page": None})
+            continue
+        # Style của Word thắng mẫu chữ: đã khai báo rồi thì không đoán lại.
+        level = style_level if style_level is not None else para_levels[para_index]
+        para_index += 1
+        blocks.append({"text": text, "heading_level": level, "page": None})
     return blocks
 
 
