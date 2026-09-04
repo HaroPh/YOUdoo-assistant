@@ -395,3 +395,173 @@ sau khi thấy một con số tổng mơ hồ.
   Task 4 thực chất chỉ có ĐÚNG MỘT tiêu đề (dòng tiêu đề tài liệu), tức không có phân cấp đa tầng
   thật — "12/12 tài liệu có phân cấp" ở báo cáo Task 4 chỉ đúng theo định nghĩa "≥1 tiêu đề", dễ
   đọc nhầm thành phân cấp sâu nếu không xem cột "tiêu đề" trong bảng chi tiết.
+
+# Tầng nạp tài liệu — ghi chú thực thi B4
+
+**Ngày**: 2026-09-04. **Nhánh**: `worktree-tang-nap-tai-lieu-1`.
+**Spec**: `2026-09-04-b4-pdf-bang-design.md` · **Kế hoạch**: `plans/2026-09-04-b4-pdf-bang.md`
+**Ledger**: `.superpowers/sdd/2026-09-04-b4-pdf-bang/progress.md`
+
+Nghiệm thu B4 (PDF bóc bảng, Task 1-4 đã xong, review sạch tại `b9703c3`) trên corpus PDF THẬT tại
+`d:/Youdoo/tmp-docs` + `d:/Documents/luat-*.pdf`. Task 5 KHÔNG sản xuất API mới — khoá kết quả bằng
+test tự kiểm trên tài liệu thật, đúng tinh thần "kiểm bằng sản phẩm không kiểm bằng mã thoát". Một
+trong bốn test KHÔNG pass ngay lần đầu — mục 2.2 dưới đây ghi lại đầy đủ, không giấu.
+
+## 1. Kết quả
+
+| phép đo | kết quả thật |
+|---|---|
+| 100 `invoice_*.pdf` — tự kiểm SL × đơn giá = thành tiền | **0/455 hàng tự kiểm sai** (1652 chunk tổng, 455 hàng đủ 3 trường để tự kiểm được) |
+| `ssc_bieumau.pdf` — checksum đứt đoạn | **0 đứt đoạn** |
+| `ssc_bieumau.pdf` — hàng bảng LẶP qua ranh giới trang | **4 hàng trùng lặp** (đo, không phải 0 giả định — xem 2.1) |
+| `bieumau_bctc_hopnhat.pdf` — không chunk lẫn mã cột đầu hàng khác | **BUG THẬT, 2 hàng lẫn** (`xfail(strict=True)`, không phải lỗi thước đo — xem 2.2) |
+| 6 tệp PDF luật thật (`d:/Documents/luat-*.pdf`, 372 trang) — byte-identical trên trang KHÔNG bảng | **6/6 tệp khớp 100%** đối chiếu trực tiếp với `parse_pdf` bản TRƯỚC B4 (xem 2.3) |
+| tiền đề "683/683 trang PDF luật không bảng" trên corpus HIỆN CÓ | **KHÔNG khớp** — 4/6 tệp luật thật có bảng thật (phụ lục danh mục); xem 2.3 |
+| test suite mặc định | 2327 passed, 1 skipped, 77 deselected → **2327 passed, 1 skipped, 81 deselected** (không đổi — 4 test mới đều `-m live`, không vào suite nhanh) |
+
+## 2. Khó khăn đã gặp
+
+### 2.1 `ssc_bieumau.pdf` — giới hạn "vỡ trang" biến thể LẶP, đúng như dự đoán khi khảo sát kế hoạch
+
+Brief đã cảnh báo trước: bảng đánh số phân cấp trải trang 3→8 có thể để hàng cuối trang N trùng
+hàng đầu trang N+1, vì `pdfplumber.find_tables()` dò bảng RIÊNG trên TỪNG TRANG. Đo thật ra
+**4 hàng trùng lặp** (ví dụ: `"Cột 1: | Cột 2: | yết, công ty đại chúng\nquy mô lớn): Công ty đại
+chúng | kiểm toán nhưng không được vượt\nquá 120 ngày..."`), không phải hàng `"2.2"` cụ thể mà khảo
+sát ban đầu nêu làm ví dụ — số liệu thật khác chi tiết minh hoạ trong brief nhưng đúng LỚP hiện
+tượng đã dự đoán. Giữ nguyên phán quyết đã ghi trước: giới hạn CHẤP NHẬN của B4 (biến thể của "vỡ
+trang" mất-hàng đã chấp nhận ở `bieumau_bctc_hopnhat.pdf` trang 21), không vá — `pdf_table.py` xử
+lý mỗi bảng độc lập theo trang, ĐÚNG THIẾT KẾ.
+
+Một lưu ý môi trường phụ: đo bằng `capsys`/`print` unicode qua `pytest -s` trên console Windows văn
+bản mặc định (cp1252) NÉM `UnicodeEncodeError` khi in tiếng Việt có dấu — không phải lỗi code, lỗi
+mã hoá console. Không chạy `-s` (dùng capture mặc định của pytest) hoặc đặt `PYTHONIOENCODING=utf-8`
+thì đọc được số liệu bình thường.
+
+### 2.2 `bieumau_bctc_hopnhat.pdf` — BUG THẬT trong `split_header_body`, tìm ra nhờ chính test nghiệm thu
+
+Step 4 KHÔNG pass ngay lần đầu — 5 chunk bị gắn cờ "nghi lẫn số hàng khác". Điều tra tay từng ca
+(đọc lại `warnings`, dựng lại `_khoi_bang`/`merge_table_rows`/`split_header_body` trực tiếp trên
+bảng thật của trang có lỗi) tách ra **hai lớp khác nhau**, đúng cảnh báo brief đưa ra trước ("có thể
+là bug thật, có thể là thước đo sai — đừng nới lỏng phép so sánh"):
+
+- **3/5 ca là LỖI THƯỚC ĐO của chính test**: mẫu code trong brief chọn "hàng bảng" bằng
+  `any(k in text for k in (" | ", ": "))` — điều kiện `": "` quá lỏng, bắt luôn văn xuôi thường có
+  dấu hai chấm (đoạn "Ghi chú: (1) Những chỉ tiêu...", đoạn liệt kê "Nguyên tắc kế toán..."), không
+  phải hàng bảng thật. `row_to_text` (`pdf_table.py`) LUÔN nối cột bằng `" | "` — sửa điều kiện
+  thành CHỈ `" | "` (khớp đúng hợp đồng thật của hàm sản xuất), 3 ca này biến mất.
+- **2/5 ca còn lại là BUG THẬT**, xác nhận bằng cách dựng lại pipeline tay từng bước (dump bảng thô
+  từ `pdfplumber` → qua `merge_table_rows` → qua `split_header_body` → qua `column_names`): bảng
+  thô ĐÚNG (mỗi dòng cân đối tài sản có mã số riêng: `251, 252, 260...`), `merge_table_rows` ĐÚNG
+  (79 hàng tách bạch). Lỗi nằm ở `split_header_body`: nhánh 2 ("đa số ô rỗng → header") được kiểm
+  TRƯỚC nhánh 3 ("có ô số liệu thuần → thân"). `bieumau_bctc_hopnhat.pdf` là biểu mẫu (form) CHƯA
+  điền — mọi hàng dữ liệu thật chỉ có 2/5 ô khác rỗng (nhãn + mã số, ba cột "số cuối kỳ/số đầu kỳ"
+  để trống), nên MỌI hàng thân thật đều rơi vào nhánh 2 và bị nuốt vào HEADER liên tục, cho tới khi
+  gặp ĐÚNG một hàng có ≥3/5 ô khác rỗng để kích nhánh 3. `column_names()` sau đó nối TẤT CẢ nhãn của
+  các "hàng-header-giả" (thật ra là nhiều dòng dữ liệu KHÔNG LIÊN QUAN nhau) thành MỘT tên cột rác
+  dài, và tên rác đó bị đắp vào MỌI hàng thân phía sau qua `row_to_text`. Đo được nguyên văn:
+  `'... TỔNG CỘNG TÀI SẢN (280 = 100 + 200) | 251 252 260 261 262 263: 280 | Cột 3: | Cột 4: | Cột
+  5: '` — 6 mã số (`251,252,260,261,262,263`) của 6 hàng cân đối tài sản khác nhau dồn vào MỘT ô.
+  **Phạm vi đo trên toàn tài liệu** (55 trang): 12/55 trang có bảng, 1106 hàng bảng tổng; ≥3/12
+  trang mang dấu hiệu rõ (một tiền tố cột-1 dài >60 ký tự lặp lại >5 lần trong cùng trang), ước
+  lượng ~79/1106 hàng bảng bị ảnh hưởng — tức KHÔNG phải ca hiếm, mà là hệ quả CÓ HỆ THỐNG của cấu
+  trúc "biểu mẫu chưa điền" xuất hiện lặp lại trên nhiều phần của cùng tài liệu.
+
+  **Đây đúng lớp rủi ro Task 1 review đã tự dự đoán** (Minor #2, deferred): *"`column_names` lấy
+  `n_cols` từ ĐỘ DÀI HÀNG ĐẦU của `label_rows`... Corpus thật `bieumau_bctc_hopnhat.pdf` có khả
+  năng gặp ca này — Task 2/5 cần để ý khi đo thật."* — đúng như dự đoán, nhưng cơ chế cụ thể (thứ
+  tự nhánh 2/3 trên bảng THƯA) tinh vi hơn dự đoán ban đầu (không phải "cắt cột", mà "nuốt cả hàng
+  thân vào header").
+
+  **Quyết định cho Task 5 (KHÔNG vá `pdf_table.py`)**: đổi thứ tự hai nhánh trong `split_header_body`
+  là sửa THUẬT TOÁN LÕI đã qua review Task 1 (16/16 test, Approved) — ngoài phạm vi khai báo của
+  Task 5 ("Produces: không có API mới — đây là task NGHIỆM THU"), và một thay đổi thứ tự nhánh cần
+  một lượt review/test riêng để chứng minh không hồi quy trên 16 ca của Task 1 + 25 ca của Task 2.
+  Test giữ NGUYÊN phép so sánh cứng của brief (`assert lan == []`, không nới lỏng), nhưng đánh dấu
+  `@pytest.mark.xfail(strict=True, reason=...)` ghi đầy đủ nguyên nhân gốc + số liệu phạm vi ngay
+  trong lý do — chọn `xfail` thay vì im lặng để test đỏ (dễ bị bỏ qua) hay hạ xuống chỉ-in-số như ca
+  ssc (che mất một bug CHƯA từng được chấp nhận là giới hạn, khác ssc đã có tiền lệ chấp nhận).
+  `strict=True` nghĩa là nếu bug được sửa mà quên gỡ `xfail`, suite sẽ ĐỎ (XPASS), ép phải xử lý —
+  đúng "hỏng lớn tiếng còn hơn thiếu âm thầm". **Cần một fix round riêng** (đổi thứ tự nhánh 2/3
+  hoặc thêm điều kiện "đã có mã số/số liệu thuần ở CHÍNH hàng này thì ưu tiên nhánh 3 dù ô khác đa
+  số rỗng") trước khi merge nếu chủ dự án muốn đóng B4 mà không mang theo bug này — quyết định của
+  controller, không tự vá đơn phương trong task nghiệm thu.
+
+### 2.3 Tiền đề "683/683 trang PDF luật không bảng" KHÔNG khớp corpus hiện có — nhưng bất biến an toàn thật vẫn đứng vững
+
+`d:/Youdoo/tmp-docs` hiện KHÔNG còn tệp `.pdf` nào tên "luật" (thư mục gitignore, nội dung đổi theo
+thời gian — con số 683 trong spec `2026-08-29-tang-nap-tai-lieu.md`/`2026-09-04-b4-pdf-bang-design.md`
+được đo ở một thời điểm/corpus khác, không tái lập được ở đây). Kho luật thật gần nhất hiện có là
+`d:/Documents/luat-*.pdf` (6 tệp, **372 trang**, không phải 683). Chạy `parse_pdf` qua cả 6 tệp cho
+kết quả **KHÔNG khớp tiền đề "0 bảng"**:
+
+| tệp | trang | atomic (bảng) | trang có bảng |
+|---|---|---|---|
+| `luat-baohiemxahoi.pdf` | 71 | 2 | 1 |
+| `luat-dautu.pdf` | 62 | 898 | 25 |
+| `luat-doanhnghiep.pdf` | 121 | 7 | 7 |
+| `luat-quanlythue.pdf` | 77 | 0 | 0 |
+| `luat-thuegtgt.pdf` | 16 | 0 | 0 |
+| `luat-thuexuatnhapkhau.pdf` | 25 | 621 | 14 |
+
+Chỉ 2/6 tệp khớp đúng "0 bảng". Đọc mẫu nội dung `atomic` của `luat-dautu.pdf` (trang 37-61) xác
+nhận đây là **bảng THẬT** — phụ lục danh mục hoá chất/chất cấm dạng `STT | tên chất | tên khoa học`
+(Luật Đầu tư có phụ lục ngành nghề cấm kinh doanh liệt kê dạng bảng) — KHÔNG phải `pdfplumber`
+báo nhầm trên văn xuôi thường. Tương tự khả năng cao cho `luat-thuexuatnhapkhau.pdf` (biểu thuế
+suất, bản chất vốn dĩ là bảng).
+
+**Điều thật sự cần bảo vệ** (bất biến an toàn — trang KHÔNG bảng phải byte-identical với đường cũ)
+**vẫn đo được trên chính corpus này**, không cần đúng số 683: dựng lại `parse_pdf` bản NGAY TRƯỚC
+B4 (commit `3b74520`, trước Task 2) và so từng block trên các trang KHÔNG có bảng của cả 6 tệp —
+**khớp 100% cả 6/6 tệp** (số block bằng nhau, nội dung từng block bằng nhau). Tức: tiền đề bề mặt
+("không trang nào có bảng") sai với corpus hiện tại, nhưng THUỘC TÍNH mà tiền đề đó được viết ra để
+bảo vệ (đường pypdf không đổi trên trang không chạm tới) vẫn đứng vững — xác nhận bằng đối chiếu
+trực tiếp, không chỉ suy luận từ số 0 bảng.
+
+## 3. Giả thuyết bị số đo bác bỏ
+
+- **"PDF luật hiện có không trang nào có bảng"** (tiền đề nêu trong spec gốc + design B4 §3.2, dựa
+  trên số đo 683/683 ở một thời điểm khác) — SAI trên corpus `d:/Documents/luat-*.pdf` hiện tại:
+  4/6 tệp có bảng thật (phụ lục danh mục/biểu thuế). Không phải giả thuyết B4 tự đặt ra, mà là một
+  tiền đề kế thừa từ kế hoạch trước đó, lần đầu bị đối chiếu với corpus THẬT ở Task 5. Không ảnh
+  hưởng ruling nào của B4 vì bất biến thật sự cần (byte-identical trên trang không bảng) đã đo lại
+  và vẫn đúng (mục 2.3).
+- **Ngầm định "test nghiệm thu Task 5, viết sẵn trong brief, đo đúng ngay lần đầu"** — sai cho Step
+  4: 3/5 ca đầu là lỗi thước đo của chính test (điều kiện `": "` quá lỏng), 2/5 ca còn lại là bug
+  thật trong `split_header_body` (mục 2.2). Đúng tinh thần "task ĐO THẬT, không phải task có sẵn
+  đáp án đúng" mà chỉ dẫn Task 5 đã nêu trước.
+
+## 4. Hướng đã chọn, và vì sao
+
+| quyết định | vì sao |
+|---|---|
+| Test `ssc_bieumau` hàng trùng lặp: chỉ ĐO (`print`), không gate cứng | Đã có tiền lệ CHẤP NHẬN rõ ràng từ lúc khảo sát kế hoạch (biến thể của giới hạn "vỡ trang" đã chấp nhận cho ca mất-hàng) — không phải bug mới, không cần fix round. |
+| Test `bctc` sửa điều kiện lọc "hàng bảng" từ `(" | ", ": ")` OR xuống chỉ `" | "` | `row_to_text` LUÔN dùng `" | "` làm dấu phân cách cột thật — điều kiện `": "` là lỗi thước đo (bắt cả văn xuôi có dấu hai chấm), sửa THƯỚC ĐO đúng như chỉ dẫn Task 5 cho phép, KHÔNG đụng tới phép so sánh số học (`assert lan == []` giữ nguyên). |
+| Test `bctc` giữ nguyên `assert lan == []`, đánh dấu `xfail(strict=True)` thay vì sửa `pdf_table.py` hoặc hạ gate | Bug thật nằm trong thuật toán lõi đã qua review (Task 1), ngoài phạm vi "không có API mới" của Task 5; vá đơn phương không qua review là rủi ro hồi quy trên 16+25 test đã xanh của Task 1/2. `xfail(strict=True)` giữ tín hiệu ĐỎ LỚN TIẾNG (không giấu trong suite xanh, không im lặng bằng cách xoá assert) mà không chặn Step 8 (test `-m live`, không vào suite nhanh) — đúng "hỏng lớn tiếng còn hơn thiếu âm thầm", để lại quyết định fix round cho controller. |
+| Step 7: không dừng lại ở con số "0 bảng" khi tiền đề đó sai, tự đối chiếu byte-identical bằng `parse_pdf` bản trước B4 | Con số bề mặt ("0 bảng") không phải điều spec THẬT SỰ cần bảo vệ — thuộc tính cần bảo vệ là byte-identical trên trang không chạm. Đo bề mặt sai mà dừng lại sẽ để lại một câu hỏi treo ("vậy bất biến an toàn còn đúng không?") đúng lúc corpus vừa cho thấy tiền đề bề mặt không còn khớp — đo thẳng vào thuộc tính thật rẻ hơn và trả lời dứt điểm. |
+
+## 5. Giới hạn còn lại
+
+### Đã biết, cần controller quyết định (không phải bỏ sót)
+
+- **`split_header_body` nuốt hàng thân vào header trên bảng biểu mẫu THƯA** (mục 2.2) — bug thật,
+  chưa vá, đánh dấu `xfail(strict=True)` trong `test_pdf_kho_that.py`. Ảnh hưởng ước lượng ~79/1106
+  hàng bảng của RIÊNG `bieumau_bctc_hopnhat.pdf`; chưa đo trên tài liệu khác có cùng đặc điểm "biểu
+  mẫu chưa điền" (nếu corpus mở rộng có thêm loại này, cần đo lại). Hướng sửa khả dĩ: đổi thứ tự
+  kiểm nhánh 2/3, hoặc thêm điều kiện ưu tiên nhánh 3 khi CHÍNH hàng đang xét có ô số liệu thuần dù
+  đa số ô khác rỗng — cả hai đều cần fix round + re-test đầy đủ 16 ca Task 1 trước khi merge.
+- **`ssc_bieumau.pdf` — 4 hàng bảng lặp qua ranh giới trang** (mục 2.1) — giới hạn CHẤP NHẬN, không
+  cần vá, chỉ đo (đã có tiền lệ chấp nhận biến thể mất-hàng ở B3/B4).
+- **Tiền đề "683 trang PDF luật" trong 2 spec cũ (`2026-08-29-tang-nap-tai-lieu.md`,
+  `2026-09-04-b4-pdf-bang-design.md`) không còn tái lập được với corpus hiện có** — không sửa các
+  spec cũ đó ở Task 5 (ngoài phạm vi commit này); ghi lại ở đây làm điểm neo cho lần sau ai đọc lại
+  hai spec đó không hiểu nhầm "683" là con số còn kiểm chứng được hôm nay.
+
+### Chưa chạm tới / ngoài phạm vi
+
+- **Không đo chunk-lẫn-số trên bảng phụ lục thật của `luat-dautu.pdf`/`luat-thuexuatnhapkhau.pdf`**
+  (mục 2.3) — Task 5 chỉ đo "có bảng hay không" cho gate byte-identical, chưa chạy phép tự kiểm kiểu
+  Step 4 trên các bảng phụ lục luật này. Nếu corpus luật với bảng phụ lục được đưa vào production
+  thật, nên đo thêm — ngoài phạm vi brief hiện tại.
+- **Nghiệm thu Task 5 không có eval RETRIEVAL nào** — toàn bộ số liệu ở đây là cấu trúc dữ liệu
+  (đúng/sai số học, checksum, byte-identical), không phải chất lượng truy hồi. Giống ranh giới đã
+  ghi ở B3 mục 3: ruling dựa trên cấu trúc, chưa dựa trên recall.
