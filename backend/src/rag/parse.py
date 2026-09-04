@@ -8,8 +8,9 @@ import openpyxl
 import pypdf
 import pdfplumber
 
-from .pdf_table import (checksum_gap, column_names, merge_table_rows,
-                        row_to_text, split_header_body)
+from .pdf_table import (bat_dong_so_cot, checksum_gap, column_names,
+                        hang_khong_gia_tri, merge_table_rows, row_to_text,
+                        split_header_body)
 from .xlsx_header import compose_two_tier, find_header
 
 # Nhánh số CHỈ nhận numbering đa cấp ("1.1", "3.2.1"), sub-level 1-2 chữ số:
@@ -415,35 +416,57 @@ def _lines_tu_text(text: str) -> list[str]:
     return out
 
 
-def _trich_mot_bang(plumber_page, bbox) -> tuple[list[list], list[list]]:
-    """(hàng chế độ mặc định, hàng chế độ text) của MỘT vùng bbox trên trang.
+def _trich_mot_bang(plumber_page, bang) -> tuple[list[list], list[list]]:
+    """(hàng chế độ mặc định, hàng chế độ text) của MỘT bảng đã dò được.
 
-    Đối chiếu bằng SỐ LƯỢNG bảng dò được trong đúng bbox này ở cả hai chế
-    độ — không khớp thì bỏ chế độ `text` cho vùng này (an toàn hơn đoán sai
-    tương ứng bảng nào với bảng nào, spec §3.3 chỉ nói gộp TRONG một bảng,
-    không nói gộp bảng CHÉO NHAU)."""
-    vung = plumber_page.within_bbox(bbox, relative=False)
-    mac_dinh = vung.find_tables()
+    Chế độ mặc định lấy THẲNG `bang.extract()` — lưới mà `find_tables()` đã dò
+    trên TOÀN trang. KHÔNG dò lại chế độ mặc định bên trong `within_bbox`:
+    LỖI THẬT tìm ra 2026-09-04 khi rà toàn nhánh — cắt trang theo đúng bbox của
+    bảng làm MẤT các đường kẻ nằm ĐÚNG TRÊN biên cắt, nên `find_tables()` chạy
+    lại trong vùng cắt dò ra một lưới NGHÈO HƠN hẳn. Đo trên
+    `luat-thuexuatnhapkhau.pdf` trang 13: `bang.extract()` cho 15 hàng x 4 cột
+    (STT | Nhóm hàng | Mô tả | Khung thuế suất) còn dò lại trong bbox chỉ cho
+    13 hàng x 2 cột — cột "Khung thuế suất" biến mất khỏi lưới, và vì nó nằm
+    TRONG bbox nên cũng bị `parse_pdf` cắt khỏi dải văn xuôi: mất hẳn, không
+    còn đường nào phát ra. Nhánh dự phòng `bang.extract()` cũ chỉ chạy khi dò
+    lại trả về RỖNG, không cứu được ca "dò lại ra lưới nghèo hơn nhưng không
+    rỗng" này (trang 16: 25x4 → 23x2).
+
+    Chế độ `text` vẫn phải dò trong `within_bbox` (không có đường nào khác để
+    chạy `horizontal_strategy="text"` giới hạn trong một bảng). Dò ra != 1
+    bảng thì bỏ chế độ `text` cho vùng này — an toàn hơn đoán sai tương ứng
+    bảng nào với bảng nào (spec §3.3 chỉ nói gộp TRONG một bảng, không nói gộp
+    bảng CHÉO NHAU)."""
+    vung = plumber_page.within_bbox(bang.bbox, relative=False)
     theo_text = vung.find_tables(table_settings={"horizontal_strategy": "text"})
-    hang_mac_dinh = mac_dinh[0].extract() if mac_dinh else []
     hang_text = theo_text[0].extract() if len(theo_text) == 1 else []
-    return hang_mac_dinh, hang_text
+    return bang.extract(), hang_text
 
 
 def _khoi_bang(plumber_page, bang, pageno: int
                ) -> tuple[list[dict], list[tuple[str, str]]]:
     """Blocks + warnings của MỘT bảng đã dò được trên trang `pageno`."""
-    x0, top, x1, bottom = bang.bbox
-    hang_mac_dinh, hang_text = _trich_mot_bang(plumber_page, (x0, top, x1, bottom))
-    if not hang_mac_dinh:
-        hang_mac_dinh = bang.extract()
+    hang_mac_dinh, hang_text = _trich_mot_bang(plumber_page, bang)
+    warnings: list[tuple[str, str]] = []
+    # Cổng BẤT ĐỒNG SỐ CỘT — lệch số cột thì BỎ HẲN chế độ `text`:
+    # `merge_table_rows(..., [])` rơi đúng vào đường dự phòng sẵn có, chỉ dùng
+    # chế độ mặc định.
+    bat_dong = bat_dong_so_cot(hang_mac_dinh, hang_text)
+    if bat_dong:
+        n1, n2 = bat_dong
+        hang_text = []
+        warnings.append((f"trang {pageno}, bảng",
+                         f"hai chế độ trích xuất bất đồng số cột ({n1} vs {n2})"
+                         " — dùng riêng chế độ mặc định"))
     gop = merge_table_rows(hang_mac_dinh, hang_text)
     tat_ca_hang = [r for r, _ in gop]
     header_rows, body_rows, _ = split_header_body(tat_ca_hang)
     columns = column_names(header_rows)
+    # Bỏ hàng KHÔNG MANG GIÁ TRỊ NÀO — xem `hang_khong_gia_tri`. Im lặng đúng:
+    # ô đệm rỗng của biểu mẫu không phải nội dung bị mất.
     blocks = [{"text": row_to_text(row, columns), "heading_level": None,
-              "page": pageno, "atomic": True} for row in body_rows]
-    warnings: list[tuple[str, str]] = []
+              "page": pageno, "atomic": True} for row in body_rows
+              if not hang_khong_gia_tri(row)]
     gap = checksum_gap(body_rows)
     if gap:
         warnings.append((f"trang {pageno}, bảng", gap))

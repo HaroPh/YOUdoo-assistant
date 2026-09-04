@@ -1,4 +1,6 @@
-from src.rag.pdf_table import merge_table_rows, split_header_body, column_names, row_to_text, checksum_gap
+from src.rag.pdf_table import (bat_dong_so_cot, checksum_gap, column_names,
+                               hang_khong_gia_tri, merge_table_rows, row_to_text,
+                               so_cot_dai_dien, split_header_body)
 
 
 def test_merge_ca_hai_che_do_khop_hoan_toan():
@@ -148,3 +150,72 @@ def test_checksum_gap_khong_phai_cot_dem_im_lang_dung():
 
 def test_checksum_gap_bang_rong_tra_none():
     assert checksum_gap([]) is None
+
+
+# ── Fix wave sau review toàn nhánh (2026-09-04) ──────────────────────────────
+# Critical #1: hai chế độ trích xuất BẤT ĐỒNG SỐ CỘT thì gộp làm MẤT CẢ CỘT.
+# Số liệu thật: luat-thuexuatnhapkhau.pdf trang 12-25, số dòng mang mức thuế
+# suất ("0-10", "15-25") 247 (pypdf thô) → 14 (B4 trước fix) → 240 (sau fix).
+
+
+def test_so_cot_dai_dien_bo_qua_hang_dau_toan_rong():
+    # Hàng đầu toàn None là dòng đệm của lưới pdfplumber — số ô của nó không
+    # phản ánh cấu trúc thật, phải lấy hàng đầu tiên CÓ nội dung.
+    assert so_cot_dai_dien([[None, None], ["1", "A", "B", "0-10"]]) == 4
+    assert so_cot_dai_dien([]) == 0
+    assert so_cot_dai_dien([["", None], [" ", ""]]) == 0
+
+
+def test_bat_dong_so_cot_phat_hien_lech_4_vs_2():
+    default_rows = [["1", "03.03", "Cá, đông lạnh", "0-10"]]
+    text_rows = [["03.03", "Cá, đông lạnh"]]
+    assert bat_dong_so_cot(default_rows, text_rows) == (4, 2)
+
+
+def test_bat_dong_so_cot_im_lang_khi_khop_hoac_luoi_rong():
+    khop = [["1", "A"], ["2", "B"]]
+    assert bat_dong_so_cot(khop, [["3", "C"]]) is None
+    # Một lưới rỗng: không có gì để đối chiếu — KHÔNG được báo bất đồng, nếu
+    # không mọi bảng chỉ dò được ở một chế độ đều sinh cảnh báo rác.
+    assert bat_dong_so_cot(khop, []) is None
+    assert bat_dong_so_cot([], khop) is None
+
+
+def test_lech_so_cot_thi_ket_qua_chi_dung_che_do_mac_dinh():
+    """Khi bất đồng số cột, đường xử lý bỏ hẳn `text_rows` — kết quả gộp phải
+    GIỮ NGUYÊN lưới 4 cột. Ca đối chứng ngay dưới cho thấy vì sao: gộp thẳng
+    hai lưới lệch cột làm cột thứ 4 ("Khung thuế suất") biến mất."""
+    default_rows = [["STT", "Nhóm hàng", "Mô tả", "Khung thuế suất"],
+                    ["1", "03.03", "Cá, đông lạnh", "0-10"],
+                    ["2", "03.04", "Phi-lê cá", "15-25"]]
+    text_rows = [["03.03", "Cá, đông lạnh"], ["03.04", "Phi-lê cá"],
+                 ["03.05", "Cá khô"]]
+    assert bat_dong_so_cot(default_rows, text_rows) == (4, 2)
+    gop = merge_table_rows(default_rows, [])
+    assert [r for r, _ in gop] == default_rows
+    assert all(len(r) == 4 for r, _ in gop)
+
+
+def test_doi_chung_gop_thang_hai_luoi_lech_cot_lam_mat_cot_cuoi():
+    """Ca ĐỐI CHỨNG ghi lại chính lỗi đã đo — không phải hành vi mong muốn.
+    Nếu ai đó gỡ cổng `bat_dong_so_cot` ở `_khoi_bang`, đây là thứ sẽ xảy ra:
+    các hàng lấy từ chế độ `text` chỉ còn 2 ô, mọi mức thuế suất ở ô thứ 4
+    biến mất khỏi output."""
+    default_rows = [["1", "03.03", "Cá, đông lạnh", "0-10"]]
+    text_rows = [["03.04", "Phi-lê cá"], ["03.03", "Cá, đông lạnh"]]
+    gop = [r for r, _ in merge_table_rows(default_rows, text_rows)]
+    assert any(len(r) == 2 for r in gop), (
+        "ca đối chứng không còn tái hiện được lỗi — nếu merge_table_rows đã "
+        "tự xử lý lệch cột thì xem lại có còn cần cổng bat_dong_so_cot không")
+
+
+# ── Important #3: hàng KHÔNG mang giá trị nào ────────────────────────────────
+# Số liệu thật: bieumau_bctc_hopnhat.pdf 951/1625 chunk atomic (59%) chỉ là
+# khung "Cột X: | Cột Y:" không giá trị.
+
+
+def test_hang_khong_gia_tri_nhan_dien_dung():
+    assert hang_khong_gia_tri([None, "", "   ", None])
+    assert hang_khong_gia_tri([])
+    assert not hang_khong_gia_tri([None, "", "280", None])
+    assert not hang_khong_gia_tri(["Tài sản ngắn hạn", "", ""])

@@ -238,7 +238,14 @@ def test_parse_pdf_bang_that_moi_hang_la_mot_block_atomic():
     # HAI trường hợp đã đo đều không sinh cảnh báo, nên warnings==[] đúng
     # với 2 file mẫu đã đo — nếu implementer đo ra khác, SỬA assertion theo
     # số thật, đừng ép về [] cho khớp dòng này.
-    assert warnings == []
+    #
+    # CẬP NHẬT 2026-09-04 (fix wave sau review toàn nhánh), làm đúng lời dặn
+    # trên: file này giờ sinh 3 cảnh báo LOẠI MỚI "bất đồng số cột" (6 vs 4,
+    # trang 1-3) — cảnh báo CỐ Ý của Critical #1, không phải hồi quy. Ý định
+    # gốc của dòng assert là "không có cảnh báo CHECKSUM", nên thu hẹp đúng
+    # vào đó thay vì nới lỏng thành assert rỗng.
+    assert [w for w in warnings if "đứt đoạn" in w[1]] == []
+    assert all("bất đồng số cột" in w[1] for w in warnings), warnings
 
 
 class _FakeBangToanTrang:
@@ -395,3 +402,90 @@ def test_trang_khong_bang_van_duoc_loc_furniture_dung_trong_tai_lieu_hon_hop(mon
     assert NOI_DUNG[1] in khong_bang_texts
     assert NOI_DUNG[2] in khong_bang_texts
     assert NOI_DUNG[3] in khong_bang_texts
+
+
+# ── Fix wave sau review toàn nhánh (2026-09-04) ──────────────────────────────
+
+
+class _FakeBangCoLuoi:
+    """Bảng giả TRẢ VỀ LƯỚI THẬT qua `extract()` — khác _FakeBang* ở trên
+    (chúng trả [] vì chỉ cần buộc parse_pdf rẽ nhánh). Dùng để kiểm nội dung
+    block do `_khoi_bang` phát ra."""
+    def __init__(self, rows, bbox=(0, 0, 100, 100)):
+        self.bbox = bbox
+        self._rows = rows
+
+    def extract(self):
+        return self._rows
+
+
+class _FakeTrangChoKhoiBang:
+    """`within_bbox()` trả về chính nó; chế độ `text` KHÔNG dò được bảng nào
+    (mô phỏng bảng có đường kẻ rõ, chỉ chế độ mặc định thấy)."""
+    width, height = 100, 100
+
+    def __init__(self, bang_text=None):
+        self._bang_text = bang_text
+
+    def within_bbox(self, bbox, relative=False):
+        return self
+
+    def find_tables(self, table_settings=None):
+        if table_settings is None:
+            return []
+        return [self._bang_text] if self._bang_text is not None else []
+
+    def extract_text(self):
+        return ""
+
+
+def test_khoi_bang_bo_qua_hang_khong_mang_gia_tri_nao():
+    """Important #3: hàng mà MỌI ô đều rỗng chỉ dựng được khung "Cột X:" —
+    không phát block. Hàng có ít nhất một giá trị VẪN phát bình thường."""
+    from src.rag import parse
+    rows = [
+        ["TT", "Chỉ tiêu", "Mã số"],      # header
+        ["1", "Tiền mặt", "111"],          # thân, có giá trị
+        [None, "", "   "],                 # thân, RỖNG hoàn toàn
+        ["2", "Tiền gửi", "112"],          # thân, có giá trị
+    ]
+    page = _FakeTrangChoKhoiBang()
+    blocks, warnings = parse._khoi_bang(page, _FakeBangCoLuoi(rows), 7)
+    assert len(blocks) == 2, f"phải bỏ đúng hàng rỗng, còn: {[b['text'] for b in blocks]}"
+    assert all("Tiền" in b["text"] for b in blocks)
+    assert all(b["atomic"] and b["page"] == 7 for b in blocks)
+
+
+def test_khoi_bang_lech_so_cot_thi_bo_che_do_text_va_canh_bao():
+    """Critical #1: chế độ mặc định 4 cột, chế độ `text` 2 cột → bỏ hẳn chế độ
+    `text`, giữ đủ 4 cột, và PHẢI có cảnh báo (hỏng lớn tiếng còn hơn thiếu
+    âm thầm)."""
+    from src.rag import parse
+    mac_dinh = [["STT", "Nhóm hàng", "Mô tả", "Khung thuế suất"],
+                ["1", "03.03", "Cá, đông lạnh", "0-10"],
+                ["2", "03.04", "Phi-lê cá", "15-25"]]
+    theo_text = _FakeBangCoLuoi([["03.03", "Cá, đông lạnh"],
+                                 ["03.04", "Phi-lê cá"],
+                                 ["03.05", "Cá khô"]])
+    page = _FakeTrangChoKhoiBang(bang_text=theo_text)
+    blocks, warnings = parse._khoi_bang(page, _FakeBangCoLuoi(mac_dinh), 13)
+    assert [w for w in warnings if "bất đồng số cột" in w[1]], warnings
+    assert any("0-10" in b["text"] for b in blocks), (
+        f"mức thuế suất ở cột 4 biến mất: {[b['text'] for b in blocks]}")
+    assert any("15-25" in b["text"] for b in blocks)
+
+
+def test_khoi_bang_khop_so_cot_thi_van_gop_hai_che_do():
+    """Phép thử phá cho cổng trên: KHỚP số cột thì hàng thừa của chế độ `text`
+    (hàng vắt trang mà chế độ mặc định làm mất) VẪN phải được gộp vào — cổng
+    chống lệch cột không được biến thành cổng chặn luôn chế độ `text`."""
+    from src.rag import parse
+    mac_dinh = [["STT", "Mã", "Thuế"], ["1", "03.03", "0-10"], ["3", "03.05", "5-20"]]
+    theo_text = _FakeBangCoLuoi([["1", "03.03", "0-10"],
+                                 ["2", "03.04", "10-15"],
+                                 ["3", "03.05", "5-20"]])
+    page = _FakeTrangChoKhoiBang(bang_text=theo_text)
+    blocks, warnings = parse._khoi_bang(page, _FakeBangCoLuoi(mac_dinh), 4)
+    assert [w for w in warnings if "bất đồng số cột" in w[1]] == []
+    assert any("10-15" in b["text"] for b in blocks), (
+        f"hàng chỉ chế độ text thấy đã bị mất: {[b['text'] for b in blocks]}")

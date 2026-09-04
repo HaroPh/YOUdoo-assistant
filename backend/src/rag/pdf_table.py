@@ -68,6 +68,51 @@ def merge_table_rows(default_rows: list[list], text_rows: list[list]
     return out
 
 
+def so_cot_dai_dien(rows: list[list]) -> int:
+    """Số cột ĐẠI DIỆN của một lưới: độ dài hàng đầu tiên có ít nhất một ô
+    không rỗng. 0 nếu lưới rỗng hoặc mọi hàng đều toàn ô rỗng.
+
+    Không dùng hàng[0] thuần: hàng đầu của lưới `pdfplumber` có thể là dòng
+    đệm toàn `None` với số ô không phản ánh cấu trúc thật."""
+    for row in rows:
+        if any(_to_text(c) for c in row):
+            return len(row)
+    return 0
+
+
+def bat_dong_so_cot(default_rows: list[list], text_rows: list[list]
+                    ) -> tuple[int, int] | None:
+    """`(n_mặc_định, n_text)` nếu hai chế độ trích xuất BẤT ĐỒNG số cột, `None`
+    nếu khớp (hoặc một lưới rỗng — không có gì để đối chiếu, coi như khớp).
+
+    LỖI THẬT tìm ra 2026-09-04 khi rà toàn nhánh: `merge_table_rows` neo bằng
+    NỘI DUNG ô đầu không rỗng và không hề kiểm số cột, nên khi hai chế độ trả
+    về hai lưới KHÁC HÌNH DẠNG, các hàng lấy từ chế độ `text` vào thẳng output
+    với ít cột hơn — `row_to_text` khi đó chỉ phát ra được bấy nhiêu cột, các
+    cột cuối biến mất. Đo trên `luat-thuexuatnhapkhau.pdf` (tệp sản xuất, trang
+    12-25): bảng biểu thuế suất có chế độ mặc định 23 hàng x 4 cột (STT | Nhóm
+    hàng | Mô tả | Khung thuế suất) còn chế độ `text` 53 hàng x 2 cột — cột
+    "Khung thuế suất" gần như biến mất: 247 dòng mang mức thuế ("0-10", "15-25")
+    ở `pypdf` thô còn 14 sau B4. Bất đồng số cột nghĩa là hai chế độ đang nhìn
+    thấy hai cấu trúc bảng KHÁC HẲN NHAU, không phải cùng một bảng lệch vài
+    hàng — trường hợp DUY NHẤT mà `merge_table_rows` được thiết kế để xử lý."""
+    n1 = so_cot_dai_dien(default_rows)
+    n2 = so_cot_dai_dien(text_rows)
+    if n1 == 0 or n2 == 0:
+        return None
+    return (n1, n2) if n1 != n2 else None
+
+
+def hang_khong_gia_tri(row: list) -> bool:
+    """True nếu MỌI ô của hàng đều rỗng/khoảng trắng.
+
+    `row_to_text` vẫn dựng được text cho hàng như vậy ("Cột 1: | Cột 2: |...")
+    nhưng đó là khung tên cột, KHÔNG mang giá trị nào — phát thành chunk chỉ
+    làm loãng index. Đo trên `bieumau_bctc_hopnhat.pdf`: 951/1625 chunk atomic
+    (59%) thuộc loại này (ô đệm/ô trống của biểu mẫu)."""
+    return not any(_to_text(c) for c in row)
+
+
 _SO_LIEU_THUAN_RE = re.compile(r"^\d[\d.,]*\d$|^\d$")
 
 

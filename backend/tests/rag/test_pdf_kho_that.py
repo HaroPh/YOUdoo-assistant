@@ -92,3 +92,50 @@ def test_bctc_khong_chunk_nao_lan_ma_cot_dau_hang_khac():
                             re.sub(r"\([^)]*\)", "",
                                    ma_dau_re.match(c["chunk_text"]).group(1)))) > 1]
     assert lan == [], f"{len(lan)} chunk nghi lẫn số hàng khác: {lan[:5]}"
+
+
+# ── Fix wave sau review toàn nhánh (2026-09-04): Critical #1 ─────────────────
+KHO_LUAT = "d:/Documents"
+LUAT_THUE = os.path.join(KHO_LUAT, "luat-thuexuatnhapkhau.pdf")
+_MUC_THUE_RE = re.compile(r"\b\d{1,3}\s*-\s*\d{1,3}\b")
+
+
+@pytest.mark.skipif(not os.path.isfile(LUAT_THUE), reason="chưa có kho luật")
+def test_luat_thue_khong_mat_cot_khung_thue_suat():
+    """B4 KHÔNG được làm mất cột "Khung thuế suất" của biểu thuế (trang 12-25).
+
+    Thước đo TỰ ĐỐI CHIẾU: đếm số dòng mang mẫu mức thuế suất ("0-10",
+    "15-25") ở `pypdf` thô — đường xử lý CŨ, trước B4 — rồi so với số dòng
+    tương ứng trong output của `parse_pdf`. Không chốt cứng con số tuyệt đối
+    (nó phụ thuộc phiên bản pypdf/pdfplumber), chốt TỈ LỆ GIỮ LẠI.
+
+    Đo thật 2026-09-04: pypdf thô 247 dòng; B4 trước fix 14 (5.7% — cột thứ 4
+    gần như biến mất vì `_trich_mot_bang` dò lại bảng trong chính bbox của nó
+    và ra lưới 2 cột nghèo hơn); sau fix 240 (97.2%). Ngưỡng 0.80 nằm giữa
+    hai chế độ đó với biên rộng cả hai phía — phần thiếu còn lại là hàng vắt
+    trang ở trang 14/24/25, giới hạn "vỡ trang" spec §3.4 đã chấp nhận."""
+    import pypdf
+    reader = pypdf.PdfReader(LUAT_THUE)
+    goc = 0
+    for i in range(11, 25):
+        for dong in (reader.pages[i].extract_text() or "").splitlines():
+            if _MUC_THUE_RE.search(dong):
+                goc += 1
+    assert goc > 100, f"thước đo hỏng: pypdf thô chỉ thấy {goc} dòng mức thuế"
+
+    blocks, _ = parse_pdf(LUAT_THUE)
+    con_lai = sum(1 for b in blocks
+                  if b.get("page") and 12 <= b["page"] <= 25
+                  and _MUC_THUE_RE.search(b["text"]))
+    assert con_lai / goc >= 0.80, (
+        f"mất phần lớn mức thuế suất: {con_lai}/{goc} = {con_lai / goc:.1%} "
+        "(cột 'Khung thuế suất' bị rơi khỏi lưới bảng?)")
+
+
+@pytest.mark.skipif(not os.path.isfile(LUAT_THUE), reason="chưa có kho luật")
+def test_luat_thue_co_canh_bao_bat_dong_so_cot():
+    """Bỏ chế độ `text` là một QUYẾT ĐỊNH MẤT DỮ LIỆU TIỀM TÀNG (hàng vắt
+    trang chỉ chế độ text thấy) — phải LỚN TIẾNG, không im lặng."""
+    _, warnings = parse_pdf(LUAT_THUE)
+    bat_dong = [w for w in warnings if "bất đồng số cột" in w[1]]
+    assert bat_dong, "không có cảnh báo nào dù đã bỏ chế độ text trên 13 trang"
