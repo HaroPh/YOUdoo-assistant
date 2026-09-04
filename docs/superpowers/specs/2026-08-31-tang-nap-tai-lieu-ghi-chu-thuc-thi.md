@@ -522,6 +522,22 @@ tests/rag/test_pdf_kho_that.py -v -m live` → 3 passed, 1 xfailed (3 test còn 
 checksum, ssc trùng lặp — không đổi); `pytest -m "not integration and not live" -q` → 2328 passed
 (tăng đúng 1 so với 2327 trước đó — test đơn vị mới không phải `-m live`), 1 skipped, 81 deselected.
 
+#### Sửa lỗi thước đo (2026-09-04, sau khi controller xác nhận chắc chắn)
+
+Kiểm tra lại xác nhận từ controller: **2/5 chunk còn lại LÀ lỗi thước đo, KHÔNG phải bug sản phẩm**.
+Nguyên nhân chính xác: quy tắc `re.findall(r"\d[\d.,]{2,}", ...)` đếm mọi số liệu >3 chữ số trong
+**cột nhãn** (cột đầu tiên của hàng bảng), mà không loại trừ nội dung trong ngoặc `(...)` — hai hàng
+TỔNG CỘNG `"TỔNG CỘNG TÀI SẢN (280 = 100 + 200)"` và `"TỔNG CỘNG NGUỒN VỐN (440 = 300 + 400)"` là
+cấu trúc kế toán hợp lệ (công thức tham chiếu trong ngoặc ghi mã dòng con số), KHÔNG phải hiện tượng
+"lẫn hàng khác". Sửa phép đo: loại bỏ **nội dung trong ngoặc TRƯỚC khi đếm**, sử dụng
+`re.sub(r"\([^)]*\)", "", ...)` để xoá tất cả `(...)`, rồi mới đếm số liệu. Loại bỏ `xfail` marker.
+
+Kết quả sau sửa:
+- `test_bctc_khong_chunk_nao_lan_ma_cot_dau_hang_khac` — **PASS** (0/1147 hàng bảng nghi lẫn)
+- 3 test B4 còn lại (100 hoá đơn, ssc checksum, ssc trùng lặp) — vẫn PASS (không hồi quy)
+- Suite toàn bộ `-m "not integration and not live"` — **2328 passed** (không đổi số lượng)
+- Commit: đồng thời cập nhật test + ghi chú thực thi
+
 ### 2.3 Tiền đề "683/683 trang PDF luật không bảng" KHÔNG khớp corpus hiện có — nhưng bất biến an toàn thật vẫn đứng vững
 
 `d:/Youdoo/tmp-docs` hiện KHÔNG còn tệp `.pdf` nào tên "luật" (thư mục gitignore, nội dung đổi theo
