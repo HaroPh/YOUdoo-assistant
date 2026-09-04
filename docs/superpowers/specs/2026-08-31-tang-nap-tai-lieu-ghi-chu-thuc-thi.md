@@ -286,11 +286,37 @@ hàm production đã có sẵn.
 - **Ngầm định "mẫu số trần (`arabic_ok`) không có tác dụng phụ đáng kể"** — số đo phân bố chunk
   (Task 4 Step 4) cho tín hiệu ngược: bật đầy đủ suy phân cấp làm chunk tăng từ 146 lên 191
   (+31%), nhưng tắt riêng nhánh `arabic_ok` (chỉ giữ bằng chứng cha-con `n in parents`) thì chỉ còn
-  156 (+7% so với trước B3, kích thước trung vị 710 ký tự — gần khớp 726 của "trước"). Phần lớn
-  mức tăng chunk đến từ đúng nhánh spec mục 5 đã cảnh báo trước: mẫu số trần không có bằng chứng
-  cha-con (chỉ có "hai số trần kế tiếp ở cấp tài liệu") đang cắt `Điều`/mục thành khoản nhỏ hơn.
-  **Chưa áp phương án lùi** — đây là quyết định có hệ quả tới retrieval, để ngỏ chờ controller,
-  không phải một hằng số chỉnh cho đẹp (chỉ thị cứng #3 của brief Task 4).
+  156 (+7% so với trước B3, kích thước trung vị 710 ký tự — gần khớp 726 của "trước").
+
+  **Phương pháp**: cả hai script đo của Task 4 Step 3/4 đã được sửa để gồm CẢ `.doc` qua
+  `convert.convert_file` (cùng lý do như tệp test — xem §0), không chỉ `.docx` như mẫu code trong
+  kế hoạch. Ai chạy đúng mẫu code trong kế hoạch (chỉ lọc `.docx`, 11 tệp) sẽ ra `132/174/139` chứ
+  không phải `146/191/156` — hai bộ số đều đúng, chỉ khác phạm vi tệp.
+
+  **RULING của controller (2026-09-04): GIỮ nhánh `arabic_ok`, KHÔNG áp phương án lùi.** Ban đầu
+  tôi ghi ở đây rằng mẫu số trần "đang cắt `Điều`/mục thành khoản nhỏ hơn" — **câu đó SAI, đã sửa
+  lại**. Phép đo phân định (controller tự chạy, tách chênh lệch theo TỪNG TỆP) cho thấy:
+
+  | tệp | đầy đủ | bỏ `arabic_ok` | chênh |
+  |---|---|---|---|
+  | `b09-dn.docx` (thuyết minh BCTC) | 109 | 77 | **+32** |
+  | `B09a-DN.docx` (thuyết minh BCTC) | 11 | 8 | **+3** |
+  | `quyche_ogop.docx` | 1 | 1 | **+0** |
+  | `quyche_taichinh.doc` | 17 | 17 | **+0** |
+  | 8 biểu mẫu BCTC ngắn còn lại | — | — | **+0** |
+
+  Toàn bộ mức tăng nằm ở hai tệp *thuyết minh báo cáo tài chính*, đúng thể loại mà `1.`/`12.` LÀ
+  mục thật — breadcrumb sinh ra là `… › I. Đặc điểm hoạt động của doanh nghiệp › 1. Hình thức sở
+  hữu vốn.`, đúng cấu trúc tài liệu. **Cả hai tệp quy chế — thể loại mà rủi ro "khoản của Điều bị
+  vỡ" thực sự nằm — đều +0.** Rủi ro spec mục 5 lường trước đã được ĐO và nó không xảy ra trên
+  corpus này. "Cắt vụn" ở đây cũng không mất nội dung hay ngữ cảnh: mỗi chunk nhỏ hơn vẫn mang trọn
+  breadcrumb cha, đúng thứ B3 dựng ra để cấp.
+
+  **Giá nếu ruling sai**: nếu corpus sau này có nhiều văn bản kiểu luật (khoản đánh số dưới Điều),
+  `arabic_ok` sẽ cắt vụn chúng — sửa là lật một cờ boolean, phương án lùi đã ghi sẵn ở spec mục 5.
+  **Điều CHƯA đo, nói rõ**: chưa có phép đo RETRIEVAL nào cho corpus docx (12 tệp này là fixture
+  trong `tmp-docs`, chưa index vào production). Ruling dựa trên cấu trúc tài liệu, KHÔNG dựa trên
+  recall. Mở lại khi corpus docx được index thật và có eval phủ nó.
 
 ## 4. Hướng đã chọn, và vì sao
 
