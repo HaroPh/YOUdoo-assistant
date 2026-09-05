@@ -181,12 +181,17 @@ def _ingest_known(path: str, kind: str, conn,
         for c, vec in zip(chunks, vectors):
             conn.execute(
                 "INSERT INTO rag_chunks (doc_id, source_file, doc_title, section_path, page, "
-                "sheet, row_range, columns, chunk_index, token_count, chunk_text, embedding, "
-                "ts_vector) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, "
+                "sheet, row_range, columns, chunk_index, token_count, chunk_text, "
+                "source_kind, ocr_conf, embedding, "
+                "ts_vector) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, "
                 "to_tsvector('simple', %s))",
                 (c["doc_id"], c["source_file"], c["doc_title"], c["section_path"], c["page"],
                  c["sheet"], c["row_range"], c["columns"], c["chunk_index"], c["token_count"],
-                 c["chunk_text"], vec,
+                 c["chunk_text"],
+                 # `.get()` chứ không phải `[...]`: `chunk_xlsx_sheets` không
+                 # đặt hai khoá này và không có lý do gì phải đặt.
+                 c.get("source_kind", "text"), c.get("ocr_conf"),
+                 vec,
                  segment_vi(index_text(c["section_path"], c["chunk_text"]))),
             )
     report = IngestReport(ingested=1, chunks=len(chunks))

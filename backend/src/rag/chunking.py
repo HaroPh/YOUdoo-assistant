@@ -9,6 +9,22 @@ from .config import (CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS, MIN_CHUNK_TOKENS,
 _enc = tiktoken.get_encoding(TIKTOKEN_ENCODING)
 _SENT_RE = re.compile(r"(?<=[.!?…])\s+")
 
+_XUAT_XU_RANK = {"text": 0, "ocr": 1, "vision_description": 2}
+
+
+def _gop_bi_quan(items: list[tuple[str, str, float | None]]) -> tuple[str, float | None]:
+    """Bậc xuất xứ THẤP TIN CẬY NHẤT + `ocr_conf` NHỎ NHẤT trong nhóm.
+
+    Ghi thành hàm riêng vì đây đúng loại quyết định hay bị quyết ngầm và quyết
+    sai: trộn một câu đọc-từ-ảnh vào một chunk văn bản sạch thì cả chunk chỉ
+    đáng tin bằng phần yếu nhất (spec 2026-09-04-tang-ocr §8)."""
+    kind = "text"
+    for _text, k, _conf in items:
+        if _XUAT_XU_RANK.get(k, 0) > _XUAT_XU_RANK[kind]:
+            kind = k
+    confs = [c for _text, _k, c in items if c is not None]
+    return kind, (min(confs) if confs else None)
+
 
 def count_tokens(text: str) -> int:
     return len(_enc.encode(text))
@@ -59,8 +75,8 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
     # Build (section_path, page, body) leaf sections in order. `body` mang
     # theo cờ atomic per-block (text, atomic) để giai đoạn sau tách RUN.
     path_stack: list[tuple[int, str]] = []  # (level, text)
-    sections: list[tuple[str, int | None, list[tuple[str, bool]]]] = []
-    cur_body: list[tuple[str, bool]] = []
+    sections: list[tuple[str, int | None, list[tuple[str, bool, str, float | None]]]] = []
+    cur_body: list[tuple[str, bool, str, float | None]] = []
     cur_page: int | None = None
 
     def _flush():
@@ -78,6 +94,8 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
 
     for b in blocks:
         atomic = bool(b.get("atomic"))
+        xuat_xu = b.get("source_kind", "text")
+        conf = b.get("ocr_conf")
         if b["heading_level"]:
             lvl = b["heading_level"]
             if not cur_body and path_stack and path_stack[-1][0] >= lvl:
@@ -88,7 +106,7 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
                 # (spec 2026-07-15 §3B).
                 if cur_page is None:
                     cur_page = b["page"]
-                cur_body.append((b["text"], atomic))
+                cur_body.append((b["text"], atomic, xuat_xu, conf))
                 continue
             _flush()
             cur_body.clear()
@@ -99,7 +117,7 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
         else:
             if cur_page is None:
                 cur_page = b["page"]
-            cur_body.append((b["text"], atomic))
+            cur_body.append((b["text"], atomic, xuat_xu, conf))
     _flush()
 
     out: list[dict] = []
@@ -108,31 +126,39 @@ def chunk_text_blocks(blocks: list[dict], *, doc_id: str, source_file: str) -> l
         # Tách thành các RUN: văn xuôi liên tục (không atomic) hoặc một
         # block atomic đứng riêng — atomic KHÔNG được gộp với run liền kề dù
         # cộng dồn vẫn dưới CHUNK_SIZE_TOKENS (spec 2026-09-04-b4 §3.5).
-        pieces: list[str] = []
-        run: list[str] = []
-        for text, atomic in body:
-            if atomic:
-                if run:
-                    joined = " ".join(run).strip()
-                    if joined:
-                        pieces.extend([joined] if count_tokens(joined) <= MIN_CHUNK_TOKENS
-                                      else _split_section_text(joined))
-                    run = []
-                pieces.append(text)
-            else:
-                run.append(text)
-        if run:
-            joined = " ".join(run).strip()
+        # (text, source_kind, ocr_conf) cho từng mảnh sắp phát ra.
+        pieces: list[tuple[str, str, float | None]] = []
+        run: list[tuple[str, str, float | None]] = []
+
+        def _xa_run():
+            if not run:
+                return
+            joined = " ".join(t for t, _k, _c in run).strip()
             if joined:
-                pieces.extend([joined] if count_tokens(joined) <= MIN_CHUNK_TOKENS
-                              else _split_section_text(joined))
-        for piece in pieces:
+                kind, conf = _gop_bi_quan(run)
+                manh = ([joined] if count_tokens(joined) <= MIN_CHUNK_TOKENS
+                        else _split_section_text(joined))
+                # Mọi mảnh cắt ra từ cùng một run thừa hưởng cùng xuất xứ: run
+                # là MỘT khối văn bản liền, cắt nó không làm phần nào sạch hơn.
+                pieces.extend((m, kind, conf) for m in manh)
+            run.clear()
+
+        for text, atomic, xuat_xu, conf in body:
+            if atomic:
+                _xa_run()
+                pieces.append((text, xuat_xu, conf))
+            else:
+                run.append((text, xuat_xu, conf))
+        _xa_run()
+
+        for piece, kind, conf in pieces:
             out.append({
                 "doc_id": doc_id, "source_file": source_file, "doc_title": doc_title,
                 "section_path": section_path, "page": page,
                 "sheet": None, "row_range": None, "columns": None,
                 "chunk_index": idx, "token_count": count_tokens(piece),
                 "chunk_text": piece,
+                "source_kind": kind, "ocr_conf": conf,
             })
             idx += 1
     return out
