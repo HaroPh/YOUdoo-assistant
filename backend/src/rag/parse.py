@@ -549,6 +549,19 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
             if not bangs:
                 pages.append(text_toan_trang)
                 continue
+            if pageno in ocr_pages:
+                # Trang này không có lớp text nên đã đi qua OCR ở trên, NHƯNG
+                # cũng bị `find_tables()` báo có bảng. Nhánh dưới đây dựng lại
+                # dải văn xuôi từ `plumber_page.within_bbox(...).extract_text()`
+                # — nguồn hoàn toàn KHÁC `text_toan_trang` (lớp vector, không
+                # phải OCR) — nên chữ đọc được bằng ảnh bị BỎ ĐI ở đây mà không
+                # ai nói gì: đúng lớp lỗi "mất mát âm thầm" spec này đi đóng.
+                # Dựng lại bảng từ ảnh là việc của bậc 2 (chưa có tài liệu scan
+                # thật để hiệu chỉnh) — ở bậc 1 chỉ cần GỌI TÊN việc bỏ đi này.
+                all_warnings.append((f"trang {pageno}",
+                                     "đọc được chữ bằng ảnh nhưng trang có bảng "
+                                     "— bậc 1 chưa dựng bảng từ ảnh, phần chữ "
+                                     "của trang này không vào corpus"))
             width, height = plumber_page.width, plumber_page.height
             y_bien = [0.0] + [y for b in bangs for y in (b.bbox[1], b.bbox[3])] + [height]
             dai_lines: list[str] = []

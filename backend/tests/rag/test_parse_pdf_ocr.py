@@ -17,14 +17,43 @@ class _FakeReader:
         self.pages = [_FakePage(t) for t in pages_text]
 
 
-class _FakePlumberPage:
+class _FakeBang:
+    """Một bảng giả tối thiểu: chỉ đủ trường `parse_pdf` đọc tới khi bảng
+    RỖNG hoàn toàn (không hàng nào) — đúng thực tế của trang đọc-bằng-ảnh,
+    nơi không có đối tượng chữ (vector) nào để `bang.extract()` bám vào."""
+    bbox = (0, 0, 100, 100)
+
+    def extract(self):
+        return []
+
+
+class _FakeWithinBbox:
+    def extract_text(self):
+        return ""
+
     def find_tables(self, table_settings=None):
         return []
 
 
+class _FakePlumberPage:
+    width = 100
+    height = 100
+
+    def __init__(self, bangs=None):
+        self._bangs = bangs or []
+
+    def find_tables(self, table_settings=None):
+        return self._bangs
+
+    def within_bbox(self, bbox, relative=False):
+        return _FakeWithinBbox()
+
+
 class _FakePlumberPDF:
-    def __init__(self, n):
-        self.pages = [_FakePlumberPage() for _ in range(n)]
+    def __init__(self, n, bangs_theo_trang=None):
+        bangs_theo_trang = bangs_theo_trang or {}
+        self.pages = [_FakePlumberPage(bangs_theo_trang.get(i + 1))
+                     for i in range(n)]
 
     def __enter__(self):
         return self
@@ -39,13 +68,14 @@ def _doc_gia(text, conf=90.0):
 
 
 def _dung_canh(monkeypatch, pypdf_pages, ocr_text="Điều 1. Chữ đọc từ ảnh.",
-               conf=90.0):
+               conf=90.0, bangs_theo_trang=None):
     import pypdf
     import pdfplumber
     from src.rag import parse
     monkeypatch.setattr(pypdf, "PdfReader", lambda path: _FakeReader(pypdf_pages))
     monkeypatch.setattr(pdfplumber, "open",
-                        lambda path: _FakePlumberPDF(len(pypdf_pages)))
+                        lambda path: _FakePlumberPDF(len(pypdf_pages),
+                                                     bangs_theo_trang))
     monkeypatch.setattr(parse, "read_page",
                         lambda path, pageno, **kw: _doc_gia(ocr_text, conf))
     return parse
@@ -109,6 +139,42 @@ def test_THIEU_BINARY_thi_bao_co_ten_chu_khong_lam_vo_ca_luot_nap(monkeypatch):
     blocks, warnings = parse.parse_pdf("x.pdf")
     assert blocks == []
     assert len(warnings) == 1 and "tesseract" in warnings[0][1].lower()
+
+
+def test_LOI_DOC_ANH_THUONG_thi_bao_co_ten_chu_khong_lam_vo_ca_luot_nap(monkeypatch):
+    """Đường hỏng thứ hai của `_doc_trang_bang_anh`: KHÔNG phải thiếu binary
+    (đã có test riêng ở trên), mà bản thân việc rasterise/đọc ảnh ném lỗi
+    (PDF vỡ, ảnh không rasterise được, v.v.) — nhánh `except Exception as e`.
+    """
+    parse = _dung_canh(monkeypatch, [""])
+
+    def _hong(path, pageno, **kw):
+        raise RuntimeError("khong rasterise duoc trang")
+
+    monkeypatch.setattr(parse, "read_page", _hong)
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert blocks == [], "một trang hỏng không được sinh block rác"
+    assert len(warnings) == 1
+    where, reason = warnings[0]
+    assert "trang 1" in where
+    assert "RuntimeError" in reason, "cảnh báo phải gọi tên LOẠI lỗi, không nuốt"
+
+
+def test_trang_DA_OCR_ma_lai_co_bang_thi_canh_bao_khong_im_lang(monkeypatch):
+    """Finding 2 (review Task 4): trang không có lớp text đã đọc được chữ
+    bằng ảnh, nhưng `find_tables()` vẫn báo trang có bảng (khung vẽ sẵn/lưới
+    vector chồng lên nội dung scan). Nhánh dựng dải văn xuôi cho trang có
+    bảng dùng `plumber_page.within_bbox(...).extract_text()` — nguồn HOÀN
+    TOÀN KHÁC OCR — nên chữ đọc bằng ảnh bị bỏ đi. Bậc 1 CHƯA dựng bảng từ
+    ảnh (việc của bậc 2); ở đây chỉ cần không im lặng."""
+    parse = _dung_canh(monkeypatch, [""], bangs_theo_trang={1: [_FakeBang()]})
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert blocks == [], ("không có lớp vector để dựng lại bảng/dải văn xuôi "
+                          "— trang phải RỖNG BLOCK, không được bịa nội dung")
+    assert len(warnings) == 1
+    where, reason = warnings[0]
+    assert where == "trang 1"
+    assert "bảng" in reason.lower() and "ảnh" in reason.lower()
 
 
 import os
