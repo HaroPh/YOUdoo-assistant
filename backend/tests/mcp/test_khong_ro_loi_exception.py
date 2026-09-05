@@ -54,6 +54,16 @@ MIEN_TRU = {
               "trình viên, app không lên chứ không lên sai"),
     "backend/src/rag/embed.py": (
         1, 1, "raise EmbeddingError — lỗi hạ tầng lúc index, không ra người dùng"),
+    "backend/src/rag/parse.py": (
+        2, 2, "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
+              "task 4 spec 2026-09-04-tang-ocr §12): cảnh báo mang nguyên văn "
+              "lỗi đọc-bằng-ảnh (thiếu binary tesseract, PDF/ảnh rasterise "
+              "hỏng) được gói vào `(where, reason)` rồi cộng vào "
+              "`all_warnings` của `parse_pdf`, cùng ĐÚNG đường "
+              "`IngestReport.warnings` → `report.render()` → CLI "
+              "`python -m src.rag.ingest` đã miễn trừ ở entry `rag/ingest.py` "
+              "ngay trên — không có đường nào tới hội thoại. Nguyên văn lỗi "
+              "CHÍNH LÀ chẩn đoán cần đọc, cùng lý lẽ đã áp cho `ingest.py`."),
     "backend/src/rag/ingest.py": (
         2, 2, "CLI nạp tài liệu — hai chỗ khớp đều đi ra CONSOLE CỦA NGƯỜI "
               "CHẠY `python -m src.rag.ingest`, không có đường nào tới hội "

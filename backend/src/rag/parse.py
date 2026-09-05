@@ -12,6 +12,8 @@ from .pdf_table import (bat_dong_so_cot, checksum_gap, column_names,
                         hang_khong_gia_tri, merge_table_rows, row_to_text,
                         split_header_body)
 from .xlsx_header import compose_two_tier, find_header
+from src.ocr.document import read_page
+from src.ocr.engine import TesseractMissing
 
 # Nhánh số CHỈ nhận numbering đa cấp ("1.1", "3.2.1"), sub-level 1-2 chữ số:
 # numbering 1 cấp ("1. ...") là KHOẢN (nội dung) trong luật VN chứ không phải
@@ -473,6 +475,34 @@ def _khoi_bang(plumber_page, bang, pageno: int
     return blocks, warnings
 
 
+def _doc_trang_bang_anh(path: str, pageno: int
+                        ) -> tuple[list[str], float | None, tuple[str, str] | None]:
+    """Đọc MỘT trang không có lớp text bằng ảnh.
+
+    Trả `(dòng, mean_conf, cảnh_báo)`. Hỏng thì to tiếng NHƯNG không làm vỡ cả
+    lượt nạp: cảnh báo mang tên trang đi tiếp qua `IngestReport`, và nếu cuối
+    cùng cả tệp không sinh được block nào thì `_ingest_known` đã sẵn ném
+    `IngestError` — tệp bị TỪ CHỐI CÓ TÊN, đúng hạ tầng Kế hoạch 1 dựng
+    (spec 2026-09-04-tang-ocr §12). Không phát minh cơ chế mới.
+    """
+    try:
+        kq = read_page(path, pageno)
+    except TesseractMissing as e:
+        return [], None, (f"trang {pageno}",
+                          f"trang không có lớp text và không đọc được bằng ảnh: {e}")
+    except Exception as e:                      # noqa: BLE001
+        # Một trang hỏng (PDF vỡ, ảnh không rasterise được) không được kéo
+        # theo cả tài liệu — nhưng phải GỌI TÊN, không nuốt.
+        return [], None, (f"trang {pageno}",
+                          f"đọc trang bằng ảnh thất bại: {type(e).__name__}: {e}")
+    lines = _lines_tu_text(kq.text)
+    if not lines:
+        return [], None, (f"trang {pageno}",
+                          "đọc bằng ảnh ra text RỖNG — trang có thể là ảnh trắng "
+                          "hoặc bản scan hỏng; KHÔNG nạp gì cho trang này")
+    return lines, kq.mean_conf, None
+
+
 def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
     """Heuristic headings (no font info): numbered/keyword headings & short
     ALL-CAPS lines. Trang CÓ bảng đi qua `pdfplumber` (spec 2026-09-04-b4);
@@ -497,8 +527,21 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
         # dạng bieumau_bctc_hopnhat.pdf mới lộ ra, test đồng nhất không bắt được).
         pages_cho_furniture: list[list[str]] = []
         page_bangs: list[list] = []
+        ocr_pages: dict[int, float | None] = {}
         for pageno, page in enumerate(reader.pages, start=1):
             text_toan_trang = _lines_tu_text(page.extract_text() or "")
+            # "Rỗng" nghĩa là KHÔNG CÒN DÒNG NÀO sau bước strip — không phải
+            # "ít chữ". Máy scan đời mới thường nhúng sẵn một lớp OCR kém nên
+            # trang scan có thể trả về vài ký tự rác thay vì rỗng hẳn; KHÔNG
+            # đặt ngưỡng "dưới N ký tự" ở đây vì chưa có tài liệu scan thật để
+            # hiệu chỉnh N, và hằng số rút từ không khí là thứ dự án này cấm
+            # (spec 2026-09-04-tang-ocr §11).
+            if not text_toan_trang:
+                text_toan_trang, conf, canh_bao = _doc_trang_bang_anh(path, pageno)
+                if canh_bao:
+                    all_warnings.append(canh_bao)
+                if text_toan_trang:
+                    ocr_pages[pageno] = conf
             pages_cho_furniture.append(text_toan_trang)
             plumber_page = pdf.pages[pageno - 1]
             bangs = sorted(plumber_page.find_tables(), key=lambda b: b.bbox[1])
@@ -524,8 +567,12 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
             for text in lines:
                 if _normalize_digits(text) in furniture:
                     continue
-                blocks.append({"text": text, "heading_level": heading_level(text),
-                               "page": pageno})
+                blk = {"text": text, "heading_level": heading_level(text),
+                       "page": pageno}
+                if pageno in ocr_pages:
+                    blk["source_kind"] = "ocr"
+                    blk["ocr_conf"] = ocr_pages[pageno]
+                blocks.append(blk)
             for bang in bangs:
                 bang_blocks, bang_warnings = _khoi_bang(plumber_page, bang, pageno)
                 blocks.extend(bang_blocks)
