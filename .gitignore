@@ -37,3 +37,6 @@ desktop.ini
 
 # --- Tai lieu test boc tach bang -- file that, KHONG commit ---
 tmp-docs/
+
+# --- Rac test co tu TRUOC dot OCR bac 1 (review toan nhanh B6) --------------
+backend/suite_quick_result.txt

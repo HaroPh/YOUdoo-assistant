@@ -11,6 +11,13 @@
 -- ocr_conf NULL là HỢP LỆ và là trạng thái thường gặp: chỉ chunk có nguồn từ
 -- ảnh mới có độ tin cậy để ghi.
 --
--- Idempotent, an toàn khi chạy lại.
-ALTER TABLE rag_chunks ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'text';
-ALTER TABLE rag_chunks ADD COLUMN IF NOT EXISTS ocr_conf real;
+-- Idempotent, an toàn khi chạy lại — VÀ an toàn trên máy cài MỚI, nơi
+-- `rag_chunks` chưa tồn tại khi migration này chạy: bảng do `ensure_schema()`
+-- (`src/rag/db.py`) dựng từ `schema.sql` ở lần ingest ĐẦU TIÊN, không phải do
+-- migration nào tạo. `schema.sql` đã có sẵn hai cột này (thêm cùng đợt), nên
+-- `ALTER TABLE IF EXISTS` làm migration này thành NO-OP thật trên DB mới, và
+-- vẫn đúng như cũ trên DB cũ. Thiếu `IF EXISTS` ở đây từng làm người cài mới
+-- làm đúng thứ tự tài liệu (migrate trước, ingest sau) gặp
+-- `ERROR: relation "rag_chunks" does not exist`.
+ALTER TABLE IF EXISTS rag_chunks ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'text';
+ALTER TABLE IF EXISTS rag_chunks ADD COLUMN IF NOT EXISTS ocr_conf real;

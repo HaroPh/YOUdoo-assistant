@@ -47,6 +47,52 @@ def test_bac_thap_nhat_thang_ke_ca_khi_dung_sau():
     assert out[0]["source_kind"] == "vision_description"
 
 
+def test_source_kind_LA_khong_duoc_tham_lang_thanh_text():
+    # Finding review toàn nhánh A3: một `source_kind` lạ (viết hoa nhầm, thừa
+    # dấu cách, hay một bậc mới gõ sai) trước đây rơi vào `.get(k, 0)` — hạng 0
+    # trùng với "text", nên NGUYÊN VĂN chunk trở thành `source_kind="text"`,
+    # tức TĂNG hạng tin cậy một cách im lặng cho một giá trị KHÔNG rõ nghĩa.
+    # Đúng hướng phải là hạ về KHÔNG TIN CẬY nhất, không bao giờ về "text".
+    blocks = [
+        {"text": "Chữ lạ.", "heading_level": None, "page": 1,
+         "source_kind": "OCR", "ocr_conf": 50.0},
+    ]
+    out = chunk_text_blocks(blocks, doc_id="d", source_file="f.pdf")
+    assert out[0]["source_kind"] != "text"
+
+
+def test_source_kind_LA_dung_truoc_ocr_hop_le_van_thang_hang():
+    # Trộn một giá trị lạ với "ocr" hợp lệ trong cùng run: giá trị lạ vẫn phải
+    # thắng hạng (bi quan nhất), không được để "ocr" hợp lệ che mất nó.
+    blocks = [
+        {"text": "A.", "heading_level": None, "page": 1,
+         "source_kind": "ocr", "ocr_conf": 90.0},
+        {"text": "B.", "heading_level": None, "page": 1,
+         "source_kind": "ocr ", "ocr_conf": 40.0},
+    ]
+    out = chunk_text_blocks(blocks, doc_id="d", source_file="f.pdf")
+    assert out[0]["source_kind"] not in ("text", "ocr")
+
+
+def test_tieu_de_ocr_lam_ca_chunk_than_sach_thanh_ocr():
+    # Finding review toàn nhánh A4: `section_path` (crumb dựng từ tiêu đề)
+    # đi vào `index_text()` cùng MỌI chunk của mục — nên nếu chính dòng tiêu
+    # đề đọc được bằng ảnh (trang scan mang tiêu đề, thân ở trang khác có
+    # lớp text sạch), chunk vẫn phải mang `source_kind="ocr"`, không được
+    # dán nhãn "text" chỉ vì thân sạch (spec 2026-09-04-tang-ocr §8).
+    blocks = [
+        {"text": "Điều 1. Tiêu đề đọc từ ảnh.", "heading_level": 4, "page": 1,
+         "source_kind": "ocr", "ocr_conf": 80.0},
+        {"text": "Thân sạch, đọc thẳng lớp text.", "heading_level": None, "page": 2},
+    ]
+    out = chunk_text_blocks(blocks, doc_id="d", source_file="f.pdf")
+    assert len(out) == 1
+    assert out[0]["section_path"] == "Điều 1. Tiêu đề đọc từ ảnh."
+    assert out[0]["chunk_text"] == "Thân sạch, đọc thẳng lớp text."
+    assert out[0]["source_kind"] == "ocr"
+    assert out[0]["ocr_conf"] == 80.0
+
+
 def test_block_atomic_giu_xuat_xu_cua_RIENG_no():
     # Hàng bảng là chunk riêng (B4) — nó không được "lây" xuất xứ của văn xuôi
     # đứng cạnh, và văn xuôi cũng không được lây của nó.

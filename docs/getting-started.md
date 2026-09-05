@@ -152,12 +152,19 @@ backend.
    value here instead.
 
    All four scripts are idempotent (`CREATE TABLE IF NOT EXISTS` /
-   `ADD COLUMN IF NOT EXISTS`), so re-running them is harmless.
+   `ADD COLUMN IF EXISTS ... IF NOT EXISTS`), so re-running them is harmless.
 
    `001_llm_usage.sql` — the LLM budget ledger. `002_mcp_call_log.sql` —
    the audit trail for every MCP call. `004_user_memory.sql` — the
    cross-session per-user memory table. `007_ocr_xuat_xu.sql` — adds the
    `source_kind`/`ocr_conf` provenance columns to `rag_chunks`.
+
+   **On a fresh install, `rag_chunks` does not exist yet at this step** —
+   it is created by `ensure_schema()` from `schema.sql` the first time you
+   run step 5's ingest, and `schema.sql` already defines `source_kind`/
+   `ocr_conf` on it. So `007` runs as a genuine no-op here (`ALTER TABLE IF
+   EXISTS` skips a table that isn't there yet) and only does real work when
+   applied against an older DB created before these columns existed.
 
    **Skip `002` and the MCP processes refuse to start**, with a message
    naming the exact file to run. That is deliberate: this table was missing

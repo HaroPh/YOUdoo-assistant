@@ -109,6 +109,29 @@ def test_trang_CO_chu_thi_KHONG_goi_OCR(monkeypatch):
     assert "source_kind" not in blocks[0], "khoá chỉ đặt khi thật sự đọc từ ảnh"
 
 
+def test_trang_CO_MOT_KY_TU_RAT_NGAN_thi_KHONG_goi_OCR(monkeypatch):
+    # Finding review toàn nhánh A5: ràng buộc mạnh nhất của kế hoạch là CẤM
+    # đặt ngưỡng "dưới N ký tự" — "rỗng" nghĩa là danh sách dòng rỗng HẲN sau
+    # strip, không phải "ít chữ". Test khác trong tệp này đều dùng câu 19 ký
+    # tự nên vẫn xanh nếu ai đó lén thêm `if len(...) < 10: goi_OCR()`. Trang
+    # ở đây chỉ có MỘT token rất ngắn (số trang "3") — phải đi qua NHƯ TRANG
+    # CÓ CHỮ, không được coi là "gần rỗng" rồi rơi vào OCR.
+    import pypdf
+    import pdfplumber
+    from src.rag import parse
+    monkeypatch.setattr(pypdf, "PdfReader", lambda path: _FakeReader(["3"]))
+    monkeypatch.setattr(pdfplumber, "open", lambda path: _FakePlumberPDF(1))
+
+    def _no(*a, **kw):
+        raise AssertionError("KHÔNG được gọi OCR cho trang có lớp text, dù rất ngắn")
+
+    monkeypatch.setattr(parse, "read_page", _no)
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert [b["text"] for b in blocks] == ["3"]
+    assert "source_kind" not in blocks[0]
+    assert warnings == []
+
+
 def test_chi_trang_RONG_di_qua_OCR_trong_tai_lieu_HON_HOP(monkeypatch):
     parse = _dung_canh(monkeypatch, ["Điều 1. Có chữ.", "", "Điều 3. Có chữ."])
     blocks, _ = parse.parse_pdf("x.pdf")
@@ -160,6 +183,73 @@ def test_LOI_DOC_ANH_THUONG_thi_bao_co_ten_chu_khong_lam_vo_ca_luot_nap(monkeypa
     assert "RuntimeError" in reason, "cảnh báo phải gọi tên LOẠI lỗi, không nuốt"
 
 
+def test_trang_DA_OCR_co_bang_VA_co_chu_vector_thi_KHONG_dan_nhan_ocr(monkeypatch):
+    """B4 (review toàn nhánh): khi trang vừa được OCR vừa bị `find_tables()`
+    báo có bảng, `dai_lines` dựng lại từ
+    `plumber_page.within_bbox(...).extract_text()` — LỚP VECTOR, không phải
+    OCR. Trước bản vá này, `pageno` vẫn còn trong `ocr_pages` nên các dòng
+    vector đó bị dán `source_kind="ocr"` cùng `mean_conf` của một lượt OCR
+    KHÁC — nhãn tin cậy nói dối. Sau bản vá, `ocr_pages.pop(pageno, None)`
+    chạy ngay khi cảnh báo phát ra, nên các dòng vector này phải ra
+    KHÔNG mang `source_kind` (giống trang chữ bình thường)."""
+    import pypdf
+    import pdfplumber
+    from src.rag import parse
+
+    class _WithinBboxCoChu:
+        def extract_text(self):
+            return "Dòng chữ vector, không phải OCR."
+
+        def find_tables(self, table_settings=None):
+            return []
+
+    class _BangGiuaTrang:
+        # bbox KHÔNG phủ hết trang (20..80 trong tổng chiều cao 100), để lại
+        # dải trên/dưới cho `parse_pdf` dựng `dai_lines` từ lớp vector — nếu
+        # bảng phủ hết trang thì không còn dải nào gọi `within_bbox`, và test
+        # này không quan sát được gì.
+        bbox = (0, 20, 100, 80)
+
+        def extract(self):
+            return []
+
+    class _PlumberPageCoBang:
+        width = 100
+        height = 100
+
+        def __init__(self):
+            self._bangs = [_BangGiuaTrang()]
+
+        def find_tables(self, table_settings=None):
+            return self._bangs
+
+        def within_bbox(self, bbox, relative=False):
+            return _WithinBboxCoChu()
+
+    class _PlumberPDFCoBang:
+        def __init__(self):
+            self.pages = [_PlumberPageCoBang()]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(pypdf, "PdfReader", lambda path: _FakeReader([""]))
+    monkeypatch.setattr(pdfplumber, "open", lambda path: _PlumberPDFCoBang())
+    monkeypatch.setattr(parse, "read_page",
+                        lambda path, pageno, **kw: _doc_gia("Điều 1. Chữ đọc từ ảnh.", 90.0))
+
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert len(warnings) == 1 and "bảng" in warnings[0][1].lower()
+    text_blocks = [b for b in blocks if b["text"] == "Dòng chữ vector, không phải OCR."]
+    assert text_blocks, "dòng vector phải vẫn được nạp"
+    assert "source_kind" not in text_blocks[0], (
+        "dòng đọc từ lớp VECTOR không được mang nhãn xuất xứ 'ocr' của một "
+        "lượt đọc ảnh khác")
+
+
 def test_trang_DA_OCR_ma_lai_co_bang_thi_canh_bao_khong_im_lang(monkeypatch):
     """Finding 2 (review Task 4): trang không có lớp text đã đọc được chữ
     bằng ảnh, nhưng `find_tables()` vẫn báo trang có bảng (khung vẽ sẵn/lưới
@@ -176,8 +266,6 @@ def test_trang_DA_OCR_ma_lai_co_bang_thi_canh_bao_khong_im_lang(monkeypatch):
     assert where == "trang 1"
     assert "bảng" in reason.lower() and "ảnh" in reason.lower()
 
-
-import os
 
 from PIL import Image, ImageDraw
 

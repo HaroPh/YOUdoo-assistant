@@ -19,7 +19,9 @@ OCR_CACHE_ENV = "YOUDOO_OCR_CACHE"
 
 # Tăng khi ĐỔI HÌNH DẠNG artifact (thêm/bớt trường, đổi nghĩa). Nó nằm trong
 # dấu vân tay nên bản đệm cũ tự động thành lạc khoá, không cần xoá tay.
-ARTIFACT_VERSION = 1
+# 2 (2026-09-05, review toàn nhánh B1): thêm trường "g" (line_id) vào mỗi
+# word — hình dạng artifact đã đổi, phải bump đúng chú thích ở trên.
+ARTIFACT_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -111,14 +113,27 @@ def _ghi_nguyen_tu(duong: str, data: dict) -> None:
 def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
     """Đọc MỘT trang PDF bằng ảnh (đếm từ 1). Ném `TesseractMissing` khi thiếu
     binary — người gọi quyết định biến nó thành cảnh báo hay từ chối."""
+    if pageno < 1:
+        # `pageno=0` (hay âm) trước đây lặng lẽ đọc TRANG CUỐI qua chỉ số âm
+        # của `pdf[pageno - 1]` rồi đệm dưới khoá `p0` — sai trang mà không
+        # ai biết. `pageno` đếm từ 1 theo đúng docstring, nên 0 trở xuống
+        # phải bị từ chối tường minh (review toàn nhánh B3).
+        raise ValueError(f"pageno phải >= 1 (đếm từ 1), nhận {pageno}")
     van_tay = config_fingerprint(dpi=dpi)
     duong = _duong_dem(path, pageno, van_tay)
     if os.path.isfile(duong):
         try:
             with open(duong, encoding="utf-8") as f:
                 return _tu_json(json.load(f))
-        except (ValueError, KeyError, OSError):
-            pass          # đệm hỏng → đọc lại, xem test `dem_hong_giua_chung`
+        except (ValueError, KeyError, OSError, TypeError):
+            # TypeError: đệm cũ đúng cú pháp JSON (đọc `json.load` thành công)
+            # nhưng SAI HÌNH DẠNG cho `ARTIFACT_VERSION` hiện tại — vd JSON là
+            # một list thay vì dict, hay "bbox" không phải mảng nên
+            # `tuple(r["bbox"])` ném TypeError. `van_tay` đã đổi khi hình dạng
+            # đổi (B1) nên ca này hiếm, nhưng vẫn là đường DUY NHẤT chạm tới
+            # nhánh này khi nó xảy ra — không được để ném ra ngoài, phải đọc
+            # lại như mọi đệm hỏng khác (xem test `dem_hong_giua_chung`).
+            pass
 
     img = _anh_cua_trang(path, pageno, dpi)
     kq = engine.ocr_image(img)

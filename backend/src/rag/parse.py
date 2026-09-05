@@ -562,6 +562,14 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                                      "đọc được chữ bằng ảnh nhưng trang có bảng "
                                      "— bậc 1 chưa dựng bảng từ ảnh, phần chữ "
                                      "của trang này không vào corpus"))
+                # Nhánh dưới đây dựng `dai_lines` từ
+                # `plumber_page.within_bbox(...).extract_text()` — LỚP VECTOR,
+                # không phải OCR. Nếu KHÔNG bỏ `pageno` khỏi `ocr_pages` ở
+                # đây, vòng phát block phía dưới vẫn thấy `pageno in
+                # ocr_pages` và dán `source_kind="ocr"` + `mean_conf` của OCR
+                # lên text VECTOR — nhãn tin cậy nói dối (review toàn nhánh
+                # B4, cùng lớp lỗi spec này đóng).
+                ocr_pages.pop(pageno, None)
             width, height = plumber_page.width, plumber_page.height
             y_bien = [0.0] + [y for b in bangs for y in (b.bbox[1], b.bbox[3])] + [height]
             dai_lines: list[str] = []

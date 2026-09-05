@@ -45,6 +45,13 @@ transformers==5.15.0
 pypdf==5.1.0
 pdfplumber==0.11.10
 pytesseract==0.3.13
+# pypdfium2, Pillow: đang có sẵn như dep bắc cầu (pdfplumber), nay là dep
+# TRỰC TIẾP — `src/ocr/document.py` `import pypdfium2` để rasterise trang,
+# và `.to_pil()` trả ảnh Pillow. Ghim tường minh cùng lý do PyYAML bên dưới:
+# một lần pdfplumber đổi backend rasterise không được lặng lẽ làm app không
+# lên (spec 2026-09-04-tang-ocr).
+pypdfium2==5.13.0
+Pillow==12.3.0
 python-docx==1.1.2
 openpyxl==3.1.5
 pyvi==0.1.1

@@ -159,6 +159,16 @@ def test_dem_hong_giua_chung_KHONG_lam_no_ca_luot_nap(monkeypatch, tmp_path):
     assert dem_goi["n"] == 2, "không gọi OCR lần 3, lấy từ đệm"
 
 
+@pytest.mark.parametrize("pageno", [0, -1])
+def test_pageno_duoi_1_thi_nem_ValueError(pageno):
+    # Finding review toàn nhánh B3: trước đây `pageno=0` (hay âm) lặng lẽ đọc
+    # TRANG CUỐI qua chỉ số âm của `pdf[pageno - 1]` rồi đệm dưới khoá `p0` —
+    # sai trang mà không ai biết. `pageno` đếm từ 1 nên phải bị từ chối
+    # tường minh, không chạm tới đĩa/OCR chút nào.
+    with pytest.raises(ValueError):
+        document.read_page("khong-quan-trong.pdf", pageno)
+
+
 from src.ocr.engine import tesseract_path
 
 KHO_LUAT = "D:/Documents"
