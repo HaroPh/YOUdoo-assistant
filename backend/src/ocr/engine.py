@@ -172,10 +172,16 @@ def _dam_bao_moi_truong() -> None:
             os.environ[TESSDATA_ENV] = prefix
 
 
-def ocr_image(img, *, lang: str = OCR_LANG, psm: int = OCR_PSM) -> OcrResult:
-    """Đọc chữ trong MỘT ảnh PIL. Ném `TesseractMissing` khi thiếu binary."""
+def ocr_image(img, *, lang: str | None = None, psm: int | None = None) -> OcrResult:
+    """Đọc chữ trong MỘT ảnh PIL. Ném `TesseractMissing` khi thiếu binary.
+
+    lang và psm đọc từ hằng số lúc GỌI, không phải lúc định nghĩa hàm, để
+    cho phép đột biến chúng lúc chạy (mục đích: Task 3 sẽ gán OCR_PSM = 3
+    rồi đo lại chất lượng)."""
     import pytesseract
     _dam_bao_moi_truong()
+    lang = OCR_LANG if lang is None else lang
+    psm = OCR_PSM if psm is None else psm
     tsv = pytesseract.image_to_data(img, lang=lang, config=f"--psm {psm}")
     words = parse_tsv(tsv)
     mean = sum(w.conf for w in words) / len(words) if words else 0.0

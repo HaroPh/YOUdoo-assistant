@@ -50,13 +50,19 @@ def cache_dir() -> str:
     return d
 
 
-def config_fingerprint(*, dpi: int = engine.OCR_DPI, psm: int = engine.OCR_PSM,
-                       lang: str = engine.OCR_LANG) -> str:
+def config_fingerprint(*, dpi: int | None = None, psm: int | None = None,
+                       lang: str | None = None) -> str:
     """Dấu vân tay của MỌI thứ ảnh hưởng tới kết quả đọc.
 
     Khoá đệm = hash(nội dung tệp) + vân tay này. Thiếu nửa sau thì đổi PSM/DPI
     /model xong vẫn dùng lại bản cũ mà không ai biết — đúng lỗ hổng `convert.py`
-    đang có, spec §7 yêu cầu không lặp lại."""
+    đang có, spec §7 yêu cầu không lặp lại.
+
+    dpi, psm, lang đọc từ hằng số lúc GỌI, không phải lúc định nghĩa hàm, để
+    cho phép đột biến chúng lúc chạy mà vân tay vẫn thay đổi đúng."""
+    dpi = engine.OCR_DPI if dpi is None else dpi
+    psm = engine.OCR_PSM if psm is None else psm
+    lang = engine.OCR_LANG if lang is None else lang
     raw = f"{ARTIFACT_VERSION}|{dpi}|{psm}|{lang}|{engine.tesseract_version()}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -123,7 +129,8 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
     region = Region(kind="text", text=kq.text, mean_conf=kq.mean_conf,
                     bbox=(0, 0, rong, cao),
                     words=[{"t": w.text, "c": w.conf, "l": w.left, "y": w.top,
-                            "w": w.width, "h": w.height} for w in kq.words])
+                            "w": w.width, "h": w.height,
+                            "g": list(w.line_id)} for w in kq.words])
     data = {"artifact_version": ARTIFACT_VERSION, "page": pageno,
             "config": {"dpi": dpi, "psm": engine.OCR_PSM,
                        "lang": engine.OCR_LANG,
