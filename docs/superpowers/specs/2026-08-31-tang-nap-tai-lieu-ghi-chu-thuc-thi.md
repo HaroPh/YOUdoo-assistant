@@ -784,3 +784,123 @@ một assertion mới chốt rằng mọi cảnh báo còn lại đều thuộc 
 - `tests/rag/test_pdf_kho_that.py -m live`: **6 passed** — 4 bất biến có sẵn (100 hoá đơn, ssc
   checksum, ssc trùng lặp, bctc công thức) đều còn xanh, cộng 2 test mới của 6.2.
 - `pytest -m "not integration and not live" -q`: **2337 passed, 1 skipped**.
+
+---
+
+# Tầng nạp tài liệu — ghi chú thực thi Tầng OCR bậc 1
+
+**Ngày**: 2026-09-05. **Nhánh**: `worktree-tang-nap-tai-lieu-1`.
+**Spec**: `2026-09-04-tang-ocr-bac-1.md` (implicit — plan `2026-09-05-tang-ocr-bac-1`, Task 5 NGHIỆM
+THU: cổng tự nuôi + nghiệm thu corpus thật + ghi chú thực thi).
+
+Task 5 là task ĐO THẬT — mọi con số dưới đây được CHẠY để biết, không suy đoán theo brief.
+
+## 1. Kết quả
+
+| | trước Task 5 | sau Task 5 |
+|---|---|---|
+| test suite mặc định | 2374 | **2380** (+6, đúng bằng 6 tham số hoá của cổng tự nuôi) |
+| cổng tự nuôi trên PDF luật thật | không tồn tại | **6/6 PASSED**, ngưỡng đo thật `0,89` (không kế thừa số cũ `0,865`) |
+| phép thử phá (PSM 3) | chưa từng chạy | cổng **BIẾT ĐỎ** — trang 20 tụt `0,9508 → 0,5902`, dưới ngưỡng |
+| block OCR trên corpus thật (109 tệp) | — | **0** (đúng kỳ vọng — corpus 100% có lớp text) |
+| byte-identical với bản trước OCR (commit `8085815`) | — | **khớp 100%** trên 3 tệp đại diện (1335+60+565 block) |
+
+## 2. Khó khăn đã gặp
+
+### 2.1 Ngưỡng cũ (0,865) đo trên tập trang KHÁC — không kế thừa được
+
+Spec §4.1 ghi recall TB `0,865` nhưng đó là 3 trang bảng của MỘT tài liệu. Đo lại trên đúng 6 trang
+brief chỉ định (2 tài liệu, có trang bảng khó) cho kết quả cao hơn hẳn:
+
+| tệp | trang | recall theo từ | n từ gốc |
+|---|---|---|---|
+| `luat-thuegtgt.pdf` | 1 | **0,9905** | 317 |
+| `luat-thuegtgt.pdf` | 5 | **0,9894** | 567 |
+| `luat-thuexuatnhapkhau.pdf` | 3 | **0,9893** | 652 |
+| `luat-thuexuatnhapkhau.pdf` | 6 | **0,9915** | 469 |
+| `luat-thuexuatnhapkhau.pdf` | 13 (trang BẢNG) | **0,9473** | 607 |
+| `luat-thuexuatnhapkhau.pdf` | 20 | **0,9508** | 549 |
+
+min = `0,9473`, không có trang nào dưới `0,80` (không cần báo `NEEDS_CONTEXT`). Ngưỡng chốt theo đúng
+công thức brief: `NGUONG = floor2(min − 0,05) = floor2(0,9473 − 0,05) = floor2(0,8973) = 0,89`. Biên
+`0,05` là chỗ cho biến động máy/phiên bản tesseract — hai con số (`0,865` cũ và `0,976` mới) không
+mâu thuẫn, chúng đo hai tập trang khác nhau.
+
+### 2.2 Cảnh báo đã đo sẵn của controller ĐÚNG một phần — trang 13 chênh yếu, nhưng trang 20 chênh mạnh
+
+Controller cảnh báo trước: đo trên máy này trang 13 cho PSM 6 = `0,947`, PSM 3 = `0,901` — chênh chỉ
+`0,046`, yếu hơn spec cũ gợi ý (spec ghi TB `0,569`, có trang xuống `0,256`). Nếu chỉ nhìn trang 13,
+đúng là ngưỡng `0,89` sẽ KHÔNG bắt được đột biến này (`0,901 > 0,89`) và phép thử phá sẽ không đỏ.
+
+Đo đủ cả 6 trang với `engine.OCR_PSM = 3` (dùng `YOUDOO_OCR_CACHE` riêng để không lẫn đệm PSM 6):
+
+| tệp | trang | recall PSM 6 | recall PSM 3 | chênh |
+|---|---|---|---|---|
+| `luat-thuegtgt.pdf` | 1 | 0,9905 | 0,9905 | 0,0000 |
+| `luat-thuegtgt.pdf` | 5 | 0,9894 | 0,9912 | +0,0018 |
+| `luat-thuexuatnhapkhau.pdf` | 3 | 0,9893 | 0,9923 | +0,0030 |
+| `luat-thuexuatnhapkhau.pdf` | 6 | 0,9915 | 0,9915 | 0,0000 |
+| `luat-thuexuatnhapkhau.pdf` | 13 | 0,9473 | 0,9012 | −0,0461 |
+| `luat-thuexuatnhapkhau.pdf` | 20 | 0,9508 | **0,5902** | **−0,3606** |
+
+Trang 13 khớp đúng số controller đã đo (chênh yếu, `0,901 > 0,89`, KHÔNG đỏ một mình). Nhưng trang 20
+— không nằm trong cảnh báo trước — tụt từ `0,9508` xuống `0,5902`, cách ngưỡng `0,89` rất xa. Cổng
+VẪN đỏ (test trang 20 FAIL với `NGUONG_RECALL = 0.89`), chỉ là bằng chứng đến từ trang khác với
+trang controller đã soi. Không cần đổi sang đột biến mạnh hơn (`lang="eng"` hoặc DPI thấp) — PSM 3
+đã đủ căn cứ chứng minh cổng biết đỏ, chỉ là bằng chứng nằm ở một trang khác dự đoán ban đầu. Đã khôi
+phục `engine.OCR_PSM = 6` sau đo (đột biến chỉ chạy trong tiến trình python tạm, không sửa file
+`engine.py`).
+
+## 3. Giả thuyết bị số đo bác bỏ
+
+- **"Nếu trang 13 (trang controller đã soi) không chênh đủ dưới ngưỡng, phép thử phá sẽ không đỏ và
+  phải đổi đột biến mạnh hơn"** — sai một phần: trang 13 đúng là không đỏ một mình (`0,901 > 0,89`),
+  nhưng trang 20 (nằm sẵn trong `TAP_TRANG`, không cần thêm trang mới) tụt mạnh (`0,5902`), đủ để cổng
+  đỏ mà KHÔNG cần đổi sang đột biến khác. Cảnh báo của controller đúng ở dữ kiện (trang 13 chênh yếu)
+  nhưng kết luận suy ra ("ngưỡng có thể không phân biệt được gì") không đúng cho TOÀN BỘ tập 6 trang.
+- **"PSM 3 hỏng ĐỀU trên mọi trang"** — sai, đúng như engine.py đã ghi chú (spec §4.1): PSM 3 hỏng
+  KHÔNG ĐỀU — 4/6 trang ở đây gần như không đổi (thậm chí một số nhích lên), chỉ 2/6 trang (bảng)
+  tụt, và mức tụt giữa hai trang bảng đó lệch nhau gần 8 lần (`0,046` so với `0,361`). Đây chính là
+  "cái đáng sợ" mà engine.py cảnh báo: PSM 3 không kém đều, nó kém KHÔNG BÁO TRƯỚC được trang nào.
+
+## 4. Hướng đã chọn, và vì sao
+
+| quyết định | vì sao |
+|---|---|
+| Ngưỡng `0,89` (đo thật), không giữ `0,865` (spec cũ) | Hai số đo hai tập trang khác nhau; giữ số cũ là kế thừa một phép đo không tái lập được trên tập trang cổng thật sự chạy. |
+| Không đổi đột biến Step 4 sang `lang="eng"`/DPI thấp dù trang 13 chênh yếu | Trang 20 (đã có sẵn trong `TAP_TRANG`, không cần thêm ca) chênh `0,361`, đủ để cổng đỏ thật — đổi đột biến khi bằng chứng đã đủ là làm phức tạp thêm không cần thiết. |
+| Giữ nguyên `TAP_TRANG` 6 trang của brief, không bớt trang 13 dù nó không tự đỏ | Trang 13 vẫn là ca khó thật (trang bảng, đường kẻ bị đọc thành ký tự) — bỏ nó khỏi tập cổng chỉ vì nó không tự đỏ ở một đột biến cụ thể là làm yếu cổng để "cho gọn", đúng lớp lỗi cổng này sinh ra để chống. |
+| Dùng `YOUDOO_OCR_CACHE` riêng cho mỗi lượt đo (Step 1, Step 4) | Tránh đệm PSM 6 trả nhầm kết quả khi đo PSM 3 — đã xác nhận bằng số đo thật (Step 4 cho số KHÁC Step 1 trên cùng cặp tệp/trang, không phải số lặp lại từ đệm cũ). |
+
+## 5. Giới hạn còn lại
+
+### `mean_conf` quan sát được (tham chiếu chéo Task 2 + Task 4)
+
+| nguồn | `mean_conf` |
+|---|---|
+| PDF luật THẬT (`luat-thuegtgt.pdf` tr.1, Task 2 Step 10) | **92,56** |
+| PDF ảnh tự dựng bằng Pillow (Task 4 Step 9, font hệ thống, nền sạch) | **94,52** |
+
+Hai số gần nhau nhưng đo hai thứ khác hẳn về độ khó — ảnh Pillow SẠCH HƠN cả PDF luật thật (chưa nói
+tới scan đời thật), nên không suy luận "corpus scan thật cũng sẽ ~93-95" từ hai số này.
+
+### Còn nguyên, nói thẳng
+
+- **Chưa đo trên scan đời thật** (nhiễu, nghiêng, dấu mộc, mất góc). Cổng tự nuôi (Step 2) và phép thử
+  phá (Step 4) đều dùng trang PDF ĐÃ CÓ lớp text rồi rasterise lại — ảnh sinh ra sạch hơn scan thật.
+  Cổng này chứng minh "còn sống và đại khái đúng", KHÔNG chứng minh "chịu được scan đời thật".
+- **Ngưỡng confidence để TỪ CHỐI một trang vẫn CHƯA CHỐT.** Bậc 1 (tầng đang có) chỉ từ chối khi text
+  đọc ra RỖNG HẲN (không có ngưỡng `mean_conf` tối thiểu nào được áp dụng để loại trang đọc kém).
+  Mọi ngưỡng conf khác (ví dụ "dưới X thì coi là đọc hỏng, cảnh báo thay vì âm thầm dùng") cần tài
+  liệu scan thật để hiệu chỉnh — corpus hiện tại không có ca nào để đo.
+- **Bậc 2 (dựng lại bảng từ toạ độ chữ) và bậc 3 (mô tả hình bằng VLM) chưa làm.** `Region`/`OcrWord`
+  đã giữ toạ độ (`bbox`, `left/top/width/height`) đúng như spec §6 yêu cầu để hai bậc sau không phải
+  đổi hình dạng artifact đệm, nhưng chưa có tài liệu scan thật (bảng/hình) để hiệu chỉnh thuật toán.
+- **`TESSDATA_PREFIX` và đường dẫn binary tesseract vẫn là đường dẫn máy cá nhân** (`tesseract_path()`/
+  `tessdata_prefix()` có fallback env → PATH → vài vị trí quen thuộc, giống `convert.soffice_path()`),
+  nhưng máy khác vẫn cần cài tesseract + gói `vie.traineddata` riêng — nợ triển khai đã ghi từ kế
+  hoạch 1, chưa đóng.
+- **Corpus hôm nay có 0 tài liệu cần đọc bằng ảnh** (xác nhận lại ở Task 5: `TONG block OCR = 0` trên
+  109 tệp quét). Nghĩa là toàn bộ tầng OCR bậc 1, kể cả cổng tự nuôi vừa dựng, CHƯA từng được thực thi
+  bởi một tài liệu sản xuất thật — chỉ được chứng minh sống bằng dữ liệu TỰ SINH (rasterise-lại). Nếu
+  một tài liệu scan thật xuất hiện trong corpus, đây là lần đầu tầng này chạy ngoài phòng thí nghiệm.
