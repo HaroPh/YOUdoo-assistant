@@ -1,0 +1,348 @@
+{
+  "tep_nguon": "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+  "doanh_nghiep": "Cong ty CP Dau tu Phat trien Sai Gon Co.op (SCID)",
+  "ky": "Ban nien 2026, hop nhat, da soat xet",
+  "trang_pdf": 12,
+  "trang_in_tren_giay": 7,
+  "bang": "Bao cao tinh hinh tai chinh hop nhat giua nien do — phan A TAI SAN NGAN HAN",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI, KHONG xem output Tesseract truoc)",
+  "ngay_doc": "2026-09-06",
+  "quy_uoc_o": {
+    "so": "gia tri that, so nguyen, am = trong ngoac don tren giay",
+    "\"-\"": "o co dau gach ngang: CO o, KHONG co so (bang khong ve nghiep vu)",
+    "null": "KHONG AP DUNG: hang tieu de/nhom, khong ton tai o nay"
+  },
+  "ghi_chu_cau_truc": [
+    "Phan cap BA TANG: 'A-' > 'I./II./...' > '1./2./...'. Sau hon trang 17.",
+    "Ma so BA CHU SO (100, 110, 111...) — khac trang 17 (hai chu so).",
+    "Ma so 133 KHONG XUAT HIEN (nhay tu 132 sang 134): bieu mau bo bot dong.",
+    "  Rang buoc phai liet ke ma so CO THAT tren trang, khong suy ra theo day so.",
+    "Bang KHONG KE KHUNG. Le phai co dau moc do bi cat cut. Goc duoi phai co ma QR."
+  ],
+  "cot": [
+    "chi_tieu",
+    "ma_so",
+    "thuyet_minh",
+    "so_cuoi_ky",
+    "so_dau_nam"
+  ],
+  "hang": [
+    {
+      "muc": "A-",
+      "chi_tieu": "TAI SAN NGAN HAN",
+      "ma_so": "100",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 566695646268,
+      "so_dau_nam": 534044474982
+    },
+    {
+      "muc": "I.",
+      "chi_tieu": "Tien va cac khoan tuong duong tien",
+      "ma_so": "110",
+      "thuyet_minh": "V.1",
+      "so_cuoi_ky": 148058124948,
+      "so_dau_nam": 195964135271
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Tien",
+      "ma_so": "111",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 93877546867,
+      "so_dau_nam": 70395375193
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Cac khoan tuong duong tien",
+      "ma_so": "112",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 54180578081,
+      "so_dau_nam": 125568760078
+    },
+    {
+      "muc": "II.",
+      "chi_tieu": "Dau tu tai chinh ngan han",
+      "ma_so": "120",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 58414895341,
+      "so_dau_nam": 26139361644
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Chung khoan kinh doanh",
+      "ma_so": "121",
+      "thuyet_minh": "V.2a",
+      "so_cuoi_ky": 13859293545,
+      "so_dau_nam": 13859293545
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Du phong giam gia chung khoan kinh doanh",
+      "ma_so": "122",
+      "thuyet_minh": "V.2a",
+      "so_cuoi_ky": -6638593545,
+      "so_dau_nam": -6333493545
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Dau tu nam giu den ngay dao han ngan han",
+      "ma_so": "123",
+      "thuyet_minh": "V.2b",
+      "so_cuoi_ky": 51194195341,
+      "so_dau_nam": 18613561644
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Du phong dau tu nam giu den ngay dao han ngan han",
+      "ma_so": "124",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Dau tu ngan han khac",
+      "ma_so": "125",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "6.",
+      "chi_tieu": "Du phong ton that cac khoan dau tu ngan han khac",
+      "ma_so": "126",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "III.",
+      "chi_tieu": "Cac khoan phai thu ngan han",
+      "ma_so": "130",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 341024047877,
+      "so_dau_nam": 294494935594
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Phai thu ngan han cua khach hang",
+      "ma_so": "131",
+      "thuyet_minh": "V.3a",
+      "so_cuoi_ky": 29105730373,
+      "so_dau_nam": 28727577790
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Tra truoc cho nguoi ban ngan han",
+      "ma_so": "132",
+      "thuyet_minh": "V.4",
+      "so_cuoi_ky": 85049513953,
+      "so_dau_nam": 36010399635
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Phai thu theo tien do hop dong xay dung",
+      "ma_so": "134",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Phai thu ngan han khac",
+      "ma_so": "135",
+      "thuyet_minh": "V.5a",
+      "so_cuoi_ky": 242504606612,
+      "so_dau_nam": 245392761230
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Du phong phai thu ngan han kho doi",
+      "ma_so": "136",
+      "thuyet_minh": "V.6",
+      "so_cuoi_ky": -15635803061,
+      "so_dau_nam": -15635803061
+    },
+    {
+      "muc": "6.",
+      "chi_tieu": "Tai san thieu cho xu ly",
+      "ma_so": "137",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "IV.",
+      "chi_tieu": "Hang ton kho",
+      "ma_so": "140",
+      "thuyet_minh": "V.7",
+      "so_cuoi_ky": 1149465347,
+      "so_dau_nam": 1827881705
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Hang ton kho",
+      "ma_so": "141",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 1149465347,
+      "so_dau_nam": 1827881705
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Du phong giam gia hang ton kho",
+      "ma_so": "142",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "V.",
+      "chi_tieu": "Tai san sinh hoc ngan han",
+      "ma_so": "150",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Suc vat nuoi lay san pham mot lan ngan han",
+      "ma_so": "151",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Cay trong theo mua vu hoac lay san pham mot lan ngan han",
+      "ma_so": "152",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Du phong ton that tai san sinh hoc ngan han",
+      "ma_so": "153",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "VI.",
+      "chi_tieu": "Tai san ngan han khac",
+      "ma_so": "160",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 18049112755,
+      "so_dau_nam": 15618160768
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Chi phi cho phan bo ngan han",
+      "ma_so": "161",
+      "thuyet_minh": "V.8a",
+      "so_cuoi_ky": 1488008392,
+      "so_dau_nam": 2569659042
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Thue gia tri gia tang duoc khau tru",
+      "ma_so": "162",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 13421868563,
+      "so_dau_nam": 9505902598
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Thue va cac khoan khac phai thu Nha nuoc",
+      "ma_so": "163",
+      "thuyet_minh": "V.16",
+      "so_cuoi_ky": 3139235800,
+      "so_dau_nam": 3542599128
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Giao dich mua ban lai trai phieu Chinh phu",
+      "ma_so": "164",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Tai san ngan han khac",
+      "ma_so": "165",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    }
+  ],
+  "rang_buoc_so_hoc": [
+    {
+      "tong": "110",
+      "cong": [
+        "111",
+        "112"
+      ]
+    },
+    {
+      "tong": "120",
+      "cong": [
+        "121",
+        "122",
+        "123",
+        "124",
+        "125",
+        "126"
+      ]
+    },
+    {
+      "tong": "130",
+      "cong": [
+        "131",
+        "132",
+        "134",
+        "135",
+        "136",
+        "137"
+      ]
+    },
+    {
+      "tong": "140",
+      "cong": [
+        "141",
+        "142"
+      ]
+    },
+    {
+      "tong": "150",
+      "cong": [
+        "151",
+        "152",
+        "153"
+      ]
+    },
+    {
+      "tong": "160",
+      "cong": [
+        "161",
+        "162",
+        "163",
+        "164",
+        "165"
+      ]
+    },
+    {
+      "tong": "100",
+      "cong": [
+        "110",
+        "120",
+        "130",
+        "140",
+        "150",
+        "160"
+      ]
+    }
+  ],
+  "nhom": "bang_can_doi"
+}

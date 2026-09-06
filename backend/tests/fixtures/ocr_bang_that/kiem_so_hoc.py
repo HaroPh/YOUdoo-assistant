@@ -33,16 +33,27 @@ def gia_tri(o, ma: str, cot: str) -> tuple[int | None, str | None]:
     return None, f"ma so {ma} [{cot}]: kieu o khong hieu duoc: {o!r}"
 
 
-def kiem(duong: str) -> list[str]:
+def kiem(duong: str, theo_ma_nhom: dict | None = None) -> list[str]:
     d = json.load(open(duong, encoding="utf-8"))
-    theo_ma = {h["ma_so"]: h for h in d["hang"] if h.get("ma_so")}
+    # Ma so trong tep nay. Neu tep thuoc mot NHOM (nhieu trang cua cung mot
+    # bang), tra cuu lui ve ban do chung cua ca nhom — bao cao tai chinh co
+    # rang buoc BAC QUA TRANG, manh nhat la 280 = 100 + 200 (tong cong tai san
+    # bang tai san ngan han o trang truoc cong tai san dai han o trang nay).
+    theo_ma = dict(theo_ma_nhom or {})
+    theo_ma.update({h["ma_so"]: h for h in d["hang"] if h.get("ma_so")})
     loi = []
+    # Ten cot GIA TRI khac nhau giua cac bang ("nam_nay"/"nam_truoc" o luu chuyen
+    # tien te, "so_cuoi_ky"/"so_dau_nam" o bang can doi), nen SUY tu khai bao
+    # `cot` cua chinh tep thay vi gan chet — gan chet thi them mot bang moi la no.
+    cot_gia_tri = [c for c in d["cot"] if c not in ("muc", "chi_tieu", "ma_so", "thuyet_minh")]
+    if not cot_gia_tri:
+        return [f"{duong}: khong tim thay cot gia tri nao trong {d['cot']}"]
     for rb in d["rang_buoc_so_hoc"]:
         tong_ma = rb["tong"]
         if tong_ma not in theo_ma:
             loi.append(f"{duong}: rang buoc tro toi ma so {tong_ma} khong co trong bang")
             continue
-        for cot in ("nam_nay", "nam_truoc"):
+        for cot in cot_gia_tri:
             thieu = [m for m in rb["cong"] if m not in theo_ma]
             if thieu:
                 loi.append(f"{duong}: [{cot}] rang buoc {tong_ma} thieu ma so {thieu}")
@@ -69,11 +80,25 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("dung: kiem_so_hoc.py <tep_dap_an.json> [...]")
         return 2
+    # Gom ma so theo nhom TRUOC, de rang buoc bac qua trang giai duoc du thu tu
+    # tham so the nao. Ma so trong cung mot nhom la duy nhat (bang can doi dung
+    # 100-280, luu chuyen tien dung 01-30) nen gop khong dam nhau; KHAC nhom thi
+    # KHONG gop, vi luu chuyen tien va ket qua kinh doanh deu co ma "01".
+    theo_nhom: dict[str, dict] = {}
+    for duong in argv[1:]:
+        d = json.load(open(duong, encoding="utf-8"))
+        nhom = d.get("nhom")
+        if nhom:
+            theo_nhom.setdefault(nhom, {}).update(
+                {h["ma_so"]: h for h in d["hang"] if h.get("ma_so")})
+
     tong_loi = []
     for duong in argv[1:]:
         d = json.load(open(duong, encoding="utf-8"))
-        loi = kiem(duong)
-        n = len(d["rang_buoc_so_hoc"]) * 2          # moi rang buoc x 2 cot
+        loi = kiem(duong, theo_nhom.get(d.get("nhom")))
+        n_cot = len([c for c in d["cot"]
+                     if c not in ("muc", "chi_tieu", "ma_so", "thuyet_minh")])
+        n = len(d["rang_buoc_so_hoc"]) * n_cot
         print(f"{duong}: {n - len(loi)}/{n} rang buoc THOA"
               f"   [{d.get('trang_thai', '?')}]")
         tong_loi += loi

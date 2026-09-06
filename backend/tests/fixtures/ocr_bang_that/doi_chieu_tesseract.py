@@ -31,11 +31,13 @@ def main(duong_key: str, duong_pdf: str) -> int:
     tho = read_page(duong_pdf, d["trang_pdf"]).text
     tho_phang = chuan_hoa(tho)
 
+    # Ten cot gia tri suy tu khai bao `cot` — xem ghi chu trong kiem_so_hoc.py
+    cot_gia_tri = [c for c in d["cot"] if c not in ("muc", "chi_tieu", "ma_so", "thuyet_minh")]
     khop, lech_dau_phan_cach, vang = [], [], []
     for h in d["hang"]:
-        for cot in ("nam_nay", "nam_truoc"):
+        for cot in cot_gia_tri:
             v = h.get(cot)
-            if not v:                       # bo qua None va 0 (o gach ngang)
+            if not isinstance(v, int):      # bo qua None va "-" (o khong co so)
                 continue
             muc = vn(v)
             if muc in tho:
