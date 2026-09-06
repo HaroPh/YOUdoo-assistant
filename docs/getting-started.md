@@ -189,9 +189,26 @@ backend.
    python -m src.rag.ingest src/rag/seed
    ```
 
-   Expect roughly 4 minutes for the full 17-document, ~3,300-chunk seed
-   corpus. One-time — `ingest_path` skips files whose content hash hasn't
-   changed, so re-running later is fast and safe.
+   Expect roughly 4 minutes for the full 17-document, ~3,900-chunk seed
+   corpus.
+
+   **Re-running this command does NOT pick up parser changes.**
+   `ingest_path` skips a file when its content hash matches, and that hash
+   covers the *source file only* — it carries no fingerprint of the parser
+   version. So after any change to `src/rag/parse.py`, `chunking.py`,
+   `pdf_table.py`, `xlsx_header.py` or the OCR layer, a plain re-run reports
+   `không đổi 17` and changes nothing, while looking like it succeeded. To
+   actually re-index, clear the document table first (chunks cascade):
+
+   ```bash
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -c "DELETE FROM rag_documents;"
+   ```
+
+   Then run the ingest command above and confirm it reports `đã nạp 17 ·
+   không đổi 0`. Afterwards run `pytest tests/evals/ -q -m integration` —
+   it checks that every hand-written eval label still resolves to a real
+   `(file, section_path)` pair, which is the thing a re-index can silently
+   break.
 
    As of 2026-08-19 `youdoo-ollama` is GPU-backed. It was deliberately
    CPU-only from 2026-08-06 to avoid competing for VRAM with the Ollama

@@ -904,3 +904,81 @@ tới scan đời thật), nên không suy luận "corpus scan thật cũng sẽ
   109 tệp quét). Nghĩa là toàn bộ tầng OCR bậc 1, kể cả cổng tự nuôi vừa dựng, CHƯA từng được thực thi
   bởi một tài liệu sản xuất thật — chỉ được chứng minh sống bằng dữ liệu TỰ SINH (rasterise-lại). Nếu
   một tài liệu scan thật xuất hiện trong corpus, đây là lần đầu tầng này chạy ngoài phòng thí nghiệm.
+
+## Nạp lại corpus sản xuất — 2026-09-06, đóng mục cuối của spec 2026-08-29 §10
+
+Toàn bộ `A → B2 → B3 → B4 → B5(OCR bậc 1)` đã qua cổng, nên mục **"nạp lại toàn bộ corpus"** —
+nằm TRONG phạm vi ngay từ spec `2026-08-29-tang-nap-tai-lieu.md` §10 và cố ý xếp cuối — được thi
+hành. Nhánh `worktree-tang-nap-tai-lieu-1` merge vào `main` (`caebc7b`, 58 commit, không xung đột).
+
+### Vì sao nó không phải việc dọn dẹp
+
+Trước khi merge, chạy parser của nhánh trên đúng 17 tài liệu seed và so **từng chunk** với DB sản
+xuất (do mã ngày 19/08 sinh ra). Kết quả:
+
+| tệp | DB cũ | nhánh | Δ chunk | Δ ký tự |
+|---|---:|---:|---:|---:|
+| `luat-dautu.pdf` | 207 | 747 | **+540** | +15.433 |
+| `luat-thuexuatnhapkhau.pdf` | 91 | 292 | **+201** | +11.679 |
+| `luat-doanhnghiep.pdf` | 523 | 530 | +7 | −612 |
+| `luat-baohiemxahoi.pdf` | 331 | 334 | +3 | +29 |
+| 13 tệp còn lại | — | — | **0** | **0** |
+| **TỔNG** | **3.151** | **3.902** | **+751 (+23,8%)** | |
+
+13/17 tệp **byte-identical cả `chunk_text` LẪN `section_path`** — `section_path` được so riêng vì
+nó chảy vào embedding qua `index_text()`, nên "chunk_text giống" chưa đủ để kết luận vector không
+trôi. Cả 7 tệp `.docx` giống hệt: B3 không làm trôi vector của chúng.
+
+741/751 chunk tăng thêm đến từ đúng 2 tệp phụ lục dạng bảng, khớp số đã đo ở §2.3 (898 và 621 ô
+bảng thật). Nói thẳng: **~24% corpus đang thiếu, và giá trị của 58 commit với người dùng là 0 cho
+tới khi nạp lại.**
+
+### Nghiệm thu
+
+- Live-verify TRƯỚC merge (theo lệ `feedback_test_before_merge`): chạy đúng CLI `python -m
+  src.rag.ingest` của nhánh vào schema nháp `rag_nghiem_thu` — 3.902 chunk / 17 tài liệu, khớp đúng
+  dự đoán đo ngoại tuyến. Đây cũng là lần đầu **đường cài MỚI** được chạy thật: schema dựng từ
+  `schema.sql` (không qua migration), cột `source_kind`/`ocr_conf` có sẵn, 3.902/3.902 = `'text'`.
+- Suite trên nhánh: 2387 passed. Suite trên **kết quả đã merge**: **2409 passed, 1 skipped**.
+- Migration `007` chạy trên schema `public`: hai `ALTER TABLE IF EXISTS` thành công.
+- Nạp lại sản xuất: `đã nạp 17 · không đổi 0 · chunk 3902 · từ chối 0 · cảnh báo 34`. Kiểm sau:
+  rác `about:blank` = 0, mục-là-mảnh-câu = 0, `embedding` NULL = 0, `ts_vector` NULL = 0.
+- Hợp đồng nhãn eval (`pytest tests/evals/ -m integration`): **6 passed** — mọi nhãn viết tay vẫn
+  trỏ vào cặp `(tệp, section_path)` có thật sau khi corpus tăng 751 chunk. Đây đúng là thứ P0 dựng
+  ra để bắt, và nó trả cổ tức lần thứ hai.
+- Retrieval eval so baseline `bge-m3`: `recall@20` **1.0 → 1.0**, `recall@6` **0,9688 → 0,9688**,
+  `MRR` 0,8646 → **0,8645** (−0,0001, nhiễu), `chunk_span` 2,55 → 2,56, 0 fail / 0 error.
+  **Thêm 751 chunk mà không pha loãng truy xuất.**
+- Bản lưu corpus cũ nằm ở schema `rag_luu_20260906` (3.151 chunk / 17 tài liệu), phòng khi cần đối
+  chứng. Xoá được khi không còn cần.
+
+### Bẫy đã bịt
+
+`_ingest_file` bỏ qua tệp khi `content_hash` khớp, mà hash đó **chỉ của tệp nguồn, không mang dấu
+vân tay phiên bản parser**. Tệp không đổi + mã đổi ⇒ báo `không đổi 17` và không làm gì, trong khi
+trông như đã chạy xong. Đúng lớp lỗi khoá-đệm-thiếu-vân-tay-cấu-hình mà tầng OCR đã cố ý tránh khi
+thiết kế `config_fingerprint()`.
+
+Bẫy này ĐÃ được ghi trong plan `2026-08-19-ingest-hygiene.md:527` kèm cách vòng qua, nhưng nằm
+trong một plan cũ **không ai đọc lại**, không có cờ trong mã, và `docs/getting-started.md` còn nói
+ngược lại: *"re-running later is fast and safe"*. Đã sửa `getting-started.md` thành lời cảnh báo
+tường minh kèm lệnh `DELETE FROM rag_documents;` và bước chạy hợp đồng nhãn eval sau đó.
+
+**Chưa đóng**: vẫn không có cờ `--reindex` trong `src/rag/ingest.py`. Cách chữa đúng là đưa dấu vân
+tay phiên bản parser vào khoá bỏ-qua (như `config_fingerprint()` của tầng OCR đã làm), để việc nạp
+lại tự đúng thay vì phụ thuộc người vận hành nhớ một câu SQL. Chưa làm — ghi ra đây để lần sau
+chạm vào `ingest.py` thì làm luôn.
+
+### Giới hạn phát hiện khi nạp lại, KHÔNG phải hồi quy
+
+`page` của chunk là **trang nơi MỤC bắt đầu**, không phải trang chứa chunk đó
+(`chunking.py`: `cur_page` chỉ gán khi đang `None`, và reset ở mỗi heading). Với văn xuôi thì hợp
+lý; với phụ lục bảng dài thì sai đáng kể — `luat-thuexuatnhapkhau.pdf` có **245 chunk cùng gắn
+`page 12`** trong khi nội dung nằm rải trang 13–25, và chính parser đã in cảnh báo bảng ở đúng các
+trang đó.
+
+Đã đối chiếu `git show main:backend/src/rag/chunking.py`: **logic y hệt trước đợt này** — không
+phải hồi quy do B4. Nhưng đợt này làm nó ĐÁNG KỂ hơn: trước đây các trang bảng gần như không sinh
+chunk nào (nội dung mất), nên không có trích dẫn sai; giờ nội dung đã cứu được, kèm trích dẫn trang
+lệch. Đổi mất-nội-dung-âm-thầm lấy có-nội-dung-trích-dẫn-thô — vẫn là lãi, nhưng phải nói ra.
+`chunk_span` trong retrieval eval không bắt được lỗi này vì nó đo khoảng chunk, không đo đúng trang.
