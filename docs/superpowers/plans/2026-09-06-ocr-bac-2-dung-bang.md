@@ -4,7 +4,7 @@
 
 **Goal:** Từ toạ độ chữ Tesseract trả về, dựng lại lưới bảng `list[list[str]]`, để hàng bảng đọc-từ-ảnh đi vào corpus có cấu trúc cột thay vì một dòng phẳng.
 
-**Architecture:** Một hàm thuần trong module lá `src/ocr/bang.py` biến `list[OcrWord]` thành lưới. Tín hiệu là **cụm căn lề** (mép trái cho cột chữ, mép phải cho cột số — nhưng để dữ liệu tự chọn mép nào chụm hơn, không gán cứng). Không có bộ dò bảng: trang không có cụm căn lề đủ mạnh tự nhiên ra một cột. Lưới đi tiếp qua `pdf_table.py` của B4 **không sửa một dòng nào** — module đó nhận đầu vào là lưới và không quan tâm lưới đến từ đâu.
+**Architecture:** Một hàm thuần trong module lá `src/ocr/bang.py` biến `list[OcrWord]` thành lưới. Tín hiệu là **cụm KHE**: trong từng dòng, khe giữa hai từ rộng hơn một bội bề rộng ký tự là ứng viên ranh giới cột; ứng viên phải cụm lại cùng một x qua đủ nhiều dòng mới thành ranh giới thật (đó chính là đòi hỏi căn lề). Không có bộ dò bảng: trang không có khe nào cụm đủ mạnh tự nhiên ra một cột. Lưới đi tiếp qua `pdf_table.py` của B4 **không sửa một dòng nào** — module đó nhận đầu vào là lưới và không quan tâm lưới đến từ đâu.
 
 **Tech Stack:** Python 3.11, `pytesseract` (đã có), `pypdfium2` (đã có), `pdfplumber` (đã có, chỉ dùng để sinh đáp án cho cổng A), `pytest`.
 
@@ -16,8 +16,8 @@
 - **Bậc 2 chỉ lo CẤU TRÚC.** Trả lời "ô nào thuộc cột/hàng nào". Chữ sai trong ô là việc của bậc 1 và bậc 3 — không sửa chữ ở đây (spec §10).
 - **KHÔNG sửa `backend/src/rag/pdf_table.py`.** Bậc 2 chỉ nối vào đầu vào của nó (spec §3).
 - **KHÔNG dựng bộ dò bảng.** Suy biến về một cột là hành vi đúng cho trang văn xuôi (spec §4).
-- **Tín hiệu là căn lề, KHÔNG phải khoảng trắng.** Cách khe-trắng-dọc đã đo và bác bỏ: trang 16 và 17 chỉ ra ĐÚNG MỘT khe cho bảng 5 cột. Bản vá "loại dòng chạy suốt" cũng hỏng: 0/4 trang loại được dòng nào (spec §2.1). Đừng thử lại.
-- **Mọi tham số phải KHÔNG THỨ NGUYÊN**: dung sai theo *bề rộng ký tự trung vị*, ngưỡng ủng hộ theo *tỷ lệ số dòng*. Pixel là sai vì vỡ khi đổi DPI/cỡ chữ (spec §5).
+- **Khe phải đo CỤC BỘ trong từng dòng, rồi mới cụm qua các dòng.** Khe trắng chạy dọc SUỐT CẢ TRANG đã đo và bác bỏ: trang 16 và 17 chỉ ra ĐÚNG MỘT khe cho bảng 5 cột vì một dòng tiêu đề ngang là đủ bịt; bản vá "loại dòng chạy suốt" cũng hỏng, 0/4 trang loại được dòng nào (spec §2.1). Đừng thử lại HAI cách đó. Cụm khe cục bộ thì khác hẳn: dòng tiêu đề chỉ không đóng góp ứng viên nào, mấy chục dòng thân vẫn đóng góp.
+- **Mọi tham số phải KHÔNG THỨ NGUYÊN**: `boi_khe` theo *bề rộng ký tự trung vị*, `ty_le_ung_ho` theo *tỷ lệ số dòng*. Pixel là sai vì vỡ khi đổi DPI/cỡ chữ (spec §5).
 - **Không hằng số nào được đặt trước khi đo.** Task 1 nhận tham số tường minh, không có mặc định. Task 2 đo trên 229 trang rồi mới chốt hằng số.
 - ⚠️ **Bẫy tham số mặc định đóng băng.** Python tính giá trị mặc định MỘT LẦN lúc định nghĩa hàm. `def f(*, x=MODULE_CONST)` khiến việc đổi `MODULE_CONST` lúc chạy KHÔNG có tác dụng — đã cắn tầng OCR bậc 1 một lần và suýt vô hiệu hoá chính phép thử phá của nó. Luôn viết `x: T | None = None` rồi giải trong thân hàm.
 - **`ARTIFACT_VERSION` 2 → 3** khi hình dạng vùng đổi (`document.py`). Đệm cũ tự lạc khoá qua dấu vân tay — không cần xoá tay.
@@ -67,104 +67,17 @@ Kỳ vọng: `2409 passed, 1 skipped, 83 deselected`. Khác con số này thì *
 - Consumes: `src.ocr.engine.OcrWord` — `@dataclass(frozen=True)` với các trường `text: str`, `conf: float`, `left: int`, `top: int`, `width: int`, `height: int`, `line_id: tuple[int, int, int]`.
 - Produces:
   - `be_rong_ky_tu(words: list[OcrWord]) -> float`
-  - `@dataclass(frozen=True) class Moc: x: int; ben: str; do_manh: int`
-  - `tim_moc_cot(words, *, dung_sai_ky_tu: float, ty_le_ung_ho: float) -> list[Moc]`
-  - `dung_luoi(words, *, dung_sai_ky_tu: float, ty_le_ung_ho: float) -> list[list[str]]`
-  - Cả ba tham số `dung_sai_ky_tu` / `ty_le_ung_ho` **bắt buộc, không có mặc định** ở task này. Task 2 mới thêm mặc định sau khi đo.
+  - `tim_ranh_cot(words, *, boi_khe: float, ty_le_ung_ho: float) -> list[int]`
+  - `dung_luoi(words, *, boi_khe: float, ty_le_ung_ho: float) -> list[list[str]]`
+  - Hai tham số `boi_khe` / `ty_le_ung_ho` **bắt buộc, không có mặc định** ở task này. Task 2 mới thêm mặc định sau khi đo.
 
-- [ ] **Step 1: Viết test thất bại cho đơn vị chuẩn hoá**
-
-Tạo `backend/tests/ocr/test_bang.py`:
-
-```python
-"""Bậc 2 — dựng lưới từ toạ độ. Test trên từ DỰNG TAY, không chạy Tesseract:
-hàm này phải thuần và kiểm được mà không cần binary nào."""
-from src.ocr.bang import be_rong_ky_tu, dung_luoi, tim_moc_cot
-from src.ocr.engine import OcrWord
-
-
-def tu(text, left, top, width, height=20, line=0):
-    """Dựng một OcrWord tối giản. `line_id` là (block, par, line) của
-    Tesseract; ở đây chỉ cần hai từ cùng `line` là cùng hàng."""
-    return OcrWord(text=text, conf=95.0, left=left, top=top,
-                   width=width, height=height, line_id=(1, 1, line))
-
-
-def test_be_rong_ky_tu_la_trung_vi_khong_phai_trung_binh():
-    # "ab" rộng 20 -> 10/ký tự; "abcd" rộng 20 -> 5/ký tự; "abc" rộng 30 -> 10
-    words = [tu("ab", 0, 0, 20), tu("abcd", 0, 0, 20), tu("abc", 0, 0, 30)]
-    assert be_rong_ky_tu(words) == 10.0
-
-
-def test_be_rong_ky_tu_khong_no_khi_khong_co_tu():
-    assert be_rong_ky_tu([]) > 0
-```
-
-- [ ] **Step 2: Chạy để xác nhận ĐỎ**
-
-```bash
-cd /d/Youdoo/.claude/worktrees/ocr-bac-2/backend
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
-```
-
-Kỳ vọng: FAIL — `ModuleNotFoundError: No module named 'src.ocr.bang'`.
-
-- [ ] **Step 3: Viết `be_rong_ky_tu`**
-
-Tạo `backend/src/ocr/bang.py`:
-
-```python
-"""Bậc 2 của tầng OCR — dựng lại lưới bảng từ toạ độ chữ.
-
-HÀM THUẦN: không đọc tệp, không gọi mạng, không biết gì về PDF. Vào là
-`list[OcrWord]`, ra là `list[list[str]]`. Lưới đó đi tiếp qua `pdf_table.py`
-của B4 — module đó nhận đầu vào là lưới và KHÔNG quan tâm lưới đến từ đâu,
-nên hàng bảng đọc-từ-ảnh và đọc-từ-vector đi cùng một đường sau điểm này.
-
-TÍN HIỆU LÀ CĂN LỀ, KHÔNG PHẢI KHOẢNG TRẮNG. Cách hiển nhiên hơn — tìm khe
-trắng dọc suốt trang — đã đo và BÁC BỎ: trang 16 và 17 của BCTC scan thật chỉ
-ra ĐÚNG MỘT khe cho bảng 5 cột, vì dòng tiêu đề chạy hết bề ngang bịt mọi khe.
-Bản vá hiển nhiên (loại các dòng chạy suốt trước khi tính khe) cũng hỏng: 0/4
-trang loại được dòng nào, vì văn xuôi cũng có khe giữa từ. Xem spec
-`2026-09-06-b5b-ocr-bac-2-dung-bang-design.md` §2.1 — đừng thử lại.
-"""
-import statistics
-from dataclasses import dataclass
-
-from .engine import OcrWord
-
-
-def be_rong_ky_tu(words: list[OcrWord]) -> float:
-    """Bề rộng một ký tự, lấy TRUNG VỊ trên các từ.
-
-    Đây là ĐƠN VỊ CHUẨN HOÁ của cả module. Mọi dung sai phải tính theo nó chứ
-    không theo pixel: pixel vỡ ngay khi đổi DPI hoặc cỡ chữ, tức là vỡ đúng lúc
-    đổi sang tài liệu định dạng khác (spec §5).
-
-    Trung vị chứ không trung bình: một từ bị OCR đọc dính (bbox rộng, ít ký tự)
-    kéo trung bình đi rất xa.
-    """
-    rong = [w.width / len(w.text) for w in words if w.text]
-    if not rong:
-        return 1.0          # không có từ nào: trả 1 để phép chia sau không nổ
-    return statistics.median(rong)
-```
-
-- [ ] **Step 4: Chạy để xác nhận XANH**
-
-```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
-```
-
-Kỳ vọng: 2 passed.
-
-- [ ] **Step 5: Viết test thất bại cho `tim_moc_cot`**
+- [ ] **Step 5: Viết test thất bại cho `tim_ranh_cot`**
 
 Thêm vào `backend/tests/ocr/test_bang.py`:
 
 ```python
 def _bang_hai_cot_tien():
-    """Ba hàng: nhãn căn TRÁI ở x=100, hai cột số căn PHẢI ở x=500 và x=800."""
+    """Ba hàng: nhãn ở x=100, hai cột số căn PHẢI ở x=500 và x=800."""
     words = []
     for i, (nhan, a, b) in enumerate([("Tien", "1.000", "2.000"),
                                       ("Hang", "30.000", "40.000"),
@@ -175,21 +88,30 @@ def _bang_hai_cot_tien():
     return words
 
 
-def test_tim_moc_cot_bat_duoc_ca_moc_trai_lan_moc_phai():
-    mocs = tim_moc_cot(_bang_hai_cot_tien(), dung_sai_ky_tu=0.5,
-                       ty_le_ung_ho=0.6)
-    # 3 cột: nhãn neo mép TRÁI ở 100; hai cột số neo mép PHẢI ở 500 và 800.
-    assert [m.x for m in mocs] == [100, 500, 800]
-    assert [m.ben for m in mocs] == ["trai", "phai", "phai"]
+def test_tim_ranh_cot_bat_duoc_hai_ranh_giua_ba_cot():
+    ranh = tim_ranh_cot(_bang_hai_cot_tien(), boi_khe=2.0, ty_le_ung_ho=0.6)
+    assert len(ranh) == 2
+    assert 140 < ranh[0] < 450 and 500 < ranh[1] < 730
 
 
-def test_van_xuoi_khong_can_le_ra_MOT_moc():
-    """Không có bộ dò bảng: trang văn xuôi phải tự nhiên suy biến về một cột.
-    Mỗi dòng bắt đầu ở một x khác nhau -> không cụm nào đủ ủng hộ."""
+def test_khe_GIUA_TU_trong_cung_mot_o_KHONG_thanh_ranh_cot():
+    """Đây là chỗ cơ chế cụm-mép hỏng: khe giữa `Tai` và `san` là một bề rộng
+    ký tự, khe sang cột số là 30 — phải phân biệt được hai loại khe đó."""
+    words = []
+    for i in range(3):
+        words.append(tu("Tai", 100, 100 + i * 30, 30, line=i))
+        words.append(tu("san", 140, 100 + i * 30, 30, line=i))
+        words.append(tu("100", 470, 100 + i * 30, 30, line=i))
+    ranh = tim_ranh_cot(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    assert len(ranh) == 1, "chi duoc mot ranh: giua nhan hai tu va cot so"
+    assert 170 < ranh[0] < 470
+
+
+def test_van_xuoi_khong_can_le_ra_KHONG_ranh_nao():
+    """Không có bộ dò bảng: trang văn xuôi tự nhiên suy biến về một cột."""
     words = [tu(f"dong{i}", 100 + i * 37, 100 + i * 30, 60, line=i)
              for i in range(6)]
-    mocs = tim_moc_cot(words, dung_sai_ky_tu=0.5, ty_le_ung_ho=0.6)
-    assert len(mocs) == 1
+    assert tim_ranh_cot(words, boi_khe=2.0, ty_le_ung_ho=0.6) == []
 ```
 
 - [ ] **Step 6: Chạy để xác nhận ĐỎ**
@@ -198,27 +120,28 @@ def test_van_xuoi_khong_can_le_ra_MOT_moc():
 /d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
 ```
 
-Kỳ vọng: FAIL — `ImportError: cannot import name 'tim_moc_cot'`.
+Kỳ vọng: FAIL — `ImportError: cannot import name 'tim_ranh_cot'`.
 
-- [ ] **Step 7: Viết `Moc` và `tim_moc_cot`**
+- [ ] **Step 7: Viết `tim_ranh_cot`**
 
 Thêm vào `backend/src/ocr/bang.py`:
 
 ```python
-@dataclass(frozen=True)
-class Moc:
-    """Một mốc cột: vị trí, và MÉP NÀO của từ được neo vào nó."""
-    x: int
-    ben: str            # "trai" | "phai"
-    do_manh: int        # số từ ủng hộ mốc này
+def _theo_dong(words: list[OcrWord]) -> dict:
+    """Gom từ theo `line_id`, GIỮ NGUYÊN thứ tự dòng xuất hiện."""
+    ra: dict = {}
+    for w in words:
+        ra.setdefault(w.line_id, []).append(w)
+    return ra
 
 
 def _cum(gia_tri: list[int], dung_sai: float) -> list[list[int]]:
     """Gom số gần nhau thành cụm, tham lam theo thứ tự tăng dần."""
     if not gia_tri:
         return []
-    xong: list[list[int]] = [[sorted(gia_tri)[0]]]
-    for v in sorted(gia_tri)[1:]:
+    da_sap = sorted(gia_tri)
+    xong: list[list[int]] = [[da_sap[0]]]
+    for v in da_sap[1:]:
         if v - xong[-1][-1] <= dung_sai:
             xong[-1].append(v)
         else:
@@ -226,47 +149,44 @@ def _cum(gia_tri: list[int], dung_sai: float) -> list[list[int]]:
     return xong
 
 
-def tim_moc_cot(words: list[OcrWord], *, dung_sai_ky_tu: float,
-                ty_le_ung_ho: float) -> list[Moc]:
-    """Tìm mốc cột bằng cụm CĂN LỀ.
+def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float,
+                 ty_le_ung_ho: float) -> list[int]:
+    """Ranh giới cột = vị trí KHE LỚN trong dòng, CỤM LẠI qua nhiều dòng.
 
-    Cụm CẢ HAI mép rồi để dữ liệu tự nói mép nào chụm hơn. Cố ý KHÔNG gán cứng
-    quy tắc "số căn phải, chữ căn trái" dù nó đúng trên BCTC Việt: đó là quy
-    ước kế toán Việt/Âu, biểu mẫu khác có thể căn khác, và gán cứng là đưa một
-    giả định định dạng vào lõi thuật toán (spec §4).
+    Hai bước, và cả hai đều cần thiết:
 
-    `ty_le_ung_ho` là TỶ LỆ trên số dòng, không phải số tuyệt đối — cùng lý do
-    dung sai không tính bằng pixel.
+    1. Trong TỪNG dòng, một khe giữa hai từ liền nhau là ứng viên ranh giới khi
+       nó rộng hơn `boi_khe` lần bề rộng ký tự. Đây là thứ phân biệt khe giữa
+       hai từ trong CÙNG một ô (khoảng một ký tự) với khe sang cột khác (hàng
+       chục ký tự). Cụm căn lề đơn thuần KHÔNG phân biệt được hai loại khe đó —
+       đó là lý do cơ chế cụm-mép bị loại (ledger, mục P1).
+    2. Ứng viên phải CỤM LẠI cùng một x qua đủ nhiều dòng mới thành ranh giới
+       thật. Đây chính là đòi hỏi CĂN LỀ mà spec §2.2 đo được.
+
+    KHÔNG mâu thuẫn spec §2.1 (khe trắng đã bị bác bỏ): §2.1 bác khe chạy dọc
+    SUỐT CẢ TRANG — một dòng tiêu đề ngang là đủ bịt nó. Ở đây khe đo CỤC BỘ
+    trong từng dòng rồi mới cụm, nên dòng tiêu đề chỉ đơn giản không đóng góp
+    ứng viên nào, còn mấy chục dòng thân vẫn đóng góp.
     """
     if not words:
         return []
-    so_dong = len({w.line_id for w in words})
-    toi_thieu = max(2, int(so_dong * ty_le_ung_ho))
-    dung_sai = dung_sai_ky_tu * be_rong_ky_tu(words)
+    dong = _theo_dong(words)
+    rong_ky_tu = be_rong_ky_tu(words)
+    nguong_khe = boi_khe * rong_ky_tu
 
-    ung_vien: list[Moc] = []
-    for ben, lay in (("trai", lambda w: w.left),
-                     ("phai", lambda w: w.left + w.width)):
-        for c in _cum([lay(w) for w in words], dung_sai):
-            if len(c) >= toi_thieu:
-                ung_vien.append(Moc(x=int(statistics.median(c)), ben=ben,
-                                    do_manh=len(c)))
+    ung_vien: list[int] = []
+    for ws in dong.values():
+        theo_x = sorted(ws, key=lambda w: w.left)
+        for a, b in zip(theo_x, theo_x[1:]):
+            het_a = a.left + a.width
+            if b.left - het_a >= nguong_khe:
+                ung_vien.append((het_a + b.left) // 2)
 
-    # Hai mép của CÙNG một cột đều có thể vượt ngưỡng (cột chữ hẹp, đều nhau).
-    # Giữ mốc MẠNH HƠN, bỏ mốc yếu nằm trong dung sai của nó — nếu không, một
-    # cột sẽ bị đếm hai lần và mọi từ trong đó bị tách đôi.
-    ung_vien.sort(key=lambda m: (-m.do_manh, m.x))
-    giu: list[Moc] = []
-    for m in ung_vien:
-        if all(abs(m.x - g.x) > dung_sai for g in giu):
-            giu.append(m)
-
-    if not giu:
-        # Không cụm nào đủ ủng hộ = trang văn xuôi. MỘT cột, neo mép trái nhỏ
-        # nhất. Đây là đường suy biến, KHÔNG phải lỗi — không có bộ dò bảng thì
-        # không có gì để bắn nhầm (spec §4).
-        return [Moc(x=min(w.left for w in words), ben="trai", do_manh=len(words))]
-    return sorted(giu, key=lambda m: m.x)
+    # Dung sai cụm = MỘT bề rộng ký tự: một ranh giới xê dịch quá một ký tự
+    # giữa các dòng thì là ranh giới KHÁC, không phải cùng một cột.
+    toi_thieu = max(2, int(len(dong) * ty_le_ung_ho))
+    return sorted(int(statistics.median(c))
+                  for c in _cum(ung_vien, rong_ky_tu) if len(c) >= toi_thieu)
 ```
 
 - [ ] **Step 8: Chạy để xác nhận XANH**
@@ -275,7 +195,7 @@ def tim_moc_cot(words: list[OcrWord], *, dung_sai_ky_tu: float,
 /d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
 ```
 
-Kỳ vọng: 4 passed.
+Kỳ vọng: 5 passed.
 
 - [ ] **Step 9: Viết test thất bại cho `dung_luoi`**
 
@@ -283,8 +203,7 @@ Thêm vào `backend/tests/ocr/test_bang.py`:
 
 ```python
 def test_dung_luoi_tra_dung_luoi_ba_cot():
-    luoi = dung_luoi(_bang_hai_cot_tien(), dung_sai_ky_tu=0.5,
-                     ty_le_ung_ho=0.6)
+    luoi = dung_luoi(_bang_hai_cot_tien(), boi_khe=2.0, ty_le_ung_ho=0.6)
     assert luoi == [["Tien", "1.000", "2.000"],
                     ["Hang", "30.000", "40.000"],
                     ["Khac", "500.000", "600.000"]]
@@ -296,24 +215,29 @@ def test_dung_luoi_noi_nhieu_tu_trong_cung_mot_o():
     for i in range(3):
         words.append(tu("Tai", 100, 100 + i * 30, 30, line=i))
         words.append(tu("san", 140, 100 + i * 30, 30, line=i))
-        words.append(tu("100", 500 - 30, 100 + i * 30, 30, line=i))
-    luoi = dung_luoi(words, dung_sai_ky_tu=0.5, ty_le_ung_ho=0.6)
-    assert luoi == [["Tai san", "100"]] * 3
+        words.append(tu("100", 470, 100 + i * 30, 30, line=i))
+    ket = dung_luoi(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    assert ket == [["Tai san", "100"]] * 3
 
 
 def test_van_xuoi_ra_luoi_MOT_cot_giu_nguyen_tung_dong():
     words = [tu(f"dong{i}", 100 + i * 37, 100 + i * 30, 60, line=i)
              for i in range(6)]
-    luoi = dung_luoi(words, dung_sai_ky_tu=0.5, ty_le_ung_ho=0.6)
-    assert luoi == [[f"dong{i}"] for i in range(6)]
+    ket = dung_luoi(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    assert ket == [[f"dong{i}"] for i in range(6)]
 
 
-def test_dung_luoi_giu_thu_tu_doc_cua_tesseract_khong_sap_lai():
-    """Bậc 1 đã ghi bài học: thứ tự đọc khác từng bị nhầm thành OCR kém. Hàng
-    phải theo thứ tự `line_id` xuất hiện, không sắp lại theo toạ độ y."""
-    words = [tu("sau", 100, 500, 40, line=1), tu("truoc", 100, 100, 40, line=0)]
-    luoi = dung_luoi(words, dung_sai_ky_tu=0.5, ty_le_ung_ho=0.6)
-    assert luoi == [["truoc"], ["sau"]]
+def test_dung_luoi_KHONG_sap_lai_hang_theo_toa_do_y():
+    """Bậc 1 đã ghi bài học: khác biệt thứ tự đọc từng bị nhầm thành OCR kém.
+
+    Đầu vào ở đây CỐ Ý không theo thứ tự y (từ ở y=500 đứng trước từ ở y=100),
+    mô phỏng một trang mà tesseract đọc theo thứ tự khác thứ tự hình học. Đầu
+    ra phải theo ĐÚNG THỨ TỰ ĐẦU VÀO, chứng minh ta không tự sắp lại theo y.
+    Đòi đầu ra theo `line_id` mới là sắp lại — đúng thứ bị cấm."""
+    words = [tu("duoc_doc_truoc", 100, 500, 40, line=1),
+             tu("duoc_doc_sau", 100, 100, 40, line=0)]
+    ket = dung_luoi(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    assert ket == [["duoc_doc_truoc"], ["duoc_doc_sau"]]
 ```
 
 - [ ] **Step 10: Chạy để xác nhận ĐỎ**
@@ -329,42 +253,28 @@ Kỳ vọng: FAIL — `ImportError: cannot import name 'dung_luoi'`.
 Thêm vào `backend/src/ocr/bang.py`:
 
 ```python
-def _cot_cua_tu(w: OcrWord, mocs: list[Moc]) -> int:
-    """Chỉ số cột của một từ: mốc nào gần nhất, ĐO THEO MÉP CỦA CHÍNH MỐC ĐÓ."""
-    def kc(m: Moc) -> int:
-        cua_tu = w.left if m.ben == "trai" else w.left + w.width
-        return abs(cua_tu - m.x)
-    return min(range(len(mocs)), key=lambda i: kc(mocs[i]))
-
-
-def dung_luoi(words: list[OcrWord], *, dung_sai_ky_tu: float,
+def dung_luoi(words: list[OcrWord], *, boi_khe: float,
               ty_le_ung_ho: float) -> list[list[str]]:
     """`list[OcrWord]` -> `list[list[str]]`.
 
     Hàng lấy theo `line_id` Tesseract đã trả sẵn, GIỮ NGUYÊN thứ tự xuất hiện.
     Không tự gom lại theo toạ độ y: tesseract gom tốt hơn, và bậc 1 đã ghi bài
-    học "đừng sắp xếp lại thứ tự đọc" — khác biệt thứ tự đọc từng bị nhầm
-    thành chất lượng OCR kém.
+    học "đừng sắp xếp lại thứ tự đọc" — khác biệt thứ tự đọc từng bị nhầm thành
+    chất lượng OCR kém.
+
+    Không ranh giới nào = MỘT cột. Đó là đường suy biến cho trang văn xuôi,
+    KHÔNG phải lỗi: không có bộ dò bảng thì không có gì để bắn nhầm (spec §4).
     """
     if not words:
         return []
-    mocs = tim_moc_cot(words, dung_sai_ky_tu=dung_sai_ky_tu,
-                       ty_le_ung_ho=ty_le_ung_ho)
-
-    thu_tu: list[tuple] = []
-    theo_dong: dict[tuple, list[OcrWord]] = {}
-    for w in words:
-        if w.line_id not in theo_dong:
-            theo_dong[w.line_id] = []
-            thu_tu.append(w.line_id)
-        theo_dong[w.line_id].append(w)
-
+    ranh = tim_ranh_cot(words, boi_khe=boi_khe, ty_le_ung_ho=ty_le_ung_ho)
     luoi: list[list[str]] = []
-    for lid in thu_tu:
-        o = [[] for _ in mocs]
-        for w in sorted(theo_dong[lid], key=lambda x: x.left):
-            o[_cot_cua_tu(w, mocs)].append(w.text)
-        luoi.append([" ".join(p) for p in o])
+    for ws in _theo_dong(words).values():
+        o: list[list[str]] = [[] for _ in range(len(ranh) + 1)]
+        for w in sorted(ws, key=lambda x: x.left):
+            tam = w.left + w.width // 2
+            o[sum(1 for r in ranh if tam > r)].append(w.text)
+        luoi.append([" ".join(phan) for phan in o])
     return luoi
 ```
 
@@ -374,7 +284,7 @@ def dung_luoi(words: list[OcrWord], *, dung_sai_ky_tu: float,
 /d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
 ```
 
-Kỳ vọng: 8 passed.
+Kỳ vọng: 9 passed.
 
 - [ ] **Step 13: Commit**
 
@@ -405,8 +315,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Test: `backend/tests/ocr/test_bang.py` (thêm test cho mặc định)
 
 **Interfaces:**
-- Consumes: `dung_luoi(words, *, dung_sai_ky_tu, ty_le_ung_ho)` từ Task 1.
-- Produces: `DUNG_SAI_KY_TU: float`, `TY_LE_UNG_HO: float` trong `bang.py`; và `dung_luoi` / `tim_moc_cot` nhận thêm mặc định `None`.
+- Consumes: `dung_luoi(words, *, boi_khe, ty_le_ung_ho)` từ Task 1.
+- Produces: `BOI_KHE: float`, `TY_LE_UNG_HO: float` trong `bang.py`; và `dung_luoi` / `tim_ranh_cot` nhận thêm mặc định `None`.
 
 - [ ] **Step 1: Viết script đo**
 
@@ -468,7 +378,7 @@ def main(argv):
     tep = sorted(itertools.chain.from_iterable(
         glob.glob(os.path.join(t, "*.pdf")) for t in THU_MUC))
 
-    luoi_tham_so = [(ds, tl) for ds in (0.3, 0.5, 0.8, 1.2)
+    luoi_tham_so = [(ds, tl) for ds in (1.0, 2.0, 3.0, 5.0)
                     for tl in (0.3, 0.5, 0.7)]
     diem = {k: [0, 0] for k in luoi_tham_so}
     da_lam = 0
@@ -494,7 +404,7 @@ def main(argv):
                     if not ws:
                         continue
                     for ds, tl in luoi_tham_so:
-                        luoi = bang.dung_luoi(ws, dung_sai_ky_tu=ds,
+                        luoi = bang.dung_luoi(ws, boi_khe=ds,
                                               ty_le_ung_ho=tl)
                         k, t = _diem(dap_an, luoi)
                         diem[(ds, tl)][0] += k
@@ -503,7 +413,7 @@ def main(argv):
                 print(f"  {os.path.basename(p)[:34]:36s} tr{pageno:>3}"
                       f"  ({da_lam} trang)", flush=True)
 
-    print(f"\n{'dung_sai':>10}{'ty_le':>8}{'khop':>9}{'tong':>9}{'ty le':>9}")
+    print(f"\n{'boi_khe':>10}{'ty_le':>8}{'khop':>9}{'tong':>9}{'ty le':>9}")
     for (ds, tl), (k, t) in sorted(diem.items(), key=lambda x: -x[1][0] / max(x[1][1], 1)):
         print(f"{ds:>10}{tl:>8}{k:>9}{t:>9}{k / max(t, 1):>9.4f}")
 
@@ -544,13 +454,13 @@ Thêm vào đầu `backend/src/ocr/bang.py`, ngay sau phần import:
 # 4x3 tham số, chọn cặp có tỷ lệ ô khớp cao nhất.
 #
 # THAY <...> BẰNG SỐ THẬT TỪ `tools/hieu_chinh_bang.py`. Không được để nguyên.
-#   dung_sai=<a> ty_le=<b> -> <x>/<y> = <z>   <- chọn
+#   boi_khe=<a> ty_le=<b> -> <x>/<y> = <z>   <- chọn
 #   (dán trọn bảng 12 dòng vào đây để người sau so lại được)
 #
 # ĐƠN VỊ KHÔNG THỨ NGUYÊN, có chủ ý: dung sai theo BỀ RỘNG KÝ TỰ TRUNG VỊ và
 # ngưỡng theo TỶ LỆ SỐ DÒNG. Pixel vỡ ngay khi đổi DPI hoặc cỡ chữ, tức là vỡ
 # đúng lúc đổi sang tài liệu định dạng khác (spec §5).
-DUNG_SAI_KY_TU = <a>
+BOI_KHE = <a>
 TY_LE_UNG_HO = <b>
 ```
 
@@ -592,8 +502,8 @@ Kỳ vọng: FAIL — `TypeError: dung_luoi() missing 2 required keyword-only ar
 Sửa chữ ký hai hàm trong `backend/src/ocr/bang.py`:
 
 ```python
-def tim_moc_cot(words: list[OcrWord], *, dung_sai_ky_tu: float | None = None,
-                ty_le_ung_ho: float | None = None) -> list[Moc]:
+def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float | None = None,
+                ty_le_ung_ho: float | None = None) -> list[int]:
 ```
 
 và ngay đầu thân hàm, TRƯỚC mọi dòng khác:
@@ -601,11 +511,11 @@ và ngay đầu thân hàm, TRƯỚC mọi dòng khác:
 ```python
     # Giải lúc GỌI, không dùng hằng số làm giá trị mặc định — xem test
     # `test_mac_dinh_doc_lai_hang_so_luc_GOI...` và bẫy đã cắn bậc 1.
-    dung_sai_ky_tu = DUNG_SAI_KY_TU if dung_sai_ky_tu is None else dung_sai_ky_tu
+    boi_khe = BOI_KHE if boi_khe is None else boi_khe
     ty_le_ung_ho = TY_LE_UNG_HO if ty_le_ung_ho is None else ty_le_ung_ho
 ```
 
-Làm y hệt cho `dung_luoi` (nó chỉ chuyển tiếp xuống `tim_moc_cot`, nhưng vẫn phải nhận `None` để người gọi không phải truyền).
+Làm y hệt cho `dung_luoi` (nó chỉ chuyển tiếp xuống `tim_ranh_cot`, nhưng vẫn phải nhận `None` để người gọi không phải truyền).
 
 - [ ] **Step 8: Chạy để xác nhận XANH**
 
@@ -947,7 +857,7 @@ Kỳ vọng: 7 passed.
 /d/Youdoo/backend/.venv/Scripts/python.exe -c "
 import sys; sys.path.insert(0, '.')
 from src.ocr import bang
-bang.DUNG_SAI_KY_TU = 100.0     # dung sai khong lo -> moi tu vao cung mot cot
+bang.BOI_KHE = 1000.0    # khong khe nao du lon -> moi bang suy bien MOT cot
 import pytest
 sys.exit(pytest.main(['tests/ocr/test_cong_bang_scan_that.py', '-q']))
 "
@@ -970,7 +880,7 @@ Phan biet HAI LOAI DO: gia tri ma tang doc doc hong bi loai khoi mau so va
 DEM RA, khong am tham bo qua. Khong phan biet thi cong se do oan vai lan roi
 co nguoi tat no, ma cong bi tat thi bang khong.
 
-Nguong suy tu so do that, da THU PHA bang DUNG_SAI_KY_TU=100.
+Nguong suy tu so do that, da THU PHA bang BOI_KHE=100.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
