@@ -36,8 +36,14 @@ chế độc lập** kiểm lại bản đọc đó:
 2. **`doi_chieu_tesseract.py`** — so với Tesseract, sinh hàng đợi bất đồng để
    người duyệt.
 
-Mọi tệp mang `"trang_thai": "MAY_DOC_CHUA_DUYET"` cho tới khi có người soát. Đây
-là dữ liệu **máy đọc**, và nhãn phải nói đúng điều đó.
+Mọi tệp mang `"trang_thai"` nói đúng nguồn gốc của nó. Đây là dữ liệu **máy
+đọc**, và nhãn phải nói đúng điều đó.
+
+**Đã duyệt 2026-09-06** (`"trang_thai": "DA_DUYET"`). Chủ dự án soát ba thứ mà
+hai cơ chế tự động không với tới — đếm hàng từng trang, toàn bộ cột `Thuyết
+minh` (55 mục), và 10 nhãn gộp nhiều dòng — và xác nhận đúng hết. Số hàng có
+`Mã số` khớp chính xác trên cả ba trang được đếm độc lập (15 → 17, 17 → 26,
+18 → 11).
 
 ## Cổng số học: vì sao nó kiểm được CẤU TRÚC
 

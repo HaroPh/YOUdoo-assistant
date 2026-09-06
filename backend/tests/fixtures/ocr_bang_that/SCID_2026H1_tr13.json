@@ -6,7 +6,7 @@
   "trang_in_tren_giay": 8,
   "nhom": "bang_can_doi",
   "bang": "Bao cao tinh hinh tai chinh hop nhat giua nien do - phan B TAI SAN DAI HAN + TONG CONG TAI SAN",
-  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "trang_thai": "DA_DUYET",
   "nguoi_doc": "Claude (doc anh 200 DPI, KHONG xem output Tesseract truoc)",
   "ngay_doc": "2026-09-06",
   "ghi_chu_cau_truc": [
@@ -15,66 +15,495 @@
     "Dong 280 TONG CONG TAI SAN co duong ke DOI phia duoi (dau hieu dong tong cuoi).",
     "Rang buoc 280 = 100 + 200 BAC QUA HAI TRANG: ma 100 nam o tep trang 12."
   ],
-  "cot": ["chi_tieu", "ma_so", "thuyet_minh", "so_cuoi_ky", "so_dau_nam"],
+  "cot": [
+    "chi_tieu",
+    "ma_so",
+    "thuyet_minh",
+    "so_cuoi_ky",
+    "so_dau_nam"
+  ],
   "hang": [
-    {"muc": "B-", "chi_tieu": "TAI SAN DAI HAN", "ma_so": "200", "thuyet_minh": null, "so_cuoi_ky": 2083822081658, "so_dau_nam": 2078113448434},
-    {"muc": "I.", "chi_tieu": "Cac khoan phai thu dai han", "ma_so": "210", "thuyet_minh": null, "so_cuoi_ky": 122586388288, "so_dau_nam": 122838542831},
-    {"muc": "1.", "chi_tieu": "Phai thu dai han cua khach hang", "ma_so": "211", "thuyet_minh": "V.3b", "so_cuoi_ky": 11371676288, "so_dau_nam": 11623830831},
-    {"muc": "2.", "chi_tieu": "Tra truoc cho nguoi ban dai han", "ma_so": "212", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "3.", "chi_tieu": "Phai thu dai han khac", "ma_so": "215", "thuyet_minh": "V.5b", "so_cuoi_ky": 111214712000, "so_dau_nam": 111214712000},
-    {"muc": "4.", "chi_tieu": "Du phong phai thu dai han kho doi", "ma_so": "216", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "II.", "chi_tieu": "Tai san co dinh", "ma_so": "220", "thuyet_minh": null, "so_cuoi_ky": 68845804199, "so_dau_nam": 73176339987},
-    {"muc": "1.", "chi_tieu": "Tai san co dinh huu hinh", "ma_so": "221", "thuyet_minh": "V.9", "so_cuoi_ky": 66842115906, "so_dau_nam": 70809368710},
-    {"muc": "-", "chi_tieu": "Nguyen gia", "ma_so": "222", "thuyet_minh": null, "so_cuoi_ky": 163061274678, "so_dau_nam": 163314245035, "in_nghieng": true},
-    {"muc": "-", "chi_tieu": "Gia tri hao mon luy ke", "ma_so": "223", "thuyet_minh": null, "so_cuoi_ky": -96219158772, "so_dau_nam": -92504876325, "in_nghieng": true},
-    {"muc": "2.", "chi_tieu": "Tai san co dinh thue tai chinh", "ma_so": "224", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "-", "chi_tieu": "Nguyen gia", "ma_so": "225", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-", "in_nghieng": true},
-    {"muc": "-", "chi_tieu": "Gia tri hao mon luy ke", "ma_so": "226", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-", "in_nghieng": true},
-    {"muc": "3.", "chi_tieu": "Tai san co dinh vo hinh", "ma_so": "227", "thuyet_minh": "V.10", "so_cuoi_ky": 2003688293, "so_dau_nam": 2366971277},
-    {"muc": "-", "chi_tieu": "Nguyen gia", "ma_so": "228", "thuyet_minh": null, "so_cuoi_ky": 5946410250, "so_dau_nam": 5946410250, "in_nghieng": true},
-    {"muc": "-", "chi_tieu": "Gia tri hao mon luy ke", "ma_so": "229", "thuyet_minh": null, "so_cuoi_ky": -3942721957, "so_dau_nam": -3579438973, "in_nghieng": true},
-    {"muc": "III.", "chi_tieu": "Tai san sinh hoc dai han", "ma_so": "230", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "1.", "chi_tieu": "Suc vat nuoi cho san pham dinh ky", "ma_so": "231", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "a)", "chi_tieu": "Suc vat nuoi cho san pham dinh ky chua den giai doan truong thanh", "ma_so": "232", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "b)", "chi_tieu": "Suc vat nuoi cho san pham dinh ky den giai doan truong thanh", "ma_so": "233", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "-", "chi_tieu": "Nguyen gia", "ma_so": "234", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-", "in_nghieng": true},
-    {"muc": "-", "chi_tieu": "Gia tri khau hao luy ke", "ma_so": "235", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-", "in_nghieng": true},
-    {"muc": "2.", "chi_tieu": "Suc vat nuoi lay san pham mot lan dai han", "ma_so": "236", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "3.", "chi_tieu": "Cay trong theo mua vu hoac lay san pham mot lan dai han", "ma_so": "237", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "4.", "chi_tieu": "Du phong ton that tai san sinh hoc dai han", "ma_so": "238", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "IV.", "chi_tieu": "Bat dong san dau tu", "ma_so": "240", "thuyet_minh": "V.11", "so_cuoi_ky": 33573026922, "so_dau_nam": 34408243014},
-    {"muc": "-", "chi_tieu": "Nguyen gia", "ma_so": "241", "thuyet_minh": null, "so_cuoi_ky": 57817638519, "so_dau_nam": 57817638519},
-    {"muc": "-", "chi_tieu": "Gia tri hao mon luy ke", "ma_so": "242", "thuyet_minh": null, "so_cuoi_ky": -24244611597, "so_dau_nam": -23409395505},
-    {"muc": "V.", "chi_tieu": "Tai san do dang dai han", "ma_so": "250", "thuyet_minh": null, "so_cuoi_ky": 663165363359, "so_dau_nam": 603788245651},
-    {"muc": "1.", "chi_tieu": "Chi phi san xuat, kinh doanh do dang dai han", "ma_so": "251", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "2.", "chi_tieu": "Chi phi xay dung co ban do dang", "ma_so": "252", "thuyet_minh": "V.12", "so_cuoi_ky": 663165363359, "so_dau_nam": 603788245651},
-    {"muc": "VI.", "chi_tieu": "Dau tu tai chinh dai han", "ma_so": "260", "thuyet_minh": null, "so_cuoi_ky": 1192035446884, "so_dau_nam": 1239525493720},
-    {"muc": "1.", "chi_tieu": "Dau tu vao cong ty con", "ma_so": "261", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "2.", "chi_tieu": "Dau tu vao cong ty lien doanh, lien ket", "ma_so": "262", "thuyet_minh": "V.2c", "so_cuoi_ky": 1192035446884, "so_dau_nam": 1239525493720},
-    {"muc": "3.", "chi_tieu": "Dau tu gop von vao don vi khac", "ma_so": "263", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "4.", "chi_tieu": "Du phong ton that dau tu vao don vi khac dai han", "ma_so": "264", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "5.", "chi_tieu": "Dau tu nam giu den ngay dao han dai han", "ma_so": "265", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "6.", "chi_tieu": "Du phong dau tu nam giu den ngay dao han dai han", "ma_so": "266", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "VII.", "chi_tieu": "Tai san dai han khac", "ma_so": "270", "thuyet_minh": null, "so_cuoi_ky": 3616052006, "so_dau_nam": 4376583231},
-    {"muc": "1.", "chi_tieu": "Chi phi cho phan bo dai han", "ma_so": "271", "thuyet_minh": "V.8b", "so_cuoi_ky": 3508678195, "so_dau_nam": 4151284755},
-    {"muc": "2.", "chi_tieu": "Tai san thue thu nhap hoan lai", "ma_so": "272", "thuyet_minh": "V.13", "so_cuoi_ky": 107373811, "so_dau_nam": 225298476},
-    {"muc": "3.", "chi_tieu": "Thiet bi, vat tu, phu tung thay the dai han", "ma_so": "273", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "4.", "chi_tieu": "Tai san dai han khac", "ma_so": "274", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": "5.", "chi_tieu": "Loi the thuong mai", "ma_so": "279", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
-    {"muc": null, "chi_tieu": "TONG CONG TAI SAN", "ma_so": "280", "thuyet_minh": null, "so_cuoi_ky": 2650517727926, "so_dau_nam": 2612157923416}
+    {
+      "muc": "B-",
+      "chi_tieu": "TAI SAN DAI HAN",
+      "ma_so": "200",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 2083822081658,
+      "so_dau_nam": 2078113448434
+    },
+    {
+      "muc": "I.",
+      "chi_tieu": "Cac khoan phai thu dai han",
+      "ma_so": "210",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 122586388288,
+      "so_dau_nam": 122838542831
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Phai thu dai han cua khach hang",
+      "ma_so": "211",
+      "thuyet_minh": "V.3b",
+      "so_cuoi_ky": 11371676288,
+      "so_dau_nam": 11623830831
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Tra truoc cho nguoi ban dai han",
+      "ma_so": "212",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Phai thu dai han khac",
+      "ma_so": "215",
+      "thuyet_minh": "V.5b",
+      "so_cuoi_ky": 111214712000,
+      "so_dau_nam": 111214712000
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Du phong phai thu dai han kho doi",
+      "ma_so": "216",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "II.",
+      "chi_tieu": "Tai san co dinh",
+      "ma_so": "220",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 68845804199,
+      "so_dau_nam": 73176339987
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Tai san co dinh huu hinh",
+      "ma_so": "221",
+      "thuyet_minh": "V.9",
+      "so_cuoi_ky": 66842115906,
+      "so_dau_nam": 70809368710
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Nguyen gia",
+      "ma_so": "222",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 163061274678,
+      "so_dau_nam": 163314245035,
+      "in_nghieng": true
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Gia tri hao mon luy ke",
+      "ma_so": "223",
+      "thuyet_minh": null,
+      "so_cuoi_ky": -96219158772,
+      "so_dau_nam": -92504876325,
+      "in_nghieng": true
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Tai san co dinh thue tai chinh",
+      "ma_so": "224",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Nguyen gia",
+      "ma_so": "225",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-",
+      "in_nghieng": true
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Gia tri hao mon luy ke",
+      "ma_so": "226",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-",
+      "in_nghieng": true
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Tai san co dinh vo hinh",
+      "ma_so": "227",
+      "thuyet_minh": "V.10",
+      "so_cuoi_ky": 2003688293,
+      "so_dau_nam": 2366971277
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Nguyen gia",
+      "ma_so": "228",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 5946410250,
+      "so_dau_nam": 5946410250,
+      "in_nghieng": true
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Gia tri hao mon luy ke",
+      "ma_so": "229",
+      "thuyet_minh": null,
+      "so_cuoi_ky": -3942721957,
+      "so_dau_nam": -3579438973,
+      "in_nghieng": true
+    },
+    {
+      "muc": "III.",
+      "chi_tieu": "Tai san sinh hoc dai han",
+      "ma_so": "230",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Suc vat nuoi cho san pham dinh ky",
+      "ma_so": "231",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "a)",
+      "chi_tieu": "Suc vat nuoi cho san pham dinh ky chua den giai doan truong thanh",
+      "ma_so": "232",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "b)",
+      "chi_tieu": "Suc vat nuoi cho san pham dinh ky den giai doan truong thanh",
+      "ma_so": "233",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Nguyen gia",
+      "ma_so": "234",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-",
+      "in_nghieng": true
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Gia tri khau hao luy ke",
+      "ma_so": "235",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-",
+      "in_nghieng": true
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Suc vat nuoi lay san pham mot lan dai han",
+      "ma_so": "236",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Cay trong theo mua vu hoac lay san pham mot lan dai han",
+      "ma_so": "237",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Du phong ton that tai san sinh hoc dai han",
+      "ma_so": "238",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "IV.",
+      "chi_tieu": "Bat dong san dau tu",
+      "ma_so": "240",
+      "thuyet_minh": "V.11",
+      "so_cuoi_ky": 33573026922,
+      "so_dau_nam": 34408243014
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Nguyen gia",
+      "ma_so": "241",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 57817638519,
+      "so_dau_nam": 57817638519
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Gia tri hao mon luy ke",
+      "ma_so": "242",
+      "thuyet_minh": null,
+      "so_cuoi_ky": -24244611597,
+      "so_dau_nam": -23409395505
+    },
+    {
+      "muc": "V.",
+      "chi_tieu": "Tai san do dang dai han",
+      "ma_so": "250",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 663165363359,
+      "so_dau_nam": 603788245651
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Chi phi san xuat, kinh doanh do dang dai han",
+      "ma_so": "251",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Chi phi xay dung co ban do dang",
+      "ma_so": "252",
+      "thuyet_minh": "V.12",
+      "so_cuoi_ky": 663165363359,
+      "so_dau_nam": 603788245651
+    },
+    {
+      "muc": "VI.",
+      "chi_tieu": "Dau tu tai chinh dai han",
+      "ma_so": "260",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 1192035446884,
+      "so_dau_nam": 1239525493720
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Dau tu vao cong ty con",
+      "ma_so": "261",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Dau tu vao cong ty lien doanh, lien ket",
+      "ma_so": "262",
+      "thuyet_minh": "V.2c",
+      "so_cuoi_ky": 1192035446884,
+      "so_dau_nam": 1239525493720
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Dau tu gop von vao don vi khac",
+      "ma_so": "263",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Du phong ton that dau tu vao don vi khac dai han",
+      "ma_so": "264",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Dau tu nam giu den ngay dao han dai han",
+      "ma_so": "265",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "6.",
+      "chi_tieu": "Du phong dau tu nam giu den ngay dao han dai han",
+      "ma_so": "266",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "VII.",
+      "chi_tieu": "Tai san dai han khac",
+      "ma_so": "270",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 3616052006,
+      "so_dau_nam": 4376583231
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Chi phi cho phan bo dai han",
+      "ma_so": "271",
+      "thuyet_minh": "V.8b",
+      "so_cuoi_ky": 3508678195,
+      "so_dau_nam": 4151284755
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Tai san thue thu nhap hoan lai",
+      "ma_so": "272",
+      "thuyet_minh": "V.13",
+      "so_cuoi_ky": 107373811,
+      "so_dau_nam": 225298476
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Thiet bi, vat tu, phu tung thay the dai han",
+      "ma_so": "273",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Tai san dai han khac",
+      "ma_so": "274",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Loi the thuong mai",
+      "ma_so": "279",
+      "thuyet_minh": null,
+      "so_cuoi_ky": "-",
+      "so_dau_nam": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "TONG CONG TAI SAN",
+      "ma_so": "280",
+      "thuyet_minh": null,
+      "so_cuoi_ky": 2650517727926,
+      "so_dau_nam": 2612157923416
+    }
   ],
   "rang_buoc_so_hoc": [
-    {"tong": "210", "cong": ["211", "212", "215", "216"]},
-    {"tong": "221", "cong": ["222", "223"]},
-    {"tong": "224", "cong": ["225", "226"]},
-    {"tong": "227", "cong": ["228", "229"]},
-    {"tong": "220", "cong": ["221", "224", "227"]},
-    {"tong": "230", "cong": ["231", "236", "237", "238"]},
-    {"tong": "240", "cong": ["241", "242"]},
-    {"tong": "250", "cong": ["251", "252"]},
-    {"tong": "260", "cong": ["261", "262", "263", "264", "265", "266"]},
-    {"tong": "270", "cong": ["271", "272", "273", "274", "279"]},
-    {"tong": "200", "cong": ["210", "220", "230", "240", "250", "260", "270"]},
-    {"tong": "280", "cong": ["100", "200"], "lien_trang": true}
-  ]
+    {
+      "tong": "210",
+      "cong": [
+        "211",
+        "212",
+        "215",
+        "216"
+      ]
+    },
+    {
+      "tong": "221",
+      "cong": [
+        "222",
+        "223"
+      ]
+    },
+    {
+      "tong": "224",
+      "cong": [
+        "225",
+        "226"
+      ]
+    },
+    {
+      "tong": "227",
+      "cong": [
+        "228",
+        "229"
+      ]
+    },
+    {
+      "tong": "220",
+      "cong": [
+        "221",
+        "224",
+        "227"
+      ]
+    },
+    {
+      "tong": "230",
+      "cong": [
+        "231",
+        "236",
+        "237",
+        "238"
+      ]
+    },
+    {
+      "tong": "240",
+      "cong": [
+        "241",
+        "242"
+      ]
+    },
+    {
+      "tong": "250",
+      "cong": [
+        "251",
+        "252"
+      ]
+    },
+    {
+      "tong": "260",
+      "cong": [
+        "261",
+        "262",
+        "263",
+        "264",
+        "265",
+        "266"
+      ]
+    },
+    {
+      "tong": "270",
+      "cong": [
+        "271",
+        "272",
+        "273",
+        "274",
+        "279"
+      ]
+    },
+    {
+      "tong": "200",
+      "cong": [
+        "210",
+        "220",
+        "230",
+        "240",
+        "250",
+        "260",
+        "270"
+      ]
+    },
+    {
+      "tong": "280",
+      "cong": [
+        "100",
+        "200"
+      ],
+      "lien_trang": true
+    }
+  ],
+  "duyet": {
+    "nguoi_duyet": "chu du an",
+    "ngay_duyet": "2026-09-06",
+    "da_soat": [
+      "Dem hang tren anh doi chieu voi so hang co Ma so trong dap an",
+      "Toan bo cot Thuyet minh (55 muc tren 7 trang)",
+      "Toan bo nhan gop nhieu dong (10 hang)"
+    ],
+    "khong_can_soat_va_vi_sao": "Con so: 85/85 rang buoc so hoc thoa (ke ca dang thuc ke toan 440 = 280 bac qua 4 trang) + 204/208 o khop nguyen van voi Tesseract, hai co che doc lap. 76 hang toan gach ngang: doc sot gia tri thi tong gay, sai Ma so thi rang buoc khong tim thay ma va cung gay; chi con nhan chu la chua kiem, va rui ro that (thieu/thua ca mot hang) da co buoc dem hang bat."
+  }
 }

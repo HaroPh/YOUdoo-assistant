@@ -5,7 +5,7 @@
   "trang_pdf": 12,
   "trang_in_tren_giay": 7,
   "bang": "Bao cao tinh hinh tai chinh hop nhat giua nien do — phan A TAI SAN NGAN HAN",
-  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "trang_thai": "DA_DUYET",
   "nguoi_doc": "Claude (doc anh 200 DPI, KHONG xem output Tesseract truoc)",
   "ngay_doc": "2026-09-06",
   "quy_uoc_o": {
@@ -344,5 +344,15 @@
       ]
     }
   ],
-  "nhom": "bang_can_doi"
+  "nhom": "bang_can_doi",
+  "duyet": {
+    "nguoi_duyet": "chu du an",
+    "ngay_duyet": "2026-09-06",
+    "da_soat": [
+      "Dem hang tren anh doi chieu voi so hang co Ma so trong dap an",
+      "Toan bo cot Thuyet minh (55 muc tren 7 trang)",
+      "Toan bo nhan gop nhieu dong (10 hang)"
+    ],
+    "khong_can_soat_va_vi_sao": "Con so: 85/85 rang buoc so hoc thoa (ke ca dang thuc ke toan 440 = 280 bac qua 4 trang) + 204/208 o khop nguyen van voi Tesseract, hai co che doc lap. 76 hang toan gach ngang: doc sot gia tri thi tong gay, sai Ma so thi rang buoc khong tim thay ma va cung gay; chi con nhan chu la chua kiem, va rui ro that (thieu/thua ca mot hang) da co buoc dem hang bat."
+  }
 }
