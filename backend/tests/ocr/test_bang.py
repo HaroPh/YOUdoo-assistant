@@ -92,6 +92,26 @@ def test_van_xuoi_ra_luoi_MOT_cot_giu_nguyen_tung_dong():
     assert ket == [[f"dong{i}"] for i in range(6)]
 
 
+def test_mac_dinh_doc_lai_hang_so_luc_GOI_khong_dong_bang_luc_dinh_nghia():
+    """Bẫy tham số mặc định đóng băng: Python tính giá trị mặc định MỘT LẦN lúc
+    định nghĩa hàm. Nếu viết `def f(*, x=HANG_SO)` thì đổi HANG_SO lúc chạy sẽ
+    KHÔNG có tác dụng — đã cắn tầng OCR bậc 1 một lần và suýt vô hiệu hoá chính
+    phép thử phá của nó. Test này gác đúng chuyện đó."""
+    from src.ocr import bang as m
+
+    words = _bang_hai_cot_tien()
+    goc = m.BOI_KHE
+    try:
+        m.BOI_KHE = 1000.0          # không khe nào đủ lớn -> một cột
+        it_cot = m.dung_luoi(words)
+        m.BOI_KHE = 2.0             # bình thường -> ba cột
+        nhieu_cot = m.dung_luoi(words)
+    finally:
+        m.BOI_KHE = goc
+    assert len(it_cot[0]) < len(nhieu_cot[0]), (
+        "đổi hằng số lúc chạy KHÔNG đổi kết quả -> mặc định đã bị đóng băng")
+
+
 def test_dung_luoi_KHONG_sap_lai_hang_theo_toa_do_y():
     """Bậc 1 đã ghi bài học: khác biệt thứ tự đọc từng bị nhầm thành OCR kém.
 
