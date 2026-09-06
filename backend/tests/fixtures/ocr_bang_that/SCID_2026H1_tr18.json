@@ -1,0 +1,61 @@
+{
+  "tep_nguon": "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+  "doanh_nghiep": "Cong ty CP Dau tu Phat trien Sai Gon Co.op (SCID)",
+  "ky": "Ban nien 2026, hop nhat, da soat xet",
+  "trang_pdf": 18,
+  "trang_in_tren_giay": 13,
+  "nhom": "luu_chuyen_tien",
+  "bang": "Bao cao luu chuyen tien te hop nhat giua nien do (tiep theo) - phan III hoat dong tai chinh + doi chieu tien",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI, KHONG xem output Tesseract truoc)",
+  "ngay_doc": "2026-09-06",
+  "ghi_chu_cau_truc": [
+    "Ba dong cuoi (50, 60, 61, 70) KHONG co so thu tu muc - chung la dong doi chieu, khong thuoc muc I/II/III.",
+    "Ma 40 IN NGHIENG cung voi nhan cua no.",
+    "Ma 31 va 32 co nhan vat HAI DONG voi so nam o dong DUOI (dung mau chu du an mo ta).",
+    "Ma 50, 40, 70 co duong ke DOI phia duoi.",
+    "Trang co dau moc do de len chu ky, dau moc thu hai bi cat cut o le phai, va chu ky muc xanh."
+  ],
+  "vung_hinh_can_bac_3": [
+    "dau moc tron do lon de len chu ky, giua duoi trang",
+    "dau moc do bi cat cut o le phai, ngang dong 33-36",
+    "chu ky muc xanh o cuoi trang"
+  ],
+  "cot": ["chi_tieu", "ma_so", "thuyet_minh", "nam_nay", "nam_truoc"],
+  "hang": [
+    {"muc": "III.", "chi_tieu": "Luu chuyen tien tu hoat dong tai chinh", "ma_so": null, "thuyet_minh": null, "nam_nay": null, "nam_truoc": null},
+    {"muc": "1.", "chi_tieu": "Tien thu tu phat hanh co phieu, nhan von gop cua chu so huu", "ma_so": "31", "thuyet_minh": null, "nam_nay": "-", "nam_truoc": "-"},
+    {"muc": "2.", "chi_tieu": "Tien tra lai von gop cho cac chu so huu, mua lai co phieu da phat hanh", "ma_so": "32", "thuyet_minh": null, "nam_nay": "-", "nam_truoc": "-"},
+    {"muc": "3.", "chi_tieu": "Tien thu tu di vay", "ma_so": "33", "thuyet_minh": null, "nam_nay": "-", "nam_truoc": "-"},
+    {"muc": "4.", "chi_tieu": "Tien tra no goc vay", "ma_so": "34", "thuyet_minh": null, "nam_nay": "-", "nam_truoc": "-"},
+    {"muc": "5.", "chi_tieu": "Tien tra no goc thue tai chinh", "ma_so": "35", "thuyet_minh": null, "nam_nay": "-", "nam_truoc": "-"},
+    {"muc": "6.", "chi_tieu": "Co tuc, loi nhuan da tra cho chu so huu", "ma_so": "36", "thuyet_minh": "V.15", "nam_nay": -2774400, "nam_truoc": -15135000},
+    {"muc": null, "chi_tieu": "Luu chuyen tien thuan tu hoat dong tai chinh", "ma_so": "40", "thuyet_minh": null, "nam_nay": -2774400, "nam_truoc": -15135000, "in_nghieng": true},
+    {"muc": null, "chi_tieu": "Luu chuyen tien thuan trong ky", "ma_so": "50", "thuyet_minh": null, "nam_nay": -47906010323, "nam_truoc": 144970712564},
+    {"muc": null, "chi_tieu": "Tien va tuong duong tien dau nam", "ma_so": "60", "thuyet_minh": "V.1", "nam_nay": 195964135271, "nam_truoc": 209613045664},
+    {"muc": null, "chi_tieu": "Anh huong cua thay doi ty gia hoi doai quy doi ngoai te", "ma_so": "61", "thuyet_minh": null, "nam_nay": "-", "nam_truoc": "-"},
+    {"muc": null, "chi_tieu": "Tien va tuong duong tien cuoi ky", "ma_so": "70", "thuyet_minh": "V.1", "nam_nay": 148058124948, "nam_truoc": 354583758228}
+  ],
+  "rang_buoc_so_hoc": [
+    {"tong": "40", "cong": ["31", "32", "33", "34", "35", "36"]},
+    {"tong": "50", "cong": ["20", "30", "40"], "ghi_chu": "BAC QUA TRANG: ma 20 va 30 nam o tep trang 17."},
+    {"tong": "70", "cong": ["50", "60", "61"]}
+  ],
+  "rang_buoc_lien_bao_cao": [
+    {
+      "trai": {"nhom": "luu_chuyen_tien", "ma_so": "70", "cot": "nam_nay"},
+      "phai": {"nhom": "bang_can_doi", "ma_so": "110", "cot": "so_cuoi_ky"},
+      "ghi_chu": "Tien cuoi ky tren luu chuyen tien te phai bang Tien va cac khoan tuong duong tien tren bang can doi (cung thoi diem)."
+    },
+    {
+      "trai": {"nhom": "luu_chuyen_tien", "ma_so": "60", "cot": "nam_nay"},
+      "phai": {"nhom": "bang_can_doi", "ma_so": "110", "cot": "so_dau_nam"},
+      "ghi_chu": "Tien dau nam tren luu chuyen tien te phai bang so DAU NAM cua cung chi tieu tren bang can doi."
+    },
+    {
+      "trai": {"nhom": "ket_qua_kd", "ma_so": "61", "cot": "nam_nay"},
+      "phai": {"nhom": "bang_can_doi", "ma_so": "420b", "cot": "so_cuoi_ky"},
+      "ghi_chu": "Loi nhuan sau thue cua cong ty me phai bang loi nhuan chua phan phoi KY NAY tren bang can doi. CHI dung o cap cot nay - xem ghi chu o tep trang 16 ve vi sao khong the viet thanh rang buoc theo ma so thuan."
+    }
+  ]
+}

@@ -33,11 +33,19 @@ def main(duong_key: str, duong_pdf: str) -> int:
 
     # Ten cot gia tri suy tu khai bao `cot` — xem ghi chu trong kiem_so_hoc.py
     cot_gia_tri = [c for c in d["cot"] if c not in ("muc", "chi_tieu", "ma_so", "thuyet_minh")]
-    khop, lech_dau_phan_cach, vang = [], [], []
+    # Gia tri NHO (duoi 1000) khong co dau phan cach nghin, nen tim chuoi cua no
+    # trong text phang se KHOP GIA — "251" nam trong "1.251.000" cung khop. Bo
+    # qua chung va DEM ra, thay vi bao xanh cho mot phep kiem khong dang tin.
+    # (Tren tai lieu nay do la ma 70/71: lai co ban tren co phieu, 251 va 373.)
+    NGUONG_TIN_DUOC = 1000
+    khop, lech_dau_phan_cach, vang, bo_qua = [], [], [], []
     for h in d["hang"]:
         for cot in cot_gia_tri:
             v = h.get(cot)
             if not isinstance(v, int):      # bo qua None va "-" (o khong co so)
+                continue
+            if abs(v) < NGUONG_TIN_DUOC:
+                bo_qua.append((h["ma_so"], cot, v))
                 continue
             muc = vn(v)
             if muc in tho:
@@ -49,7 +57,8 @@ def main(duong_key: str, duong_pdf: str) -> int:
 
     tong = len(khop) + len(lech_dau_phan_cach) + len(vang)
     print(f"=== {os.path.basename(duong_key)} — trang {d['trang_pdf']} ===")
-    print(f"o co gia tri: {tong}")
+    print(f"o co gia tri doi chieu duoc: {tong}"
+          f"{f'  (+{len(bo_qua)} o bo qua vi qua nho, khong doi chieu tin cay duoc)' if bo_qua else ''}")
     print(f"  khop nguyen van        : {len(khop)}")
     print(f"  dung chu so, LECH DAU  : {len(lech_dau_phan_cach)}   <- Tesseract sai phan cach")
     print(f"  KHONG TIM THAY         : {len(vang)}   <- CAN NGUOI DUYET")
@@ -57,6 +66,8 @@ def main(duong_key: str, duong_pdf: str) -> int:
         print(f"    [dau  ] ma so {ma} {cot}: dap an {muc}")
     for ma, cot, muc in vang:
         print(f"    [VANG ] ma so {ma} {cot}: dap an {muc}")
+    for ma, cot, v in bo_qua:
+        print(f"    [bo qua] ma so {ma} {cot} = {v}: qua nho de tim trong text phang")
     return 0
 
 

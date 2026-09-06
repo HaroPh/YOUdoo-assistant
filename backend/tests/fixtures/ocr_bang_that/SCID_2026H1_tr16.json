@@ -1,0 +1,358 @@
+{
+  "tep_nguon": "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+  "doanh_nghiep": "Cong ty CP Dau tu Phat trien Sai Gon Co.op (SCID)",
+  "ky": "Ban nien 2026, hop nhat, da soat xet",
+  "trang_pdf": 16,
+  "trang_in_tren_giay": 11,
+  "nhom": "ket_qua_kd",
+  "bang": "Bao cao ket qua hoat dong kinh doanh hop nhat giua nien do",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI, KHONG xem output Tesseract truoc)",
+  "ngay_doc": "2026-09-06",
+  "ghi_chu_cau_truc": [
+    "MOI: bang nay co PHEP TRU, khong chi phep cong (20 = 10 - 11). Rang buoc phai mang HE SO, khong the la danh sach ma so thuan.",
+    "Ma 24 (Trong do: chi phi di vay) la dong GHI CHU nam trong ma 23, KHONG tham gia tong. Bac 2 khong the suy dieu nay tu hinh hoc - no la ngu nghia ke toan.",
+    "Ma 24 khong co so thu tu rieng, nhan nam thut vao duoi nhan cua ma 23.",
+    "Ma 70/71 (lai co ban tren co phieu) la so NHO (251/373), khong phai tien, khong co dau phan cach nghin.",
+    "Ma 60, 61, 70, 71 co duong ke DOI phia duoi.",
+    "Ma 61, 62 IN NGHIENG (so thu tu 20., 21. cung in nghieng).",
+    "Trang co dau moc do de len chu o cuoi trang, dau moc thu hai bi cat cut o le phai, va ba chu ky muc xanh kem ba o ten nguoi ky.",
+    "RANG BUOC DA THU VA BI BAC BO: 61 = bang_can_doi:420b. Cong tu choi vi hai bang dung ten cot khac nhau, va kiem lai thi rang buoc chi dung o MOT cot: nam_nay (29.134.059.074) = so_cuoi_ky cua 420b. Cot con lai KHONG tuong ung - so_dau_nam cua 420b la so du DAU KY (gach ngang), khong phai loi nhuan nam truoc (40.414.622.975). Ghi lai vi day la cai bay de dat sai: hai o bang nhau o mot cot khong co nghia hai DONG tuong duong nhau."
+  ],
+  "vung_hinh_can_bac_3": [
+    "dau moc tron do lon de len chu ky va len chu, giua duoi trang",
+    "dau moc do bi cat cut o le phai, ngang dong 51-52",
+    "ba chu ky muc xanh: Ta Ngoc Thao (Nguoi lap), Pham Xuan Phong (Ke toan truong), Pham Trung Kien (Nguoi dai dien theo phap luat)"
+  ],
+  "cot": [
+    "chi_tieu",
+    "ma_so",
+    "thuyet_minh",
+    "nam_nay",
+    "nam_truoc"
+  ],
+  "hang": [
+    {
+      "muc": "1.",
+      "chi_tieu": "Doanh thu ban hang va cung cap dich vu",
+      "ma_so": "01",
+      "thuyet_minh": "VI.1",
+      "nam_nay": 53729054078,
+      "nam_truoc": 47462113079
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Cac khoan giam tru doanh thu",
+      "ma_so": "02",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Doanh thu thuan ve ban hang va cung cap dich vu",
+      "ma_so": "10",
+      "thuyet_minh": null,
+      "nam_nay": 53729054078,
+      "nam_truoc": 47462113079
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Gia von hang ban",
+      "ma_so": "11",
+      "thuyet_minh": "VI.2",
+      "nam_nay": 19762876194,
+      "nam_truoc": 18537005253
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Loi nhuan gop ve ban hang va cung cap dich vu",
+      "ma_so": "20",
+      "thuyet_minh": null,
+      "nam_nay": 33966177884,
+      "nam_truoc": 28925107826
+    },
+    {
+      "muc": "6.",
+      "chi_tieu": "Lai/lo cua hoat dong ban, thanh ly bat dong san dau tu",
+      "ma_so": "21",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "7.",
+      "chi_tieu": "Doanh thu hoat dong tai chinh",
+      "ma_so": "22",
+      "thuyet_minh": "VI.3",
+      "nam_nay": 2741348241,
+      "nam_truoc": 12322083964
+    },
+    {
+      "muc": "8.",
+      "chi_tieu": "Chi phi tai chinh",
+      "ma_so": "23",
+      "thuyet_minh": "VI.4",
+      "nam_nay": 305100000,
+      "nam_truoc": 1118700000
+    },
+    {
+      "muc": null,
+      "chi_tieu": "Trong do: chi phi di vay",
+      "ma_so": "24",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-",
+      "la_dong_ghi_chu": true
+    },
+    {
+      "muc": "9.",
+      "chi_tieu": "Chi phi ban hang",
+      "ma_so": "25",
+      "thuyet_minh": "VI.5",
+      "nam_nay": 9511296823,
+      "nam_truoc": 9461263516
+    },
+    {
+      "muc": "10.",
+      "chi_tieu": "Chi phi quan ly doanh nghiep",
+      "ma_so": "26",
+      "thuyet_minh": "VI.6",
+      "nam_nay": 29910740968,
+      "nam_truoc": 27940784262
+    },
+    {
+      "muc": "11.",
+      "chi_tieu": "Phan lai hoac lo trong cong ty lien doanh, lien ket",
+      "ma_so": "27",
+      "thuyet_minh": "V.2c",
+      "nam_nay": 35578694264,
+      "nam_truoc": 41749565893
+    },
+    {
+      "muc": "12.",
+      "chi_tieu": "Loi nhuan thuan tu hoat dong kinh doanh",
+      "ma_so": "30",
+      "thuyet_minh": null,
+      "nam_nay": 32559082598,
+      "nam_truoc": 44476009905
+    },
+    {
+      "muc": "13.",
+      "chi_tieu": "Thu nhap khac",
+      "ma_so": "31",
+      "thuyet_minh": "VI.7",
+      "nam_nay": 465805113,
+      "nam_truoc": 26713972
+    },
+    {
+      "muc": "14.",
+      "chi_tieu": "Chi phi khac",
+      "ma_so": "32",
+      "thuyet_minh": "VI.8",
+      "nam_nay": 341792843,
+      "nam_truoc": 495656789
+    },
+    {
+      "muc": "15.",
+      "chi_tieu": "Loi nhuan khac",
+      "ma_so": "40",
+      "thuyet_minh": null,
+      "nam_nay": 124012270,
+      "nam_truoc": -468942817
+    },
+    {
+      "muc": "16.",
+      "chi_tieu": "Tong loi nhuan ke toan truoc thue",
+      "ma_so": "50",
+      "thuyet_minh": null,
+      "nam_nay": 32683094868,
+      "nam_truoc": 44007067088
+    },
+    {
+      "muc": "17.",
+      "chi_tieu": "Chi phi thue thu nhap doanh nghiep hien hanh",
+      "ma_so": "51",
+      "thuyet_minh": "V.16",
+      "nam_nay": 3069566270,
+      "nam_truoc": 3093696573
+    },
+    {
+      "muc": "18.",
+      "chi_tieu": "Chi phi thue thu nhap doanh nghiep hoan lai",
+      "ma_so": "52",
+      "thuyet_minh": "VI.9",
+      "nam_nay": 479469524,
+      "nam_truoc": 498747540
+    },
+    {
+      "muc": "19.",
+      "chi_tieu": "Loi nhuan sau thue thu nhap doanh nghiep",
+      "ma_so": "60",
+      "thuyet_minh": null,
+      "nam_nay": 29134059074,
+      "nam_truoc": 40414622975
+    },
+    {
+      "muc": "20.",
+      "chi_tieu": "Loi nhuan sau thue cua cong ty me",
+      "ma_so": "61",
+      "thuyet_minh": null,
+      "nam_nay": 29134059074,
+      "nam_truoc": 40414622975,
+      "in_nghieng": true
+    },
+    {
+      "muc": "21.",
+      "chi_tieu": "Loi nhuan sau thue cua co dong khong kiem soat",
+      "ma_so": "62",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-",
+      "in_nghieng": true
+    },
+    {
+      "muc": "22.",
+      "chi_tieu": "Lai co ban tren co phieu",
+      "ma_so": "70",
+      "thuyet_minh": "VI.10",
+      "nam_nay": 251,
+      "nam_truoc": 373
+    },
+    {
+      "muc": "23.",
+      "chi_tieu": "Lai suy giam tren co phieu",
+      "ma_so": "71",
+      "thuyet_minh": "VI.10",
+      "nam_nay": 251,
+      "nam_truoc": 373
+    }
+  ],
+  "rang_buoc_so_hoc": [
+    {
+      "tong": "10",
+      "cong": [
+        [
+          "01",
+          1
+        ],
+        [
+          "02",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "20",
+      "cong": [
+        [
+          "10",
+          1
+        ],
+        [
+          "11",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "30",
+      "cong": [
+        [
+          "20",
+          1
+        ],
+        [
+          "21",
+          1
+        ],
+        [
+          "22",
+          1
+        ],
+        [
+          "23",
+          -1
+        ],
+        [
+          "25",
+          -1
+        ],
+        [
+          "26",
+          -1
+        ],
+        [
+          "27",
+          1
+        ]
+      ]
+    },
+    {
+      "tong": "40",
+      "cong": [
+        [
+          "31",
+          1
+        ],
+        [
+          "32",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "50",
+      "cong": [
+        [
+          "30",
+          1
+        ],
+        [
+          "40",
+          1
+        ]
+      ]
+    },
+    {
+      "tong": "60",
+      "cong": [
+        [
+          "50",
+          1
+        ],
+        [
+          "51",
+          -1
+        ],
+        [
+          "52",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "60",
+      "cong": [
+        [
+          "61",
+          1
+        ],
+        [
+          "62",
+          1
+        ]
+      ]
+    },
+    {
+      "tong": "50",
+      "cong": [
+        [
+          "luu_chuyen_tien:01",
+          1
+        ]
+      ],
+      "ghi_chu": "BAC QUA BAO CAO: tong loi nhuan truoc thue o ket qua kinh doanh phai bang dong 01 cua luu chuyen tien te (trang 17)."
+    }
+  ]
+}
