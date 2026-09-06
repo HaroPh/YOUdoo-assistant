@@ -1,0 +1,51 @@
+{
+  "tep_nguon": "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+  "doanh_nghiep": "Cong ty CP Dau tu Phat trien Sai Gon Co.op (SCID)",
+  "ky": "Ban nien 2026, hop nhat, da soat xet",
+  "trang_pdf": 15,
+  "trang_in_tren_giay": 10,
+  "nhom": "bang_can_doi",
+  "bang": "Bao cao tinh hinh tai chinh hop nhat giua nien do - phan D VON CHU SO HUU + TONG CONG NGUON VON",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI, KHONG xem output Tesseract truoc)",
+  "ngay_doc": "2026-09-06",
+  "ghi_chu_cau_truc": [
+    "MA SO CO CHU CAI: 411a, 411b, 420a, 420b. Bo do khong the la so nguyen; bac 2 phai coi ma so la CHUOI.",
+    "Ma 420a co nhan vat HAI DONG (Loi nhuan sau thue chua phan phoi / luy ke den cuoi ky truoc) voi so nam o dong DUOI - dung mau chu du an mo ta.",
+    "Ma 421 den 428 KHONG XUAT HIEN.",
+    "DAY LA TRANG CO VUNG HINH THAT: mot dau moc tron do lon de len chu o giua trang, mot dau moc do thu hai o le phai bi cat cut, va BA CHU KY muc xanh o cuoi trang. Day la ca figure cua bac 3 o dang thuan khiet nhat trong ca tai lieu.",
+    "Dong 440 TONG CONG NGUON VON co duong ke DOI phia duoi."
+  ],
+  "vung_hinh_can_bac_3": [
+    "dau moc tron do lon, de len chu, khoang giua trang ben phai",
+    "dau moc do thu hai bi cat cut o le phai ngang dong 411-417",
+    "ba chu ky muc xanh o cuoi trang, duoi ba o ten nguoi ky"
+  ],
+  "cot": ["chi_tieu", "ma_so", "thuyet_minh", "so_cuoi_ky", "so_dau_nam"],
+  "hang": [
+    {"muc": "D-", "chi_tieu": "VON CHU SO HUU", "ma_so": "400", "thuyet_minh": null, "so_cuoi_ky": 2467238477750, "so_dau_nam": 2444332669092},
+    {"muc": "1.", "chi_tieu": "Von gop cua chu so huu", "ma_so": "411", "thuyet_minh": "V.21", "so_cuoi_ky": 1000000000000, "so_dau_nam": 1000000000000},
+    {"muc": "-", "chi_tieu": "Co phieu pho thong co quyen bieu quyet", "ma_so": "411a", "thuyet_minh": null, "so_cuoi_ky": 1000000000000, "so_dau_nam": 1000000000000, "in_nghieng": true},
+    {"muc": "-", "chi_tieu": "Co phieu uu dai", "ma_so": "411b", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-", "in_nghieng": true},
+    {"muc": "2.", "chi_tieu": "Thang du von", "ma_so": "412", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "3.", "chi_tieu": "Quyen chon chuyen doi trai phieu", "ma_so": "413", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "4.", "chi_tieu": "Von khac cua chu so huu", "ma_so": "414", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "5.", "chi_tieu": "Co phieu mua lai cua chinh minh", "ma_so": "415", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "6.", "chi_tieu": "Chenh lech danh gia lai tai san", "ma_so": "416", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "7.", "chi_tieu": "Chenh lech ty gia hoi doai", "ma_so": "417", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "8.", "chi_tieu": "Quy dau tu phat trien", "ma_so": "418", "thuyet_minh": "V.21", "so_cuoi_ky": 947826614327, "so_dau_nam": 895924527529},
+    {"muc": "9.", "chi_tieu": "Quy khac thuoc von chu so huu", "ma_so": "419", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": "10.", "chi_tieu": "Loi nhuan sau thue chua phan phoi", "ma_so": "420", "thuyet_minh": "V.21", "so_cuoi_ky": 519411863423, "so_dau_nam": 548408141563},
+    {"muc": "-", "chi_tieu": "Loi nhuan sau thue chua phan phoi luy ke den cuoi ky truoc", "ma_so": "420a", "thuyet_minh": null, "so_cuoi_ky": 490277804349, "so_dau_nam": 548408141563, "in_nghieng": true},
+    {"muc": "-", "chi_tieu": "Loi nhuan sau thue chua phan phoi ky nay", "ma_so": "420b", "thuyet_minh": null, "so_cuoi_ky": 29134059074, "so_dau_nam": "-", "in_nghieng": true},
+    {"muc": "11.", "chi_tieu": "Loi ich co dong khong kiem soat", "ma_so": "429", "thuyet_minh": null, "so_cuoi_ky": "-", "so_dau_nam": "-"},
+    {"muc": null, "chi_tieu": "TONG CONG NGUON VON", "ma_so": "440", "thuyet_minh": null, "so_cuoi_ky": 2650517727926, "so_dau_nam": 2612157923416}
+  ],
+  "rang_buoc_so_hoc": [
+    {"tong": "411", "cong": ["411a", "411b"]},
+    {"tong": "420", "cong": ["420a", "420b"]},
+    {"tong": "400", "cong": ["411", "412", "413", "414", "415", "416", "417", "418", "419", "420", "429"]},
+    {"tong": "440", "cong": ["300", "400"], "lien_trang": true},
+    {"tong": "440", "cong": ["280"], "lien_trang": true, "ghi_chu": "DANG THUC KE TOAN CO BAN: tong nguon von = tong tai san. Bac qua 4 trang (12,13,14,15)."}
+  ]
+}
