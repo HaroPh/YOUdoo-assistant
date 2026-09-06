@@ -71,6 +71,110 @@ Kỳ vọng: `2409 passed, 1 skipped, 83 deselected`. Khác con số này thì *
   - `dung_luoi(words, *, boi_khe: float, ty_le_ung_ho: float) -> list[list[str]]`
   - Hai tham số `boi_khe` / `ty_le_ung_ho` **bắt buộc, không có mặc định** ở task này. Task 2 mới thêm mặc định sau khi đo.
 
+- [ ] **Step 1: Viết test thất bại cho đơn vị chuẩn hoá**
+
+Tạo `backend/tests/ocr/test_bang.py`:
+
+```python
+"""Bậc 2 — dựng lưới từ toạ độ. Test trên từ DỰNG TAY, không chạy Tesseract:
+hàm này phải thuần và kiểm được mà không cần binary nào."""
+from src.ocr.bang import be_rong_ky_tu, dung_luoi, tim_ranh_cot
+from src.ocr.engine import OcrWord
+
+
+def tu(text, left, top, width, height=20, line=0):
+    """Dựng một OcrWord tối giản. `line_id` của Tesseract là
+    `(block_num, par_num, line_num)`; ta chỉ đổi thành phần CUỐI, nên hai từ
+    cùng `line` là cùng hàng."""
+    return OcrWord(text=text, conf=95.0, left=left, top=top,
+                   width=width, height=height, line_id=(1, 1, line))
+
+
+def test_be_rong_ky_tu_la_TRUNG_VI_khong_phai_trung_binh():
+    """Ba từ: 20/2=10, 20/4=5, 30/3=10 mỗi ký tự.
+
+    Trung vị các tỷ lệ TỪNG TỪ = 10,0.
+    Trung bình gộp (tổng rộng / tổng ký tự) = 70/9 = 7,78 — SAI.
+
+    Đây không phải chuyện làm đẹp: `be_rong_ky_tu` là đơn vị chuẩn hoá của
+    MỌI ngưỡng trong module, nên lệch nó là lệch tất cả. Và scan thật SINH RA
+    token rác bbox rộng ít ký tự — đo được 2026-09-06 trên trang 1 bản BCTC:
+    dấu mộc đỏ đọc thành `_Ƒ_Gẻ]ùỉ—m//—.ẶẲó—[`. Một token như thế kéo trung
+    bình đi rất xa; trung vị miễn nhiễm.
+    """
+    words = [tu("ab", 0, 0, 20), tu("abcd", 0, 0, 20), tu("abc", 0, 0, 30)]
+    assert be_rong_ky_tu(words) == 10.0
+
+
+def test_be_rong_ky_tu_khong_no_khi_khong_co_tu():
+    assert be_rong_ky_tu([]) > 0
+```
+
+- [ ] **Step 2: Chạy để xác nhận ĐỎ**
+
+```bash
+cd /d/Youdoo/.claude/worktrees/ocr-bac-2/backend
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+```
+
+Kỳ vọng: FAIL — `ModuleNotFoundError: No module named 'src.ocr.bang'`.
+
+- [ ] **Step 3: Viết `be_rong_ky_tu`**
+
+Tạo `backend/src/ocr/bang.py`:
+
+```python
+"""Bậc 2 của tầng OCR — dựng lại lưới bảng từ toạ độ chữ.
+
+HÀM THUẦN: không đọc tệp, không gọi mạng, không biết gì về PDF. Vào là
+`list[OcrWord]`, ra là `list[list[str]]`. Lưới đó đi tiếp qua `pdf_table.py`
+của B4 — module đó nhận đầu vào là lưới và KHÔNG quan tâm lưới đến từ đâu,
+nên hàng bảng đọc-từ-ảnh và đọc-từ-vector đi cùng một đường sau điểm này.
+
+Cơ chế là CỤM KHE CỤC BỘ: trong từng dòng, khe giữa hai từ rộng hơn một bội
+bề rộng ký tự là ứng viên ranh giới cột; ứng viên phải cụm lại cùng một x qua
+đủ nhiều dòng mới thành ranh giới thật.
+
+HAI cách đã thử và BÁC BỎ, đừng thử lại (spec §2.1 và ledger P1):
+  - khe trắng chạy dọc SUỐT CẢ TRANG: trang 16 và 17 của BCTC scan thật chỉ
+    ra ĐÚNG MỘT khe cho bảng 5 cột, vì một dòng tiêu đề ngang là đủ bịt;
+  - loại các dòng "chạy suốt" trước khi tính khe: 0/4 trang loại được dòng
+    nào, vì văn xuôi cũng có khe giữa từ;
+  - cụm MÉP trái/phải: không phân biệt được khe giữa hai từ trong CÙNG một ô
+    (khoảng một ký tự) với khe sang cột khác (hàng chục ký tự).
+"""
+import statistics
+
+from .engine import OcrWord
+
+
+def be_rong_ky_tu(words: list[OcrWord]) -> float:
+    """Bề rộng một ký tự, lấy TRUNG VỊ trên tỷ lệ của TỪNG TỪ.
+
+    Đây là ĐƠN VỊ CHUẨN HOÁ của cả module. Mọi ngưỡng tính theo nó chứ không
+    theo pixel: pixel vỡ ngay khi đổi DPI hoặc cỡ chữ, tức là vỡ đúng lúc đổi
+    sang tài liệu định dạng khác (spec §5).
+
+    TRUNG VỊ chứ không trung bình, và tính trên tỷ lệ TỪNG TỪ chứ không phải
+    tổng-chia-tổng: scan thật sinh ra token rác bbox rộng mà ít ký tự (đo được
+    trên trang 1 bản BCTC — dấu mộc đỏ đọc thành `_Ƒ_Gẻ]ùỉ—m//—.ẶẲó—[`). Một
+    token như thế kéo trung bình đi rất xa; trung vị miễn nhiễm. Lệch đơn vị
+    chuẩn hoá là lệch MỌI ngưỡng trong module.
+    """
+    rong = [w.width / len(w.text) for w in words if w.text]
+    if not rong:
+        return 1.0          # không có từ nào: trả 1 để phép chia sau không nổ
+    return statistics.median(rong)
+```
+
+- [ ] **Step 4: Chạy để xác nhận XANH**
+
+```bash
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+```
+
+Kỳ vọng: 2 passed.
+
 - [ ] **Step 5: Viết test thất bại cho `tim_ranh_cot`**
 
 Thêm vào `backend/tests/ocr/test_bang.py`:
@@ -292,13 +396,21 @@ Kỳ vọng: 9 passed.
 git add backend/src/ocr/bang.py backend/tests/ocr/test_bang.py
 git commit -m "feat(ocr): bac 2 - ham thuan dung luoi bang tu toa do chu
 
-Tin hieu la CUM CAN LE, khong phai khoang trang (khe trang doc suot trang da
-do va bac bo, spec muc 2.1). Cum CA HAI mep roi de du lieu tu chon mep nao
-chum hon - khong gan cung 'so can phai, chu can trai' vi do la quy uoc ke toan
-Viet/Au, khong tong quat.
+Co che la CUM KHE CUC BO: trong tung dong, khe giua hai tu rong hon mot boi be
+rong ky tu la ung vien ranh cot; ung vien phai cum lai cung mot x qua du nhieu
+dong moi thanh ranh that (do chinh la doi hoi CAN LE ma spec muc 2.2 do duoc).
 
-KHONG co bo do bang: khong cum nao du ung ho thi suy bien ve MOT cot = hanh vi
-hom nay cho trang van xuoi.
+Ba cach da thu va BAC BO, ghi trong docstring de khong ai thu lai: khe trang
+doc suot ca trang (mot dong tieu de ngang la du bit - spec muc 2.1); loai dong
+chay suot roi moi tinh khe (0/4 trang loai duoc dong nao); va cum MEP trai/phai
+(khong phan biet duoc khe giua hai tu trong cung mot o voi khe sang cot khac).
+
+be_rong_ky_tu lay TRUNG VI tren ty le tung tu, khong phai tong-chia-tong: scan
+that sinh token rac bbox rong it ky tu (dau moc do), keo trung binh di rat xa.
+No la don vi chuan hoa cua MOI nguong trong module.
+
+KHONG co bo do bang: khong khe nao cum du manh thi suy bien ve MOT cot = hanh
+vi hom nay cho trang van xuoi.
 
 Tham so con BAT BUOC, chua co mac dinh - Task 2 do tren 229 trang roi moi chot.
 
