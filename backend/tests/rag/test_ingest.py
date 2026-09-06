@@ -24,12 +24,12 @@ def test_ingest_inserts_then_skips_unchanged(clean_tables, _mock_embed, tmp_path
     _make_docx(p)
 
     s1 = ingest_path(p, conn=clean_tables)
-    assert s1["ingested"] == 1 and s1["chunks"] >= 1
+    assert s1.ingested == 1 and s1.chunks >= 1
     n = clean_tables.execute("SELECT count(*) FROM rag_chunks").fetchone()[0]
-    assert n == s1["chunks"]
+    assert n == s1.chunks
 
     s2 = ingest_path(p, conn=clean_tables)         # unchanged → skip
-    assert s2["ingested"] == 0 and s2["skipped"] == 1
+    assert s2.ingested == 0 and s2.unchanged == 1
     assert clean_tables.execute("SELECT count(*) FROM rag_chunks").fetchone()[0] == n
 
 
@@ -62,16 +62,16 @@ def test_ingest_same_file_from_different_cwd_does_not_duplicate(
 
     monkeypatch.chdir(tmp_path)
     s1 = ingest_path("seed/policy.docx", conn=clean_tables)
-    assert s1["ingested"] == 1
+    assert s1.ingested == 1
 
     monkeypatch.chdir(sub)
     s2 = ingest_path("policy.docx", conn=clean_tables)      # same file, different cwd
-    assert s2["ingested"] == 0 and s2["skipped"] == 1
+    assert s2.ingested == 0 and s2.unchanged == 1
 
     docs = clean_tables.execute("SELECT count(*) FROM rag_documents").fetchone()[0]
     assert docs == 1
     n = clean_tables.execute("SELECT count(*) FROM rag_chunks").fetchone()[0]
-    assert n == s1["chunks"]
+    assert n == s1.chunks
 
 
 def test_ts_vector_is_populated(clean_tables, _mock_embed, tmp_path):

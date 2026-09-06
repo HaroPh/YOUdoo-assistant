@@ -1,0 +1,23 @@
+-- backend/migrations/007_ocr_xuat_xu.sql — cờ xuất xứ cho chunk sinh từ ảnh.
+--
+-- VÌ SAO NẰM TRONG DB, không nằm trong kho đệm OCR: đây là chiều "có đáng tin
+-- không" mà retrieval và việc chống injection gián tiếp sẽ cần đọc được, và
+-- nó phải sống sót qua mọi lần re-chunk (spec 2026-09-04-tang-ocr §8).
+--
+-- Ba bậc, tin cậy giảm dần: 'text' (đọc thẳng lớp text của tệp) > 'ocr' (đọc
+-- bằng ảnh qua Tesseract) > 'vision_description' (mô tả hình bằng VLM — bậc 3,
+-- chưa dùng). Mặc định 'text' vì toàn bộ corpus hiện tại đọc được lớp text.
+--
+-- ocr_conf NULL là HỢP LỆ và là trạng thái thường gặp: chỉ chunk có nguồn từ
+-- ảnh mới có độ tin cậy để ghi.
+--
+-- Idempotent, an toàn khi chạy lại — VÀ an toàn trên máy cài MỚI, nơi
+-- `rag_chunks` chưa tồn tại khi migration này chạy: bảng do `ensure_schema()`
+-- (`src/rag/db.py`) dựng từ `schema.sql` ở lần ingest ĐẦU TIÊN, không phải do
+-- migration nào tạo. `schema.sql` đã có sẵn hai cột này (thêm cùng đợt), nên
+-- `ALTER TABLE IF EXISTS` làm migration này thành NO-OP thật trên DB mới, và
+-- vẫn đúng như cũ trên DB cũ. Thiếu `IF EXISTS` ở đây từng làm người cài mới
+-- làm đúng thứ tự tài liệu (migrate trước, ingest sau) gặp
+-- `ERROR: relation "rag_chunks" does not exist`.
+ALTER TABLE IF EXISTS rag_chunks ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'text';
+ALTER TABLE IF EXISTS rag_chunks ADD COLUMN IF NOT EXISTS ocr_conf real;

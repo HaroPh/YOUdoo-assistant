@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS {schema}.rag_chunks (
     chunk_index   int NOT NULL DEFAULT 0,
     token_count   int NOT NULL DEFAULT 0,
     visibility    text NOT NULL DEFAULT 'all',
+    source_kind   text NOT NULL DEFAULT 'text',
+    ocr_conf      real,
     chunk_text    text NOT NULL,
     embedding     vector({dim}),
     ts_vector     tsvector

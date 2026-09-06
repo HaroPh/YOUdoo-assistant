@@ -54,6 +54,30 @@ MIEN_TRU = {
               "trình viên, app không lên chứ không lên sai"),
     "backend/src/rag/embed.py": (
         1, 1, "raise EmbeddingError — lỗi hạ tầng lúc index, không ra người dùng"),
+    "backend/src/rag/parse.py": (
+        2, 2, "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
+              "task 4 spec 2026-09-04-tang-ocr §12): cảnh báo mang nguyên văn "
+              "lỗi đọc-bằng-ảnh (thiếu binary tesseract, PDF/ảnh rasterise "
+              "hỏng) được gói vào `(where, reason)` rồi cộng vào "
+              "`all_warnings` của `parse_pdf`, cùng ĐÚNG đường "
+              "`IngestReport.warnings` → `report.render()` → CLI "
+              "`python -m src.rag.ingest` đã miễn trừ ở entry `rag/ingest.py` "
+              "ngay trên — không có đường nào tới hội thoại. Nguyên văn lỗi "
+              "CHÍNH LÀ chẩn đoán cần đọc, cùng lý lẽ đã áp cho `ingest.py`."),
+    "backend/src/rag/ingest.py": (
+        2, 2, "CLI nạp tài liệu — hai chỗ khớp đều đi ra CONSOLE CỦA NGƯỜI "
+              "CHẠY `python -m src.rag.ingest`, không có đường nào tới hội "
+              "thoại. `retrieve.py` CÓ import `segment_vi` từ module này "
+              "(runtime thật, qua agents/nodes.py và agents/fanout.py), "
+              "nhưng hai chỗ khớp nằm trong `ingest_path`/`main` — không "
+              "đường runtime nào gọi tới hai hàm đó (xem grep 2026-08-31). "
+              "Nguyên văn lỗi CHÍNH LÀ kết quả cần đọc: spec "
+              "2026-08-29 mục 4 đòi mỗi tệp bị từ chối phải được GỌI TÊN KÈM "
+              "LÝ DO, và \"PackageNotFoundError\" là thứ nói cho người vận "
+              "hành biết tệp .docx của họ hỏng hay bị khoá mật khẩu. Giấu nó "
+              "đi là dựng lại đúng lỗi 'mất mát âm thầm' mà cả spec đi đóng. "
+              "Cùng lý lẽ đã áp cho run_eval.py, e2e_common.py, "
+              "check_role_odoo_consistency.py."),
     "backend/evals/role_config.py": (
         1, 1, "RuntimeError nói rõ bộ đo thiếu biến môi trường nào — người chạy "
               "eval bằng CLI đọc, không phải người dùng chat"),
