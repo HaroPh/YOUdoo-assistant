@@ -8,12 +8,22 @@ from .engine import OcrWord
 
 
 def be_rong_ky_tu(words: list[OcrWord]) -> float:
-    """Trung bình độ rộng ký tự: tổng độ rộng / tổng số ký tự."""
-    if not words:
-        return 1.0
-    tong_rong = sum(w.width for w in words)
-    tong_ky_tu = sum(len(w.text) for w in words)
-    return tong_rong / tong_ky_tu if tong_ky_tu > 0 else 1.0
+    """Bề rộng một ký tự, lấy TRUNG VỊ trên tỷ lệ TỪNG TỪ.
+
+    Đây là ĐƠN VỊ CHUẨN HOÁ của cả module. Mọi ngưỡng tính theo nó chứ không
+    theo pixel: pixel vỡ ngay khi đổi DPI hoặc cỡ chữ, tức là vỡ đúng lúc đổi
+    sang tài liệu định dạng khác (spec §5).
+
+    TRUNG VỊ chứ không trung bình, và tính trên tỷ lệ TỪNG TỪ chứ không phải
+    tổng-chia-tổng: scan thật sinh ra token rác bbox rộng mà ít ký tự (đo được
+    trên trang 1 bản BCTC — dấu mộc đỏ đọc thành `_Ƒ_Gẻ]ùỉ—m//—.ẶẲó—[`). Một
+    token như thế kéo trung bình đi rất xa; trung vị miễn nhiễm. Lệch đơn vị
+    chuẩn hoá là lệch MỌI ngưỡng trong module.
+    """
+    rong = [w.width / len(w.text) for w in words if w.text]
+    if not rong:
+        return 1.0          # không có từ nào: trả 1 để phép chia sau không nổ
+    return statistics.median(rong)
 
 
 def _theo_dong(words: list[OcrWord]) -> dict:

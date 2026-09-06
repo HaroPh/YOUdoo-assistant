@@ -15,10 +15,18 @@ def tu(text: str, left: int, top: int, width: int, *, line: int = 0) -> OcrWord:
     )
 
 
-def test_be_rong_ky_tu_tinh_trung_binh_do_rong_ky_tu():
-    """Trung bình = tổng độ rộng / tổng số ký tự."""
-    words = [tu("ABC", 0, 0, 30)]  # 3 chars, 30 width → 10 per char
+def test_be_rong_ky_tu_la_TRUNG_VI_khong_phai_trung_binh():
+    """Ba từ: 20/2=10, 20/4=5, 30/3=10 mỗi ký tự.
+
+    Trung vị các tỷ lệ TỪNG TỪ = 10,0.
+    Trung bình gộp (tổng rộng / tổng ký tự) = 70/9 = 7,78 — SAI.
+    """
+    words = [tu("ab", 0, 0, 20), tu("abcd", 0, 0, 20), tu("abc", 0, 0, 30)]
     assert be_rong_ky_tu(words) == 10.0
+
+
+def test_be_rong_ky_tu_khong_no_khi_khong_co_tu():
+    assert be_rong_ky_tu([]) > 0
 
 
 def _bang_hai_cot_tien():
