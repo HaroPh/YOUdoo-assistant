@@ -218,7 +218,7 @@ thì bẩn **vĩnh viễn**, vì khoá đệm không bao giờ tự lành.
 
 | cột | giá trị |
 |---|---|
-| `source_kind` | `'text'` > `'ocr'` > `'vision_description'` — tin cậy giảm dần |
+| `source_kind` | `'text'` > `'ocr'` > `'ocr_repaired'` > `'vision_description'` — tin cậy giảm dần |
 | `ocr_conf` | độ tin cậy trung bình, `NULL` khi `source_kind='text'` |
 
 Phải nằm trong DB chứ không trong đệm: đây là chiều **"có đáng tin không"** mà retrieval và việc
@@ -230,6 +230,22 @@ lần re-chunk.
 - một `block` mang khoá tuỳ chọn `source_kind`; vắng khoá nghĩa là `'text'`
 - một `chunk` gộp nhiều block lấy bậc **thấp tin cậy nhất** trong các block thành phần
 - `ocr_conf` của chunk lấy **min**
+
+**Bậc `ocr_repaired` (thêm 2026-09-06).** Chữ do Tesseract đọc, sau đó được VLM sửa trong giới hạn
+mục 9. Nằm **giữa** `ocr` và `vision_description`, không phải dưới cùng: `vision_description` là
+văn LLM **tự viết** về một tấm hình, còn `ocr_repaired` là chữ **máy đọc**, LLM chỉ chạm vào token
+không chứa chữ số.
+
+Vì sao là **một giá trị enum nữa** chứ không phải cột cờ trực giao: quy tắc gộp bi quan là đúng một
+phép `max(rank)` trên một thứ tự **tuyến tính**. Thêm cột cờ là phải định nghĩa nó tương tác với
+rank ra sao — thêm chỗ để đảo ngược quy tắc tin cậy, đúng lớp lỗi review toàn nhánh đã bắt hai lần
+(giá trị lạ được thăng lên hạng tin nhất; chữ OCR chui vào embedding dưới nhãn `text`).
+
+**Nhãn phải trung thực**: chunk chỉ mang `ocr_repaired` khi có **ít nhất một sửa đổi được chấp
+nhận**. Verifier vứt hết đề xuất thì nó vẫn là `ocr`.
+
+Bốn giá trị làm quy tắc **allow-list** cho consumer đầu tiên càng bắt buộc: tin khi `== 'text'`,
+không bao giờ viết deny-list — càng nhiều giá trị thì deny-list càng dễ sót một.
 
 ## 9. Ba ràng buộc giữ chân VLM lành
 
@@ -251,6 +267,50 @@ Cách dùng LLM **đúng chỗ** cho cùng mục đích:
 Mô tả từ VLM (mục 6, kiểu `figure`) **không vi phạm ràng buộc này** vì nó khác về bản chất: nó
 *tạo thêm* thứ mà trước đó không có gì cả, không phá huỷ phép đo nào. Nhưng nó phải mang bậc
 `vision_description` và **không bao giờ trộn vào văn bản trích được**.
+
+### 9.1 Sửa đổi ràng buộc 1 — ngoại lệ CÓ ĐÁY cho token không chứa chữ số (2026-09-06)
+
+Chủ dự án quyết định cho VLM **làm giàu** chữ Tesseract đọc được (dấu tiếng Việt sai, rác dấu
+mộc), sau khi đo trên tài liệu scan thật đầu tiên. Ràng buộc 1 **không bị bỏ**, nó bị **thu hẹp
+phạm vi** — và ranh giới phải cưỡng chế bằng mã, không bằng prompt.
+
+| loại token | VLM được sửa? | vì sao |
+|---|---|---|
+| **không chứa chữ số** (`lity kể`→`lũy kế`) | **có** | từ vựng tiếng Việt là tập đóng; sửa sai ra một từ *trông sai ngay*, không phải lời nói dối hợp lý. Rủi ro có đáy |
+| **chứa chữ số** (`1.500.000`, `V.2c`, mã `01`) | **không, tuyệt đối** | `1.500.000`→`1.800.000` hợp lý y hệt nhau. Đây đúng ca ràng buộc 1 sinh ra để chặn |
+
+**Số đo làm ranh giới này sắc hơn** (trang 17 bản BCTC scan thật, 2026-09-06): Tesseract đọc
+**35/37 số tiền dài chính xác tuyệt đối** — không cần ai làm giàu ở đó. Chỗ nó hỏng là (a) chữ có
+dấu và (b) **token số ngắn** (`01`→`0`, `02`→`022`, sai 3/14 = 21% cột `Mã số`). Mà (b) chính là
+chỗ VLM **không được** đụng. Nghĩa là vùng giao có ích chỉ còn **chữ có dấu** — vẫn đáng làm,
+nhưng nhỏ hơn vẻ ngoài của ý tưởng. Đừng bán nó to hơn thế.
+
+**Cưỡng chế bằng mã, không bằng prompt.** Prompt "đừng đổi số" là lời đề nghị, không phải cơ chế.
+Sau khi VLM trả về, diff từng token:
+- token đổi mà **chứa chữ số** → **vứt bản sửa, giữ bản gốc**
+- token đổi mà **khoảng cách sửa quá lớn** → cũng vứt: đó là viết lại, không phải sửa lỗi
+
+**Không bao giờ ghi đè.** `Region` giữ thêm `text_goc` (Tesseract thuần) bên cạnh `text` (đã làm
+giàu). Nằm trong **artifact đệm**, KHÔNG thêm cột vào `rag_chunks`: một chunk gộp nhiều block nên
+không map 1-1 với region, lưu "bản gốc theo chunk" phải dựng lại ánh xạ — thêm một chỗ lệch được.
+Và 98,9% corpus là `text` thuần, hai cột sẽ giống hệt nhau.
+
+Muốn dựng lại corpus **không làm giàu**: chunk lại từ đệm — không OCR lại, không gọi API lại.
+Giới hạn nói thẳng: **đệm là thứ dẫn xuất được, không phải vệt kiểm toán vĩnh viễn.** Xoá đệm hoặc
+đổi model VLM (đổi vân tay cấu hình) là mất `text_goc` cũ; dựng lại phần Tesseract thì miễn phí,
+phần VLM thì tốn một lượt gọi.
+
+**Bản đi vào embedding và bản hiện cho người dùng đều là bản đã làm giàu** — đó chính là điểm của
+việc này (`lity kể` không khớp truy vấn `lũy kế`). Phần LLM chạm vào đã bị giới hạn ở token không
+chứa chữ số, nên đây không phải là để LLM viết lại nội dung.
+
+**Khi VLM và Tesseract lệch nhau ở token CÓ chữ số**: giữ Tesseract, và phát **cảnh báo có tên**
+qua `IngestReport`. Dùng đường to-tiếng đã có, không dựng cơ chế mới, không thêm cột.
+
+**Ngoại lệ hẹp, ghi lại kẻo bị nới**: cổng số học nội tại của báo cáo tài chính (dòng tổng phải
+bằng tổng các dòng thành phần) là **cơ chế duy nhất** có thể cho phép sửa một chữ số an toàn — nó
+là ràng buộc ngoài mà LLM không thoả được bằng cách nghe hợp lý. Nhưng nó chỉ tồn tại trong bảng
+tài chính, không phải mọi tài liệu. Không được suy rộng thành quy tắc chung.
 
 **Ràng buộc 2 — KHÔNG trích số liệu từ đồ thị.** Mô tả *đồ thị nói về cái gì* (tiêu đề, trục, xu
 hướng); tuyệt đối không đọc giá trị từng cột rồi trình bày như dữ liệu. Khi cần số chính xác,
