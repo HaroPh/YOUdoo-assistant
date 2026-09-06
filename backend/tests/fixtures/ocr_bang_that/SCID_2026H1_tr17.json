@@ -14,41 +14,298 @@
     "Nhieu hang vat 2 dong: nhan o dong tren, so o dong duoi.",
     "Le phai co dau moc do bi cat cut o mep trang; goc duoi phai co ma QR."
   ],
-  "cot": ["chi_tieu", "ma_so", "thuyet_minh", "nam_nay", "nam_truoc"],
+  "cot": [
+    "chi_tieu",
+    "ma_so",
+    "thuyet_minh",
+    "nam_nay",
+    "nam_truoc"
+  ],
   "hang": [
-    {"muc": "I.", "chi_tieu": "Luu chuyen tien tu hoat dong kinh doanh", "ma_so": null, "thuyet_minh": null, "nam_nay": null, "nam_truoc": null},
-    {"muc": "1.", "chi_tieu": "Loi nhuan truoc thue", "ma_so": "01", "thuyet_minh": null, "nam_nay": 32683094868, "nam_truoc": 44007067088},
-    {"muc": "2.", "chi_tieu": "Dieu chinh cho cac khoan:", "ma_so": null, "thuyet_minh": null, "nam_nay": null, "nam_truoc": null},
-    {"muc": "-", "chi_tieu": "Khau hao tai san co dinh va bat dong san dau tu", "ma_so": "02", "thuyet_minh": "V.9, 10, 11", "nam_nay": 5200611880, "nam_truoc": 5234771718},
-    {"muc": "-", "chi_tieu": "Cac khoan du phong", "ma_so": "03", "thuyet_minh": "V.2a", "nam_nay": 305100000, "nam_truoc": 1118700000},
-    {"muc": "-", "chi_tieu": "Lai, lo chenh lech ty gia hoi doai do danh gia lai cac khoan muc tien te co goc ngoai te", "ma_so": "04", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "-", "chi_tieu": "Lai, lo tu hoat dong dau tu, tai chinh", "ma_so": "05", "thuyet_minh": "V.2c; VI.3", "nam_nay": -38320042505, "nam_truoc": -54071649857},
-    {"muc": "-", "chi_tieu": "Chi phi di vay", "ma_so": "06", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "-", "chi_tieu": "Cac khoan dieu chinh khac", "ma_so": "07", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "3.", "chi_tieu": "Loi nhuan tu hoat dong kinh doanh truoc thay doi von luu dong", "ma_so": "08", "thuyet_minh": null, "nam_nay": -131235757, "nam_truoc": -3711111051},
-    {"muc": "-", "chi_tieu": "Tang, giam cac khoan phai thu", "ma_so": "09", "thuyet_minh": null, "nam_nay": -2428531621, "nam_truoc": -20959728700},
-    {"muc": "-", "chi_tieu": "Tang, giam hang ton kho", "ma_so": "10", "thuyet_minh": null, "nam_nay": 678416358, "nam_truoc": -11175601},
-    {"muc": "-", "chi_tieu": "Tang, giam cac khoan phai tra (khong ke lai vay phai tra, thue TNDN phai nop)", "ma_so": "11", "thuyet_minh": null, "nam_nay": 3668222222, "nam_truoc": 15075686535},
-    {"muc": "-", "chi_tieu": "Tang, giam chi phi cho phan bo", "ma_so": "12", "thuyet_minh": null, "nam_nay": 1724257210, "nam_truoc": 1277781271},
-    {"muc": "-", "chi_tieu": "Tang, giam chung khoan kinh doanh", "ma_so": "13", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "-", "chi_tieu": "Chi phi di vay da tra", "ma_so": "14", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "-", "chi_tieu": "Thue thu nhap doanh nghiep da nop", "ma_so": "15", "thuyet_minh": "V.16", "nam_nay": -2724727102, "nam_truoc": -2172133964},
-    {"muc": "-", "chi_tieu": "Tien thu khac tu hoat dong kinh doanh", "ma_so": "16", "thuyet_minh": "V.19", "nam_nay": 2840000, "nam_truoc": 0},
-    {"muc": "-", "chi_tieu": "Tien chi khac cho hoat dong kinh doanh", "ma_so": "17", "thuyet_minh": "V.19", "nam_nay": -2308737879, "nam_truoc": -514560000},
-    {"muc": null, "chi_tieu": "Luu chuyen tien thuan tu hoat dong kinh doanh", "ma_so": "20", "thuyet_minh": null, "nam_nay": -1519496569, "nam_truoc": -11015241510},
-    {"muc": "II.", "chi_tieu": "Luu chuyen tien tu hoat dong dau tu", "ma_so": null, "thuyet_minh": null, "nam_nay": null, "nam_truoc": null},
-    {"muc": "1.", "chi_tieu": "Tien chi de mua sam, xay dung tai san co dinh va cac tai san dai han khac", "ma_so": "21", "thuyet_minh": "V.4, 9, 12, 14", "nam_nay": -99876739359, "nam_truoc": -40586421956},
-    {"muc": "2.", "chi_tieu": "Tien thu tu thanh ly, nhuong ban tai san co dinh va cac tai san dai han khac", "ma_so": "22", "thuyet_minh": "V.3a", "nam_nay": 185185185, "nam_truoc": 243000000},
-    {"muc": "3.", "chi_tieu": "Tien chi cho vay, mua cac cong cu no cua don vi khac", "ma_so": "23", "thuyet_minh": null, "nam_nay": -34580633697, "nam_truoc": -178889838418},
-    {"muc": "4.", "chi_tieu": "Tien thu hoi cho vay, ban lai cac cong cu no cua don vi khac", "ma_so": "24", "thuyet_minh": null, "nam_nay": 2000000000, "nam_truoc": 303130137810},
-    {"muc": "5.", "chi_tieu": "Tien chi dau tu gop von vao don vi khac", "ma_so": "25", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "6.", "chi_tieu": "Tien thu hoi dau tu gop von vao don vi khac", "ma_so": "26", "thuyet_minh": null, "nam_nay": 0, "nam_truoc": 0},
-    {"muc": "7.", "chi_tieu": "Tien thu lai cho vay, co tuc va loi nhuan duoc chia", "ma_so": "27", "thuyet_minh": null, "nam_nay": 85888448517, "nam_truoc": 72104211638},
-    {"muc": null, "chi_tieu": "Luu chuyen tien thuan tu hoat dong dau tu", "ma_so": "30", "thuyet_minh": null, "nam_nay": -46383739354, "nam_truoc": 156001089074}
+    {
+      "muc": "I.",
+      "chi_tieu": "Luu chuyen tien tu hoat dong kinh doanh",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Loi nhuan truoc thue",
+      "ma_so": "01",
+      "thuyet_minh": null,
+      "nam_nay": 32683094868,
+      "nam_truoc": 44007067088
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Dieu chinh cho cac khoan:",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Khau hao tai san co dinh va bat dong san dau tu",
+      "ma_so": "02",
+      "thuyet_minh": "V.9, 10, 11",
+      "nam_nay": 5200611880,
+      "nam_truoc": 5234771718
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Cac khoan du phong",
+      "ma_so": "03",
+      "thuyet_minh": "V.2a",
+      "nam_nay": 305100000,
+      "nam_truoc": 1118700000
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Lai, lo chenh lech ty gia hoi doai do danh gia lai cac khoan muc tien te co goc ngoai te",
+      "ma_so": "04",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Lai, lo tu hoat dong dau tu, tai chinh",
+      "ma_so": "05",
+      "thuyet_minh": "V.2c; VI.3",
+      "nam_nay": -38320042505,
+      "nam_truoc": -54071649857
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Chi phi di vay",
+      "ma_so": "06",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Cac khoan dieu chinh khac",
+      "ma_so": "07",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Loi nhuan tu hoat dong kinh doanh truoc thay doi von luu dong",
+      "ma_so": "08",
+      "thuyet_minh": null,
+      "nam_nay": -131235757,
+      "nam_truoc": -3711111051
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tang, giam cac khoan phai thu",
+      "ma_so": "09",
+      "thuyet_minh": null,
+      "nam_nay": -2428531621,
+      "nam_truoc": -20959728700
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tang, giam hang ton kho",
+      "ma_so": "10",
+      "thuyet_minh": null,
+      "nam_nay": 678416358,
+      "nam_truoc": -11175601
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tang, giam cac khoan phai tra (khong ke lai vay phai tra, thue TNDN phai nop)",
+      "ma_so": "11",
+      "thuyet_minh": null,
+      "nam_nay": 3668222222,
+      "nam_truoc": 15075686535
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tang, giam chi phi cho phan bo",
+      "ma_so": "12",
+      "thuyet_minh": null,
+      "nam_nay": 1724257210,
+      "nam_truoc": 1277781271
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tang, giam chung khoan kinh doanh",
+      "ma_so": "13",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Chi phi di vay da tra",
+      "ma_so": "14",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Thue thu nhap doanh nghiep da nop",
+      "ma_so": "15",
+      "thuyet_minh": "V.16",
+      "nam_nay": -2724727102,
+      "nam_truoc": -2172133964
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tien thu khac tu hoat dong kinh doanh",
+      "ma_so": "16",
+      "thuyet_minh": "V.19",
+      "nam_nay": 2840000,
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "-",
+      "chi_tieu": "Tien chi khac cho hoat dong kinh doanh",
+      "ma_so": "17",
+      "thuyet_minh": "V.19",
+      "nam_nay": -2308737879,
+      "nam_truoc": -514560000
+    },
+    {
+      "muc": null,
+      "chi_tieu": "Luu chuyen tien thuan tu hoat dong kinh doanh",
+      "ma_so": "20",
+      "thuyet_minh": null,
+      "nam_nay": -1519496569,
+      "nam_truoc": -11015241510
+    },
+    {
+      "muc": "II.",
+      "chi_tieu": "Luu chuyen tien tu hoat dong dau tu",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "1.",
+      "chi_tieu": "Tien chi de mua sam, xay dung tai san co dinh va cac tai san dai han khac",
+      "ma_so": "21",
+      "thuyet_minh": "V.4, 9, 12, 14",
+      "nam_nay": -99876739359,
+      "nam_truoc": -40586421956
+    },
+    {
+      "muc": "2.",
+      "chi_tieu": "Tien thu tu thanh ly, nhuong ban tai san co dinh va cac tai san dai han khac",
+      "ma_so": "22",
+      "thuyet_minh": "V.3a",
+      "nam_nay": 185185185,
+      "nam_truoc": 243000000
+    },
+    {
+      "muc": "3.",
+      "chi_tieu": "Tien chi cho vay, mua cac cong cu no cua don vi khac",
+      "ma_so": "23",
+      "thuyet_minh": null,
+      "nam_nay": -34580633697,
+      "nam_truoc": -178889838418
+    },
+    {
+      "muc": "4.",
+      "chi_tieu": "Tien thu hoi cho vay, ban lai cac cong cu no cua don vi khac",
+      "ma_so": "24",
+      "thuyet_minh": null,
+      "nam_nay": 2000000000,
+      "nam_truoc": 303130137810
+    },
+    {
+      "muc": "5.",
+      "chi_tieu": "Tien chi dau tu gop von vao don vi khac",
+      "ma_so": "25",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "6.",
+      "chi_tieu": "Tien thu hoi dau tu gop von vao don vi khac",
+      "ma_so": "26",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "7.",
+      "chi_tieu": "Tien thu lai cho vay, co tuc va loi nhuan duoc chia",
+      "ma_so": "27",
+      "thuyet_minh": null,
+      "nam_nay": 85888448517,
+      "nam_truoc": 72104211638
+    },
+    {
+      "muc": null,
+      "chi_tieu": "Luu chuyen tien thuan tu hoat dong dau tu",
+      "ma_so": "30",
+      "thuyet_minh": null,
+      "nam_nay": -46383739354,
+      "nam_truoc": 156001089074
+    }
   ],
   "rang_buoc_so_hoc": [
-    {"tong": "08", "cong": ["01", "02", "03", "04", "05", "06", "07"]},
-    {"tong": "20", "cong": ["08", "09", "10", "11", "12", "13", "14", "15", "16", "17"]},
-    {"tong": "30", "cong": ["21", "22", "23", "24", "25", "26", "27"]}
+    {
+      "tong": "08",
+      "cong": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07"
+      ]
+    },
+    {
+      "tong": "20",
+      "cong": [
+        "08",
+        "09",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17"
+      ]
+    },
+    {
+      "tong": "30",
+      "cong": [
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27"
+      ]
+    }
+  ],
+  "quy_uoc_o": {
+    "so": "gia tri that, so nguyen, am = trong ngoac don tren giay",
+    "\"-\"": "o co dau gach ngang: CO o, KHONG co so (bang khong ve nghiep vu)",
+    "null": "KHONG AP DUNG: hang tieu de/nhom, khong ton tai o nay"
+  },
+  "quy_tac_gop_hang": [
+    "Hang BAT DAU o dong mang dau hieu hang (I. / 1. / 2. / -) va keo dai toi",
+    "TRUOC dau hieu hang ke tiep. So nam o dong nao trong khoang do cung thuoc hang do.",
+    "Vi sao khong dung quy tac 'so luon o dong CUOI cua nhan': dung cho ma 04 va 08",
+    "nhung SAI cho ma 11 — o day so nam o dong DAU, con '(khong ke lai vay phai tra,",
+    "thue TNDN phai nop)' noi o DUOI. Ca hai kieu deu co that tren cung mot trang."
   ]
 }

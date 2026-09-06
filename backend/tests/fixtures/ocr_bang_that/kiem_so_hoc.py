@@ -14,6 +14,25 @@ import json
 import sys
 
 
+def gia_tri(o, ma: str, cot: str) -> tuple[int | None, str | None]:
+    """O -> (so de cong, loi neu co).
+
+    Quy uoc o (xem `quy_uoc_o` trong tep dap an):
+      so    -> gia tri that
+      "-"   -> CO o, KHONG co so: cong bang 0
+      null  -> KHONG AP DUNG (hang tieu de). Mot rang buoc tro toi o null la
+               LOI DU LIEU, khong duoc lang le coi la 0 — do dung la cach mot
+               dong bi doc sot ma cong van xanh.
+    """
+    if o == "-":
+        return 0, None
+    if isinstance(o, int):
+        return o, None
+    if o is None:
+        return None, f"ma so {ma} [{cot}]: rang buoc tro toi o null (khong ap dung)"
+    return None, f"ma so {ma} [{cot}]: kieu o khong hieu duoc: {o!r}"
+
+
 def kiem(duong: str) -> list[str]:
     d = json.load(open(duong, encoding="utf-8"))
     theo_ma = {h["ma_so"]: h for h in d["hang"] if h.get("ma_so")}
@@ -28,10 +47,17 @@ def kiem(duong: str) -> list[str]:
             if thieu:
                 loi.append(f"{duong}: [{cot}] rang buoc {tong_ma} thieu ma so {thieu}")
                 continue
-            tong_tinh = sum(theo_ma[m][cot] or 0 for m in rb["cong"])
-            tong_ghi = theo_ma[tong_ma][cot]
-            if tong_ghi is None:
-                loi.append(f"{duong}: [{cot}] ma so {tong_ma} khong co gia tri de doi chieu")
+            phan, loi_o = [], []
+            for m in rb["cong"]:
+                v, e = gia_tri(theo_ma[m][cot], m, cot)
+                (phan if e is None else loi_o).append(v if e is None else e)
+            if loi_o:
+                loi += [f"{duong}: {e}" for e in loi_o]
+                continue
+            tong_tinh = sum(phan)
+            tong_ghi, e = gia_tri(theo_ma[tong_ma][cot], tong_ma, cot)
+            if e:
+                loi.append(f"{duong}: {e}")
             elif tong_tinh != tong_ghi:
                 loi.append(f"{duong}: [{cot}] ma so {tong_ma}: ghi {tong_ghi:,} "
                            f"nhung tong {'+'.join(rb['cong'])} = {tong_tinh:,} "
