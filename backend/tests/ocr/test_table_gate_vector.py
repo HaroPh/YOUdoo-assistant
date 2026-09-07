@@ -29,62 +29,66 @@ GIOI HAN noi thang, hai lop:
   tai lieu tieng Anh doc lap phai bo sung tep moi vao kho, khong the lay tu
   tap hien co (xem task-3-report.md, phan "Dinh dang thu 6").
 
-THUOC DIEM: dung dung ham `_score` chep tu `backend/tools/calibrate_table.py`
-(kept nguyen ngu nghia CHINH, co MOT sua bo sung -- xem doan "SUA O XUONG
-DONG" duoi day), KHONG dung ham `_match_ratio` (so tap tu theo dung chi so
-hang/cot) ma brief goc de xuat. Ly do: `_match_ratio` chi do MOT ve -- "moi
-token cua mot o dap an nam trong CUNG MOT o grid" -- va mot grid MOT COT (moi
-hang = mot o) an diem tuyet doi MIEN PHI vi khong co "chi so cot" nao de sai.
-Da do duoc tren `luat-thuexuatnhapkhau.pdf` tr.14: gap_factor=1000 (khong khe
-nao du lon de thanh bounds gioi, MOI bang suy bien ve MOT COT) van dat 0,9706
-tren thuoc do dung chi so -- thuoc khong phan biet duoc "dung cot" voi
-"khong dung cot nao ca". `_score` doi xung: ve 1 KHONG TACH NHAM (kept nguyen
-tinh than tren) + ve 2 KHONG GOP NHAM (hai o KHAC NHAU trong cung mot hang dap
-an khong duoc roi chung mot o grid). Diem trang = min(kept/keep_total, tach/split_total)
-nen ca hai huong suy bien deu bi phat -- xem THU PHA o cuoi tep va trong
-task-3-report.md.
+THUOC DIEM: dung `src.ocr.table_score.score` -- MOT BAN DUY NHAT dung chung
+voi `backend/tools/calibrate_table.py`. Truoc 2026-09-07 moi ben giu mot ban
+chep tay va hai ban DA LECH nhau (ban o day xu ly o xuong dong, ban hieu chinh
+thi khong), nghia la bang so do chot GAP_FACTOR/SUPPORT_RATIO duoc sinh boi
+THUOC KHAC thuoc dang gac (phat hien I6 cua review toan nhanh). Dung chep lai
+vao day.
 
-SUA O XUONG DONG (them so voi `calibrate_table.py` goc): o dap an co `"\\n"`
-(vat qua nhieu dong vat ly) bi LOAI khoi ve "kept" va dem rieng thanh
-`wrapped` -- xem docstring `_score` de biet ly do day du (spec Sec 10 ghi
-ro o xuong dong NGOAI PHAM VI bac 2). Do duoc: `ssc_bieumau.pdf` tr.4 di tu
-0,3750 len 0,8333 khi ap dung sua nay, trong khi ba dinh dang KHONG co o
-xuong dong (`bieumau_bctc_hopnhat` tr.3, `luat-dautu` tr.42,
-`luat-thuexuatnhapkhau` tr.17) KHONG DOI mot chut nao -- xac nhan day la sua
-mot gioi han da tuyen bo ngoai pham vi, khong phai noi long thuoc do chung
-chung de "cong xanh". Chi tiet lich su (diem CU 0,3750 la loi thuoc do khi
-chua co sua nay, khong phai loi chon trang) xem task-3-report.md.
+KHONG dung ham `_match_ratio` (so tap tu theo dung chi so hang/cot) ma brief
+goc de xuat. Ly do: `_match_ratio` chi do MOT ve -- "moi token cua mot o dap
+an nam trong CUNG MOT o grid" -- va mot grid MOT COT (moi hang = mot o) an
+diem tuyet doi MIEN PHI vi khong co "chi so cot" nao de sai. Da do duoc tren
+`luat-thuexuatnhapkhau.pdf` tr.14: gap_factor=1000 (khong khe nao du lon de
+thanh bounds gioi, MOI bang suy bien ve MOT COT) van dat 0,9706 tren thuoc do
+dung chi so. `score` doi xung: ve 1 KHONG TACH NHAM + ve 2 KHONG GOP NHAM,
+diem trang = min(hai ve) nen ca hai huong suy bien deu bi phat -- xem THU PHA
+o cuoi tep.
+
+O XUONG DONG: o dap an co `"\n"` bi loai khoi CA HAI ve va dem rieng thanh
+`wrapped` (spec Sec 10 ghi ro no NGOAI PHAM VI bac 2). Loai khoi CA HAI, khong
+chi ve `kept` -- xem docstring `table_score.score` va chu thich tren
+MATCH_THRESHOLD cho so do cua lo hong cu (phat hien I1).
 """
 import os
 
 import pdfplumber
 import pytest
 
-from src.ocr import table
+from src.ocr import table, table_score
 from src.ocr.document import _anh_cua_trang
 from src.ocr.engine import ocr_image, tesseract_path
 
 DPI = 200
 
-# NGUONG DO LAI 2026-09-07 (chay `-s`, SAU KHI doi `find_column_bounds` sang mep-
-# canh-khe VA doi tham so GAP_FACTOR=3.0/SUPPORT_RATIO=0.3 -- xem `table.py` cho ly
-# do doi tham so, chu yeu la vi corpus scan that can ty_le=0.3 de khong sap ve
-# mot cot). 6 diem MOI (thay tron 6 diem CU do voi GAP_FACTOR=2.0/TY_LE=0.6):
-#   phu luc luat     luat-dautu.pdf tr42            : kept=8/8=1.0000   tach=7/7=1.0000   min=1.0000  wrapped=2
-#   bieu thue        luat-thuexuatnhapkhau.pdf tr17  : kept=34/35=0.9714 tach=22/22=1.0000 min=0.9714  wrapped=0
-#   bieu mau BCTC    bieumau_bctc_hopnhat.pdf tr3    : kept=56/78=0.7179 tach=35/41=0.8537 min=0.7179  wrapped=0
-#   bieu mau SSC     ssc_bieumau.pdf tr4             : kept=6/7=0.8571  tach=17/18=0.9444 min=0.8571  wrapped=9
-#   hoa don (dong)   invoice_51109301.pdf tr1 idx0   : kept=26/26=1.0000 tach=81/84=0.9643 min=0.9643 wrapped=2
-#   hoa don (VAT)    invoice_51109301.pdf tr1 idx1   : kept=10/11=0.9091 tach=17/18=0.9444 min=0.9091 wrapped=1
+# NGUONG DO LAI 2026-09-07 LAN THU HAI, sau khi loai o `wrapped` khoi CA HAI
+# ve cua thuoc (phat hien I1 cua review toan nhanh -- xem docstring
+# `table_score.score`). 6 diem MOI (thay tron bang truoc do):
+#   phu luc luat     luat-dautu.pdf tr42            : kept=8/8=1.0000   tach=4/4=1.0000   min=1.0000 unread=28 wrapped=2
+#   bieu thue        luat-thuexuatnhapkhau.pdf tr17  : kept=34/35=0.9714 tach=22/22=1.0000 min=0.9714 unread=16 wrapped=0
+#   bieu mau BCTC    bieumau_bctc_hopnhat.pdf tr3    : kept=56/78=0.7179 tach=35/41=0.8537 min=0.7179 unread=6  wrapped=0
+#   bieu mau SSC     ssc_bieumau.pdf tr4             : kept=6/7=0.8571  tach=2/3=0.6667   min=0.6667 unread=9  wrapped=9
+#   hoa don (dong)   invoice_51109301.pdf tr1 idx0   : kept=26/26=1.0000 tach=69/72=0.9583 min=0.9583 unread=0  wrapped=2
+#   hoa don (VAT)    invoice_51109301.pdf tr1 idx1   : kept=10/11=0.9091 tach=14/15=0.9333 min=0.9091 unread=0  wrapped=1
 #
-# min quan sat = 0,7179 (bieu mau BCTC tr3 -- doi vi tri so voi ban do CU, noi
-# min la luat-dautu tr42 o 0,7143; ban nay luat-dautu tr42 len han 1,0000 vi
-# mep-canh-khe tach dung ca 7/7 cap o thay vi 5/7). Tat ca 6 diem deu > 0,5 ->
-# KHONG DONE_WITH_CONCERNS. MATCH_THRESHOLD = lam tron xuong 2 chu so cua
-# (0,7179 - 0,05) = lam tron xuong cua 0,6679 = 0,66 -- TRUNG SO CU (0,66) mot
-# cach TINH CO, khong phai gia tri kept nguyen tu truoc: phai tinh lai tu 6
-# diem moi, khong duoc gia dinh gia tri cu con dung.
-MATCH_THRESHOLD = 0.66
+# min quan sat = 0,6667 (bieu mau SSC tr4). MATCH_THRESHOLD = lam tron xuong
+# 2 chu so cua (0,6667 - 0,05) = lam tron xuong cua 0,6167 = 0,61.
+#
+# VI SAO SSC TUT 0,8571 -> 0,6667: 9 o cua trang do la o XUONG DONG. Ban truoc
+# loai chung khoi ve `kept` nhung VAN cho chung tham gia ve `tach`, va o ve do
+# chung an tin dung MIEN PHI -- mot o khong bao gio nam tron trong mot o luoi
+# thi cung khong bao gio "roi chung mot o" voi o khac, nen MOI cap co no tinh
+# la tach dung. Hau qua do duoc: ca SSC tr4 o cau hinh THU PHA `gap_factor=1000`
+# (luoi MOT cot) van dat min=0,8333 -- tren nguong 0,66, tuc XANH MIEN PHI o
+# dung cau hinh suy bien ma phep thu pha sinh ra de bat. Phep thu pha cu chi
+# doi `min(diem_suy_bien) < min(diem_mac_dinh)` nen khong keu.
+#
+# 6 DIEM O CAU HINH THU PHA (gap_factor=1000, luoi MOT cot), sau khi sua --
+# TUNG ca phai duoi nguong, va deu duoi:
+#   phu luc luat 0,0000 | bieu thue 0,5000 | bieu mau BCTC 0,1463
+#   bieu mau SSC 0,0000 | hoa don (dong) 0,0000 | hoa don (VAT) 0,0000
+MATCH_THRESHOLD = 0.61
 
 # Tap trang, moi dong la MOT DINH DANG khac nhau (tru dong cuoi -- xem "GIOI
 # HAN noi thang" o dau tep ve ly do dinh dang thu 6 phai thay the bang mot
@@ -114,80 +118,6 @@ PAGES = [
 ]
 
 
-def _words_in_bbox(words, bbox, ty_le):
-    """Chi kept tu nam trong khung bang. `bbox` theo DIEM (pdfplumber), toa do
-    tu theo PIXEL anh -- nhan `ty_le` = DPI/72 de ve cung he."""
-    x0, top, x1, bot = (v * ty_le for v in bbox)
-    return [w for w in words
-            if x0 <= w.left and w.left + w.width <= x1
-            and top <= w.top and w.top + w.height <= bot]
-
-
-def _tokens(o) -> list[str]:
-    """Token du dai de tim trong text phang ma khong khop bua."""
-    return [t for t in (o or "").split() if len(t) >= 3]
-
-
-def _score(answer, grid, tho):
-    """(kept, giu_mau_so, tach, tach_mau_so, unreadable, wrapped).
-
-    DOI XUNG, va do la diem mau chot:
-      ve 1 KHONG TACH NHAM -- moi token cua mot o dap an nam trong CUNG MOT o
-      grid;
-      ve 2 KHONG GOP NHAM  -- hai o KHAC NHAU trong cung mot hang dap an
-      KHONG duoc roi chung mot o grid.
-
-    Chi co ve 1 thi mot grid MOT COT dat diem tuyet doi MIEN PHI -- do duoc:
-    gap_factor=1000 van cho 0,9706. Chi co ve 2 thi tach vun tung tu lai thang.
-    Diem cuoi lay min(ve 1, ve 2) nen ca hai huong suy bien deu bi phat.
-
-    O nao tang doc khong doc duoc thi loai khoi CA HAI mau so va dem rieng --
-    cham no la cham chat luong OCR, khong phai viec cua bac 2 (spec Sec 2.4).
-
-    O XUONG DONG: spec Sec 10 ghi ro no NGOAI PHAM VI bac 2 -- bac 2 gom
-    hang theo `line_id` nen token cua mot o vat qua nhieu dong vat ly nam o
-    cac HANG grid khac nhau, khong bao gio thoa "cung mot o", ke ca khi cot
-    tach hoan toan dung. Cham no la cham thu bac 2 khong nhan lam. Vi vay o
-    XUONG DONG bi LOAI KHOI ve "kept" (khong tinh vao keep_total) va dem RIENG
-    thanh `wrapped` -- dem rieng chu khong im lang bo, dung tinh than voi
-    `unreadable`. O nay VAN THAM GIA binh thuong o ve "tach": viec tach cot
-    cua no van kiem duoc du no khong tham gia duoc ve "kept".
-    Do duoc: `ssc_bieumau.pdf` tr.4 di tu 0,3750 len 0,8333 khi loai lop o
-    nay, trong khi ba dinh dang khong co o xuong dong (`bieumau_bctc_hopnhat`
-    tr.3, `luat-dautu` tr.42, `luat-thuexuatnhapkhau` tr.17) KHONG DOI mot
-    chut nao -- xac nhan day la sua mot gioi han da tuyen bo ngoai pham vi,
-    khong phai noi long thuoc do chung chung.
-    """
-    ph = tho.replace("\n", " ")
-    kept = keep_total = tach = split_total = bo = wrapped = 0
-    for hang in answer:
-        readable = []
-        for o in hang:
-            t = _tokens(o)
-            if not t:
-                continue
-            if not all(x in ph for x in t):
-                bo += 1
-                continue
-            readable.append((o, t))
-        for o, t in readable:
-            if "\n" in (o or ""):
-                wrapped += 1
-                continue
-            keep_total += 1
-            if any(all(x in c for x in t) for h in grid for c in h):
-                kept += 1
-        for i in range(len(readable)):
-            for j in range(i + 1, len(readable)):
-                split_total += 1
-                chung = any(all(x in c for x in readable[i][1])
-                            and all(y in c for y in readable[j][1])
-                            for h in grid for c in h)
-                if not chung:
-                    tach += 1
-    return kept, keep_total, tach, split_total, bo, wrapped
-
-
 @pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
 @pytest.mark.parametrize("tep,trang,bang_idx,dinh_dang", PAGES)
 def test_grid_from_image_matches_vector_grid(tep, trang, bang_idx, dinh_dang):
@@ -202,11 +132,12 @@ def test_grid_from_image_matches_vector_grid(tep, trang, bang_idx, dinh_dang):
         bbox = bangs[bang_idx].bbox
 
     kq = ocr_image(_anh_cua_trang(tep, trang, DPI))
-    ws = _words_in_bbox(kq.words, bbox, DPI / 72)
+    ws = table_score.words_in_bbox(kq.words, bbox, DPI / 72)
     assert ws, "khong tu nao nam trong khung bang -> bbox hoac ty le sai"
 
     grid = table.build_grid(ws)
-    kept, keep_total, tach, split_total, bo, wrapped = _score(answer, grid, kq.text)
+    kept, keep_total, tach, split_total, bo, wrapped = table_score.score(
+        answer, grid, kq.text)
     if split_total == 0:
         pytest.skip(
             f"{dinh_dang}: khong co hang dap an nao >=2 o doc duoc -- "
@@ -237,11 +168,12 @@ def test_break_check_huge_gap_factor_turns_gate_red():
     COT. Neu cong van XANH o cau hinh nay thi thuoc khong do gi -- xem
     task-3-report.md phan "THU PHA" cho output day du cua ca hai luot.
 
-    Test nay KHONG phu thuoc MATCH_THRESHOLD (van chay duoc du MATCH_THRESHOLD=None)
-    vi no tu tinh nguong centre thoi = min cua cac diem đo duoc o cau hinh mac
-    dinh (tu bang chu thich tren MATCH_THRESHOLD) tru 0,05 -- chi de chung minh
-    diem SUY BIEN THAP HON diem mac dinh o CUNG trang, khong doi hoi biet
-    nguong cuoi cung.
+    SIET 2026-09-07 (phat hien I1): truoc do test nay chi doi
+    `min(diem_suy_bien) < min(diem_mac_dinh)` -- mot phep so TONG THE, nen mot
+    ca van co the XANH o cau hinh suy bien mien la mot ca KHAC do hon no. Do
+    duoc: `ssc_bieumau.pdf` tr4 dat min=0,8333 >= nguong 0,66 voi
+    `gap_factor=1000` (luoi MOT cot) va cong khong keu. Nay khang dinh TUNG ca
+    phai DUOI nguong o cau hinh suy bien -- 6/6 do.
     """
     if tesseract_path() is None:
         pytest.skip("chua cai tesseract")
@@ -249,6 +181,7 @@ def test_break_check_huge_gap_factor_turns_gate_red():
     try:
         diem_mac_dinh = []
         diem_suy_bien = []
+        ten_ca = []
         for tep, trang, bang_idx, dinh_dang in PAGES:
             if not os.path.isfile(tep):
                 continue
@@ -259,20 +192,21 @@ def test_break_check_huge_gap_factor_turns_gate_red():
                 answer = bangs[bang_idx].extract()
                 bbox = bangs[bang_idx].bbox
             kq = ocr_image(_anh_cua_trang(tep, trang, DPI))
-            ws = _words_in_bbox(kq.words, bbox, DPI / 72)
+            ws = table_score.words_in_bbox(kq.words, bbox, DPI / 72)
             if not ws:
                 continue
 
             table.GAP_FACTOR = boi_khe_goc
             luoi_mac_dinh = table.build_grid(ws)
-            g, gm, t, tm, _, _ = _score(answer, luoi_mac_dinh, kq.text)
+            g, gm, t, tm, _, _ = table_score.score(answer, luoi_mac_dinh, kq.text)
             if tm == 0:
                 continue
             diem_mac_dinh.append(min(g / gm if gm else 0.0, t / tm))
+            ten_ca.append(dinh_dang[:24])
 
             table.GAP_FACTOR = 1000.0
             luoi_suy_bien = table.build_grid(ws)
-            g2, gm2, t2, tm2, _, _ = _score(answer, luoi_suy_bien, kq.text)
+            g2, gm2, t2, tm2, _, _ = table_score.score(answer, luoi_suy_bien, kq.text)
             if tm2 == 0:
                 # Suy bien mot cot -> khong con hang nao co 2 o KHAC NHAU
                 # cung roi mot o grid de dem tach (moi hang gio la 1 o) --
@@ -289,5 +223,11 @@ def test_break_check_huge_gap_factor_turns_gate_red():
         assert min(diem_suy_bien) < min(diem_mac_dinh), (
             "cong khong phan biet duoc cau hinh suy bien voi cau hinh mac "
             "dinh -- thuoc khong do gi, DUNG LAI va bao cao")
+        do_ac = [(t, d) for t, d in zip(ten_ca, diem_suy_bien)
+                 if d >= MATCH_THRESHOLD]
+        assert not do_ac, (
+            f"cau hinh SUY BIEN van tren nguong {MATCH_THRESHOLD} o cac ca: "
+            f"{do_ac} -- nhung ca do dang XANH MIEN PHI, thuoc khong do gi o "
+            "do, DUNG LAI va bao cao")
     finally:
         table.GAP_FACTOR = boi_khe_goc

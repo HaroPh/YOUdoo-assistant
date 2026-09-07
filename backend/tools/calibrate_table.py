@@ -20,7 +20,7 @@ import sys
 
 import pdfplumber
 
-from src.ocr import table, engine
+from src.ocr import table, engine, table_score
 from src.ocr.document import _anh_cua_trang
 
 THU_MUC = ["src/rag/seed/law", r"D:\Youdoo\tmp-docs"]
@@ -33,68 +33,12 @@ DPI = 200
 THU_PHA = (1000.0, 0.3)
 
 
-def _words_in_bbox(words, bbox, ty_le):
-    """Chỉ giữ từ nằm trong khung bảng. `bbox` theo ĐIỂM (pdfplumber), toạ độ
-    từ theo PIXEL ảnh — nhân `ty_le` = DPI/72 để về cùng hệ."""
-    x0, top, x1, bot = (v * ty_le for v in bbox)
-    return [w for w in words
-            if x0 <= w.left and w.left + w.width <= x1
-            and top <= w.top and w.top + w.height <= bot]
-
-
-def _tokens(o) -> list[str]:
-    """Token đủ dài để tìm trong text phẳng mà không khớp bừa."""
-    return [t for t in (o or "").split() if len(t) >= 3]
-
-
-def _score(answer: list[list], grid: list[list[str]], tho: str):
-    """(kept, giu_mau_so, tach, tach_mau_so, unreadable).
-
-    FIX ROUND 2 (2026-09-06): thước round 1 chỉ đo MỘT vế — "mọi token của ô
-    đáp án nằm trong CÙNG MỘT ô lưới" — và bị lưới suy biến MỘT CỘT ăn gian
-    miễn phí: cả hàng là một ô nên vế đó luôn đúng. Đo được: `gap_factor=1000`
-    (không khe nào đủ lớn để thành bounds giới) vẫn đạt 0,9706 trên
-    `luat-thuexuatnhapkhau.pdf` tr.14 — cao ngang cặp "tốt nhất" của round 1.
-    Thước không phân biệt được "dựng đúng cột" với "không dựng cột nào cả".
-
-    ĐỐI XỨNG, và đó là điểm mấu chốt:
-      vế 1 KHÔNG TÁCH NHẦM — mọi token của MỘT ô đáp án nằm trong CÙNG MỘT ô
-                             lưới (thước round 1, giữ nguyên).
-      vế 2 KHÔNG GỘP NHẦM  — HAI ô KHÁC NHAU trong cùng một hàng đáp án KHÔNG
-                             được rơi chung một ô lưới.
-
-    Chỉ có vế 1 thì một lưới MỘT CỘT đạt điểm tuyệt đối miễn phí. Chỉ có vế 2
-    thì tách vụn từng từ thành một cột riêng lại thắng tuyệt đối. Điểm cuối
-    (tính ở `main`) lấy MIN của hai vế nên cả hai hướng suy biến đều bị phạt.
-
-    Ô nào tầng đọc không đọc được thì loại khỏi CẢ HAI mẫu số và đếm riêng —
-    chấm nó là chấm chất lượng OCR, không phải việc của bậc 2 (spec §2.4).
-    """
-    ph = tho.replace("\n", " ")
-    kept = keep_total = tach = split_total = bo = 0
-    for hang in answer:
-        readable = []
-        for o in hang:
-            t = _tokens(o)
-            if not t:
-                continue
-            if not all(x in ph for x in t):
-                bo += 1
-                continue
-            readable.append(t)
-        for t in readable:
-            keep_total += 1
-            if any(all(x in c for x in t) for h in grid for c in h):
-                kept += 1
-        for i in range(len(readable)):
-            for j in range(i + 1, len(readable)):
-                split_total += 1
-                chung = any(all(x in c for x in readable[i])
-                            and all(y in c for y in readable[j])
-                            for h in grid for c in h)
-                if not chung:
-                    tach += 1
-    return kept, keep_total, tach, split_total, bo
+# THƯỚC DÙNG CHUNG: `words_in_bbox` / `tokens` / `score` nay nằm ở
+# `src/ocr/table_score.py`, cổng A (`tests/ocr/test_table_gate_vector.py`)
+# import CÙNG một bản. Trước 2026-09-07 mỗi bên giữ một bản chép tay và hai
+# bản ĐÃ LỆCH (bản cổng A xử lý ô xuống dòng, bản ở đây thì không) — nghĩa là
+# bảng số đo chốt tham số được sinh bởi thước KHÁC thước đang gác (phát hiện
+# I6 của review toàn nhánh). Đừng chép lại vào đây.
 
 
 def main(argv):
@@ -131,15 +75,15 @@ def main(argv):
                         answer = b.extract()
                     except Exception:
                         continue
-                    ws = _words_in_bbox(kq.words, b.bbox, DPI / 72)
+                    ws = table_score.words_in_bbox(kq.words, b.bbox, DPI / 72)
                     if not ws:
                         continue
                     n_cot_dap_an = max((len(h) for h in answer), default=0)
                     for ds, tl in tat_ca_tham_so:
                         grid = table.build_grid(ws, gap_factor=ds,
                                               support_ratio=tl)
-                        kept, keep_total, tach, split_total, bo = _score(
-                            answer, grid, kq.text)
+                        kept, keep_total, tach, split_total, bo, _wrapped = (
+                            table_score.score(answer, grid, kq.text))
                         n_cot_luoi = max((len(h) for h in grid), default=0)
                         so_cot = n_cot_luoi if n_cot_luoi else 1
                         d = diem[(ds, tl)]
