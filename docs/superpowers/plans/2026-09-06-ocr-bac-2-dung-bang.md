@@ -4,7 +4,7 @@
 
 **Goal:** Từ toạ độ chữ Tesseract trả về, dựng lại lưới bảng `list[list[str]]`, để hàng bảng đọc-từ-ảnh đi vào corpus có cấu trúc cột thay vì một dòng phẳng.
 
-**Architecture:** Một hàm thuần trong module lá `src/ocr/bang.py` biến `list[OcrWord]` thành lưới. Tín hiệu là **cụm KHE**: trong từng dòng, khe giữa hai từ rộng hơn một bội bề rộng ký tự là ứng viên ranh giới cột; ứng viên phải cụm lại cùng một x qua đủ nhiều dòng mới thành ranh giới thật (đó chính là đòi hỏi căn lề). Không có bộ dò bảng: trang không có khe nào cụm đủ mạnh tự nhiên ra một cột. Lưới đi tiếp qua `pdf_table.py` của B4 **không sửa một dòng nào** — module đó nhận đầu vào là lưới và không quan tâm lưới đến từ đâu.
+**Architecture:** Một hàm thuần trong module lá `src/ocr/table.py` biến `list[OcrWord]` thành lưới. Tín hiệu là **cụm KHE**: trong từng dòng, khe giữa hai từ rộng hơn một bội bề rộng ký tự là ứng viên ranh giới cột; ứng viên phải cụm lại cùng một x qua đủ nhiều dòng mới thành ranh giới thật (đó chính là đòi hỏi căn lề). Không có bộ dò bảng: trang không có khe nào cụm đủ mạnh tự nhiên ra một cột. Lưới đi tiếp qua `pdf_table.py` của B4 **không sửa một dòng nào** — module đó nhận đầu vào là lưới và không quan tâm lưới đến từ đâu.
 
 **Tech Stack:** Python 3.11, `pytesseract` (đã có), `pypdfium2` (đã có), `pdfplumber` (đã có, chỉ dùng để sinh đáp án cho cổng A), `pytest`.
 
@@ -17,13 +17,13 @@
 - **KHÔNG sửa `backend/src/rag/pdf_table.py`.** Bậc 2 chỉ nối vào đầu vào của nó (spec §3).
 - **KHÔNG dựng bộ dò bảng.** Suy biến về một cột là hành vi đúng cho trang văn xuôi (spec §4).
 - **Khe phải đo CỤC BỘ trong từng dòng, rồi mới cụm qua các dòng.** Khe trắng chạy dọc SUỐT CẢ TRANG đã đo và bác bỏ: trang 16 và 17 chỉ ra ĐÚNG MỘT khe cho bảng 5 cột vì một dòng tiêu đề ngang là đủ bịt; bản vá "loại dòng chạy suốt" cũng hỏng, 0/4 trang loại được dòng nào (spec §2.1). Đừng thử lại HAI cách đó. Cụm khe cục bộ thì khác hẳn: dòng tiêu đề chỉ không đóng góp ứng viên nào, mấy chục dòng thân vẫn đóng góp.
-- **Mọi tham số phải KHÔNG THỨ NGUYÊN**: `boi_khe` theo *bề rộng ký tự trung vị*, `ty_le_ung_ho` theo *tỷ lệ số dòng*. Pixel là sai vì vỡ khi đổi DPI/cỡ chữ (spec §5).
+- **Mọi tham số phải KHÔNG THỨ NGUYÊN**: `gap_factor` theo *bề rộng ký tự trung vị*, `support_ratio` theo *tỷ lệ số dòng*. Pixel là sai vì vỡ khi đổi DPI/cỡ chữ (spec §5).
 - **Không hằng số nào được đặt trước khi đo.** Task 1 nhận tham số tường minh, không có mặc định. Task 2 đo trên 229 trang rồi mới chốt hằng số.
 - ⚠️ **Bẫy tham số mặc định đóng băng.** Python tính giá trị mặc định MỘT LẦN lúc định nghĩa hàm. `def f(*, x=MODULE_CONST)` khiến việc đổi `MODULE_CONST` lúc chạy KHÔNG có tác dụng — đã cắn tầng OCR bậc 1 một lần và suýt vô hiệu hoá chính phép thử phá của nó. Luôn viết `x: T | None = None` rồi giải trong thân hàm.
 - **`ARTIFACT_VERSION` 2 → 3** khi hình dạng vùng đổi (`document.py`). Đệm cũ tự lạc khoá qua dấu vân tay — không cần xoá tay.
 - **Đường không-OCR phải BYTE-IDENTICAL.** Trang có lớp text không được đổi một bit nào.
 - **Hỏng thì to tiếng nhưng không vỡ lượt nạp**: lùi về dòng phẳng + cảnh báo có tên qua `IngestReport`. Tệ nhất là mất cấu trúc, không mất nội dung (spec §9).
-- **Định danh trong code bằng tiếng Anh hoặc không dấu.** Chú thích tiếng Việt có dấu thì được.
+- **Định danh trong code (tên hàm, class, biến, hằng số, tên tệp) BẮT BUỘC bằng TIẾNG ANH.** Chú thích thì viết tiếng Việt có dấu. Yêu cầu của chủ dự án, đã ghi trong ký ức dự án — plan này ban đầu vi phạm và đã phải đổi tên toàn bộ giữa chừng.
 - **Lệnh pytest LUÔN kèm `-m "not integration and not live"`** trừ khi task nói khác. Lệnh trần từng gọi API thật và gây sự cố.
 - Suite nền trước khi bắt đầu: **2409 passed, 1 skipped, 83 deselected**.
 
@@ -60,25 +60,25 @@ Kỳ vọng: `2409 passed, 1 skipped, 83 deselected`. Khác con số này thì *
 ## Task 1: `bang.py` — hàm thuần dựng lưới
 
 **Files:**
-- Create: `backend/src/ocr/bang.py`
-- Test: `backend/tests/ocr/test_bang.py`
+- Create: `backend/src/ocr/table.py`
+- Test: `backend/tests/ocr/test_table.py`
 
 **Interfaces:**
 - Consumes: `src.ocr.engine.OcrWord` — `@dataclass(frozen=True)` với các trường `text: str`, `conf: float`, `left: int`, `top: int`, `width: int`, `height: int`, `line_id: tuple[int, int, int]`.
 - Produces:
-  - `be_rong_ky_tu(words: list[OcrWord]) -> float`
-  - `tim_ranh_cot(words, *, boi_khe: float, ty_le_ung_ho: float) -> list[int]`
-  - `dung_luoi(words, *, boi_khe: float, ty_le_ung_ho: float) -> list[list[str]]`
-  - Hai tham số `boi_khe` / `ty_le_ung_ho` **bắt buộc, không có mặc định** ở task này. Task 2 mới thêm mặc định sau khi đo.
+  - `median_char_width(words: list[OcrWord]) -> float`
+  - `find_column_bounds(words, *, gap_factor: float, support_ratio: float) -> list[int]`
+  - `build_grid(words, *, gap_factor: float, support_ratio: float) -> list[list[str]]`
+  - Hai tham số `gap_factor` / `support_ratio` **bắt buộc, không có mặc định** ở task này. Task 2 mới thêm mặc định sau khi đo.
 
 - [ ] **Step 1: Viết test thất bại cho đơn vị chuẩn hoá**
 
-Tạo `backend/tests/ocr/test_bang.py`:
+Tạo `backend/tests/ocr/test_table.py`:
 
 ```python
 """Bậc 2 — dựng lưới từ toạ độ. Test trên từ DỰNG TAY, không chạy Tesseract:
 hàm này phải thuần và kiểm được mà không cần binary nào."""
-from src.ocr.bang import be_rong_ky_tu, dung_luoi, tim_ranh_cot
+from src.ocr.bang import median_char_width, build_grid, find_column_bounds
 from src.ocr.engine import OcrWord
 
 
@@ -96,32 +96,32 @@ def test_be_rong_ky_tu_la_TRUNG_VI_khong_phai_trung_binh():
     Trung vị các tỷ lệ TỪNG TỪ = 10,0.
     Trung bình gộp (tổng rộng / tổng ký tự) = 70/9 = 7,78 — SAI.
 
-    Đây không phải chuyện làm đẹp: `be_rong_ky_tu` là đơn vị chuẩn hoá của
+    Đây không phải chuyện làm đẹp: `median_char_width` là đơn vị chuẩn hoá của
     MỌI ngưỡng trong module, nên lệch nó là lệch tất cả. Và scan thật SINH RA
     token rác bbox rộng ít ký tự — đo được 2026-09-06 trên trang 1 bản BCTC:
     dấu mộc đỏ đọc thành `_Ƒ_Gẻ]ùỉ—m//—.ẶẲó—[`. Một token như thế kéo trung
     bình đi rất xa; trung vị miễn nhiễm.
     """
     words = [tu("ab", 0, 0, 20), tu("abcd", 0, 0, 20), tu("abc", 0, 0, 30)]
-    assert be_rong_ky_tu(words) == 10.0
+    assert median_char_width(words) == 10.0
 
 
 def test_be_rong_ky_tu_khong_no_khi_khong_co_tu():
-    assert be_rong_ky_tu([]) > 0
+    assert median_char_width([]) > 0
 ```
 
 - [ ] **Step 2: Chạy để xác nhận ĐỎ**
 
 ```bash
 cd /d/Youdoo/.claude/worktrees/ocr-bac-2/backend
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
 Kỳ vọng: FAIL — `ModuleNotFoundError: No module named 'src.ocr.bang'`.
 
-- [ ] **Step 3: Viết `be_rong_ky_tu`**
+- [ ] **Step 3: Viết `median_char_width`**
 
-Tạo `backend/src/ocr/bang.py`:
+Tạo `backend/src/ocr/table.py`:
 
 ```python
 """Bậc 2 của tầng OCR — dựng lại lưới bảng từ toạ độ chữ.
@@ -148,7 +148,7 @@ import statistics
 from .engine import OcrWord
 
 
-def be_rong_ky_tu(words: list[OcrWord]) -> float:
+def median_char_width(words: list[OcrWord]) -> float:
     """Bề rộng một ký tự, lấy TRUNG VỊ trên tỷ lệ của TỪNG TỪ.
 
     Đây là ĐƠN VỊ CHUẨN HOÁ của cả module. Mọi ngưỡng tính theo nó chứ không
@@ -170,14 +170,14 @@ def be_rong_ky_tu(words: list[OcrWord]) -> float:
 - [ ] **Step 4: Chạy để xác nhận XANH**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
 Kỳ vọng: 2 passed.
 
-- [ ] **Step 5: Viết test thất bại cho `tim_ranh_cot`**
+- [ ] **Step 5: Viết test thất bại cho `find_column_bounds`**
 
-Thêm vào `backend/tests/ocr/test_bang.py`:
+Thêm vào `backend/tests/ocr/test_table.py`:
 
 ```python
 def _bang_hai_cot_tien():
@@ -193,7 +193,7 @@ def _bang_hai_cot_tien():
 
 
 def test_tim_ranh_cot_bat_duoc_hai_ranh_giua_ba_cot():
-    ranh = tim_ranh_cot(_bang_hai_cot_tien(), boi_khe=2.0, ty_le_ung_ho=0.6)
+    ranh = find_column_bounds(_bang_hai_cot_tien(), gap_factor=2.0, support_ratio=0.6)
     assert len(ranh) == 2
     assert 140 < ranh[0] < 450 and 500 < ranh[1] < 730
 
@@ -206,7 +206,7 @@ def test_khe_GIUA_TU_trong_cung_mot_o_KHONG_thanh_ranh_cot():
         words.append(tu("Tai", 100, 100 + i * 30, 30, line=i))
         words.append(tu("san", 140, 100 + i * 30, 30, line=i))
         words.append(tu("100", 470, 100 + i * 30, 30, line=i))
-    ranh = tim_ranh_cot(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    ranh = find_column_bounds(words, gap_factor=2.0, support_ratio=0.6)
     assert len(ranh) == 1, "chi duoc mot ranh: giua nhan hai tu va cot so"
     assert 170 < ranh[0] < 470
 
@@ -215,20 +215,20 @@ def test_van_xuoi_khong_can_le_ra_KHONG_ranh_nao():
     """Không có bộ dò bảng: trang văn xuôi tự nhiên suy biến về một cột."""
     words = [tu(f"dong{i}", 100 + i * 37, 100 + i * 30, 60, line=i)
              for i in range(6)]
-    assert tim_ranh_cot(words, boi_khe=2.0, ty_le_ung_ho=0.6) == []
+    assert find_column_bounds(words, gap_factor=2.0, support_ratio=0.6) == []
 ```
 
 - [ ] **Step 6: Chạy để xác nhận ĐỎ**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
-Kỳ vọng: FAIL — `ImportError: cannot import name 'tim_ranh_cot'`.
+Kỳ vọng: FAIL — `ImportError: cannot import name 'find_column_bounds'`.
 
-- [ ] **Step 7: Viết `tim_ranh_cot`**
+- [ ] **Step 7: Viết `find_column_bounds`**
 
-Thêm vào `backend/src/ocr/bang.py`:
+Thêm vào `backend/src/ocr/table.py`:
 
 ```python
 def _theo_dong(words: list[OcrWord]) -> dict:
@@ -253,14 +253,14 @@ def _cum(gia_tri: list[int], dung_sai: float) -> list[list[int]]:
     return xong
 
 
-def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float,
-                 ty_le_ung_ho: float) -> list[int]:
+def find_column_bounds(words: list[OcrWord], *, gap_factor: float,
+                 support_ratio: float) -> list[int]:
     """Ranh giới cột = vị trí KHE LỚN trong dòng, CỤM LẠI qua nhiều dòng.
 
     Hai bước, và cả hai đều cần thiết:
 
     1. Trong TỪNG dòng, một khe giữa hai từ liền nhau là ứng viên ranh giới khi
-       nó rộng hơn `boi_khe` lần bề rộng ký tự. Đây là thứ phân biệt khe giữa
+       nó rộng hơn `gap_factor` lần bề rộng ký tự. Đây là thứ phân biệt khe giữa
        hai từ trong CÙNG một ô (khoảng một ký tự) với khe sang cột khác (hàng
        chục ký tự). Cụm căn lề đơn thuần KHÔNG phân biệt được hai loại khe đó —
        đó là lý do cơ chế cụm-mép bị loại (ledger, mục P1).
@@ -275,8 +275,8 @@ def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float,
     if not words:
         return []
     dong = _theo_dong(words)
-    rong_ky_tu = be_rong_ky_tu(words)
-    nguong_khe = boi_khe * rong_ky_tu
+    rong_ky_tu = median_char_width(words)
+    nguong_khe = gap_factor * rong_ky_tu
 
     ung_vien: list[int] = []
     for ws in dong.values():
@@ -288,7 +288,7 @@ def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float,
 
     # Dung sai cụm = MỘT bề rộng ký tự: một ranh giới xê dịch quá một ký tự
     # giữa các dòng thì là ranh giới KHÁC, không phải cùng một cột.
-    toi_thieu = max(2, int(len(dong) * ty_le_ung_ho))
+    toi_thieu = max(2, int(len(dong) * support_ratio))
     return sorted(int(statistics.median(c))
                   for c in _cum(ung_vien, rong_ky_tu) if len(c) >= toi_thieu)
 ```
@@ -296,18 +296,18 @@ def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float,
 - [ ] **Step 8: Chạy để xác nhận XANH**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
 Kỳ vọng: 5 passed.
 
-- [ ] **Step 9: Viết test thất bại cho `dung_luoi`**
+- [ ] **Step 9: Viết test thất bại cho `build_grid`**
 
-Thêm vào `backend/tests/ocr/test_bang.py`:
+Thêm vào `backend/tests/ocr/test_table.py`:
 
 ```python
 def test_dung_luoi_tra_dung_luoi_ba_cot():
-    luoi = dung_luoi(_bang_hai_cot_tien(), boi_khe=2.0, ty_le_ung_ho=0.6)
+    luoi = build_grid(_bang_hai_cot_tien(), gap_factor=2.0, support_ratio=0.6)
     assert luoi == [["Tien", "1.000", "2.000"],
                     ["Hang", "30.000", "40.000"],
                     ["Khac", "500.000", "600.000"]]
@@ -320,14 +320,14 @@ def test_dung_luoi_noi_nhieu_tu_trong_cung_mot_o():
         words.append(tu("Tai", 100, 100 + i * 30, 30, line=i))
         words.append(tu("san", 140, 100 + i * 30, 30, line=i))
         words.append(tu("100", 470, 100 + i * 30, 30, line=i))
-    ket = dung_luoi(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    ket = build_grid(words, gap_factor=2.0, support_ratio=0.6)
     assert ket == [["Tai san", "100"]] * 3
 
 
 def test_van_xuoi_ra_luoi_MOT_cot_giu_nguyen_tung_dong():
     words = [tu(f"dong{i}", 100 + i * 37, 100 + i * 30, 60, line=i)
              for i in range(6)]
-    ket = dung_luoi(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    ket = build_grid(words, gap_factor=2.0, support_ratio=0.6)
     assert ket == [[f"dong{i}"] for i in range(6)]
 
 
@@ -340,25 +340,25 @@ def test_dung_luoi_KHONG_sap_lai_hang_theo_toa_do_y():
     Đòi đầu ra theo `line_id` mới là sắp lại — đúng thứ bị cấm."""
     words = [tu("duoc_doc_truoc", 100, 500, 40, line=1),
              tu("duoc_doc_sau", 100, 100, 40, line=0)]
-    ket = dung_luoi(words, boi_khe=2.0, ty_le_ung_ho=0.6)
+    ket = build_grid(words, gap_factor=2.0, support_ratio=0.6)
     assert ket == [["duoc_doc_truoc"], ["duoc_doc_sau"]]
 ```
 
 - [ ] **Step 10: Chạy để xác nhận ĐỎ**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
-Kỳ vọng: FAIL — `ImportError: cannot import name 'dung_luoi'`.
+Kỳ vọng: FAIL — `ImportError: cannot import name 'build_grid'`.
 
-- [ ] **Step 11: Viết `dung_luoi`**
+- [ ] **Step 11: Viết `build_grid`**
 
-Thêm vào `backend/src/ocr/bang.py`:
+Thêm vào `backend/src/ocr/table.py`:
 
 ```python
-def dung_luoi(words: list[OcrWord], *, boi_khe: float,
-              ty_le_ung_ho: float) -> list[list[str]]:
+def build_grid(words: list[OcrWord], *, gap_factor: float,
+              support_ratio: float) -> list[list[str]]:
     """`list[OcrWord]` -> `list[list[str]]`.
 
     Hàng lấy theo `line_id` Tesseract đã trả sẵn, GIỮ NGUYÊN thứ tự xuất hiện.
@@ -371,7 +371,7 @@ def dung_luoi(words: list[OcrWord], *, boi_khe: float,
     """
     if not words:
         return []
-    ranh = tim_ranh_cot(words, boi_khe=boi_khe, ty_le_ung_ho=ty_le_ung_ho)
+    ranh = find_column_bounds(words, gap_factor=gap_factor, support_ratio=support_ratio)
     luoi: list[list[str]] = []
     for ws in _theo_dong(words).values():
         o: list[list[str]] = [[] for _ in range(len(ranh) + 1)]
@@ -385,7 +385,7 @@ def dung_luoi(words: list[OcrWord], *, boi_khe: float,
 - [ ] **Step 12: Chạy để xác nhận XANH**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
 Kỳ vọng: 9 passed.
@@ -393,7 +393,7 @@ Kỳ vọng: 9 passed.
 - [ ] **Step 13: Commit**
 
 ```bash
-git add backend/src/ocr/bang.py backend/tests/ocr/test_bang.py
+git add backend/src/ocr/table.py backend/tests/ocr/test_table.py
 git commit -m "feat(ocr): bac 2 - ham thuan dung luoi bang tu toa do chu
 
 Co che la CUM KHE CUC BO: trong tung dong, khe giua hai tu rong hon mot boi be
@@ -405,7 +405,7 @@ doc suot ca trang (mot dong tieu de ngang la du bit - spec muc 2.1); loai dong
 chay suot roi moi tinh khe (0/4 trang loai duoc dong nao); va cum MEP trai/phai
 (khong phan biet duoc khe giua hai tu trong cung mot o voi khe sang cot khac).
 
-be_rong_ky_tu lay TRUNG VI tren ty le tung tu, khong phai tong-chia-tong: scan
+median_char_width lay TRUNG VI tren ty le tung tu, khong phai tong-chia-tong: scan
 that sinh token rac bbox rong it ky tu (dau moc do), keo trung binh di rat xa.
 No la don vi chuan hoa cua MOI nguong trong module.
 
@@ -422,17 +422,17 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ## Task 2: Hiệu chỉnh trên 229 trang, rồi mới chốt hằng số
 
 **Files:**
-- Create: `backend/tools/hieu_chinh_bang.py`
-- Modify: `backend/src/ocr/bang.py` (thêm hằng số + mặc định)
-- Test: `backend/tests/ocr/test_bang.py` (thêm test cho mặc định)
+- Create: `backend/tools/calibrate_table.py`
+- Modify: `backend/src/ocr/table.py` (thêm hằng số + mặc định)
+- Test: `backend/tests/ocr/test_table.py` (thêm test cho mặc định)
 
 **Interfaces:**
-- Consumes: `dung_luoi(words, *, boi_khe, ty_le_ung_ho)` từ Task 1.
-- Produces: `BOI_KHE: float`, `TY_LE_UNG_HO: float` trong `bang.py`; và `dung_luoi` / `tim_ranh_cot` nhận thêm mặc định `None`.
+- Consumes: `build_grid(words, *, gap_factor, support_ratio)` từ Task 1.
+- Produces: `GAP_FACTOR: float`, `SUPPORT_RATIO: float` trong `bang.py`; và `build_grid` / `find_column_bounds` nhận thêm mặc định `None`.
 
 - [ ] **Step 1: Viết script đo**
 
-Tạo `backend/tools/hieu_chinh_bang.py`:
+Tạo `backend/tools/calibrate_table.py`:
 
 ```python
 """Hiệu chỉnh tham số bậc 2 trên MỌI trang bảng vector của corpus.
@@ -441,7 +441,7 @@ Tạo `backend/tools/hieu_chinh_bang.py`:
 lưới, rồi so với lưới `pdfplumber` bóc từ CHÍNH trang đó. Không gõ tay ô nào,
 và phủ nhiều định dạng — đúng chỗ yếu của việc hiệu chỉnh trên một tài liệu.
 
-Chạy:  python -m tools.hieu_chinh_bang [so_trang_toi_da]
+Chạy:  python -m tools.calibrate_table [so_trang_toi_da]
 """
 import glob
 import itertools
@@ -516,8 +516,8 @@ def main(argv):
                     if not ws:
                         continue
                     for ds, tl in luoi_tham_so:
-                        luoi = bang.dung_luoi(ws, boi_khe=ds,
-                                              ty_le_ung_ho=tl)
+                        luoi = table.build_grid(ws, gap_factor=ds,
+                                              support_ratio=tl)
                         k, t = _diem(dap_an, luoi)
                         diem[(ds, tl)][0] += k
                         diem[(ds, tl)][1] += t
@@ -525,7 +525,7 @@ def main(argv):
                 print(f"  {os.path.basename(p)[:34]:36s} tr{pageno:>3}"
                       f"  ({da_lam} trang)", flush=True)
 
-    print(f"\n{'boi_khe':>10}{'ty_le':>8}{'khop':>9}{'tong':>9}{'ty le':>9}")
+    print(f"\n{'gap_factor':>10}{'ty_le':>8}{'khop':>9}{'tong':>9}{'ty le':>9}")
     for (ds, tl), (k, t) in sorted(diem.items(), key=lambda x: -x[1][0] / max(x[1][1], 1)):
         print(f"{ds:>10}{tl:>8}{k:>9}{t:>9}{k / max(t, 1):>9.4f}")
 
@@ -539,7 +539,7 @@ if __name__ == "__main__":
 ```bash
 cd /d/Youdoo/.claude/worktrees/ocr-bac-2/backend
 export PYTHONIOENCODING=utf-8 OMP_THREAD_LIMIT=1
-/d/Youdoo/backend/.venv/Scripts/python.exe -m tools.hieu_chinh_bang 5
+/d/Youdoo/backend/.venv/Scripts/python.exe -m tools.calibrate_table 5
 ```
 
 Kỳ vọng: in 5 dòng tiến trình rồi một bảng 12 dòng tham số với tỷ lệ khớp. Nếu mọi tỷ lệ = 0,0000 thì **dừng** — script sai, không phải thuật toán sai.
@@ -547,7 +547,7 @@ Kỳ vọng: in 5 dòng tiến trình rồi một bảng 12 dòng tham số vớ
 - [ ] **Step 3: Chạy đo đầy đủ**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m tools.hieu_chinh_bang \
+/d/Youdoo/backend/.venv/Scripts/python.exe -m tools.calibrate_table \
   > /tmp/hieu_chinh_bang.txt 2>&1
 tail -20 /tmp/hieu_chinh_bang.txt
 ```
@@ -558,27 +558,27 @@ Mất khoảng 12–15 phút (229 trang × ~3 s OCR). Chạy nền được.
 
 Lấy cặp `(dung_sai, ty_le)` có tỷ lệ khớp cao nhất. Ghi **con số thật đo được** vào chú thích — không làm tròn cho đẹp, không lấy số từ plan này.
 
-Thêm vào đầu `backend/src/ocr/bang.py`, ngay sau phần import:
+Thêm vào đầu `backend/src/ocr/table.py`, ngay sau phần import:
 
 ```python
 # ĐO 2026-09-06 trên toàn bộ trang bảng vector của corpus (106 tệp, 229 trang,
 # 31.416 ô) — đáp án tự sinh từ `pdfplumber` bóc chính trang đó. Quét lưới
 # 4x3 tham số, chọn cặp có tỷ lệ ô khớp cao nhất.
 #
-# THAY <...> BẰNG SỐ THẬT TỪ `tools/hieu_chinh_bang.py`. Không được để nguyên.
-#   boi_khe=<a> ty_le=<b> -> <x>/<y> = <z>   <- chọn
+# THAY <...> BẰNG SỐ THẬT TỪ `tools/calibrate_table.py`. Không được để nguyên.
+#   gap_factor=<a> ty_le=<b> -> <x>/<y> = <z>   <- chọn
 #   (dán trọn bảng 12 dòng vào đây để người sau so lại được)
 #
 # ĐƠN VỊ KHÔNG THỨ NGUYÊN, có chủ ý: dung sai theo BỀ RỘNG KÝ TỰ TRUNG VỊ và
 # ngưỡng theo TỶ LỆ SỐ DÒNG. Pixel vỡ ngay khi đổi DPI hoặc cỡ chữ, tức là vỡ
 # đúng lúc đổi sang tài liệu định dạng khác (spec §5).
-BOI_KHE = <a>
-TY_LE_UNG_HO = <b>
+GAP_FACTOR = <a>
+SUPPORT_RATIO = <b>
 ```
 
 - [ ] **Step 5: Viết test cho đường mặc định**
 
-Thêm vào `backend/tests/ocr/test_bang.py`:
+Thêm vào `backend/tests/ocr/test_table.py`:
 
 ```python
 def test_mac_dinh_doc_lai_hang_so_luc_GOI_khong_dong_bang_luc_dinh_nghia():
@@ -589,14 +589,14 @@ def test_mac_dinh_doc_lai_hang_so_luc_GOI_khong_dong_bang_luc_dinh_nghia():
     from src.ocr import bang as m
 
     words = _bang_hai_cot_tien()
-    goc = m.TY_LE_UNG_HO
+    goc = m.SUPPORT_RATIO
     try:
-        m.TY_LE_UNG_HO = 0.99      # gần như không cụm nào đủ ủng hộ
-        it_cot = m.dung_luoi(words)
-        m.TY_LE_UNG_HO = 0.1       # dễ dãi
-        nhieu_cot = m.dung_luoi(words)
+        m.SUPPORT_RATIO = 0.99      # gần như không cụm nào đủ ủng hộ
+        it_cot = m.build_grid(words)
+        m.SUPPORT_RATIO = 0.1       # dễ dãi
+        nhieu_cot = m.build_grid(words)
     finally:
-        m.TY_LE_UNG_HO = goc
+        m.SUPPORT_RATIO = goc
     assert len(it_cot[0]) < len(nhieu_cot[0]), (
         "đổi hằng số lúc chạy KHÔNG đổi kết quả -> mặc định đã bị đóng băng")
 ```
@@ -604,18 +604,18 @@ def test_mac_dinh_doc_lai_hang_so_luc_GOI_khong_dong_bang_luc_dinh_nghia():
 - [ ] **Step 6: Chạy để xác nhận ĐỎ**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
-Kỳ vọng: FAIL — `TypeError: dung_luoi() missing 2 required keyword-only arguments`.
+Kỳ vọng: FAIL — `TypeError: build_grid() missing 2 required keyword-only arguments`.
 
 - [ ] **Step 7: Thêm mặc định GIẢI LÚC GỌI**
 
-Sửa chữ ký hai hàm trong `backend/src/ocr/bang.py`:
+Sửa chữ ký hai hàm trong `backend/src/ocr/table.py`:
 
 ```python
-def tim_ranh_cot(words: list[OcrWord], *, boi_khe: float | None = None,
-                ty_le_ung_ho: float | None = None) -> list[int]:
+def find_column_bounds(words: list[OcrWord], *, gap_factor: float | None = None,
+                support_ratio: float | None = None) -> list[int]:
 ```
 
 và ngay đầu thân hàm, TRƯỚC mọi dòng khác:
@@ -623,16 +623,16 @@ và ngay đầu thân hàm, TRƯỚC mọi dòng khác:
 ```python
     # Giải lúc GỌI, không dùng hằng số làm giá trị mặc định — xem test
     # `test_mac_dinh_doc_lai_hang_so_luc_GOI...` và bẫy đã cắn bậc 1.
-    boi_khe = BOI_KHE if boi_khe is None else boi_khe
-    ty_le_ung_ho = TY_LE_UNG_HO if ty_le_ung_ho is None else ty_le_ung_ho
+    gap_factor = GAP_FACTOR if gap_factor is None else gap_factor
+    support_ratio = SUPPORT_RATIO if support_ratio is None else support_ratio
 ```
 
-Làm y hệt cho `dung_luoi` (nó chỉ chuyển tiếp xuống `tim_ranh_cot`, nhưng vẫn phải nhận `None` để người gọi không phải truyền).
+Làm y hệt cho `build_grid` (nó chỉ chuyển tiếp xuống `find_column_bounds`, nhưng vẫn phải nhận `None` để người gọi không phải truyền).
 
 - [ ] **Step 8: Chạy để xác nhận XANH**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_bang.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table.py -q
 ```
 
 Kỳ vọng: 9 passed.
@@ -640,7 +640,7 @@ Kỳ vọng: 9 passed.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add backend/src/ocr/bang.py backend/tests/ocr/test_bang.py backend/tools/hieu_chinh_bang.py
+git add backend/src/ocr/table.py backend/tests/ocr/test_table.py backend/tools/calibrate_table.py
 git commit -m "feat(ocr): hieu chinh tham so bac 2 tren 229 trang bang vector
 
 Dap an TU SINH: rasterise trang bang vector, doc lai bang OCR, so luoi voi
@@ -663,15 +663,15 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ## Task 3: Cổng A — tự nuôi, đa định dạng, chạy trong suite
 
 **Files:**
-- Create: `backend/tests/ocr/test_cong_bang_vector.py`
+- Create: `backend/tests/ocr/test_table_gate_vector.py`
 
 **Interfaces:**
-- Consumes: `bang.dung_luoi(words)` (mặc định đã chốt ở Task 2); `src.ocr.document._anh_cua_trang(path, pageno, dpi)`; `src.ocr.engine.ocr_image(img)`.
-- Produces: hằng số `NGUONG_KHOP` trong tệp test — suy từ số đo, không đặt trước.
+- Consumes: `table.build_grid(words)` (mặc định đã chốt ở Task 2); `src.ocr.document._anh_cua_trang(path, pageno, dpi)`; `src.ocr.engine.ocr_image(img)`.
+- Produces: hằng số `MATCH_THRESHOLD` trong tệp test — suy từ số đo, không đặt trước.
 
 - [ ] **Step 1: Viết cổng**
 
-Tạo `backend/tests/ocr/test_cong_bang_vector.py`:
+Tạo `backend/tests/ocr/test_table_gate_vector.py`:
 
 ```python
 """Cổng A của bậc 2 — TỰ NUÔI, đa định dạng.
@@ -703,7 +703,7 @@ DPI = 200
 # Cách suy giữ nguyên như bậc 1: làm tròn xuống hai chữ số của
 # (giá trị nhỏ nhất quan sát được − 0,05). Biên 0,05 chỉ để chịu sai khác
 # máy/phiên bản tesseract, KHÔNG để che một hồi quy thật.
-NGUONG_KHOP = <n>
+MATCH_THRESHOLD = <n>
 
 # Tập con đủ nhanh cho suite đơn vị, chọn để mỗi dòng là một ĐỊNH DẠNG khác
 # nhau — không phải 6 trang cùng một biểu mẫu.
@@ -755,25 +755,25 @@ def test_dung_lai_bang_tu_anh_khop_luoi_vector(tep, trang):
     ws = _tu_trong_bbox(kq.words, bbox, DPI / 72)
     assert ws, "khong tu nao nam trong khung bang -> bbox hoac ty le sai"
 
-    khop, tong = _ty_le_khop(dap_an, bang.dung_luoi(ws))
+    khop, tong = _ty_le_khop(dap_an, table.build_grid(ws))
     assert tong > 0, "dap an khong co o nao co noi dung -> chon lai trang"
     ty_le = khop / tong
-    assert ty_le >= NGUONG_KHOP, (
+    assert ty_le >= MATCH_THRESHOLD, (
         f"{os.path.basename(tep)} tr{trang}: {khop}/{tong} = {ty_le:.4f} "
-        f"< nguong {NGUONG_KHOP}")
+        f"< nguong {MATCH_THRESHOLD}")
 ```
 
 - [ ] **Step 2: Chạy để xác nhận ĐỎ (ngưỡng chưa có)**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_cong_bang_vector.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table_gate_vector.py -q
 ```
 
 Kỳ vọng: FAIL khi thu thập — `NameError` / `SyntaxError` vì `<n>` chưa thay.
 
 - [ ] **Step 3: Đo tỷ lệ thật trên 6 trang rồi chốt ngưỡng**
 
-Đặt tạm `NGUONG_KHOP = 0.0` và thêm một dòng in ngay TRƯỚC `assert ty_le >=`:
+Đặt tạm `MATCH_THRESHOLD = 0.0` và thêm một dòng in ngay TRƯỚC `assert ty_le >=`:
 
 ```python
     print(f"\n{os.path.basename(tep)} tr{trang}: {khop}/{tong} = {ty_le:.4f}")
@@ -783,14 +783,14 @@ Chạy với `-s` để thấy nó:
 
 ```bash
 export PYTHONIOENCODING=utf-8 OMP_THREAD_LIMIT=1
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest   tests/ocr/test_cong_bang_vector.py -q -s
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest   tests/ocr/test_table_gate_vector.py -q -s
 ```
 
 Ghi lại 6 con số. **Giữ nguyên dòng in** — nó có ích mỗi lần cổng đỏ. Rồi đặt:
 
-`NGUONG_KHOP = làm tròn xuống 2 chữ số của (min(6 con số) − 0.05)`
+`MATCH_THRESHOLD = làm tròn xuống 2 chữ số của (min(6 con số) − 0.05)`
 
-Dán cả 6 con số vào chú thích trên `NGUONG_KHOP`.
+Dán cả 6 con số vào chú thích trên `MATCH_THRESHOLD`.
 
 Nếu con số nhỏ nhất **dưới 0,5**, dừng và báo: một định dạng đang hỏng nặng,
 cần xem trước khi chốt ngưỡng thấp che nó.
@@ -798,23 +798,23 @@ cần xem trước khi chốt ngưỡng thấp che nó.
 - [ ] **Step 4: Chạy để xác nhận XANH**
 
 ```bash
-/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_cong_bang_vector.py -q
+/d/Youdoo/backend/.venv/Scripts/python.exe -m pytest tests/ocr/test_table_gate_vector.py -q
 ```
 
 Kỳ vọng: 6 passed.
 
 - [ ] **Step 5: THỬ PHÁ — cổng phải biết đỏ**
 
-Cổng chưa từng thấy đỏ thì chưa được tin. Ép `TY_LE_UNG_HO` lên 0,99 (gần như
+Cổng chưa từng thấy đỏ thì chưa được tin. Ép `SUPPORT_RATIO` lên 0,99 (gần như
 không cụm nào đủ ủng hộ ⇒ mọi bảng suy biến về một cột):
 
 ```bash
 /d/Youdoo/backend/.venv/Scripts/python.exe -c "
 import sys; sys.path.insert(0, '.')
 from src.ocr import bang
-bang.TY_LE_UNG_HO = 0.99
+bang.SUPPORT_RATIO = 0.99
 import pytest
-sys.exit(pytest.main(['tests/ocr/test_cong_bang_vector.py', '-q']))
+sys.exit(pytest.main(['tests/ocr/test_table_gate_vector.py', '-q']))
 "
 ```
 
@@ -824,7 +824,7 @@ Kỳ vọng: **FAIL** ở phần lớn tham số hoá. Nếu vẫn xanh thì c�
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/tests/ocr/test_cong_bang_vector.py
+git add backend/tests/ocr/test_table_gate_vector.py
 git commit -m "test(ocr): cong A - tu nuoi da dinh dang cho bac 2
 
 Trang bang VECTOR rasterise -> dung luoi bang bac 2 -> so voi luoi pdfplumber
@@ -838,7 +838,7 @@ So theo TAP TU chu khong nguyen van: chu doc lech la viec cua tang doc, cong
 nay chi hoi o co nam dung chi so (hang, cot) khong.
 
 Nguong suy tu so do that (lam tron xuong cua min - 0,05), da THU PHA bang cach
-ep TY_LE_UNG_HO=0.99 va xac nhan cong do.
+ep SUPPORT_RATIO=0.99 va xac nhan cong do.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -851,7 +851,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Create: `backend/tests/ocr/test_cong_bang_scan_that.py`
 
 **Interfaces:**
-- Consumes: `bang.dung_luoi(words)`; `src.ocr.document.read_page(path, pageno)`; các tệp đáp án `backend/tests/fixtures/ocr_bang_that/SCID_2026H1_tr{12..18}.json` (trạng thái `DA_DUYET`).
+- Consumes: `table.build_grid(words)`; `src.ocr.document.read_page(path, pageno)`; các tệp đáp án `backend/tests/fixtures/ocr_bang_that/SCID_2026H1_tr{12..18}.json` (trạng thái `DA_DUYET`).
 - Produces: không có gì cho task sau.
 
 - [ ] **Step 1: Viết cổng**
@@ -893,7 +893,7 @@ PDF = ("D:/downloads/SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat"
 DAP_AN = "tests/fixtures/ocr_bang_that"
 
 # NGƯỠNG ĐO ĐƯỢC — thay <m> bằng số thật từ Step 3, KHÔNG để nguyên.
-NGUONG_CUNG_HANG = <m>
+SAME_ROW_THRESHOLD = <m>
 
 
 def _vn(n: int) -> str:
@@ -916,7 +916,7 @@ def test_gia_tri_cung_hang_van_cung_hang_sau_khi_dung_lai(duong):
 
     kq = read_page(PDF, d["trang_pdf"])
     tho = kq.text
-    luoi = bang.dung_luoi([
+    luoi = table.build_grid([
         OcrWord(text=w["t"], conf=w["c"], left=w["l"], top=w["y"],
                 width=w["w"], height=w["h"], line_id=tuple(w["g"]))
         for r in kq.regions for w in r.words])
@@ -936,7 +936,7 @@ def test_gia_tri_cung_hang_van_cung_hang_sau_khi_dung_lai(duong):
     print(f"\n{os.path.basename(duong)}: {cung_hang}/{tong} hang giu nguyen "
           f"({bo_qua} hang bo qua vi TANG DOC doc hong, khong phai loi bac 2)")
     assert tong > 0, "khong hang nao du dieu kien -> phep do nay khong do gi"
-    assert cung_hang / tong >= NGUONG_CUNG_HANG
+    assert cung_hang / tong >= SAME_ROW_THRESHOLD
 ```
 
 - [ ] **Step 2: Chạy để xác nhận ĐỎ**
@@ -949,9 +949,9 @@ Kỳ vọng: FAIL khi thu thập vì `<m>` chưa thay.
 
 - [ ] **Step 3: Đo rồi chốt ngưỡng**
 
-Tạm đặt `NGUONG_CUNG_HANG = 0.0`, chạy `pytest ... -s` và đọc 7 dòng in ra. Đặt:
+Tạm đặt `SAME_ROW_THRESHOLD = 0.0`, chạy `pytest ... -s` và đọc 7 dòng in ra. Đặt:
 
-`NGUONG_CUNG_HANG = làm tròn xuống 2 chữ số của (min(7 tỷ lệ) − 0.05)`
+`SAME_ROW_THRESHOLD = làm tròn xuống 2 chữ số của (min(7 tỷ lệ) − 0.05)`
 
 Dán cả 7 con số vào chú thích. Nếu con số nhỏ nhất **dưới 0,5**, dừng và báo.
 
@@ -969,7 +969,7 @@ Kỳ vọng: 7 passed.
 /d/Youdoo/backend/.venv/Scripts/python.exe -c "
 import sys; sys.path.insert(0, '.')
 from src.ocr import bang
-bang.BOI_KHE = 1000.0    # khong khe nao du lon -> moi bang suy bien MOT cot
+table.GAP_FACTOR = 1000.0    # khong khe nao du lon -> moi bang suy bien MOT cot
 import pytest
 sys.exit(pytest.main(['tests/ocr/test_cong_bang_scan_that.py', '-q']))
 "
@@ -992,7 +992,7 @@ Phan biet HAI LOAI DO: gia tri ma tang doc doc hong bi loai khoi mau so va
 DEM RA, khong am tham bo qua. Khong phan biet thi cong se do oan vai lan roi
 co nguoi tat no, ma cong bi tat thi bang khong.
 
-Nguong suy tu so do that, da THU PHA bang BOI_KHE=100.
+Nguong suy tu so do that, da THU PHA bang GAP_FACTOR=100.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -1007,8 +1007,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Test: `backend/tests/ocr/test_document.py`, `backend/tests/rag/test_parse_pdf_ocr.py`
 
 **Interfaces:**
-- Consumes: `bang.dung_luoi(words)`; `src.rag.pdf_table.{split_header_body, column_names, row_to_text}`.
-- Produces: `Region.luoi: list[list[str]]` (rỗng cho vùng `text`); `_doc_trang_bang_anh` trả thêm phần tử lưới.
+- Consumes: `table.build_grid(words)`; `src.rag.pdf_table.{split_header_body, column_names, row_to_text}`.
+- Produces: `Region.grid: list[list[str]]` (rỗng cho vùng `text`); `_doc_trang_bang_anh` trả thêm phần tử lưới.
 
 - [ ] **Step 1: Viết test thất bại cho hình dạng artifact mới**
 
@@ -1050,10 +1050,10 @@ Thêm trường vào `Region` (SAU `words` để không đổi thứ tự tham s
 
 ```python
     luoi: list[list[str]] = field(default_factory=list)   # bậc 2; rỗng nếu chưa dựng
-    luoi_loi: str | None = None    # lý do dựng lưới hỏng; None = không hỏng
+    grid_error: str | None = None    # lý do dựng lưới hỏng; None = không hỏng
 ```
 
-`luoi_loi` tồn tại để lỗi **đi tiếp được** thay vì chết tại chỗ: `document.py`
+`grid_error` tồn tại để lỗi **đi tiếp được** thay vì chết tại chỗ: `document.py`
 là module lá, không biết `IngestReport`, nên nó ghi lý do, còn `parse.py` mới
 biến nó thành cảnh báo có tên. Không có trường này thì bậc 2 hỏng sẽ **im
 lặng** — đúng thứ "hỏng lớn tiếng còn hơn thiếu âm thầm" cấm.
@@ -1066,23 +1066,23 @@ Trong `read_page`, sau `kq = engine.ocr_image(img)`, thêm:
     # lý do vào artifact để `parse.py` biến nó thành cảnh báo CÓ TÊN. Tầng này
     # là module lá, không biết `IngestReport`, nên nó chỉ ghi — không tự báo.
     try:
-        luoi, luoi_loi = bang.dung_luoi(kq.words), None
+        luoi, grid_error = table.build_grid(kq.words), None
     except Exception as e:                               # noqa: BLE001
-        luoi, luoi_loi = [], f"{type(e).__name__}: {e}"
+        luoi, grid_error = [], f"{type(e).__name__}: {e}"
 ```
 
-Đưa `luoi=luoi` và `luoi_loi=luoi_loi` vào lời gọi `Region(...)`, và cả hai
-khoá `"luoi"` / `"luoi_loi"` vào dict `regions` khi ghi đệm.
+Đưa `grid=grid` và `grid_error=grid_error` vào lời gọi `Region(...)`, và cả hai
+khoá `"luoi"` / `"grid_error"` vào dict `regions` khi ghi đệm.
 
 Trong `_tu_json`, đọc lại có mặc định (đệm phiên bản trước không có khoá này —
 tuy vân tay đã đổi nên ca này hiếm, nhưng `.get` rẻ hơn một traceback):
 
 ```python
                       words=r["words"], luoi=r.get("luoi", []),
-                      luoi_loi=r.get("luoi_loi"))
+                      grid_error=r.get("grid_error"))
 ```
 
-Thêm `from . import bang` vào phần import đầu tệp.
+Thêm `from . import table` vào phần import đầu tệp.
 
 - [ ] **Step 4: Chạy để xác nhận XANH**
 
@@ -1111,7 +1111,7 @@ def test_trang_ocr_co_luoi_sinh_block_atomic_theo_HANG(monkeypatch):
         page=1, mean_conf=90.0, tu_dem=False,
         regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
                         text="\n".join(" ".join(h) for h in luoi),
-                        words=[], luoi=luoi)]))
+                        words=[], grid=grid)]))
 
     blocks, warnings = parse.parse_pdf("x.pdf")
     atomic = [b for b in blocks if b.get("atomic")]
@@ -1132,7 +1132,7 @@ def test_dung_luoi_HONG_thi_bao_co_ten_va_van_giu_du_noi_dung(monkeypatch):
         page=1, mean_conf=90.0, tu_dem=False,
         regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
                         text="Điều 1. Chữ đọc từ ảnh.", words=[], luoi=[],
-                        luoi_loi="ValueError: hong that")]))
+                        grid_error="ValueError: hong that")]))
 
     blocks, warnings = parse.parse_pdf("x.pdf")
     # noi dung phai con nguyen — mat cau truc KHONG duoc keo theo mat chu
@@ -1163,7 +1163,7 @@ def _doc_trang_bang_anh(path: str, pageno: int
 Mọi lệnh `return` hiện có thêm `[]` ở cuối; lệnh `return` thành công thành:
 
 ```python
-    loi = next((r.luoi_loi for r in kq.regions if r.luoi_loi), None)
+    loi = next((r.grid_error for r in kq.regions if r.grid_error), None)
     if loi:
         # Bậc 2 hỏng: nội dung vẫn về đủ (dòng phẳng), chỉ mất cấu trúc cột.
         # Nói TO chứ không nuốt (spec §9).
@@ -1183,25 +1183,25 @@ block theo hàng thay vì dòng phẳng:
 
 ```python
             if not text_toan_trang:
-                text_toan_trang, conf, canh_bao, luoi_ocr = \
+                text_toan_trang, conf, canh_bao, ocr_grid = \
                     _doc_trang_bang_anh(path, pageno)
                 if canh_bao:
                     all_warnings.append(canh_bao)
                 if text_toan_trang:
                     ocr_pages[pageno] = conf
-                    if luoi_ocr and max(len(h) for h in luoi_ocr) > 1:
-                        luoi_theo_trang[pageno] = luoi_ocr
+                    if ocr_grid and max(len(h) for h in ocr_grid) > 1:
+                        grid_by_page[pageno] = ocr_grid
 ```
 
-Khai báo `luoi_theo_trang: dict[int, list[list[str]]] = {}` cạnh `ocr_pages`.
+Khai báo `grid_by_page: dict[int, list[list[str]]] = {}` cạnh `ocr_pages`.
 
 Ở lượt hai, TRƯỚC khi sinh block dòng phẳng cho trang đó, chèn:
 
 ```python
-        if pageno in luoi_theo_trang:
+        if pageno in grid_by_page:
             # Cùng một đường với bảng vector của B4 — không viết lại logic
             # tách header/đặt tên cột/xuất khuôn `|`.
-            header_rows, body_rows, _ = split_header_body(luoi_theo_trang[pageno])
+            header_rows, body_rows, _ = split_header_body(grid_by_page[pageno])
             columns = column_names(header_rows)
             for row in body_rows:
                 blocks.append({"text": row_to_text(row, columns),
@@ -1283,7 +1283,7 @@ duong cua B4 (split_header_body -> column_names -> row_to_text). KHONG viet lai
 logic do, va KHONG sua mot dong nao trong pdf_table.py - hang bang doc-tu-anh
 va doc-tu-vector di cung mot duong sau diem nay.
 
-dung_luoi hong thi lui ve dong phang, khong lam vo luot nap: mat cau truc con
+build_grid hong thi lui ve dong phang, khong lam vo luot nap: mat cau truc con
 hon mat noi dung.
 
 Da kiem bat bien an toan: duong khong-OCR BYTE-IDENTICAL tren 4 tai lieu luat.
