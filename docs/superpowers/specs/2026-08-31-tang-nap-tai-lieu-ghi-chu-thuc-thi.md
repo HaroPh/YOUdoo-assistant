@@ -1311,3 +1311,79 @@ tiền — không nói gì về ô nhãn, và **không nói gì về TÊN cột*
 `row_to_text` ở mục 7 vẫn nguyên; (b) cả 6 tài liệu đều là BCTC tiếng Việt —
 "khác định dạng" ở đây nghĩa là khác công ty/kiểm toán viên/máy quét, không
 phải khác thể loại tài liệu.
+
+### 9. Hiệu chỉnh lại có HAI chân, và cổng B nay đo cả corpus
+
+Sửa hai thứ mục 8 chỉ ra, theo đúng thứ tự đó.
+
+**Bộ hiệu chỉnh nay có hai chân.** `calibrate_table.py` trước đây chỉ chạy trên
+corpus vector; hằng số ra từ đó rồi bị tôi đè bằng mắt sau khi nhìn một tài
+liệu scan (ruling P13). Nay chân scan nằm trong chính công cụ:
+
+- chân **vector** có đáp án thật từ pdfplumber nên phạt được **tách vụn**;
+- chân **scan** chạy trên ảnh thoái hoá thật nên phạt được **gộp nhầm**;
+- điểm chốt = `min(hai chân)`. Không hệ số cân bằng nào bị bịa ra.
+
+Lưới tham số nới xuống 0,05–0,12 vì vòng trước chốt đúng `ty_le=0.15` — **giá
+trị thấp nhất từng thử**, tức lại là rìa lưới, đúng bệnh FIX ROUND 3 đã bắt ở
+đầu kia.
+
+| gap | ty_le | vector min | scan tách | sập | cột_max | GỘP |
+|---|---|---|---|---|---|---|
+| **3.0** | **0.15** | 0,9059 | 0,9648 | 1 | 18 | **0,9059** ← chốt |
+| 3.0 | 0.12 | 0,9023 | 0,9757 | 0 | 18 | 0,9023 |
+| 3.0 | 0.30 | **0,9156** | 0,7736 | **12** | 12 | 0,7736 ← đang ship |
+| 2.0 | 0.60 | **0,9227** | 0,2303 | **82** | 6 | 0,2303 |
+| thử phá | | 0,0365 | 0,0000 | — | — | 0,0000 |
+
+Hai dòng in đậm là toàn bộ lý lẽ cho chân scan: `2.0/0.6` có **chân vector cao
+nhất cả bảng** mà làm sập 82 trang scan. Và `3.0/0.3` đang ship cũng có chân
+vector **cao hơn** cấu hình được chọn — nhìn riêng corpus vector thì thay đổi
+này trông như đi lùi. Nó không lùi: scan mới là đầu vào thật của bậc 2, bảng
+vector đã có pdfplumber lo.
+
+**Cổng A**: min 0,6667 → 0,7143, `MATCH_THRESHOLD` 0,61 → 0,66. Biểu mẫu SSC
+khá lên (bảng nó nhỏ — đúng bệnh vừa sửa), nhưng **phụ lục luật tụt 1,0000 →
+0,8750**: một ô đáp án bị xé làm đôi. Đó là cái giá phải trả, ghi ra chứ không
+giấu; nếu về sau nó tụt thêm thì là dấu hiệu đã hạ quá tay.
+
+**Cổng B, 7 trang đáp án: KHÔNG ĐỔI MỘT CHÚT NÀO** — vẫn 93/94, ngưỡng vẫn
+0,78. Nó không nhúc nhích giữa cấu hình sập 12 trang và cấu hình sập 1 trang.
+Đó là bằng chứng cuối cùng rằng bảy trang ấy không đo được thứ cần đo.
+
+**Chân thứ hai của cổng B: cả corpus scan, không đáp án.**
+`table_score.score_unlabelled` + chọn trang bằng **bước nhảy cố định
+`STRIDE=3`, không chọn tay** — chọn tay chính là cơ chế đã hỏng. Đo được:
+tách 470/481 = 0,9771, 0/37 trang sập, mật độ ô 0,391; thử phá cho 0,0000 với
+39/39 trang sập. Ngưỡng đặt 0,92 / ≤2 trang sập / mật độ ≥0,34 — hằng số **cũ**
+cho 0,7137 và 6 trang sập, tức cổng này bắt được đúng lỗi nó sinh ra để bắt.
+
+Thước đó trả về **bốn** số chứ không một tỉ lệ, có chủ ý: vế `separated` mù với
+tách vụn (giới hạn R2), vế `filled/total` là vế ngược. Test
+`test_shredded_grid_still_scores_full_on_separation_but_density_collapses` ghi
+lại đúng điều đó để không ai rút gọn còn một vế.
+
+**Một lo ngại tự đặt ra rồi tự bác bỏ, ghi lại vì kết quả ngược trực giác.**
+`MIN_TABLE_ROW_CELLS=4` được hiệu chỉnh khi mỗi hàng có ~2,46 ô đầy; hằng số
+mới nâng lên ~3,55 nên nhiều hàng hơn qua được `is_table_like_row`, có nguy cơ
+kéo văn xuôi vào đường lưới và làm **hồi quy bản sửa C1**. Đo trên scan thật:
+
+| support | min_cells | hàng bảng THẬT vào đường lưới | văn xuôi bị kéo vào | tỉ lệ |
+|---|---|---|---|---|
+| 0,3 (cũ) | 4 | 85 | 121 | 0,70 |
+| **0,15** | **4** | **191** | 232 | **0,82** |
+| 0,15 | 6 | 69 | 74 | 0,93 |
+
+Hằng số mới đưa **gấp đôi** hàng bảng thật vào đường lưới và tỉ lệ cũng tốt
+lên. Nâng `min_cells` lên 6 làm tỉ lệ đẹp hơn nhưng vứt mất 2/3 hàng bảng
+thật. **Giữ `min_cells=4`.** Văn xuôi bị xé thành cột là bệnh có sẵn ở CẢ HAI
+cấu hình (121 hàng ở cũ, 232 ở mới) — nó thuộc về lỗ `row_to_text`, không phải
+về hai hằng số này.
+
+**Chỗ cả hai chân hiệu chỉnh đều MÙ, nói thẳng:** không chân nào đo việc văn
+xuôi bị đối xử như bảng. Chân scan chỉ chấm hàng có ≥2 chuỗi tiền (văn xuôi
+không có); chân vector chỉ chấm bên trong khung bảng pdfplumber. Bảng đo ngay
+trên là thứ duy nhất hiện chạm tới, và nó là script rời chứ chưa phải cổng.
+
+Suite **2456 passed, 1 skipped, 0 failed**. Byte-identical so với gốc nhánh
+`372b1fe`: 4/4 tài liệu luật khớp băm.
