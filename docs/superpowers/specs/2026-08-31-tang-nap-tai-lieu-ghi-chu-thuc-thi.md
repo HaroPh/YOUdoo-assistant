@@ -982,3 +982,187 @@ phải hồi quy do B4. Nhưng đợt này làm nó ĐÁNG KỂ hơn: trước �
 chunk nào (nội dung mất), nên không có trích dẫn sai; giờ nội dung đã cứu được, kèm trích dẫn trang
 lệch. Đổi mất-nội-dung-âm-thầm lấy có-nội-dung-trích-dẫn-thô — vẫn là lãi, nhưng phải nói ra.
 `chunk_span` trong retrieval eval không bắt được lỗi này vì nó đo khoảng chunk, không đo đúng trang.
+
+## OCR bậc 2 — dựng bảng từ toạ độ
+
+**Ngày**: 2026-09-06/07. **Nhánh**: `worktree-ocr-bac-2`, base `372b1fe`.
+**Spec**: `2026-09-06-b5b-ocr-bac-2-dung-bang-design.md` · **Kế hoạch**: `plans/2026-09-06-ocr-bac-2-dung-bang.md`
+**Ledger**: `.superpowers/sdd/2026-09-06-ocr-bac-2-dung-bang/progress.md` (16 ruling P1–P16, kèm giá-nếu-sai từng cái).
+
+Bậc 2 là một hàm thuần `backend/src/ocr/table.py::build_grid` — nhận `list[OcrWord]`
+(toạ độ chữ Tesseract đã trả sẵn từ bậc 1), trả `list[list[str]]`. Không sửa chữ
+trong ô, không dò bảng, không đọc tệp. Đây là mục ghi lại: thuật toán chốt là gì,
+bốn cách khác đã thử rồi bị số đo bác bỏ, bốn lần chính cây thước đo tự nó hỏng,
+và giới hạn còn mở.
+
+### 1. Kết quả
+
+Hai cổng nghiệm thu, ngưỡng suy từ số đo thật (không nhận số từ trên trời — cách
+suy giữ nguyên từ bậc 1: làm tròn xuống hai chữ số của điểm thấp nhất quan sát
+được trừ 0,05):
+
+| cổng | tệp test | điểm 6/7 ca | thấp nhất | ngưỡng |
+|---|---|---|---|---|
+| A — tự nuôi, đa định dạng (vector rasterise) | `test_table_gate_vector.py` | phụ lục luật 1,0000 · biểu thuế 0,9714 · biểu mẫu BCTC 0,7179 · biểu mẫu SSC 0,8571 · hoá đơn (dòng) 0,9643 · hoá đơn (VAT) 0,9091 | 0,7179 (biểu mẫu BCTC) | `MATCH_THRESHOLD = 0,66` |
+| B — scan thật (BCTC SCID, 7 trang) | `test_table_gate_scan.py` | tr12 0,8824 · tr13 0,8571 · tr14 1,0000 · tr15 0,8333 · tr16 0,8000 · tr17 0,7647 · tr18 0,8000 | 0,7647 (tr17) | `SAME_ROW_THRESHOLD = 0,71` |
+
+Mỗi cổng có một phép **thử phá bắt buộc**: ép `GAP_FACTOR = 1000.0` (không khe
+nào đủ lớn để thành ranh giới, mọi bảng suy biến về MỘT cột). Cổng B đo được cụ
+thể ngay trước khi giao (P15): thước mới cho **0,847** ở tham số mặc định và
+**0,000** ở cấu hình suy biến — rớt hẳn xuống dưới ngưỡng 0,71. Cả hai cổng đều
+có test `test_break_check_...` khẳng định điểm suy biến phải thấp hơn điểm mặc
+định trên cùng dữ liệu; cổng nào không đỏ ở đây thì coi như không đo gì (P6, P15).
+
+Suite cuối (nạp toàn bộ `.env`, không phải bốn biến brief liệt kê — thiếu
+`ODOO_URL` từng làm 65 test `tests/mcp/` chết oan, xem mục 6): **2438 passed, 1
+skipped, 83 deselected**. So với nền `f84f3a6` (đã có Task 1–4, chưa có Task 5)
+chạy cùng lệnh: **2435 passed** — chênh đúng **+3**, bằng đúng số test mới ở
+Task 5. 0 failed cả hai lượt.
+
+**Byte-identical** trên 4 tài liệu luật (`luat-dautu.pdf` 1583 block, `luat-
+thuexuatnhapkhau.pdf` 565 block, `boluat-danssu.pdf` 4164 block, `luat-
+thuegtgt.pdf` 437 block — băm SHA giống hệt cả 4 tệp, đối chiếu trước/sau Task
+5). Điểm so sánh dùng thật là `f84f3a6` (đầu nhánh **ngay trước** Task 5), không
+phải `372b1fe` như brief giao việc ghi nhầm hai chỗ (Step 9 nêu `3d515ee`,
+hướng dẫn khác nêu `372b1fe`) — nhưng đây mới là điểm đúng để kiểm bất biến này:
+Task 1–4 chỉ thêm `table.py` và test, chưa đụng đường nạp; chỉ Task 5 nối bậc 2
+vào `document.py`/`parse.py`, nên đó là commit duy nhất có khả năng làm trang
+không-OCR trôi bit. Corpus sản xuất hiện có **0 tài liệu cần đọc bằng ảnh** (đã
+xác nhận lại ở Task 5), nên bất biến này hiện chưa bị chạm bởi dữ liệu thật.
+
+### 2. Thuật toán chốt, và bốn hướng đã thử rồi bị bác bỏ
+
+**Thuật toán cuối** (`find_column_bounds` trong `table.py`): với mỗi dòng
+(`line_id` Tesseract, không tự gom lại theo y), khe giữa hai từ liền nhau rộng
+hơn `GAP_FACTOR × bề_rộng_ký_tự_trung_vị` là ứng viên ranh giới; vị trí ranh
+giới lấy từ **mép** của từ cạnh khe (mép trái của từ sau khe, mép phải của từ
+trước khe — không phải điểm giữa khe); các ứng viên cụm lại qua nhiều dòng
+(ngưỡng ủng hộ = `SUPPORT_RATIO × số dòng`); cuối cùng bỏ ranh giới nào sinh cột
+rỗng ở mọi hàng. Không có ranh giới nào ⇒ một cột ⇒ mỗi dòng một ô — đúng hệt
+hành vi hôm nay, không có bộ dò bảng riêng để bắn nhầm.
+
+Bốn cách khác đã thử và bị số đo bác bỏ, ghi lại để không đi lại:
+
+**(a) Khe trắng chạy dọc suốt trang.** Đo trên BCTC scan thật (spec §2.1): trang
+12/13/16/17 đều có 5 cột thật, nhưng khe trắng suốt trang chỉ tìm ra 3/3/1/1 —
+một dòng tiêu đề hay chân trang chạy hết bề ngang là đủ bịt mọi khe.
+
+**(b) Loại dòng "chạy suốt" trước rồi mới tính khe** — bản vá hiển nhiên cho (a).
+Cũng hỏng: **0/4 trang loại được dòng nào**, vì dòng văn xuôi bình thường cũng
+có khe giữa các từ vượt ngưỡng, không phân biệt được với dòng tiêu đề.
+
+**(c) Cụm mép trái/phải làm cơ chế sơ cấp** (thiết kế gốc của Task 1, trước ruling
+P1). Truy tay bằng chính test của Task 1: ba từ nhãn `"Tien"/"Hang"/"Khac"` cùng
+`left=100, width=40` cho cụm mép trái tại 100 (3 từ) **và** cụm mép phải tại 140
+(3 từ), cả hai đều vượt ngưỡng tối thiểu — ra 4 mốc trong khi test đòi 3. Sâu
+hơn: mốc-mép không có khái niệm "nhiều từ trong cùng một ô" — khe giữa `"Tai"`
+và `"san"` (cùng ô, 10px = 1 bề rộng ký tự) và khe sang cột số (300px) đều chỉ là
+khoảng cách giữa hai mép, không thứ gì phân biệt được hai loại khe đó. Ruling:
+đổi cơ chế sơ cấp sang **cụm KHE giữa các từ** (P1).
+
+**(d) Cụm điểm giữa khe** (bản đầu của cơ chế cụm-khe, chạy tốt trên corpus
+vector, dùng suốt Task 2–4 ban đầu). Hỏng trên scan thật (P11): nhãn chỉ tiêu
+trên BCTC SCID kết thúc ở x khác nhau mỗi hàng, nên điểm giữa khe tản mát,
+không bao giờ cụm. Đo được bằng thuật toán điểm-giữa cũ: trang 12 ra `[234]`,
+trang 13 ra `[228]` (cả hai chỉ là rãnh sau số thứ tự, không phải cột thật);
+**trang 17 ra `[]` — một cột, không tìm được ranh giới nào**. Đổi sang mép cạnh
+khe (thuật toán cuối ở trên) ra đúng `930/965` (cột `Mã số`), `1300` và `1549`
+— khớp chính xác số đo spec §2.2 (tiền căn phải ở x≈1290–1305 và x≈1545–1560).
+
+### 3. Bốn lần thước đo tự nó hỏng
+
+Bài học đắt nhất của đợt: bốn lần liền, con số thấp không phải vì thuật toán sai
+mà vì cây thước đo tự nó không đo đúng thứ cần đo.
+
+1. **Cổng A, lượt 1 (P4)** — thước so nguyên văn ở đúng chỉ số (hàng, cột) ra
+   điểm cao nhất chỉ **0,1092**, dưới hẳn sàn 0,5. Đo lại bằng thước
+   chỉ-cấu-trúc (bỏ ô tầng đọc không đọc nổi khỏi mẫu số, không đòi trùng chỉ
+   số) cho **1/1 = 1,000** (`luat-dautu.pdf` tr.38) và **33/34 = 0,971**
+   (`luat-thuexuatnhapkhau.pdf` tr.14) — thuật toán đúng ~97% trên phần đọc
+   được; thước cũ gộp nhầm lỗi-đọc-chữ với lỗi-dựng-cột.
+2. **Cổng A, lượt 2 (P6)** — thước sửa ở (1) chỉ đo MỘT vế ("không tách nhầm"),
+   nên một lưới suy biến về một cột ăn điểm miễn phí: trên
+   `luat-thuexuatnhapkhau.pdf` tr.14, `boi_khe=2.0`, `5.0`, và **1000,0** (thử
+   phá) đều cho ra **cùng 0,9706** — thước không phân biệt được "đúng cột" với
+   "không có cột nào". Sửa: thêm vế đối xứng "không gộp nhầm", điểm cuối lấy
+   MIN của hai vế.
+3. **Cổng B (P11a, xác nhận lại P15)** — thước nối cả hàng lưới thành một chuỗi
+   rồi hỏi giá trị có nằm trong đó không. `GAP_FACTOR=3.0` và `GAP_FACTOR=1000`
+   đều ra **95/98 = 0,969** — đúng ví dụ "cùng một điểm ở hai cấu hình cực đoan
+   khác nhau" chứng minh thước vô hiệu. Thước sửa (đòi thêm mỗi giá trị ở một Ô
+   KHÁC NHAU) phân biệt dứt khoát: mặc định **0,847**, suy biến **0,000**.
+4. **Cổng A, lượt 3 (P9)** — thước phạt cả những ô có nội dung xuống dòng, dù
+   spec §10 đã tuyên bố loại đó ngoài phạm vi bậc 2. `ssc_bieumau.pdf` tr.4 đi
+   từ **0,3750** lên **0,8333** khi loại ô xuống dòng khỏi vế "giữ"; ba định
+   dạng không có ô xuống dòng (`bieumau_bctc_hopnhat` tr.3, `luat-dautu` tr.42,
+   `luat-thuexuatnhapkhau` tr.17) **không đổi một chút nào** — xác nhận đây là
+   sửa đúng một giới hạn đã tuyên bố, không phải nới lỏng thước cho xanh.
+
+**Nguyên tắc rút ra**: một thước đo chỉ đáng tin sau khi đã **thử phá** nó — ép
+tham số về giá trị suy biến rõ ràng (ở đây luôn là "khe khổng lồ ⇒ một cột") và
+xem thước có đỏ không. Thước còn phải **đối xứng**: đo cả hai hướng suy biến
+(tách vụn lẫn gộp hết), vì chỉ đo một vế luôn có một hướng suy biến ăn điểm
+miễn phí. Cả bốn lần trên đều bị đúng một lớp lỗi khác nhau của chính nguyên
+tắc này.
+
+### 4. Hai cổng đòi tham số khác nhau — vì sao bản scan thật thắng
+
+Trên 234 trang bảng vector (107 tệp, quét lưới 6×5 `gap_factor`/`support_ratio`),
+cấu hình MIN cao nhất là `GAP_FACTOR=3.0, SUPPORT_RATIO=0.6` (min 0,8746). Nhưng
+đo thẳng số cột dựng ra trên 7 trang BCTC scan thật (tr12–18):
+
+| `support_ratio` | số cột từng trang (12…18) |
+|---|---|
+| 0,6 | `[6, 6, 6, 1, 1, 1, 1]` — **4/7 trang sập về một cột** |
+| 0,45 | `[6, 8, 6, 2, 5, 6, 1]` — 2/7 trang sập |
+| **0,3** | `[9, 12, 8, 6, 8, 8, 5]` — **chạy trên mọi trang** |
+
+(`gap_factor` gần như không ảnh hưởng trên scan — 1.0/2.0/3.0 cho kết quả gần
+hệt nhau.) Đã chốt `GAP_FACTOR=3.0, SUPPORT_RATIO=0.3` — MIN trên corpus vector
+tụt còn 0,8674 (≈0,007), đổi lấy việc bậc 2 chạy được trên 7/7 trang scan thay
+vì chết trên 4/7. Bản scan thắng vì bảng **vector** đã đi qua `pdfplumber` ở B4
+và không cần bậc 2 — bậc 2 sinh ra để xử lý đúng thứ `pdfplumber` không đọc
+được, tức là scan; cổng vector chỉ là cổng còn-sống trên một proxy dễ hơn.
+
+### 5. Giới hạn còn mở, nói thẳng
+
+- **Tách hơi vụn trang 12–13 của BCTC scan**: ở `SUPPORT_RATIO=0.3`, hai trang
+  này ra 9 và 12 cột trong khi thật sự chỉ có 5 — rãnh nội bộ trong ô đôi khi
+  bị bắt nhầm thành ranh giới. Chấp nhận vì hỏng-vụn vẫn giữ được dữ liệu, khác
+  hẳn hỏng-sập-về-một-cột là mất trắng cấu trúc.
+- **25% ô của tầng đọc không đọc nổi** trên corpus vector (2.485/9.941 ô, chủ
+  yếu bảng danh mục hoá chất trong phụ lục luật) — giới hạn của tầng đọc
+  (Tesseract), không phải của bậc 2; bị loại khỏi mẫu số khi chấm điểm, đếm
+  riêng chứ không lặng lẽ bỏ.
+- **Cổng A không phủ tài liệu tiếng Anh thuần.** Đã tìm khắp kho (`tmp-docs` +
+  `src/rag/seed/law` + `D:/Documents` + `backend/tests/rag/fixtures/*.pdf`): tài
+  liệu tiếng Anh thuần duy nhất tìm được, `USA_Employee_Handbook`, có cả 34/34
+  trang mà `pdfplumber` báo "có bảng" đều là dương tính giả (văn xuôi/mục lục bị
+  nhầm thành bảng); `BOM.pdf` (114 trang) và fixture SOP (9 trang) không có
+  trang nào pdfplumber thấy bảng. Định dạng thứ 6 trong cổng A vì vậy dùng bảng
+  thứ hai (khối tổng hợp VAT) trên CHÍNH tệp hoá đơn đã dùng ở định dạng thứ 5
+  — nội dung tiếng Anh thật, nhưng cùng nguồn tệp, không phải một tài liệu tiếng
+  Anh độc lập. Ai cần phủ tiếng Anh độc lập phải bổ sung tệp mới vào kho.
+- **Cổng A dùng ảnh rasterise sạch hơn scan đời thật** — giống hệt giới hạn của
+  cổng tự nuôi bậc 1: chứng minh "còn sống và đại khái đúng trên nhiều định
+  dạng", không chứng minh "chịu được scan đời thật".
+- **Cổng B chỉ có MỘT tài liệu** (BCTC SCID), phẳng và sạch — chưa có tài liệu
+  nghiêng, nhiễu, hay photo nhiều đời trong cả hai cổng.
+- **Ô có nội dung xuống dòng ngoài phạm vi bậc 2** (spec §10): bậc 2 gom hàng
+  theo `line_id`, nên một ô vắt qua nhiều dòng vật lý luôn nằm ở các hàng lưới
+  khác nhau, kể cả khi cột tách hoàn toàn đúng. Cả hai cổng loại lớp ô này khỏi
+  vế "kept"/"intact" và đếm riêng (`wrapped`/tương đương) thay vì lặng lẽ bỏ.
+
+### 6. Hai lần suite đỏ mà KHÔNG phải hồi quy (P16)
+
+Ghi lại để người sau khỏi hoảng khi gặp lại:
+
+1. **21 failed + 65 errors** — do lệnh nạp biến môi trường chỉ lấy 4 biến
+   (`DATABASE_URL|RAG_SCHEMA|RAG_EMBED_PROVIDER|RAG_RERANK_ENABLED`), thiếu
+   `ODOO_URL` mà test MCP cần → `KeyError: 'ODOO_URL'`. Nạp trọn `.env` là hết.
+   Lỗi của lệnh đo, không phải của nhánh; tái lập được khi chạy một mình nên
+   **không phải** lỗi giả do hai lượt pytest tranh schema.
+2. **1 failed `test_cli_utf8.py::test_jobs_list_song_duoc`**
+   (`AssertionError: b''`) — chạy riêng thì xanh trên cả gốc nhánh lẫn nhánh
+   hiện tại; chạy lại suite đầy đủ cũng xanh. Test chập chờn dưới tải (output
+   tiến trình con rỗng), không phải hồi quy.
