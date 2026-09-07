@@ -1,3 +1,4 @@
+from src.ocr import table as m
 from src.ocr.table import median_char_width, find_column_bounds, build_grid
 from src.ocr.engine import OcrWord
 
@@ -103,7 +104,6 @@ def test_defaults_resolve_at_call_time_not_definition_time():
     định nghĩa hàm. Nếu viết `def f(*, x=HANG_SO)` thì đổi HANG_SO lúc chạy sẽ
     KHÔNG có tác dụng — đã cắn tầng OCR bậc 1 một lần và suýt vô hiệu hoá chính
     phép thử phá của nó. Test này gác đúng chuyện đó."""
-    from src.ocr import table as m
 
     words = _three_col_money_table()
     goc = m.GAP_FACTOR
@@ -129,3 +129,50 @@ def test_rows_keep_input_order_not_y_order():
              word("duoc_doc_sau", 100, 100, 40, line=0)]
     ket = build_grid(words, gap_factor=2.0, support_ratio=0.6)
     assert ket == [["duoc_doc_truoc"], ["duoc_doc_sau"]]
+
+
+# ── DẢI HÀNG TRÔNG NHƯ BẢNG (C1) ──────────────────────────────────────────
+
+
+def test_dai_bang_bo_qua_khoi_letterhead_thua_o():
+    """Hàng letterhead ít ô không rỗng KHÔNG được vào dải bảng.
+
+    Đây là lõi của bản vá C1: lưới bậc 2 phủ CẢ TRANG (bậc 1 nhả đúng một
+    vùng), nên nếu không cắt letterhead ra thì `column_names()` lấy nó làm
+    TÊN CỘT — đo được 136 ký tự tên cột trên SCID tr12."""
+    grid = [["CONG TY ABC", "", "", ""],
+            ["Dia chi: 1 Nguyen Trai", "", "", ""],
+            ["Chi tieu", "Ma so", "Cuoi ky", "Dau nam"],
+            ["Tien mat", "111", "1.000", "900"],
+            ["Tien gui", "112", "2.000", "1.800"]]
+    assert m.table_row_runs(grid) == [(2, 5)]
+
+
+def test_dai_NGAN_HON_MIN_TABLE_RUN_ROWS_khong_tinh_la_bang():
+    grid = [["a", "b", "c", "d"],          # dải 1 hàng -> dưới MIN (=2)
+            ["x", "", "", ""],
+            ["a", "b", "c", "d"],
+            ["a", "b", "c", "d"]]          # dải 2 hàng -> đủ
+    assert m.table_row_runs(grid) == [(2, 4)]
+
+
+def test_hai_dai_ROI_NHAU_tra_ve_HAI_khoang():
+    grid = [["a", "b", "c", "d"],
+            ["a", "b", "c", "d"],
+            ["chu thich giua bang", "", "", ""],
+            ["a", "b", "c", "d"],
+            ["a", "b", "c", "d"]]
+    assert m.table_row_runs(grid) == [(0, 2), (3, 5)]
+
+
+def test_dai_bang_doc_hang_so_LUC_GOI_khong_dong_bang_mac_dinh():
+    """Cùng bẫy đã cắn bậc 1: hằng số dùng làm giá trị mặc định của tham số
+    thì bị đóng băng lúc định nghĩa hàm."""
+    grid = [["a", "b", "", ""], ["a", "b", "", ""]]
+    assert m.table_row_runs(grid) == []          # 2 ô < MIN_TABLE_ROW_CELLS=4
+    goc = m.MIN_TABLE_ROW_CELLS
+    try:
+        m.MIN_TABLE_ROW_CELLS = 2
+        assert m.table_row_runs(grid) == [(0, 2)]
+    finally:
+        m.MIN_TABLE_ROW_CELLS = goc

@@ -6,54 +6,60 @@ cột. KHÔNG sửa chữ trong ô, KHÔNG dò bảng — chỉ lo cấu trúc.
 import statistics
 from .engine import OcrWord
 
-# ĐO 2026-09-07 (SAU khi đổi thuật toán `find_column_bounds` từ ĐIỂM GIỮA khe sang
-# MÉP cạnh khe — xem lý do ở docstring hàm đó) trên toàn bộ trang bảng vector
-# của corpus (107 tệp có ô, 234 trang, 7.456 ô chấm được + 2.485 ô BỎ vì tầng
-# đọc hỏng [= 25% tổng 9.941 ô, chủ yếu bảng danh mục hoá chất trong phụ lục
-# luật — giới hạn của TẦNG ĐỌC, không phải của bậc 2] — đáp án tự sinh từ
-# `pdfplumber` bóc chính trang đó, đọc lại bằng `tools/calibrate_table.py`).
-# Quét lưới 6x5 tham số + một cấu hình THỬ PHÁ. Bảng này THAY TRỌN bảng đo
-# 2026-09-06 của thuật toán điểm-giữa cũ (số liệu không so được trực tiếp vì
-# thuật toán khác nhau).
+# ĐO LẠI 2026-09-07 SAU KHI GỘP THƯỚC (phát hiện I6 của review toàn nhánh):
+# `calibrate_table.py` và cổng A nay dùng CHUNG `src/ocr/table_score.py`, và
+# thước chung loại ô XUỐNG DÒNG khỏi CẢ HAI vế — bản `_score` chép tay cũ
+# trong `calibrate_table.py` KHÔNG có xử lý đó, nên bảng số đo chốt tham số
+# trước đây được sinh bởi một cái thước KHÁC cái thước cổng A đang gác. Bảng
+# dưới đây THAY TRỌN bảng cũ; mẫu số đổi từ 7.456 xuống 7.042 ô (414 ô xuống
+# dòng nay bị loại khỏi vế `kept` ở phía hiệu chỉnh nữa), nên MỌI con số đều
+# nhích lên và KHÔNG so trực tiếp được với bảng cũ.
+#
+# Đo trên toàn bộ trang bảng vector của corpus (107 tệp có ô, 234 trang, 7.042
+# ô chấm được + 2.485 ô BỎ vì tầng đọc hỏng, chủ yếu bảng danh mục hoá chất
+# trong phụ lục luật — giới hạn của TẦNG ĐỌC, không phải của bậc 2). Đáp án tự
+# sinh từ `pdfplumber` bóc chính trang đó. Quét lưới 6x5 tham số + một cấu
+# hình THỬ PHÁ. Thuật toán `find_column_bounds` là bản MÉP CẠNH KHE (xem
+# docstring hàm đó).
 #
 #    gap_factor   ty_le      kept     tach      min  unreadable   cot_tb  trang_suy_bien
-#        3.0     0.6   0.8746   0.9061   0.8746         2485     4.11             153
-#        2.0     0.6   0.8730   0.9565   0.8730         2485     4.53             148
-#        3.0    0.45   0.8722   0.9217   0.8722         2485     4.31             133
-#        1.5     0.6   0.8720   0.9568   0.8720         2485     4.55             142
-#        1.0     0.6   0.8718   0.9568   0.8718         2485     4.60             135
-#        2.0    0.45   0.8702   0.9594   0.8702         2485     4.67             125
-#        1.5    0.45   0.8696   0.9594   0.8696         2485     4.72             118
-#        1.0    0.45   0.8676   0.9602   0.8676         2485     4.84             109
-#        3.0     0.3   0.8674   0.9259   0.8674         2485     4.51             119   <- chọn (không phải MIN cao nhất — xem lý do dưới)
-#        1.0    0.75   0.8778   0.8649   0.8649         2485     3.76             162
-#        1.5    0.75   0.8780   0.8649   0.8649         2485     3.73             166
-#        2.0    0.75   0.8780   0.8649   0.8649         2485     3.72             170
-#        2.0     0.3   0.8623   0.9622   0.8623         2485     4.91             108
-#        3.0    0.15   0.8580   0.9293   0.8580         2485     4.85             112
-#        1.5     0.3   0.8550   0.9623   0.8550         2485     5.04              96
-#        1.0     0.3   0.8527   0.9626   0.8527         2485     5.35              84
-#        2.0    0.15   0.8396   0.9656   0.8396         2485     5.33              95
-#        1.5    0.15   0.8250   0.9659   0.8250         2485     5.64              80
-#        1.0    0.15   0.8208   0.9660   0.8208         2485     6.27              70
-#        3.0    0.75   0.8826   0.7682   0.7682         2485     3.21             174
-#        5.0    0.15   0.8690   0.7605   0.7605         2485     3.88             125
-#        5.0     0.3   0.8790   0.7299   0.7299         2485     3.59             130
-#        0.5    0.75   0.7053   0.8751   0.7053         2485     5.56              75
-#        5.0    0.45   0.8841   0.7048   0.7048         2485     3.40             141
-#        0.5     0.6   0.6742   0.9622   0.6742         2485     7.23              55
-#        5.0     0.6   0.8860   0.6734   0.6734         2485     3.23             159
-#        0.5    0.45   0.6670   0.9622   0.6670         2485     8.77              47
-#        0.5     0.3   0.6660   0.9633   0.6660         2485    10.56              38
-#        0.5    0.15   0.6647   0.9661   0.6647         2485    12.01              36
-#        5.0    0.75   0.8896   0.6037   0.6037         2485     2.56             176
+#        2.0     0.6   0.9227   0.9517   0.9227         2485     4.53             148
+#        1.5     0.6   0.9218   0.9521   0.9218         2485     4.55             142
+#        1.0     0.6   0.9215   0.9521   0.9215         2485     4.60             135
+#        2.0    0.45   0.9198   0.9549   0.9198         2485     4.67             125
+#        1.5    0.45   0.9192   0.9549   0.9192         2485     4.72             118
+#        1.0    0.45   0.9171   0.9559   0.9171         2485     4.84             109
+#        3.0     0.3   0.9156   0.9188   0.9156         2485     4.51             119   <- chọn (không phải MIN cao nhất — xem lý do dưới)
+#        3.0    0.45   0.9208   0.9143   0.9143         2485     4.31             133
+#        2.0     0.3   0.9114   0.9580   0.9114         2485     4.91             108
+#        3.0    0.15   0.9059   0.9225   0.9059         2485     4.85             112
+#        1.5     0.3   0.9037   0.9581   0.9037         2485     5.04              96
+#        1.0     0.3   0.9014   0.9584   0.9014         2485     5.35              84
+#        3.0     0.6   0.9227   0.8978   0.8978         2485     4.11             153
+#        2.0    0.15   0.8875   0.9617   0.8875         2485     5.33              95
+#        1.5    0.15   0.8721   0.9620   0.8721         2485     5.64              80
+#        1.0    0.15   0.8678   0.9622   0.8678         2485     6.27              70
+#        1.0    0.75   0.9263   0.8547   0.8547         2485     3.76             162
+#        1.5    0.75   0.9264   0.8546   0.8546         2485     3.73             166
+#        2.0    0.75   0.9264   0.8546   0.8546         2485     3.72             170
+#        3.0    0.75   0.9264   0.7542   0.7542         2485     3.21             174
+#        5.0    0.15   0.9060   0.7506   0.7506         2485     3.88             125
+#        0.5    0.75   0.7438   0.8659   0.7438         2485     5.56              75
+#        5.0     0.3   0.9156   0.7189   0.7189         2485     3.59             130
+#        0.5     0.6   0.7126   0.9578   0.7126         2485     7.23              55
+#        0.5    0.45   0.7051   0.9579   0.7051         2485     8.77              47
+#        0.5     0.3   0.7041   0.9591   0.7041         2485    10.56              38
+#        0.5    0.15   0.7026   0.9622   0.7026         2485    12.01              36
+#        5.0    0.45   0.9208   0.6927   0.6927         2485     3.40             141
+#        5.0     0.6   0.9227   0.6595   0.6595         2485     3.23             159
+#        5.0    0.75   0.9264   0.5850   0.5850         2485     2.56             176
 #
 #    (THỬ PHÁ — suy biến một cột, gap_factor=1000.0, ty_le=0.3)
-#     1000.0     0.3   0.9014   0.0916   0.0916         2485     1.00             386
+#     1000.0     0.3   0.9387   0.0365   0.0365         2485     1.00             386
 #
 # Cột THỬ PHÁ chứng minh thước còn sống: `gap_factor=1000` (không khe nào đủ
 # lớn để thành bounds giới) suy biến MỌI bảng về MỘT cột (`cot_tb=1.00`,
-# `trang_suy_bien=386` — nhiều nhất bảng) và bị phạt xuống `min=0.0916`, thấp
+# `trang_suy_bien=386` — nhiều nhất bảng) và bị phạt xuống `min=0.0365`, thấp
 # hơn hẳn cặp tốt nhất — nếu nó KHÔNG rớt thì thước không đo gì.
 #
 # ═══ TẠI SAO ĐỔI THUẬT TOÁN (2026-09-07) — VÀ TẠI SAO KHÔNG CHỌN THEO BẢNG TRÊN ═══
@@ -69,8 +75,8 @@ from .engine import OcrWord
 #    này — xem docstring `find_column_bounds`.
 #
 # 2. HAI CỔNG ĐÒI THAM SỐ KHÁC NHAU, và corpus vector không phải cổng quyết
-#    định. Trên bảng ở trên, `support_ratio=0.6` (gap_factor=3.0) có MIN cao nhất
-#    (0,8746). Nhưng đo THẲNG số cột `find_column_bounds` dựng ra trên 7 trang BCTC
+#    định. Trên bảng ở trên, `support_ratio=0.6` (gap_factor=2.0) có MIN cao nhất
+#    (0,9227). Nhưng đo THẲNG số cột `find_column_bounds` dựng ra trên 7 trang BCTC
 #    SCAN THẬT (trang 12–18) theo từng mức `ty_le` (`gap_factor` hầu như không
 #    ảnh hưởng trên scan — 1.0/2.0/3.0 cho kết quả gần hệt nhau):
 #
@@ -88,9 +94,13 @@ from .engine import OcrWord
 #    không phải mục tiêu thật.
 #
 # 3. CHỐT: `GAP_FACTOR=3.0, SUPPORT_RATIO=0.3` — KHÔNG phải cấu hình MIN cao nhất
-#    trên bảng corpus vector (đó là `3.0/0.6`, min=0,8746). Đánh đổi MIN tụt
-#    còn `0,8674` (dòng `<- chọn` ở trên, chênh ≈0,007) để đổi lấy việc bậc 2
-#    THẬT SỰ CHẠY trên cả 7/7 trang scan thay vì chết trên 4/7.
+#    trên bảng corpus vector (đó là `2.0/0.6`, min=0,9227). Đánh đổi MIN tụt
+#    còn `0,9156` (dòng `<- chọn` ở trên, chênh ≈0,007) để đổi lấy việc bậc 2
+#    THẬT SỰ CHẠY trên cả 7/7 trang scan thay vì chết trên 4/7. Đo lại sau khi
+#    gộp thước (2026-09-07) KHÔNG đổi kết luận: cấu hình tối ưu của corpus
+#    vector dịch từ `3.0/0.6` sang `2.0/0.6` nhưng vẫn ở `ty_le=0.6`, mức làm
+#    4/7 trang scan sập về một cột, và khoảng cách tới cấu hình chọn vẫn
+#    ≈0,007 — cùng một đánh đổi, cùng một phán quyết (P13).
 #
 # 4. GIỚI HẠN: ở `ty_le=0.3`, trang 12–13 của BCTC scan ra 9–12 cột trong khi
 #    bảng thật chỉ có 5 cột — TÁCH HƠI VỤN (rãnh nội bộ trong ô đôi khi bị bắt
@@ -104,7 +114,7 @@ from .engine import OcrWord
 #   một phần bảng trong corpus vector không dựng lại được cấu trúc (suy biến
 #   về một cột), chủ yếu vì tầng đọc không đọc nổi chúng (danh mục hoá chất,
 #   biểu mẫu chữ nhỏ).
-# - **`2.485/9.941 ô (25%)`** bị bỏ vì tầng đọc hỏng khi chấm điểm — giới hạn
+# - **`2.485/9.527 ô (26%)`** bị bỏ vì tầng đọc hỏng khi chấm điểm — giới hạn
 #   của TẦNG ĐỌC, không phải của bậc 2 (spec §2.4, §10).
 #
 # LÝ DO CHỌN, tổng quát hoá cho cả hai cổng: HAI KIỂU HỎNG KHÔNG CÙNG GIÁ.
@@ -158,6 +168,82 @@ from .engine import OcrWord
 # đúng lúc đổi sang tài liệu định dạng khác (spec §5).
 GAP_FACTOR = 3.0
 SUPPORT_RATIO = 0.3
+
+# ═══ DẢI HÀNG TRÔNG NHƯ BẢNG (thêm 2026-09-07, đóng phát hiện C1) ═══
+#
+# VÌ SAO CẦN: bậc 1 luôn nhả ĐÚNG MỘT `Region` phủ CẢ TRANG, nên `build_grid`
+# chạy trên cả letterhead/tiêu đề/chân trang chứ không riêng thân bảng. Lưới
+# cả trang đi thẳng vào `split_header_body`/`column_names` thì ba dòng
+# letterhead thành TÊN CỘT. Đo được trên SCID tr12 TRƯỚC khi sửa: tên cột dài
+# **136 ký tự** ("TY CỔ PHẦN ĐẦU TƯ PHÁT TRIỂN SÀI GÒN CO.OP Số 199-205 Nguyễn
+# Thái Học, ... TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"), lặp trong MỌI block, hàng
+# header thật rơi xuống thân, hai cột tiền thành `Cột 6`/`Cột 8`.
+#
+# CÁCH LÀM: chỉ những DẢI HÀNG LIÊN TIẾP trông như bảng mới đi đường lưới;
+# hàng ngoài dải quay về đường dòng-phẳng cũ (`heading_level` + lọc furniture).
+#
+# ĐO 2026-09-07 — lưới 2 chiều (K = số ô KHÔNG RỖNG tối thiểu của một hàng
+# "trông như bảng"; M = số hàng tối thiểu của một dải) trên 7 trang BCTC SCAN
+# THẬT (SCID tr12–18, 93 hàng đáp án đối chiếu được). `LH` = số dải mà
+# `column_names()` của nó CÒN chứa chữ letterhead (0 là bắt buộc — đó chính là
+# nghiệm thu C1); `maxCột` = tên cột dài nhất sinh ra; `phủ` = số hàng đáp án
+# nằm TRONG một dải bảng (cao là tốt: hàng rơi ra ngoài dải mất cấu trúc cột).
+#
+#    K   M   dải   maxCột   LH    phủ/93
+#    2   2    24      286    7     93      <- thiết kế "≥2 ô" ĐƠN THUẦN: letterhead VẪN vào tên cột
+#    2   3    16      286    6     91
+#    2   4    16      286    6     91
+#    2   5    13      286    6     89
+#    2   6    12      286    5     89
+#    3   2    34       93    3     89
+#    3   3    21       93    2     86
+#    3   4    18       93    2     84
+#    3   5    11       51    0     77
+#    3   6    11       51    0     77
+#    4   2    23       21    0     88      <- CHỌN
+#    4   3    17       21    0     83
+#    4   4    15       21    0     80
+#    4   5     9       15    0     72
+#    4   6     9       15    0     72
+#    5   2    20       21    0     80
+#    5   3    15       21    0     74
+#    5   4    10       21    0     69
+#    5   5     8       15    0     65
+#    5   6     8       15    0     65
+#
+# ĐỌC BẢNG: ngưỡng "≥2 ô không rỗng" KHÔNG đủ ở BẤT KỲ M nào — kể cả M=8
+# (đo riêng: LH=5, maxCột=286). Lý do đo được: trên tr13–tr17 khối letterhead
+# LIỀN MẠCH với thân bảng (không có hàng gần-rỗng nào chen giữa), nên mọi dải
+# đều nuốt letterhead bất kể dải dài bao nhiêu. Phải siết chính vị từ
+# "trông như bảng", không phải chỉ độ dài dải. Trong số các cấu hình SẠCH
+# letterhead (LH=0), K=4/M=2 có độ phủ CAO NHẤT (88/93 = 0,946).
+#
+# ĐO TRÊN TẬP 6 TRANG CỦA CỔNG A (cùng hai hằng số, lưới CẢ TRANG như đường
+# `parse.py` chứ không phải lưới trong khung bảng như cổng A chấm):
+#
+#    K   M   dải   maxCột   phủ/20
+#    2   2    17      175     17     <- letterhead/tiêu đề vào tên cột (maxCột=175)
+#    3   2    13       15      0
+#    4   2     0        0      0     <- CHỌN: KHÔNG dải nào, mọi hàng về đường dòng-phẳng
+#
+# Lưới CẢ TRANG của 6 trang này chỉ có 2–3 cột (trang vector nhiều văn xuôi,
+# `find_column_bounds` chỉ tìm được 1–2 ranh giới), nên không hàng nào đạt 4 ô
+# không rỗng và đường lưới TẮT HẲN trên chúng. Đó là suy biến AN TOÀN, đúng
+# nguyên tắc "hai kiểu hỏng không cùng giá" ở trên: không dựng bảng = đúng
+# bằng hành vi hôm nay, còn dựng bảng từ lưới 3 cột của một trang văn xuôi thì
+# đưa tên cột rác vào corpus. Và 6 trang này là tài liệu VECTOR — production
+# không bao giờ OCR chúng (`parse_pdf` chỉ gọi bậc 1 khi trang KHÔNG có lớp
+# text), nên đây là proxy, không phải mục tiêu.
+#
+# GIỚI HẠN CÒN LẠI, nói thẳng: dải bảng của tr12 bắt đầu ở hàng 13 vì hàng 12
+# (một ký tự rác "C") cắt đứt dải khỏi hàng header thật (hàng 10–11: "CHỈ TIÊU
+# | Mã số | Thuyết minh | Số cuối kỳ | Số đầu năm"). Hậu quả: tên cột của dải
+# đó là `Cột 1..N` chứ KHÔNG phải tên thật. Letterhead đã hết (nghiệm thu C1
+# đạt) nhưng câu hỏi "số nào cuối kỳ, số nào đầu năm" chỉ đóng được ở những
+# trang mà header dính liền thân. Nối dải qua khe 1 hàng là hướng sửa tiếp,
+# CHƯA làm vì nó là hằng số THỨ BA và phải đo riêng.
+MIN_TABLE_ROW_CELLS = 4
+MIN_TABLE_RUN_ROWS = 2
 
 
 def median_char_width(words: list[OcrWord]) -> float:
@@ -294,3 +380,39 @@ def build_grid(words: list[OcrWord], *, gap_factor: float | None = None,
             o[sum(1 for r in bounds if centre > r)].append(w.text)
         grid.append([" ".join(phan) for phan in o])
     return grid
+
+
+def is_table_like_row(row: list[str], *, min_cells: int | None = None) -> bool:
+    """Hàng lưới có ĐỦ số ô không rỗng để trông như một hàng bảng.
+
+    Hằng số đọc lúc GỌI, không dùng làm giá trị mặc định của tham số — cùng
+    bẫy đã cắn bậc 1 (xem `build_grid`)."""
+    min_cells = MIN_TABLE_ROW_CELLS if min_cells is None else min_cells
+    return sum(1 for c in row if c.strip()) >= min_cells
+
+
+def table_row_runs(grid: list[list[str]], *, min_cells: int | None = None,
+                   min_rows: int | None = None) -> list[tuple[int, int]]:
+    """Các DẢI `[start, end)` hàng LIÊN TIẾP trông như bảng, dải đủ dài.
+
+    Trả về danh sách khoảng nửa mở, tăng dần, KHÔNG chồng nhau. Hàng không
+    nằm trong dải nào là hàng văn xuôi/letterhead/chân trang — người gọi phải
+    đưa nó về đường dòng-phẳng, đừng nhét vào `split_header_body`.
+
+    Xem bảng đo cạnh `MIN_TABLE_ROW_CELLS` để biết vì sao hai hằng số là 4 và
+    2, và vì sao ngưỡng "≥2 ô không rỗng" một mình KHÔNG đủ.
+    """
+    min_rows = MIN_TABLE_RUN_ROWS if min_rows is None else min_rows
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for i, row in enumerate(grid):
+        if is_table_like_row(row, min_cells=min_cells):
+            if start is None:
+                start = i
+        elif start is not None:
+            if i - start >= min_rows:
+                runs.append((start, i))
+            start = None
+    if start is not None and len(grid) - start >= min_rows:
+        runs.append((start, len(grid)))
+    return runs
