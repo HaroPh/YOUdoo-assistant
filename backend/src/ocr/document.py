@@ -66,11 +66,20 @@ def config_fingerprint(*, dpi: int | None = None, psm: int | None = None,
     đang có, spec §7 yêu cầu không lặp lại.
 
     dpi, psm, lang đọc từ hằng số lúc GỌI, không phải lúc định nghĩa hàm, để
-    cho phép đột biến chúng lúc chạy mà vân tay vẫn thay đổi đúng."""
+    cho phép đột biến chúng lúc chạy mà vân tay vẫn thay đổi đúng.
+
+    HAI HẰNG SỐ BẬC 2 (`GAP_FACTOR`, `SUPPORT_RATIO`) NẰM TRONG VÂN TAY từ
+    2026-09-07 (phát hiện I3 của review toàn nhánh): `Region.grid` được GHI
+    vào artifact và ĐỌC LẠI từ đó, nên đổi hai tham số này mà vân tay không
+    đổi thì khoá đệm không đổi và ta dùng lại LƯỚI CŨ mà không ai biết —
+    đúng lỗ hổng `convert.py` mà spec §7 viện dẫn để cấm. Đọc lúc GỌI vì cùng
+    lý do với dpi/psm/lang: cổng A và cổng B đều đột biến `table.GAP_FACTOR`
+    lúc chạy để thử phá."""
     dpi = engine.OCR_DPI if dpi is None else dpi
     psm = engine.OCR_PSM if psm is None else psm
     lang = engine.OCR_LANG if lang is None else lang
-    raw = f"{ARTIFACT_VERSION}|{dpi}|{psm}|{lang}|{engine.tesseract_version()}"
+    raw = (f"{ARTIFACT_VERSION}|{dpi}|{psm}|{lang}|{engine.tesseract_version()}"
+           f"|{table.GAP_FACTOR}|{table.SUPPORT_RATIO}")
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
