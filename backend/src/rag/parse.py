@@ -12,6 +12,7 @@ from .pdf_table import (bat_dong_so_cot, checksum_gap, column_names,
                         hang_khong_gia_tri, merge_table_rows, row_to_text,
                         split_header_body)
 from .xlsx_header import compose_two_tier, find_header
+from src.ocr import table
 from src.ocr.document import read_page
 from src.ocr.engine import TesseractMissing
 
@@ -517,6 +518,50 @@ def _doc_trang_bang_anh(path: str, pageno: int
     return lines, kq.mean_conf, None, grid
 
 
+def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
+                      conf: float | None) -> list[dict]:
+    """Blocks của MỘT trang đọc-từ-ảnh có lưới, GIỮ NGUYÊN thứ tự hàng.
+
+    Bậc 1 nhả ĐÚNG MỘT vùng phủ CẢ TRANG, nên lưới bậc 2 phủ cả letterhead,
+    tiêu đề và chân trang chứ không riêng thân bảng. Đưa TRỌN lưới đó vào
+    `split_header_body`/`column_names` là biến letterhead thành TÊN CỘT — đo
+    được trên SCID tr12 trước khi sửa: tên cột dài 136 ký tự, lặp trong MỌI
+    block (phát hiện C1 của review toàn nhánh).
+
+    Nên chia đôi đường đi:
+      - hàng nằm trong một DẢI trông như bảng (`table.table_row_runs`) đi
+        đường B4: `split_header_body`/`column_names`/`row_to_text` áp trên
+        RIÊNG dải đó, mỗi hàng thân một block atomic;
+      - hàng ngoài dải nối ô bằng dấu cách thành MỘT dòng rồi đi ĐÚNG đường
+        dòng-phẳng cũ — qua `heading_level()` và qua bộ lọc furniture. Việc
+        này đóng luôn I4: bản trước, trang có lưới `continue` sớm nên mất CẢ
+        HAI (không hàng nào của trang được chấm tiêu đề, không hàng nào bị
+        lọc rác đầu/chân trang).
+    """
+    blocks: list[dict] = []
+    runs = dict(table.table_row_runs(grid))
+    i = 0
+    while i < len(grid):
+        if i in runs:
+            end = runs[i]
+            header_rows, body_rows, _ = split_header_body(grid[i:end])
+            columns = column_names(header_rows)
+            for row in body_rows:
+                blocks.append({"text": row_to_text(row, columns),
+                               "heading_level": None, "page": pageno,
+                               "atomic": True, "source_kind": "ocr",
+                               "ocr_conf": conf})
+            i = end
+            continue
+        text = " ".join(c.strip() for c in grid[i] if c.strip()).strip()
+        i += 1
+        if not text or _normalize_digits(text) in furniture:
+            continue
+        blocks.append({"text": text, "heading_level": heading_level(text),
+                       "page": pageno, "source_kind": "ocr", "ocr_conf": conf})
+    return blocks
+
+
 def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
     """Heuristic headings (no font info): numbered/keyword headings & short
     ALL-CAPS lines. Trang CÓ bảng đi qua `pdfplumber` (spec 2026-09-04-b4);
@@ -577,9 +622,10 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                 # Dựng lại bảng từ ảnh là việc của bậc 2 (chưa có tài liệu scan
                 # thật để hiệu chỉnh) — ở bậc 1 chỉ cần GỌI TÊN việc bỏ đi này.
                 all_warnings.append((f"trang {pageno}",
-                                     "đọc được chữ bằng ảnh nhưng trang có bảng "
-                                     "— bậc 1 chưa dựng bảng từ ảnh, phần chữ "
-                                     "của trang này không vào corpus"))
+                                     "đọc được chữ bằng ảnh nhưng `find_tables()` "
+                                     "cũng thấy bảng trên trang — trang này đi "
+                                     "đường VECTOR, nên CẢ phần chữ CẢ lưới bảng "
+                                     "đọc từ ảnh đều bị bỏ, không vào corpus"))
                 # Nhánh dưới đây dựng `dai_lines` từ
                 # `plumber_page.within_bbox(...).extract_text()` — LỚP VECTOR,
                 # không phải OCR. Nếu KHÔNG bỏ `pageno` khỏi `ocr_pages` ở
@@ -587,7 +633,19 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                 # ocr_pages` và dán `source_kind="ocr"` + `mean_conf` của OCR
                 # lên text VECTOR — nhãn tin cậy nói dối (review toàn nhánh
                 # B4, cùng lớp lỗi spec này đóng).
+                #
+                # Phải bỏ `grid_by_page[pageno]` CÙNG CHỖ, không chỉ
+                # `ocr_pages` (phát hiện I2 của review toàn nhánh): nếu chỉ bỏ
+                # `ocr_pages`, vòng phát block phía dưới vẫn thấy `pageno in
+                # grid_by_page`, đi nhánh lưới rồi `continue` — nhảy qua CẢ
+                # `dai_lines` LẪN `for bang in bangs: _khoi_bang(...)`, tức
+                # bảng VECTOR biến mất khỏi corpus trong im lặng, còn cảnh báo
+                # ngay trên lại khẳng định điều ngược lại. Kèm theo đó,
+                # `ocr_pages.get(pageno)` trả `None` nên block mang
+                # `source_kind="ocr"` + `ocr_conf=None` — nhãn tin cậy nói dối
+                # lần thứ hai.
                 ocr_pages.pop(pageno, None)
+                grid_by_page.pop(pageno, None)
             width, height = plumber_page.width, plumber_page.height
             y_bien = [0.0] + [y for b in bangs for y in (b.bbox[1], b.bbox[3])] + [height]
             dai_lines: list[str] = []
@@ -604,17 +662,9 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
             plumber_page = pdf.pages[pageno - 1]
             bangs = page_bangs[pageno - 1]
             if pageno in grid_by_page:
-                # Trang đọc-từ-ảnh có lưới >1 cột: sinh MỖI HÀNG một block
-                # atomic, đi đúng đường của B4 — cùng
-                # `split_header_body`/`column_names`/`row_to_text`, không viết
-                # lại logic tách header/đặt tên cột/xuất khuôn `|`.
-                header_rows, body_rows, _ = split_header_body(grid_by_page[pageno])
-                columns = column_names(header_rows)
-                for row in body_rows:
-                    blocks.append({"text": row_to_text(row, columns),
-                                   "heading_level": None, "page": pageno,
-                                   "atomic": True, "source_kind": "ocr",
-                                   "ocr_conf": ocr_pages.get(pageno)})
+                blocks.extend(_khoi_tu_luoi_anh(grid_by_page[pageno], pageno,
+                                                furniture,
+                                                ocr_pages.get(pageno)))
                 continue
             for text in lines:
                 if _normalize_digits(text) in furniture:
