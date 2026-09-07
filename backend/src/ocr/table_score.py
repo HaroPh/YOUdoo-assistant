@@ -11,6 +11,7 @@ một cái thước KHÁC cái thước cổng A đang gác — hai con số kh�
 Module LÁ: chỉ nhận lưới `list[list[str]]` + đáp án + text phẳng, không biết
 gì về pytest, pdfplumber hay đường dẫn tệp.
 """
+import re
 
 MIN_TOKEN_LEN = 3
 
@@ -91,3 +92,47 @@ def score(answer: list[list], grid: list[list[str]], flat_text: str):
                 if not shared:
                     split += 1
     return kept, keep_total, split, split_total, unreadable, wrapped
+
+
+# Chuỗi tiền kiểu Việt: >=4 chữ số, dấu chấm phân nhóm nghìn, âm đặt trong
+# ngoặc đơn theo lệ kế toán. Cố ý KHÔNG khớp mã số 2-3 chữ số hay năm.
+MONEY = re.compile(r"^\(?\d{1,3}(?:\.\d{3})+\)?$")
+
+
+def score_unlabelled(grid: list[list[str]]) -> tuple[int, int, int, int]:
+    """(separated, money_rows, filled_cells, total_cells) — KHÔNG cần đáp án.
+
+    Dùng cho scan thật, nơi không có bản vector để đối chiếu. Báo cáo tài chính
+    TỰ mang đáp án: mỗi DÒNG có >=2 chuỗi tiền PHÂN BIỆT là một hàng bảng, và
+    câu hỏi mở đầu spec §1 — "số nào là cuối kỳ, số nào là đầu năm" — tương
+    đương với "hai chuỗi đó có nằm ở hai Ô KHÁC NHAU không".
+
+    PHẢI dùng CẢ HAI cặp trả về. Đây là chỗ nhánh này đã trả giá bốn lần:
+    `separated/money_rows` chỉ phạt GỘP NHẦM — một lưới tách vụn thành 30 cột
+    vẫn đạt điểm tuyệt đối, vì hai token vẫn "ở ô khác nhau" (đúng giới hạn R2
+    của review toàn nhánh). `filled_cells/total_cells` là vế ngược: tách vụn
+    sinh cột rỗng nên mật độ ô sụp. Chấm một vế là không đo gì.
+
+    So khớp bằng TOKEN CHÍNH XÁC chứ không phải chuỗi con — `'160'` nằm trong
+    `'15.618.160.768'` (phát hiện C2 của review toàn nhánh).
+    """
+    separated = money_rows = 0
+    for row in grid:
+        money = sorted({t for cell in row for t in cell.split() if MONEY.match(t)})
+        if len(money) < 2:
+            continue
+        where = {}
+        for m in money:
+            hit = [i for i, cell in enumerate(row) if m in cell.split()]
+            if len(hit) != 1:      # cùng một chuỗi ở nhiều ô -> không kết luận được
+                where = None
+                break
+            where[m] = hit[0]
+        if where is None:
+            continue
+        money_rows += 1
+        if len(set(where.values())) == len(money):
+            separated += 1
+    filled = sum(1 for row in grid for cell in row if cell.strip())
+    total = sum(len(row) for row in grid)
+    return separated, money_rows, filled, total
