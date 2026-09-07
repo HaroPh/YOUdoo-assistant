@@ -1171,3 +1171,60 @@ Ghi lại để người sau khỏi hoảng khi gặp lại:
    (`AssertionError: b''`) — chạy riêng thì xanh trên cả gốc nhánh lẫn nhánh
    hiện tại; chạy lại suite đầy đủ cũng xanh. Test chập chờn dưới tải (output
    tiến trình con rỗng), không phải hồi quy.
+
+### 7. Review toàn nhánh tìm ra HAI lỗi chặn merge — và một nửa mục tiêu vẫn chưa đạt
+
+Mọi số ở các mục trên là **trước** review toàn nhánh. Review đó (chạy thật, không
+đọc diff) tìm ra 2 Critical, 7 Important, 6 Minor. Phần này ghi trạng thái CUỐI.
+
+**C1 — mục tiêu §1 không đạt trên chính tài liệu đích.** Bậc 1 luôn nhả đúng MỘT
+`Region` phủ CẢ TRANG, nên `build_grid` chạy trên cả letterhead. Đo trên SCID
+tr12: `column_names()` lấy ba dòng letterhead làm tên cột → **tên cột dài 136 ký
+tự lặp trong MỌI block**; hàng header thật rơi xuống body; hai cột tiền thành
+`Cột 6`/`Cột 8`. Kết quả **xấu hơn** hành vi trước đó. Test của Task 5 không thấy
+vì nó nạp một lưới **dựng tay** đã lý tưởng — thứ `build_grid` không bao giờ sinh
+ra trên trang thật.
+
+**C2 — cổng B: 13/15 lần đỏ là ẢO.** `v in c` so **chuỗi con**: `'160'` nằm
+trong `'15.618.160.768'`, `'05'` trong `'(38.320.042.505)'`. Độ đúng cấu trúc
+thật ≈ 105/107 = 0,981 chứ không phải 0,847, và ngưỡng 0,71 suy từ trang 17 mà
+**cả 4 lần trượt của trang đó đều ảo**.
+
+Đợt sửa (một đợt duy nhất, 5 commit) đóng cả hai, cộng năm Important nữa:
+
+| | trước | sau |
+|---|---|---|
+| letterhead thành tên cột | 136 ký tự rác/block | không còn; letterhead ra block văn xuôi 39–70 ký tự |
+| cổng A ở cấu hình suy biến | 5/6 ca đỏ (`ssc_bieumau` tr4 XANH miễn phí 0,8333) | **6/6 đỏ**, ca đó về 0,0000 |
+| ngưỡng cổng B | 0,71 (suy từ nhiễu) | **0,78** (min 5/6 = 0,8333 tại tr15) |
+| hằng số bậc 2 trong vân tay đệm | không có | có, đổi hằng số là đổi vân tay |
+| thước chấm điểm | nhân đôi, **hai bản đã lệch nhau** | gộp về `src/ocr/table_score.py` |
+| trang lai | bảng vector bị bỏ ÂM THẦM, cảnh báo nói sai | pop cả hai, cảnh báo đúng sự thật |
+| cổng B chạy sai cwd | sinh 0 test, không kêu | đường dẫn tuyệt đối + `assert` |
+
+Suite cuối **2447 passed, 1 skipped, 0 failed**; byte-identical so với gốc nhánh
+vẫn khớp trên cả 4 tài liệu luật.
+
+**Nhưng mục tiêu §1 mới đạt MỘT NỬA — nói thẳng.** Trên scan thật, cột đã tách
+đúng (`Cột 3` = chỉ tiêu, `Cột 4` = Mã số, `Cột 6`/`Cột 8` = hai cột tiền) nhưng
+**tên cột vẫn là `Cột 1..N`**, không phải `CHỈ TIÊU`/`Mã số`/`Số cuối kỳ`/
+`Số đầu năm`, kèm cột rỗng thừa và rác dấu mộc (`Cột 9: Sa`, `>>`, `ww`).
+Nguyên nhân: dải hàng-trông-như-bảng bị hàng rác cắt khỏi hàng header thật, nên
+`column_names()` không lấy được tên thật.
+
+Nghĩa là câu mở đầu §1 — *"không biết số nào là cuối kỳ số nào là đầu năm"* —
+**chưa được trả lời trọn**. Có ranh giới ô là hơn dòng phẳng, nhưng chưa phải
+thứ spec hứa. Đây là việc còn lại, không phải việc đã xong.
+
+**Gốc của nó là một lỗ trong chính bộ nghiệm thu**: cả hai cổng dừng ở
+`build_grid`, **không cổng nào chạm** `split_header_body → column_names →
+row_to_text` trên dữ liệu thật. Không ruling nào trong 18 ruling của đợt này hỏi
+*"cuối cùng thì chuỗi text NÀO đi vào index?"*. Ai làm tiếp nên đóng lỗ đó trước.
+
+Thêm hai giới hạn còn mở đáng biết:
+- **tách vụn vô hình với cả hai cổng** ở ô một token: cổng B chỉ đòi các giá trị
+  ở ô khác nhau nên tách bao nhiêu cột cũng đạt; cổng A vế "tách" cũng không
+  phạt. Khẳng định cũ rằng "`pdf_table.py` hấp thụ được ô thừa" là **giả định
+  chưa đo, và đo ra là sai**;
+- `min_support` tính theo số dòng **CẢ TRANG**, nên một bảng nhỏ nằm trong trang
+  dài không bao giờ đủ ủng hộ — bậc 2 hiện chỉ chạy trên trang *chủ yếu là bảng*.
