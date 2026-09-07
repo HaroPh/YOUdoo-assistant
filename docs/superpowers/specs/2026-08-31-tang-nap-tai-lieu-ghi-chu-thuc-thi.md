@@ -1022,13 +1022,18 @@ Task 5. 0 failed cả hai lượt.
 **Byte-identical** trên 4 tài liệu luật (`luat-dautu.pdf` 1583 block, `luat-
 thuexuatnhapkhau.pdf` 565 block, `boluat-danssu.pdf` 4164 block, `luat-
 thuegtgt.pdf` 437 block — băm SHA giống hệt cả 4 tệp, đối chiếu trước/sau Task
-5). Điểm so sánh dùng thật là `f84f3a6` (đầu nhánh **ngay trước** Task 5), không
-phải `372b1fe` như brief giao việc ghi nhầm hai chỗ (Step 9 nêu `3d515ee`,
-hướng dẫn khác nêu `372b1fe`) — nhưng đây mới là điểm đúng để kiểm bất biến này:
-Task 1–4 chỉ thêm `table.py` và test, chưa đụng đường nạp; chỉ Task 5 nối bậc 2
-vào `document.py`/`parse.py`, nên đó là commit duy nhất có khả năng làm trang
-không-OCR trôi bit. Corpus sản xuất hiện có **0 tài liệu cần đọc bằng ảnh** (đã
-xác nhận lại ở Task 5), nên bất biến này hiện chưa bị chạm bởi dữ liệu thật.
+5). Phép kiểm chạy **hai lần, ở hai điểm so sánh khác nhau**:
+
+- người thi hành Task 5 so với `f84f3a6` (đầu nhánh ngay trước Task 5) — đủ để
+  chứng minh riêng Task 5 không làm trôi bit nào;
+- điều phối viên so lại với **`372b1fe`, gốc của cả nhánh** — mạnh hơn, vì nó
+  phủ luôn khả năng Task 1–4 vô tình chạm đường nạp. Cả 4 tệp khớp băm SHA.
+
+Con số thứ hai mới là bất biến an toàn thật, và nó đạt. Ghi cả hai vì chúng trả
+lời hai câu khác nhau, và vì bản báo cáo của Task 5 chỉ có con số thứ nhất.
+
+Corpus sản xuất hiện có **0 tài liệu cần đọc bằng ảnh** (xác nhận lại ở Task 5),
+nên bất biến này hiện chưa bị dữ liệu thật chạm tới — nó gác cho tương lai.
 
 ### 2. Thuật toán chốt, và bốn hướng đã thử rồi bị bác bỏ
 
