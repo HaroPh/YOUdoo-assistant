@@ -81,6 +81,45 @@ def _dung_canh(monkeypatch, pypdf_pages, ocr_text="Điều 1. Chữ đọc từ 
     return parse
 
 
+def test_trang_ocr_co_luoi_sinh_block_atomic_theo_HANG(monkeypatch):
+    """Trang đọc-từ-ảnh có lưới >1 cột phải sinh MỖI HÀNG một block atomic,
+    đi đúng đường của B4 — không có đường code thứ hai phải giữ đồng bộ."""
+    grid = [["Chi tieu", "Ma so", "So tien"],
+            ["Tien mat", "111", "1.000"],
+            ["Tien gui", "112", "2.000"]]
+    parse = _dung_canh(monkeypatch, [""])          # 1 trang RỖNG -> đi qua OCR
+    monkeypatch.setattr(parse, "read_page", lambda path, pageno, **kw: PageRead(
+        page=1, mean_conf=90.0, tu_dem=False,
+        regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
+                        text="\n".join(" ".join(h) for h in grid),
+                        words=[], grid=grid)]))
+
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    atomic = [b for b in blocks if b.get("atomic")]
+    assert len(atomic) == 2, "phai co 2 hang than, moi hang mot block atomic"
+    assert all(b["source_kind"] == "ocr" for b in atomic)
+    assert all(b["ocr_conf"] == 90.0 for b in atomic)
+    assert "Ma so: 111" in atomic[0]["text"]
+    assert warnings == []
+
+
+def test_dung_luoi_HONG_thi_bao_co_ten_va_van_giu_du_noi_dung(monkeypatch):
+    """Spec §9: mất cấu trúc còn hơn mất nội dung — nhưng KHÔNG được im lặng."""
+    parse = _dung_canh(monkeypatch, [""])
+    monkeypatch.setattr(parse, "read_page", lambda path, pageno, **kw: PageRead(
+        page=1, mean_conf=90.0, tu_dem=False,
+        regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
+                        text="Điều 1. Chữ đọc từ ảnh.", words=[], grid=[],
+                        grid_error="ValueError: hong that")]))
+
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    # noi dung phai con nguyen — mat cau truc KHONG duoc keo theo mat chu
+    assert [b["text"] for b in blocks] == ["Điều 1. Chữ đọc từ ảnh."]
+    # va phai co canh bao CO TEN, khong duoc nuot
+    assert len(warnings) == 1
+    assert "hong that" in warnings[0][1]
+
+
 def test_trang_RONG_thi_doc_bang_anh_va_gan_co_xuat_xu(monkeypatch):
     parse = _dung_canh(monkeypatch, [""])
     blocks, warnings = parse.parse_pdf("x.pdf")

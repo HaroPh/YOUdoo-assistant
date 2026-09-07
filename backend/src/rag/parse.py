@@ -476,31 +476,45 @@ def _khoi_bang(plumber_page, bang, pageno: int
 
 
 def _doc_trang_bang_anh(path: str, pageno: int
-                        ) -> tuple[list[str], float | None, tuple[str, str] | None]:
+                        ) -> tuple[list[str], float | None,
+                                   tuple[str, str] | None, list[list[str]]]:
     """Đọc MỘT trang không có lớp text bằng ảnh.
 
-    Trả `(dòng, mean_conf, cảnh_báo)`. Hỏng thì to tiếng NHƯNG không làm vỡ cả
-    lượt nạp: cảnh báo mang tên trang đi tiếp qua `IngestReport`, và nếu cuối
-    cùng cả tệp không sinh được block nào thì `_ingest_known` đã sẵn ném
+    Trả `(dòng, mean_conf, cảnh_báo, grid)`. Hỏng thì to tiếng NHƯNG không làm
+    vỡ cả lượt nạp: cảnh báo mang tên trang đi tiếp qua `IngestReport`, và nếu
+    cuối cùng cả tệp không sinh được block nào thì `_ingest_known` đã sẵn ném
     `IngestError` — tệp bị TỪ CHỐI CÓ TÊN, đúng hạ tầng Kế hoạch 1 dựng
     (spec 2026-09-04-tang-ocr §12). Không phát minh cơ chế mới.
+
+    `grid` (bậc 2) chỉ khác rỗng khi lưới dựng được VÀ không hỏng. Bậc 2 hỏng
+    (`Region.grid_error` có giá trị) không làm mất `dòng` — nội dung vẫn về
+    đủ, chỉ mất cấu trúc cột — nhưng vẫn phải kèm cảnh báo CÓ TÊN (spec §9).
     """
     try:
         kq = read_page(path, pageno)
     except TesseractMissing as e:
         return [], None, (f"trang {pageno}",
-                          f"trang không có lớp text và không đọc được bằng ảnh: {e}")
+                          f"trang không có lớp text và không đọc được bằng ảnh: {e}"), []
     except Exception as e:                      # noqa: BLE001
         # Một trang hỏng (PDF vỡ, ảnh không rasterise được) không được kéo
         # theo cả tài liệu — nhưng phải GỌI TÊN, không nuốt.
         return [], None, (f"trang {pageno}",
-                          f"đọc trang bằng ảnh thất bại: {type(e).__name__}: {e}")
+                          f"đọc trang bằng ảnh thất bại: {type(e).__name__}: {e}"), []
     lines = _lines_tu_text(kq.text)
     if not lines:
         return [], None, (f"trang {pageno}",
                           "đọc bằng ảnh ra text RỖNG — trang có thể là ảnh trắng "
-                          "hoặc bản scan hỏng; KHÔNG nạp gì cho trang này")
-    return lines, kq.mean_conf, None
+                          "hoặc bản scan hỏng; KHÔNG nạp gì cho trang này"), []
+    grid_error = next((r.grid_error for r in kq.regions if r.grid_error), None)
+    if grid_error:
+        # Bậc 2 hỏng: nội dung vẫn về đủ (dòng phẳng), chỉ mất cấu trúc cột.
+        # Nói TO chứ không nuốt (spec §9) — khác các nhánh hỏng khác ở trên
+        # (trả `[]` cho dòng): ở đây `lines` vẫn KHÔNG rỗng, có chủ ý.
+        return lines, kq.mean_conf, (
+            f"trang {pageno}",
+            f"đọc được chữ nhưng KHÔNG dựng được cấu trúc bảng: {grid_error}"), []
+    grid = next((r.grid for r in kq.regions if len(r.grid) > 1), [])
+    return lines, kq.mean_conf, None, grid
 
 
 def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
@@ -528,6 +542,7 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
         pages_cho_furniture: list[list[str]] = []
         page_bangs: list[list] = []
         ocr_pages: dict[int, float | None] = {}
+        grid_by_page: dict[int, list[list[str]]] = {}
         for pageno, page in enumerate(reader.pages, start=1):
             text_toan_trang = _lines_tu_text(page.extract_text() or "")
             # "Rỗng" nghĩa là KHÔNG CÒN DÒNG NÀO sau bước strip — không phải
@@ -537,11 +552,14 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
             # hiệu chỉnh N, và hằng số rút từ không khí là thứ dự án này cấm
             # (spec 2026-09-04-tang-ocr §11).
             if not text_toan_trang:
-                text_toan_trang, conf, canh_bao = _doc_trang_bang_anh(path, pageno)
+                text_toan_trang, conf, canh_bao, ocr_grid = \
+                    _doc_trang_bang_anh(path, pageno)
                 if canh_bao:
                     all_warnings.append(canh_bao)
                 if text_toan_trang:
                     ocr_pages[pageno] = conf
+                    if ocr_grid and max(len(h) for h in ocr_grid) > 1:
+                        grid_by_page[pageno] = ocr_grid
             pages_cho_furniture.append(text_toan_trang)
             plumber_page = pdf.pages[pageno - 1]
             bangs = sorted(plumber_page.find_tables(), key=lambda b: b.bbox[1])
@@ -585,6 +603,19 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
         for pageno, lines in enumerate(pages, start=1):
             plumber_page = pdf.pages[pageno - 1]
             bangs = page_bangs[pageno - 1]
+            if pageno in grid_by_page:
+                # Trang đọc-từ-ảnh có lưới >1 cột: sinh MỖI HÀNG một block
+                # atomic, đi đúng đường của B4 — cùng
+                # `split_header_body`/`column_names`/`row_to_text`, không viết
+                # lại logic tách header/đặt tên cột/xuất khuôn `|`.
+                header_rows, body_rows, _ = split_header_body(grid_by_page[pageno])
+                columns = column_names(header_rows)
+                for row in body_rows:
+                    blocks.append({"text": row_to_text(row, columns),
+                                   "heading_level": None, "page": pageno,
+                                   "atomic": True, "source_kind": "ocr",
+                                   "ocr_conf": ocr_pages.get(pageno)})
+                continue
             for text in lines:
                 if _normalize_digits(text) in furniture:
                     continue

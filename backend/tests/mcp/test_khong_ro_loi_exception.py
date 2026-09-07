@@ -54,6 +54,17 @@ MIEN_TRU = {
               "trình viên, app không lên chứ không lên sai"),
     "backend/src/rag/embed.py": (
         1, 1, "raise EmbeddingError — lỗi hạ tầng lúc index, không ra người dùng"),
+    "backend/src/ocr/document.py": (
+        1, 1, "một chỗ khớp trong `read_page` (bậc 2 spec "
+              "2026-09-06-ocr-bac-2-dung-bang §9): dựng lưới bảng hỏng thì ghi "
+              "nguyên văn lỗi vào `Region.grid_error` thay vì ném ra ngoài — "
+              "module này LÁ, không biết `IngestReport` nên không tự báo. "
+              "`grid_error` chỉ tới người dùng qua `parse._doc_trang_bang_anh` "
+              "(đã miễn trừ ngay dưới), nơi nó được gói vào `(where, reason)` "
+              "rồi đi đúng đường `IngestReport.warnings` → CLI, không có đường "
+              "nào tới hội thoại. Nguyên văn lỗi CHÍNH LÀ chẩn đoán cần đọc để "
+              "biết vì sao trang scan mất cấu trúc cột — mất chi tiết này thì "
+              "cảnh báo trống rỗng, không nói gì hơn tên loại exception."),
     "backend/src/rag/parse.py": (
         2, 2, "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
               "task 4 spec 2026-09-04-tang-ocr §12): cảnh báo mang nguyên văn "

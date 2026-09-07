@@ -7,6 +7,16 @@ from src.ocr import document
 from src.ocr.engine import OcrResult, OcrWord
 
 
+def test_artifact_version_da_len_3_va_region_mang_grid():
+    """Hình dạng vùng đổi (thêm `grid`) thì ARTIFACT_VERSION PHẢI tăng, nếu
+    không đệm cũ sẽ được đọc lại dưới hình dạng mới và sai âm thầm."""
+    assert document.ARTIFACT_VERSION == 3
+    r = document.Region(kind="text", text="x", mean_conf=90.0,
+                        bbox=(0, 0, 10, 10))
+    assert r.grid == []
+    assert r.grid_error is None
+
+
 def test_van_tay_doi_khi_DPI_doi(monkeypatch):
     monkeypatch.setattr(document.engine, "tesseract_version", lambda: "5.4.0")
     a = document.config_fingerprint(dpi=200)
