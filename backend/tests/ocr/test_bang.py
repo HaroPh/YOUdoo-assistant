@@ -42,9 +42,15 @@ def _bang_hai_cot_tien():
 
 
 def test_tim_ranh_cot_bat_duoc_hai_ranh_giua_ba_cot():
+    """Dùng `<=` chứ không `<`: ranh giới nằm ĐÚNG mép chữ cạnh khe (thuật toán
+    lấy mép, không lấy điểm giữa khe). Đó vẫn là bộ tách hợp lệ vì phép gán cột
+    so TÂM của từ — một từ có mép phải đúng bằng ranh giới thì tâm nó vẫn nằm
+    hẳn bên trái. Đổi assertion ở đây là theo một thay đổi THIẾT KẾ có chủ ý,
+    không phải nới test cho khớp một lỗi.
+    """
     ranh = tim_ranh_cot(_bang_hai_cot_tien(), boi_khe=2.0, ty_le_ung_ho=0.6)
     assert len(ranh) == 2
-    assert 140 < ranh[0] < 450 and 500 < ranh[1] < 730
+    assert 140 <= ranh[0] < 450 and 500 <= ranh[1] < 730
 
 
 def test_khe_GIUA_TU_trong_cung_mot_o_KHONG_thanh_ranh_cot():
@@ -57,7 +63,7 @@ def test_khe_GIUA_TU_trong_cung_mot_o_KHONG_thanh_ranh_cot():
         words.append(tu("100", 470, 100 + i * 30, 30, line=i))
     ranh = tim_ranh_cot(words, boi_khe=2.0, ty_le_ung_ho=0.6)
     assert len(ranh) == 1, "chi duoc mot ranh: giua nhan hai tu va cot so"
-    assert 170 < ranh[0] < 470
+    assert 170 <= ranh[0] < 470
 
 
 def test_van_xuoi_khong_can_le_ra_KHONG_ranh_nao():

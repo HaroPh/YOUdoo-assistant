@@ -66,21 +66,24 @@ from src.ocr.engine import ocr_image, tesseract_path
 
 DPI = 200
 
-# NGUONG DO DUOC (chay `-s` voi NGUONG_KHOP=0.0 tam thoi, SAU KHI sua _diem
-# loai o xuong dong khoi ve "giu" -- xem "SUA O XUONG DONG" o dau tep):
-#   phu luc luat     luat-dautu.pdf tr42            : giu=8/8=1.0000   tach=5/7=0.7143   min=0.7143  xuong_dong=2
+# NGUONG DO LAI 2026-09-07 (chay `-s`, SAU KHI doi `tim_ranh_cot` sang mep-
+# canh-khe VA doi tham so BOI_KHE=3.0/TY_LE_UNG_HO=0.3 -- xem `bang.py` cho ly
+# do doi tham so, chu yeu la vi corpus scan that can ty_le=0.3 de khong sap ve
+# mot cot). 6 diem MOI (thay tron 6 diem CU do voi BOI_KHE=2.0/TY_LE=0.6):
+#   phu luc luat     luat-dautu.pdf tr42            : giu=8/8=1.0000   tach=7/7=1.0000   min=1.0000  xuong_dong=2
 #   bieu thue        luat-thuexuatnhapkhau.pdf tr17  : giu=34/35=0.9714 tach=22/22=1.0000 min=0.9714  xuong_dong=0
-#   bieu mau BCTC    bieumau_bctc_hopnhat.pdf tr3    : giu=67/78=0.8590 tach=35/41=0.8537 min=0.8537  xuong_dong=0
-#   bieu mau SSC     ssc_bieumau.pdf tr4             : giu=6/7=0.8571  tach=15/18=0.8333 min=0.8333  xuong_dong=9
+#   bieu mau BCTC    bieumau_bctc_hopnhat.pdf tr3    : giu=56/78=0.7179 tach=35/41=0.8537 min=0.7179  xuong_dong=0
+#   bieu mau SSC     ssc_bieumau.pdf tr4             : giu=6/7=0.8571  tach=17/18=0.9444 min=0.8571  xuong_dong=9
 #   hoa don (dong)   invoice_51109301.pdf tr1 idx0   : giu=26/26=1.0000 tach=81/84=0.9643 min=0.9643 xuong_dong=2
-#   hoa don (VAT)    invoice_51109301.pdf tr1 idx1   : giu=11/11=1.0000 tach=17/18=0.9444 min=0.9444 xuong_dong=1
+#   hoa don (VAT)    invoice_51109301.pdf tr1 idx1   : giu=10/11=0.9091 tach=17/18=0.9444 min=0.9091 xuong_dong=1
 #
-# min quan sat = 0,7143 (luat-dautu tr42 -- KHONG phai SSC nua, sau khi sua
-# o xuong dong SSC len 0,8333). Sao min van con o 0,7143: hai o xuong dong
-# cua luat-dautu KHONG du de doi diem, no bi chan boi ve "tach" (5/7=0,7143),
-# khong phai ve "giu" -- sua o xuong dong khong dung toi no.
-# min > 0,5 -> KHONG con DONE_WITH_CONCERNS. NGUONG_KHOP = lam tron xuong 2
-# chu so cua (0,7143 - 0,05) = lam tron xuong cua 0,6643 = 0,66.
+# min quan sat = 0,7179 (bieu mau BCTC tr3 -- doi vi tri so voi ban do CU, noi
+# min la luat-dautu tr42 o 0,7143; ban nay luat-dautu tr42 len han 1,0000 vi
+# mep-canh-khe tach dung ca 7/7 cap o thay vi 5/7). Tat ca 6 diem deu > 0,5 ->
+# KHONG DONE_WITH_CONCERNS. NGUONG_KHOP = lam tron xuong 2 chu so cua
+# (0,7179 - 0,05) = lam tron xuong cua 0,6679 = 0,66 -- TRUNG SO CU (0,66) mot
+# cach TINH CO, khong phai gia tri giu nguyen tu truoc: phai tinh lai tu 6
+# diem moi, khong duoc gia dinh gia tri cu con dung.
 NGUONG_KHOP = 0.66
 
 # Tap trang, moi dong la MOT DINH DANG khac nhau (tru dong cuoi -- xem "GIOI
