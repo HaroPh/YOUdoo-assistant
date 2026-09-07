@@ -166,8 +166,53 @@ from .engine import OcrWord
 # ĐƠN VỊ KHÔNG THỨ NGUYÊN, có chủ ý: dung sai theo BỀ RỘNG KÝ TỰ TRUNG VỊ và
 # ngưỡng theo TỶ LỆ SỐ DÒNG. Pixel vỡ ngay khi đổi DPI hoặc cỡ chữ, tức là vỡ
 # đúng lúc đổi sang tài liệu định dạng khác (spec §5).
+#
+# ================== VÒNG 2026-09-07: SUPPORT_RATIO 0.3 -> 0.15 ==============
+# `ty_le=0.3` ở trên được chốt trên corpus VECTOR cộng một phán quyết bằng mắt
+# sau khi nhìn ĐÚNG MỘT tài liệu scan (SCID), và thực ra chỉ 7 trang của nó.
+# Kéo về thêm 5 báo cáo tài chính ảnh thuần rồi đo lại thì cấu hình đó
+# **sập 12 trang bảng** trên corpus scan, tách đúng chỉ 0,7736.
+#
+# Chỗ đau nhất: 7 trang đáp án của SCID đạt 91/91 = 1,000, còn 21 trang bảng
+# CÒN LẠI của chính tài liệu đó chỉ 124/231 = 0,537. Bảy trang ấy do chính tôi
+# chọn — chúng không chỉ dễ hơn, chúng là phần DUY NHẤT chạy đúng.
+#
+# NGUYÊN NHÂN: `min_support` lấy mẫu số là số dòng CẢ TRANG. Trang thuyết minh
+# có bảng nhỏ (6-12 hàng) nằm trong trang dài (40-52 dòng), nên một ranh giới
+# được 12/12 hàng bảng ủng hộ vẫn chỉ đạt 23% của trang và bị loại.
+#
+# BỘ HIỆU CHỈNH NAY CÓ HAI CHÂN (`tools/calibrate_table.py`), và điểm chốt là
+# min(chân vector, chân scan). Bảng đầy đủ ở `calibrate_table_result.txt`:
+#
+#   gap  ty_le | vector min | scan tách  sập  cột_max | GỘP
+#   3.0   0.15     0.9059       0.9648    1      18     0.9059  <- CHỐT
+#   3.0   0.12     0.9023       0.9757    0      18     0.9023
+#   3.0   0.30     0.9156       0.7736   12      12     0.7736  <- đang ship
+#   2.0   0.60     0.9227       0.2303   82       6     0.2303
+#   thử phá (gap=1000)  0.0365   0.0000   —       —     0.0000
+#
+# Hai dòng cuối là lý do chân scan phải tồn tại: `2.0/0.6` có chân vector CAO
+# NHẤT cả bảng mà làm sập 82 trang scan. Và `3.0/0.3` đang ship cũng có chân
+# vector cao hơn cấu hình được chọn — nghĩa là nhìn riêng corpus vector thì
+# thay đổi này trông như đi lùi. Nó không lùi: scan mới là đầu vào thật của
+# bậc 2, corpus vector đã có pdfplumber lo.
+#
+# SỬA LẠI LẬP LUẬN "HAI KIỂU HỎNG KHÔNG CÙNG GIÁ" Ở TRÊN: vẫn đúng rằng suy
+# biến về một cột KHÔNG làm hỏng dữ liệu (hàng rơi ra ngoài dải bảng thì
+# `parse.py` trả về đường dòng phẳng cũ). Nhưng nó bị dùng để BIỆN MINH cho
+# `ty_le` cao, mà giá thật của nó là bậc 2 KHÔNG LÀM GÌ trên 12/38 trang scan
+# — hỏng an toàn vẫn là hỏng, và ở đây là hỏng trên phần lớn tài liệu đích.
+#
+# VÀ MỘT LẦN TỰ SỬA: đoạn "LỊCH SỬ BỊ BÁC BỎ" ở trên bác `ty_le=0.15` vì tiêu
+# chí sinh ra nó là LỌC máy móc chứ không phải CHỌN. Lời bác đó VẪN ĐÚNG về
+# tiêu chí. Nhưng con số nó bác lại là con số đúng — đến bằng đường khác, qua
+# hai chân đo. Trùng hợp, không phải minh oan cho tiêu chí cũ.
+#
+# 0,15 vs 0,12 gần như hoà (0,9059 vs 0,9023, chênh nằm ở chân vector); 0,12
+# hơn ở chỗ 0 trang sập. Chốt theo ĐÚNG output của công cụ, không đè bằng tay
+# — đè bằng tay chính là cách `ty_le=0.3` ra đời.
 GAP_FACTOR = 3.0
-SUPPORT_RATIO = 0.3
+SUPPORT_RATIO = 0.15
 
 # ═══ DẢI HÀNG TRÔNG NHƯ BẢNG (thêm 2026-09-07, đóng phát hiện C1) ═══
 #

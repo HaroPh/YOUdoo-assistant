@@ -62,33 +62,33 @@ from src.ocr.engine import ocr_image, tesseract_path
 
 DPI = 200
 
-# NGUONG DO LAI 2026-09-07 LAN THU HAI, sau khi loai o `wrapped` khoi CA HAI
-# ve cua thuoc (phat hien I1 cua review toan nhanh -- xem docstring
-# `table_score.score`). 6 diem MOI (thay tron bang truoc do):
-#   phu luc luat     luat-dautu.pdf tr42            : kept=8/8=1.0000   tach=4/4=1.0000   min=1.0000 unread=28 wrapped=2
+# NGUONG DO LAI 2026-09-07 LAN THU BA, sau khi SUPPORT_RATIO doi 0.3 -> 0.15
+# (xem khoi "VONG 2026-09-07" trong src/ocr/table.py). 6 diem MOI:
+#   phu luc luat     luat-dautu.pdf tr42            : kept=7/8=0.8750   tach=4/4=1.0000   min=0.8750 unread=28 wrapped=2
 #   bieu thue        luat-thuexuatnhapkhau.pdf tr17  : kept=34/35=0.9714 tach=22/22=1.0000 min=0.9714 unread=16 wrapped=0
 #   bieu mau BCTC    bieumau_bctc_hopnhat.pdf tr3    : kept=56/78=0.7179 tach=35/41=0.8537 min=0.7179 unread=6  wrapped=0
-#   bieu mau SSC     ssc_bieumau.pdf tr4             : kept=6/7=0.8571  tach=2/3=0.6667   min=0.6667 unread=9  wrapped=9
+#   bieu mau SSC     ssc_bieumau.pdf tr4             : kept=5/7=0.7143  tach=3/3=1.0000   min=0.7143 unread=9  wrapped=9
 #   hoa don (dong)   invoice_51109301.pdf tr1 idx0   : kept=26/26=1.0000 tach=69/72=0.9583 min=0.9583 unread=0  wrapped=2
 #   hoa don (VAT)    invoice_51109301.pdf tr1 idx1   : kept=10/11=0.9091 tach=14/15=0.9333 min=0.9091 unread=0  wrapped=1
 #
-# min quan sat = 0,6667 (bieu mau SSC tr4). MATCH_THRESHOLD = lam tron xuong
-# 2 chu so cua (0,6667 - 0,05) = lam tron xuong cua 0,6167 = 0,61.
+# min quan sat = 0,7143 (bieu mau SSC tr4, TANG tu 0,6667 vi ve `tach` cua no
+# len 3/3). MATCH_THRESHOLD = lam tron xuong 2 chu so cua (0,7143 - 0,05) =
+# lam tron xuong cua 0,6643 = 0,66.
 #
-# VI SAO SSC TUT 0,8571 -> 0,6667: 9 o cua trang do la o XUONG DONG. Ban truoc
-# loai chung khoi ve `kept` nhung VAN cho chung tham gia ve `tach`, va o ve do
-# chung an tin dung MIEN PHI -- mot o khong bao gio nam tron trong mot o luoi
-# thi cung khong bao gio "roi chung mot o" voi o khac, nen MOI cap co no tinh
-# la tach dung. Hau qua do duoc: ca SSC tr4 o cau hinh THU PHA `gap_factor=1000`
-# (luoi MOT cot) van dat min=0,8333 -- tren nguong 0,66, tuc XANH MIEN PHI o
-# dung cau hinh suy bien ma phep thu pha sinh ra de bat. Phep thu pha cu chi
-# doi `min(diem_suy_bien) < min(diem_mac_dinh)` nen khong keu.
+# HAI THAY DOI so voi lan thu hai, ca hai deu do SUPPORT_RATIO thap hon:
+#   - bieu mau SSC tr4:  0,6667 -> 0,7143 (bang no NHO, dung benh ma vong
+#     2026-09-07 sua: mau so ung ho tinh tren CA TRANG);
+#   - phu luc luat tr42: 1,0000 -> 0,8750 (mot o dap an bi xe lam doi). Day la
+#     cai gia PHAI TRA, ghi ra chu khong giau: ha nguong ung ho thi tach nhieu
+#     hon, va cho nao tach nhieu hon can thiet thi ve `kept` phat.
+# Tong the min VAN TANG, nen doi la dung -- nhung neu ve sau `kept` cua phu luc
+# luat tut them nua thi do la dau hieu da ha qua tay.
 #
-# 6 DIEM O CAU HINH THU PHA (gap_factor=1000, luoi MOT cot), sau khi sua --
-# TUNG ca phai duoi nguong, va deu duoi:
+# 6 DIEM O CAU HINH THU PHA (gap_factor=1000, luoi MOT cot) -- TUNG ca phai
+# duoi nguong 0,66, va deu duoi:
 #   phu luc luat 0,0000 | bieu thue 0,5000 | bieu mau BCTC 0,1463
 #   bieu mau SSC 0,0000 | hoa don (dong) 0,0000 | hoa don (VAT) 0,0000
-MATCH_THRESHOLD = 0.61
+MATCH_THRESHOLD = 0.66
 
 # Tap trang, moi dong la MOT DINH DANG khac nhau (tru dong cuoi -- xem "GIOI
 # HAN noi thang" o dau tep ve ly do dinh dang thu 6 phai thay the bang mot

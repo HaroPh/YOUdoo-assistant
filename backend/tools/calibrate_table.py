@@ -11,6 +11,16 @@ thư mục KHÔNG theo dõi bởi git (không nằm trong bất cứ worktree n�
 tồn tại một bản duy nhất ở gốc repo chính. Đường dẫn tương đối `../tmp-docs`
 sẽ trỏ vào `.claude/worktrees/ocr-bac-2/tmp-docs`, không tồn tại.
 
+HAI CHÂN, và đó là điểm sửa ngày 2026-09-07:
+- chân VECTOR (cũ): đáp án thật từ pdfplumber, thước đối xứng nên phạt được
+  CẢ tách vụn lẫn gộp nhầm — nhưng chỉ trên ảnh rasterise SẠCH;
+- chân SCAN (mới): 6 báo cáo tài chính ảnh thuần, không có đáp án, dùng
+  `table_score.score_unlabelled` — bắt gộp nhầm trên ảnh thoái hoá thật,
+  nhưng MÙ với tách vụn.
+Điểm gộp = min(hai chân). Vế tách vụn do chân vector gác, vế gộp nhầm do chân
+scan gác; không cần hệ số cân bằng bịa ra. Trước ngày này chỉ có chân vector,
+và hằng số chốt ra từ đó sập 12 trang bảng trên corpus scan thật.
+
 Chạy:  python -m tools.calibrate_table [so_trang_toi_da]
 """
 import glob
@@ -21,10 +31,19 @@ import sys
 import pdfplumber
 
 from src.ocr import table, engine, table_score
-from src.ocr.document import _anh_cua_trang
+from src.ocr.document import _anh_cua_trang, read_page
+from src.ocr.engine import OcrWord
 
 THU_MUC = ["src/rag/seed/law", r"D:\Youdoo\tmp-docs"]
 DPI = 200
+
+# Corpus scan thật (ảnh thuần, không có lớp text) — xem README trong thư
+# mục đó. Nằm ngoài worktree nên đường dẫn phải TUYỆT ĐỐI, cùng lý do như
+# THU_MUC.
+THU_MUC_SCAN = r"D:\Youdoo\tmp-docs\ocr-scan-that"
+SCAN_THEM = [r"D:\downloads\SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf"]
+# Dưới ngưỡng này trang không đủ hàng bảng để nói lên điều gì.
+MIN_MONEY_ROWS = 5
 
 # FIX ROUND 2: cặp tham số nào cũng có nguy cơ bị chấm QUÁ CAO nếu thước chỉ
 # đo một vế. THU_PHA là một cấu hình suy biến CỐ Ý (gap_factor cực lớn -> không
@@ -49,8 +68,12 @@ def main(argv):
     # FIX ROUND 3: thêm nấc ty_le=0.75 vì round 2 chốt ĐÚNG RÌA lưới (0.6 là
     # giá trị lớn nhất từng thử, điểm vẫn tăng đơn điệu tới đó) — không biết
     # đỉnh thật nằm ở đâu nếu không thử thêm.
+    # 2026-09-07: NỚI LƯỚI XUỐNG DƯỚI. Vòng trước chỉ thử tới ty_le=0.15 và
+    # đó là giá trị THẤP NHẤT từng chạy — lại chốt đúng rìa lưới, cùng bệnh mà
+    # FIX ROUND 3 đã bắt ở đầu kia. Đo trên corpus scan thật cho thấy vùng lành
+    # nằm ở 0.12–0.15, tức NGOÀI lưới cũ hoàn toàn.
     luoi_tham_so = [(ds, tl) for ds in (0.5, 1.0, 1.5, 2.0, 3.0, 5.0)
-                    for tl in (0.15, 0.3, 0.45, 0.6, 0.75)]
+                    for tl in (0.05, 0.08, 0.10, 0.12, 0.15, 0.3, 0.45, 0.6, 0.75)]
     tat_ca_tham_so = luoi_tham_so + [THU_PHA]
     # [kept, keep_total, tach, split_total, bo, tong_cot, so_bang, trang_suy_bien]
     diem = {k: [0, 0, 0, 0, 0, 0, 0, 0] for k in tat_ca_tham_so}
@@ -104,6 +127,45 @@ def main(argv):
                 print(f"  {os.path.basename(p)[:34]:36s} tr{pageno:>3}"
                       f"  ({da_lam} trang)", flush=True)
 
+    # ---- CHÂN SCAN ----------------------------------------------------
+    # Ảnh thuần, không có đáp án. Dùng `read_page` (KHÔNG phải `ocr_image`) để
+    # ăn đệm OCR: đệm khoá theo vân tay cấu hình, mà vòng quét này truyền tham
+    # số THẲNG vào `build_grid` chứ không đụng hằng số module, nên vân tay đứng
+    # yên và mọi trang chỉ đọc bằng Tesseract đúng một lần.
+    # [separated, money_rows, filled, total, trang_sap, cot_max]
+    diem_scan = {k: [0, 0, 0, 0, 0, 0] for k in tat_ca_tham_so}
+    tep_scan = sorted(glob.glob(os.path.join(THU_MUC_SCAN, "*.pdf"))) + [
+        p for p in SCAN_THEM if os.path.isfile(p)]
+    so_trang_scan = 0
+    for p in tep_scan:
+        with pdfplumber.open(p) as pdf:
+            trangs = [i + 1 for i, pg in enumerate(pdf.pages)
+                      if not (pg.extract_text() or "").strip()]
+        for pageno in trangs:
+            ws = [OcrWord(text=w["t"], conf=w["c"], left=w["l"], top=w["y"],
+                          width=w["w"], height=w["h"], line_id=tuple(w["g"]))
+                  for r in read_page(p, pageno).regions for w in r.words]
+            if not ws:
+                continue
+            so_trang_scan += 1
+            for ds, tl in tat_ca_tham_so:
+                grid = table.build_grid(ws, gap_factor=ds, support_ratio=tl)
+                sep, rows, filled, total = table_score.score_unlabelled(grid)
+                if rows < MIN_MONEY_ROWS:
+                    continue
+                n_cot = max((len(h) for h in grid), default=0)
+                d = diem_scan[(ds, tl)]
+                d[0] += sep
+                d[1] += rows
+                d[2] += filled
+                d[3] += total
+                if n_cot <= 1:
+                    d[4] += 1
+                d[5] = max(d[5], n_cot)
+        print(f"  [scan] {os.path.basename(p)[:34]:36s}"
+              f" {len(trangs)} trang ảnh", flush=True)
+    print(f"{chr(10)}(chân scan) {len(tep_scan)} tệp, {so_trang_scan} trang ảnh")
+
     tong_giu_ms = max((v[1] for v in diem.values()), default=0)
     tong_bo = max((v[4] for v in diem.values()), default=0)
     print(f"\n(tổng kết) {len(so_tep_co_bang)} tệp có ô, {da_lam} trang quét,"
@@ -121,54 +183,52 @@ def main(argv):
     thuong = [_hang(ds, tl, diem[(ds, tl)]) for ds, tl in luoi_tham_so]
     thuong_theo_ban = {(r[0], r[1]): r for r in thuong}
 
-    print(f"\n{'gap_factor':>10}{'ty_le':>8}{'kept':>9}{'tach':>9}{'min':>9}"
-          f"{'unreadable':>13}{'cot_tb':>9}{'trang_suy_bien':>16}")
-    thuong_in = sorted(thuong, key=lambda r: -r[4])
-    for ds, tl, ty_giu, ty_tach, m, bo, cot_tb, collapsed in thuong_in:
-        print(f"{ds:>10}{tl:>8}{ty_giu:>9.4f}{ty_tach:>9.4f}"
-              f"{m:>9.4f}{bo:>13}{cot_tb:>9.2f}{collapsed:>16}")
+    def _scan(ds, tl):
+        sep, rows, filled, total, sap, cot_max = diem_scan[(ds, tl)]
+        return (sep / rows if rows else 0.0,
+                filled / total if total else 0.0, sap, cot_max)
+
+    print(f"{chr(10)}{'gap':>5}{'ty_le':>7}"
+          f"{'| VECTOR kept':>14}{'tach':>8}{'min':>8}{'suybien':>9}"
+          f"{'| SCAN tach':>12}{'matdo':>8}{'sap':>6}{'cotmax':>8}"
+          f"{'| GOP':>8}")
+    bang = []
+    for ds, tl in luoi_tham_so:
+        v = thuong_theo_ban[(ds, tl)]
+        s_tach, s_mat, s_sap, s_cot = _scan(ds, tl)
+        gop = min(v[4], s_tach)
+        bang.append((ds, tl, v, (s_tach, s_mat, s_sap, s_cot), gop))
+    for ds, tl, v, sc, gop in sorted(bang, key=lambda r: -r[4]):
+        print(f"{ds:>5}{tl:>7}{v[2]:>14.4f}{v[3]:>8.4f}{v[4]:>8.4f}{v[7]:>9}"
+              f"{sc[0]:>12.4f}{sc[1]:>8.3f}{sc[2]:>6}{sc[3]:>8}{gop:>8.4f}")
 
     ds, tl = THU_PHA
     r = _hang(ds, tl, diem[THU_PHA])
-    print(f"\n(THỬ PHÁ — suy biến một cột, gap_factor={ds}, ty_le={tl})")
-    print(f"{ds:>10}{tl:>8}{r[2]:>9.4f}{r[3]:>9.4f}"
-          f"{r[4]:>9.4f}{r[5]:>13}{r[6]:>9.2f}{r[7]:>16}")
+    sc = _scan(ds, tl)
+    print(f"{chr(10)}(THỬ PHÁ — suy biến một cột, gap={ds}, ty_le={tl}) "
+          f"vector min={r[4]:.4f}  scan tach={sc[0]:.4f}  "
+          f"GỘP={min(r[4], sc[0]):.4f}")
+    print("  Nếu dòng THỬ PHÁ này KHÔNG thấp hơn hẳn mọi dòng trên, thước"
+          " không đo gì — đừng chốt tham số từ bảng này.")
 
-    # FIX ROUND 3: tiêu chí chốt KHÔNG còn là "điểm cao nhất" đơn thuần. Với
-    # mỗi gap_factor, sắp ty_le tăng dần: một cấu hình bị LOẠI nếu trang_suy_bien
-    # của nó CAO HƠN cấu hình ty_le thấp hơn liền kề CÙNG gap_factor — nghĩa là
-    # tăng ty_le đó đã đổi lấy thêm trang sập về một cột, dù điểm tổng có thể
-    # vẫn nhích lên (trung bình che mất thảm hoạ cục bộ vì đa số trang chỉ
-    # đóng góp vài ô). Cấu hình ty_le nhỏ nhất của mỗi gap_factor luôn ĐỦ ĐIỀU
-    # KIỆN (không có cấu hình thấp hơn để so).
-    boi_khe_ds = sorted({ds for ds, _ in luoi_tham_so})
-    ty_le_ds = sorted({tl for _, tl in luoi_tham_so})
-    du_dieu_kien = []
-    bi_loai = []
-    for ds in boi_khe_ds:
-        suy_bien_truoc = None
-        for tl in ty_le_ds:
-            r = thuong_theo_ban[(ds, tl)]
-            suy_bien_hien_tai = r[7]
-            if suy_bien_truoc is None or suy_bien_hien_tai <= suy_bien_truoc:
-                du_dieu_kien.append(r)
-            else:
-                bi_loai.append(r)
-            suy_bien_truoc = suy_bien_hien_tai
-
-    print(f"\n(Cấu hình BỊ LOẠI vì tăng trang_suy_bien so với ty_le thấp hơn"
-          f" liền kề cùng gap_factor: {len(bi_loai)}/{len(luoi_tham_so)})")
-    for ds, tl, ty_giu, ty_tach, m, bo, cot_tb, collapsed in bi_loai:
-        print(f"  LOẠI  gap_factor={ds} ty_le={tl}  min={m:.4f}"
-              f"  trang_suy_bien={collapsed}")
-
-    if not bi_loai:
-        print("\nKHÔNG cấu hình nào bị loại — không phát hiện vách đá trong"
-              " toàn lưới đã quét. Chốt theo điểm min cao nhất như thường lệ.")
-
-    chot = max(du_dieu_kien, key=lambda r: r[4])
-    print(f"\n(CHỐT — min cao nhất trong số ĐỦ ĐIỀU KIỆN) gap_factor={chot[0]}"
-          f" ty_le={chot[1]}  min={chot[4]:.4f}  trang_suy_bien={chot[7]}")
+    # TIÊU CHÍ CHỐT, 2026-09-07. Bỏ luật loại-theo-trang_suy_bien của FIX
+    # ROUND 3: nó suy ra từ MỘT chân (vector) và chính nó đã chốt ra cấu hình
+    # sập 12 trang scan. Nay chốt theo ĐIỂM GỘP = min(vector_min, scan_tach):
+    # tách vụn do chân vector phạt (nó có đáp án thật nên biết ô nào bị xé),
+    # gộp nhầm do chân scan phạt (nó chạy trên ảnh thoái hoá thật). Không hệ
+    # số cân bằng nào được bịa ra — min là min.
+    chot = max(bang, key=lambda r: r[4])
+    ds, tl, v, sc, gop = chot
+    print(f"{chr(10)}(CHỐT theo ĐIỂM GỘP) gap_factor={ds} support_ratio={tl}"
+          f"  gộp={gop:.4f}  [vector min={v[4]:.4f}, scan tách={sc[0]:.4f},"
+          f" scan sập={sc[2]}, cột tối đa={sc[3]}]")
+    print(f"  Hằng số ĐANG SHIP: gap_factor={table.GAP_FACTOR}"
+          f" support_ratio={table.SUPPORT_RATIO}")
+    if (table.GAP_FACTOR, table.SUPPORT_RATIO) != (ds, tl):
+        print("  !! LỆCH — bảng này chốt khác hằng số trong src/ocr/table.py."
+              " Sửa hằng số hoặc giải thích vì sao không sửa, ĐỪNG để lệch.")
+    else:
+        print("  Khớp hằng số đang ship.")
 
 
 if __name__ == "__main__":

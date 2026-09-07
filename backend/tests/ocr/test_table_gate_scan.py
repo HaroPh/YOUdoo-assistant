@@ -30,7 +30,7 @@ import os
 
 import pytest
 
-from src.ocr import table
+from src.ocr import table, table_score
 from src.ocr.document import read_page
 from src.ocr.engine import OcrWord, tesseract_path
 
@@ -269,3 +269,117 @@ def test_break_check_huge_gap_factor_collapses_score_below_threshold():
             "dinh -- thuoc khong do gi, DUNG LAI va bao cao")
     finally:
         table.GAP_FACTOR = original_gap_factor
+
+
+# ---------------------------------------------------------------------------
+# CHAN THU HAI: CA CORPUS SCAN, KHONG DAP AN
+# ---------------------------------------------------------------------------
+# VI SAO CAN: bay trang dap an o tren dat 91/91 = 1,000, nhung 21 trang bang
+# CON LAI cua CHINH tai lieu do chi dat 124/231 = 0,537 voi 9 trang sap ve 1
+# cot (do 2026-09-07). Bay trang ay do chinh nguoi viet cong nay chon hoi dung
+# dap an, vi chung la bon bang chinh -- chung khong chi DE HON, chung la phan
+# DUY NHAT chay dung. Cong tren chua bao gio mo ta tai lieu; no mo ta mau da
+# duoc chon. Chan nay ton tai de loi chon mau do khong tai dien.
+#
+# CHON TRANG BANG BUOC NHAY CO DINH, KHONG CHON TAY. Chon tay la dung cai co
+# che da hong. `STRIDE` lay deu tren MOI tai lieu; muon phu rong hon thi giam
+# STRIDE, dung them tay tung trang.
+#
+# THUOC: `table_score.score_unlabelled` -- bao cao tai chinh TU mang dap an
+# (moi dong co >=2 chuoi tien phan biet la mot hang bang; hai chuoi do phai
+# nam hai O KHAC NHAU). Thuoc nay MU voi tach vun, nen phai doc kem
+# `MIN_CELL_DENSITY`: tach vun sinh cot rong nen mat do o sup. Chi mot ve la
+# khong do gi -- xem docstring `score_unlabelled`.
+SCAN_DIR = r"D:\Youdoo\tmp-docs\ocr-scan-that"
+STRIDE = 3
+
+# NGUONG DO 2026-09-07 o gap_factor=3.0 support_ratio=0.15, STRIDE=3
+# (37 trang dat nguong hang bang, 481 hang, 6 tai lieu):
+#   tach = 470/481 = 0,9771   trang sap = 0/37   mat do o = 0,391
+# THU PHA (gap_factor=1000, luoi MOT cot): tach = 0/496 = 0,0000, sap 39/39.
+#
+# CORPUS_SEPARATION_THRESHOLD = lam tron xuong 2 chu so cua (0,9771 - 0,05)
+#                             = lam tron xuong cua 0,9271 = 0,92
+# MIN_CELL_DENSITY           = lam tron xuong cua (0,391 - 0,05) = 0,34
+# MAX_COLLAPSED_PAGES        = 2. Do duoc 0; de 2 cho bien dong nho. Van phan
+#   biet duoc ro: hang so CU (support_ratio=0.3) cho 6 trang sap va tach
+#   0,7137 -- ca hai deu truot nguong tren, tuc cong nay BAT DUOC dung loi ma
+#   no sinh ra de bat.
+#
+# MAT DO chi la can DUOI (chong tach vun). Cau hinh suy bien mot cot cho mat
+# do 1,000 -- cao nhat co the -- nen mot minh no khong gac duoc chieu gop;
+# `tach` lo chieu do.
+CORPUS_SEPARATION_THRESHOLD = 0.92
+MAX_COLLAPSED_PAGES = 2
+MIN_CELL_DENSITY = 0.34
+
+
+def _scan_pdfs() -> list[str]:
+    ds = sorted(glob.glob(os.path.join(SCAN_DIR, "*.pdf")))
+    return ds + ([PDF_PATH] if os.path.isfile(PDF_PATH) else [])
+
+
+def _image_pages(path: str) -> list[int]:
+    """Trang KHONG co lop text -- dung tap production day sang OCR."""
+    import pdfplumber
+    with pdfplumber.open(path) as pdf:
+        return [i + 1 for i, pg in enumerate(pdf.pages)
+                if not (pg.extract_text() or "").strip()]
+
+
+def _corpus_scores(gap_factor=None, support_ratio=None):
+    """(separated, money_rows, collapsed_pages, filled, cells, so_trang)."""
+    sep = rows = collapsed = filled = cells = pages = 0
+    for path in _scan_pdfs():
+        for pageno in _image_pages(path)[::STRIDE]:
+            ws = [OcrWord(text=w["t"], conf=w["c"], left=w["l"], top=w["y"],
+                          width=w["w"], height=w["h"], line_id=tuple(w["g"]))
+                  for r in read_page(path, pageno).regions for w in r.words]
+            if not ws:
+                continue
+            grid = table.build_grid(ws, gap_factor=gap_factor,
+                                    support_ratio=support_ratio)
+            s, m, f, t = table_score.score_unlabelled(grid)
+            if m < 5:            # khong du hang bang de noi len dieu gi
+                continue
+            pages += 1
+            sep += s; rows += m; filled += f; cells += t
+            if max((len(h) for h in grid), default=0) <= 1:
+                collapsed += 1
+    return sep, rows, collapsed, filled, cells, pages
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_whole_scan_corpus_separates_money_columns():
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    sep, rows, collapsed, filled, cells, pages = _corpus_scores()
+    assert pages >= 20, f"chi {pages} trang dat nguong hang bang -- corpus thieu"
+    ty_le = sep / rows
+    mat_do = filled / cells
+    assert ty_le >= CORPUS_SEPARATION_THRESHOLD, (
+        f"tach {sep}/{rows} = {ty_le:.4f} < {CORPUS_SEPARATION_THRESHOLD}"
+        f" tren {pages} trang / {len(_scan_pdfs())} tai lieu")
+    assert collapsed <= MAX_COLLAPSED_PAGES, (
+        f"{collapsed} trang sap ve 1 cot > {MAX_COLLAPSED_PAGES}")
+    assert mat_do >= MIN_CELL_DENSITY, (
+        f"mat do o {mat_do:.3f} < {MIN_CELL_DENSITY} -- luoi dang bi TACH VUN;"
+        f" ve `tach` khong bat duoc chuyen nay, xem docstring score_unlabelled")
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_break_check_huge_gap_factor_collapses_whole_corpus():
+    """THU PHA: gap_factor cuc lon -> khong khe nao du -> MOI bang mot cot.
+
+    Neu cau hinh nay VAN qua duoc `test_whole_scan_corpus...` thi cong do
+    khong do gi.
+    """
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    sep, rows, collapsed, _f, _c, pages = _corpus_scores(gap_factor=1000.0)
+    assert rows > 0
+    assert sep / rows < CORPUS_SEPARATION_THRESHOLD, (
+        "cau hinh suy bien van dat nguong -> cong khong do gi")
+    assert collapsed >= pages * 0.9, (
+        f"chi {collapsed}/{pages} trang sap -- gap_factor=1000 le ra phai lam"
+        f" sap gan het")
