@@ -1228,3 +1228,86 @@ Thêm hai giới hạn còn mở đáng biết:
   chưa đo, và đo ra là sai**;
 - `min_support` tính theo số dòng **CẢ TRANG**, nên một bảng nhỏ nằm trong trang
   dài không bao giờ đủ ủng hộ — bậc 2 hiện chỉ chạy trên trang *chủ yếu là bảng*.
+
+### 8. Đo lại trên SÁU tài liệu scan: cổng B chưa bao giờ mô tả tài liệu, nó mô tả 7 trang tôi tự chọn
+
+Sau khi nhánh đóng, kéo về **5 báo cáo tài chính scan thật** (vietstock/FPTS,
+xem `tmp-docs/ocr-scan-that/README.md`) và đo lại cùng SCID. Phép đo **không
+cần nhãn**: BCTC luôn có hai cột tiền, nên mỗi DÒNG chứa ≥2 chuỗi tiền phân
+biệt là một hàng bảng, và câu hỏi §1 tương đương với "hai chuỗi đó có nằm ở hai
+Ô KHÁC NHAU không". Đáp án đến từ chính tầng đọc chữ. So sánh dùng **token
+chính xác** (bài học C2).
+
+Kết quả ở cấu hình đang ship (`GAP_FACTOR=3.0, SUPPORT_RATIO=0.3`), 118 trang
+bảng / **1.357 hàng** — so với 7 trang / ~107 hàng mà cả nhánh được gác trên đó:
+
+| tài liệu | trang bảng | cột | TÁCH |
+|---|---|---|---|
+| PGI_2024 (HOSE) | 27 | 2–7 | 0,944 |
+| DVT_2022 (UPCOM) | 6 | 4–8 | 0,889 |
+| NTC_2025 | 18 | 2–10 | 0,839 |
+| TDC_2022 (HOSE) | 22 | 1–9 | 0,682 |
+| **SCID (tài liệu đã hiệu chỉnh trên đó)** | 28 | 1–12 | **0,668** |
+| RBC_2024 (UPCOM) | 17 | 1–9 | **0,434** |
+| **TỔNG** | 118 | | **0,774** |
+
+**Phát hiện chính, và nó nói về bộ đo chứ không về thuật toán.** Tách SCID ra:
+
+- 7 trang dùng làm đáp án (tr12–18): TÁCH **91/91 = 1,000**
+- 21 trang bảng còn lại của **cùng tài liệu đó** (thuyết minh, tr33+):
+  **124/231 = 0,537**, trong đó **9 trang sập hẳn về 1 cột**
+
+Bảy trang ấy do chính tôi chọn hồi dựng đáp án, vì chúng là bốn bảng chính.
+Chúng không chỉ dễ hơn — chúng là phần **duy nhất** chạy đúng. Cổng B chưa bao
+giờ đo tài liệu; nó đo mẫu tôi đã chọn. Đây là lỗi chọn mẫu của tôi, không phải
+lỗi người thi hành nào.
+
+**Nguyên nhân, đã chứng minh:** `min_support = max(2, int(len(dong) *
+support_ratio))` trong `find_column_bounds` lấy mẫu số là số dòng **CẢ TRANG**.
+Trang thuyết minh có bảng nhỏ (6–12 hàng) nằm trong trang dài (40–52 dòng), nên
+một ranh giới được 12/12 hàng bảng ủng hộ vẫn chỉ đạt 23% của trang → bị loại.
+Đây đúng là Minor tôi đã **park nhầm** ở ruling R3; nó không nhỏ.
+
+Quét lại `SUPPORT_RATIO` trên cả 6 tài liệu (OCR lấy từ đệm):
+
+| support | TÁCH | trang sập | cột tối đa | ô đầy/hàng |
+|---|---|---|---|---|
+| **0,30 (đang ship)** | 0,774 | **12** | 12 | 2,46 |
+| 0,20 | 0,905 | 3 | 14 | 3,03 |
+| **0,15** | 0,965 | 1 | 18 | 3,55 |
+| **0,12** | 0,976 | **0** | 18 | 3,81 |
+| 0,10 | 0,981 | 0 | **24** | 4,21 |
+| 0,08 | 0,987 | 0 | **30** | 4,73 |
+
+Thước TÁCH **mù chiều tách vụn** (hai token ở ô khác nhau thì tách bao nhiêu cột
+cũng đạt — đúng giới hạn R2), nên cột `ô đầy/hàng` là chiều ngược: một hàng BCTC
+thật có ~4–5 ô (chỉ tiêu | mã số | thuyết minh | cuối kỳ | đầu năm). Ở 0,30 chỉ
+đạt 2,46 → đang **gộp thiếu**. Từ 0,10 xuống, cột tối đa bật lên 24→30 → bắt đầu
+**vụn**. Vùng lành là **0,12–0,15**.
+
+Cổng A (corpus vector, 6 định dạng) **không bị phá** khi hạ: MIN còn tăng
+0,6667 → 0,7143 (biểu mẫu SSC khá lên vì bảng nó nhỏ, đúng bệnh trên), chỉ phụ
+lục luật tụt 1,0000 → 0,8750. Tất cả vẫn trên `MATCH_THRESHOLD=0.61`.
+
+**Hai lời giải "hiển nhiên" đã nguyên mẫu hoá và BỊ BÁC BỎ** — ghi lại để không
+ai thử lại:
+
+1. *Hai lượt: dựng lưới thô → giới hạn ủng hộ vào dải hàng bảng.* Không sửa
+   được DVT tr9 (dải vẫn 31/52 dòng vì hàng rác cũng có ≥2 ô đầy), lại đội số
+   cột ở SCID tr12 (9→13), tr14 (8→12), tr18 (5→9) mà TÁCH không tăng.
+2. *Ủng hộ = dải dòng LIÊN TIẾP dài nhất, thay cho % cả trang.* DVT tr9 sập về
+   1 cột ở mọi ngưỡng k∈{4,5,6,8}; SCID tr18 và DVT tr15 hỏng theo.
+
+**Trả lời cho câu "có nên làm adaptive không" (spec §6).** Phương sai **trong
+một tài liệu** (1,000 vs 0,537) lớn ngang phương sai **giữa các tài liệu**
+(0,434–0,944). Nên câu hỏi không phải "mỗi tài liệu một tham số" — mà là một
+hằng số **tính theo tỉ lệ trang** vốn sai hình dạng cho bảng nhỏ trong trang
+dài. Và một hằng số tốt hơn đóng được phần lớn khoảng cách (0,774 → 0,976).
+Vậy §6 **vẫn đứng**: chưa cần adaptive. Nhưng lần này là kết luận có số đo,
+trước đó chỉ là khẳng định.
+
+**Giới hạn của chính phép đo này, nói thẳng:** (a) chỉ chấm hàng có ≥2 chuỗi
+tiền — không nói gì về ô nhãn, và **không nói gì về TÊN cột**, tức lỗ hổng
+`row_to_text` ở mục 7 vẫn nguyên; (b) cả 6 tài liệu đều là BCTC tiếng Việt —
+"khác định dạng" ở đây nghĩa là khác công ty/kiểm toán viên/máy quét, không
+phải khác thể loại tài liệu.
