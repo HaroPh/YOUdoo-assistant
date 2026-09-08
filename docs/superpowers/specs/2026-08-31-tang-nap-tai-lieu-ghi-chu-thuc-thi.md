@@ -1387,3 +1387,73 @@ trên là thứ duy nhất hiện chạm tới, và nó là script rời chứ c
 
 Suite **2456 passed, 1 skipped, 0 failed**. Byte-identical so với gốc nhánh
 `372b1fe`: 4/4 tài liệu luật khớp băm.
+
+### 10. Đóng lỗ `row_to_text`: tên cột 0,301 → 0,611, và cổng đầu tiên chạm chuỗi text
+
+Mục 7 nêu lỗ hổng sâu nhất của nhánh: **không cổng nào chạm chuỗi text thật sự
+đi vào index**. Cả hai cổng dừng ở `build_grid` — chứng minh các *ô* đã tách
+đúng, không chứng minh cái gì **dán nhãn** cho chúng.
+
+Đo lần đầu, thước không cần đáp án (hàng có ≥2 chuỗi tiền phân biệt; hỏi
+`row_to_text` gán cho chúng nhãn gì; đạt khi cả hai nhãn không phải `Cột N`
+**và** khác nhau): **98/326 = 0,301** trên 95 trang / 6 tài liệu. Bảy mươi phần
+trăm hàng bảng đi vào index dưới dạng `Cột 9: 566.695.646.268 | ... | Cột 12:
+534.044.474.982`. Đó đúng là câu mở đầu spec §1.
+
+**Hai nguyên nhân, đo được đến từng hàng:**
+
+1. *Một ký tự rác cắt lìa header khỏi thân.* SCID tr12 hàng 11 **là** header
+   thật (`CHỈ TIÊU | số | minh | Số cuối kỳ | Số đầu năm`, 6 ô đầy); hàng 12
+   chứa **đúng một** ký tự `C` — vệt dấu mộc. Hàng 11 thành dải dài 1 <
+   `MIN_TABLE_RUN_ROWS` nên bị vứt, thân bắt đầu lại ở hàng 13 với 0 hàng
+   header, `column_names([])` trả rỗng, mọi cột thành `Cột N`.
+2. *Một token số lạc biến letterhead thành tên cột.* `split_header_body` coi
+   MỌI hàng trước hàng-có-số-thuần đầu tiên là header. SCID tr13 có số lạc
+   trong letterhead → nó tuyên bố thân đã bắt đầu → header thật rơi vào thân,
+   tên cột thành `'TY CỔ PHẦN ĐẦU Số 199-205 Nguyễn Thái TÀI CHÍNH HỢP'`. Đây
+   là **họ hàng gần của C1**, thu nhỏ từ cả trang xuống một dải.
+
+**Sửa**: `table_row_runs` bắc cầu qua tối đa `MAX_RUN_GAP_ROWS=1` hàng, và
+`find_header_rows()` tìm header theo **nội dung** (≥3 ô đầy, **không** chứa
+chuỗi tiền, trong cửa sổ `HEADER_SEARCH_ROWS=3` phía trên thân).
+
+| bắc cầu | cửa sổ header | tên cột có nghĩa |
+|---|---|---|
+| — | — | 98/326 = 0,301 |
+| 1 | — | 165/383 = 0,431 |
+| — | 3 | 153/326 = 0,469 |
+| **1** | **3** | **234/383 = 0,611** |
+| 1 | 6 | 235/383 = 0,614 |
+| 2 | 3 | 222/404 = 0,550 |
+
+Hai hằng số chốt trên **cả corpus**, không trên 7 trang đáp án — đúng lỗi vừa
+mất cả ngày để chẩn đoán ở mục 8. Số corpus (0,301 → 0,611) còn **nhỉnh hơn**
+số trên 7 trang (0,273 → 0,574): lần này không có hiệu ứng chọn mẫu.
+
+**Cổng thứ ba** (`test_money_columns_get_meaningful_names_in_final_text`) là
+cổng đầu tiên trong cả nhánh chạm `split_header_body → column_names →
+row_to_text`. Ngưỡng 0,56; thử phá tắt **cả hai** cơ chế thì rơi về 0,301,
+dưới ngưỡng.
+
+**Hai test cũ về `table_row_runs` phải viết lại, và lý do đáng ghi.** Chúng mã
+hoá hành vi không-bắc-cầu. Một cái giờ dùng khe 2 hàng để vẫn đo đúng điều nó
+định đo; cái kia giữ bất biến **"hai bảng rời nhau không được gộp"** — đó là
+rủi ro **có thật** mà bắc cầu tạo ra (hai bảng cách nhau đúng một dòng sẽ gộp,
+bảng sau mượn tên cột của bảng trước). Thêm một test mới ghi rõ việc bắc cầu
+là **cố ý**, kèm ca SCID tr12.
+
+**Ca xấu nhất, mổ ra chứ không làm tròn.** Từng tài liệu: NTC 0,869 | DVT
+0,680 | TDC 0,673 | SID 0,591 | PGI 0,585 | **RBC 0,091**. RBC tr13 hàng 8–9
+*là* header đọc được (`m Chỉ tiêu | ... | Năm trước`, rồi `số | minh`), nhưng
+vệt dấu mộc chèn một hàng rác giữa **gần như mọi** hàng thân (hàng 12, 13 chỉ
+2 ô đầy), nên `max_gap=1` không đủ và dải vỡ vụn; dải sống sót `(14,32)` bắt
+đầu *dưới* header. `max_gap=2` cứu RBC nhưng kéo tổng corpus xuống 0,550 —
+đánh đổi thật, để số corpus phân xử chứ không chọn theo ca yêu thích.
+
+**Còn lại chưa đóng:** 39% hàng bảng vẫn mang tên cột vô nghĩa; và văn xuôi
+vẫn bị xé thành cột (`Cột 2: Bảo cáo | Cột 3: này phải được doc cùng | ...`) —
+bệnh có sẵn từ trước, không chân hiệu chỉnh nào đo được nó (mục 9).
+
+Kiểm C1: block dài nhất **818 → 326**, thấp hơn cả mức trước khi đổi
+`SUPPORT_RATIO` (348). Suite **2464 passed, 1 skipped, 0 failed**.
+Byte-identical so với `372b1fe`: 4/4.
