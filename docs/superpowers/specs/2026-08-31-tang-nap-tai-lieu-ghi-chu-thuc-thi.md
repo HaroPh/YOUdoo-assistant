@@ -1727,3 +1727,40 @@ trình. Nếu không thì nó vẫn cho thấy truy xuất **giòn** trước sa
 Bộ 14 ca OCR đã sinh và đo xong, **chưa đưa vào `evals/`** vì còn phụ thuộc một
 quyết định: tài liệu scan hiện nạp từ `D:/downloads`, không nằm trong `seed/`,
 nên một lượt nạp lại toàn bộ sẽ âm thầm làm mất nó và mọi ca đó thành skip.
+
+#### 14b. Đo bốn cách chữa — chân từ vựng BỎ DẤU thắng, nhúng bỏ dấu bị bác bỏ
+
+Chủ dự án xác nhận **người dùng thật có gõ không dấu**, nên đây là lỗi nghiêm
+trọng nhất đang mở. Đo bốn hướng, trên bộ vàng 64 ca, ba dạng truy vấn (có
+dấu / nửa dấu — bỏ dấu mỗi từ thứ hai / không dấu hoàn toàn):
+
+| cách | có dấu | nửa dấu | không dấu |
+|---|---|---|---|
+| **dense (hiện tại)** | 1,0000 | 0,8594 | **0,0156** |
+| chỉ BM25 bỏ dấu | 0,7188 | 0,7188 | 0,7188 |
+| **RRF dense + BM25 bỏ dấu** | **0,9844** | **0,9219** | **0,6406** |
+| định tuyến theo dấu | 1,0000 | 0,8594 | 0,7188 |
+| nhúng chính text BỎ DẤU | 0,4531 | 0,4531 | 0,4531 |
+
+**Bỏ dấu làm truy xuất bất biến với dấu** — BM25 bỏ dấu cho đúng 0,7188 ở cả
+ba dạng. Đó là tính chất cần.
+
+**Nhúng text bỏ dấu BỊ BÁC BỎ**: 0,4531, tệ hơn cả BM25. Dấu tiếng Việt mang
+nghĩa thật và BGE-M3 dựa vào nó; bỏ dấu ở phía index phá mất tín hiệu ngữ
+nghĩa. Tốn 254 giây nhúng lại để biết điều này — rẻ hơn nhiều so với xây rồi
+mới phát hiện.
+
+**Định tuyến theo dấu thắng hai đầu nhưng thua ở giữa** (0,8594 vs 0,9219),
+mà nửa dấu mới là dạng gõ thực tế nhất. Nó cũng cần một heuristic có thể sai.
+
+**Chốt: RRF dense + BM25 bỏ dấu, trọng số bằng nhau.** Quét trọng số cho thấy
+1,0 là điểm duy nhất hoạt động — dưới 0,7 chân từ vựng không bao giờ chen nổi
+vào top-20, từ 1,5 trở lên nó nuốt cả chân dense (cả ba dạng tụt về 0,7188).
+
+Cái giá: **1 ca** trên truy vấn có dấu (64/64 → 63/64). Cái được: **+40 ca**
+trên không dấu và **+4 ca** trên nửa dấu.
+
+**Lưu ý về "chân sparse đã chết"**: ghi chú cũ đo được rằng hồi sinh chân sparse
+là CÓ HẠI (recall 1,0 → 0,9766). Điều đó vẫn đúng — nhưng nó đo chân FTS **có
+dấu** trên truy vấn **có dấu**. Chân đề xuất ở đây khác hẳn: nó bỏ dấu cả hai
+phía, và giá trị của nó nằm ở dạng truy vấn mà bộ vàng cũ **chưa từng đo**.
