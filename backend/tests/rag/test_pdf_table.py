@@ -219,3 +219,43 @@ def test_hang_khong_gia_tri_nhan_dien_dung():
     assert hang_khong_gia_tri([])
     assert not hang_khong_gia_tri([None, "", "280", None])
     assert not hang_khong_gia_tri(["Tài sản ngắn hạn", "", ""])
+
+
+# --- `compact=True`: bo o RONG va nhan `Cot N` -------------------------------
+# Do tren corpus san xuat sau khi nap ban scan that dau tien: 37,7% so o trong
+# chunk bang OCR la o rong mang nhan `Cot N`, chiem 20,6% do dai chunk, va
+# chung di THANG vao vector nhung -- truy van "tai san ngan han cuoi ky" khong
+# lay duoc hang ma 100 du o k=50.
+
+def test_row_to_text_compact_drops_empty_cells():
+    row = ["A-", "", "TÀI SẢN NGẮN HẠN", "", "100", "", "566.695.646.268"]
+    cols = ["Cột 1", "Cột 2", "Cột 3", "CHỈ TIÊU", "Mã số", "Thuyết minh",
+            "Số cuối kỳ"]
+    assert row_to_text(row, cols, compact=True) == (
+        "A- | TÀI SẢN NGẮN HẠN | Mã số: 100 | Số cuối kỳ: 566.695.646.268")
+
+
+def test_row_to_text_compact_keeps_value_but_drops_generic_name():
+    # `Cot 3` khong noi len dieu gi; gia tri thi co.
+    assert row_to_text(["x"], ["Cột 3"], compact=True) == "x"
+    assert row_to_text(["x"], ["Mã số"], compact=True) == "Mã số: x"
+
+
+def test_row_to_text_compact_keeps_a_real_name_even_when_it_looks_numbered():
+    # Chi dung mau `Cot <so>` moi la nhan vo nghia; dung an nham ten that.
+    assert row_to_text(["x"], ["Cột mốc"], compact=True) == "Cột mốc: x"
+    assert row_to_text(["x"], ["Quý 3"], compact=True) == "Quý 3: x"
+
+
+def test_row_to_text_default_is_byte_identical_to_before_compact_existed():
+    # BAT BIEN: duong bang vector va .docx goi ham nay va output cua chung
+    # KHONG duoc doi mot byte. Mac dinh phai giu nguyen ca o rong lan nhan.
+    row = ["A-", "", "TÀI SẢN NGẮN HẠN"]
+    cols = ["Cột 1", "Cột 2", "Cột 3"]
+    assert row_to_text(row, cols) == (
+        "Cột 1: A- | Cột 2:  | Cột 3: TÀI SẢN NGẮN HẠN")
+
+
+def test_row_to_text_compact_on_an_all_empty_row_gives_empty_string():
+    assert row_to_text(["", "", ""], ["Cột 1", "Cột 2", "Cột 3"],
+                       compact=True) == ""

@@ -563,7 +563,8 @@ def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
                     blocks.extend(_flat_line_block(row, pageno, conf,
                                                    furniture))
                     continue
-                blocks.append({"text": row_to_text(row, columns),
+                blocks.append({"text": row_to_text(row, columns,
+                                                   compact=True),
                                "heading_level": None, "page": pageno,
                                "atomic": True, "source_kind": "ocr",
                                "ocr_conf": conf})

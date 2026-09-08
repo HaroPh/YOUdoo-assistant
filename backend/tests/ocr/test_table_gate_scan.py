@@ -423,7 +423,10 @@ def _naming_scores():
                 found = table.find_header_rows(grid, st + len(head))
                 cols = column_names(found or head)
                 for row in body:
-                    text = row_to_text(row, cols)
+                    # `compact=True` -- DUNG cai production dung. Truoc
+                    # 2026-09-08 cong nay goi ban khong compact, tuc do mot
+                    # chuoi KHAC chuoi di vao index.
+                    text = row_to_text(row, cols, compact=True)
                     money = sorted({t for c in row for t in c.split()
                                     if table.MONEY.match(t)})
                     if len(money) < 2:
@@ -435,11 +438,18 @@ def _naming_scores():
                         if len(hit) != 1:
                             labels = None
                             break
-                        labels[v] = hit[0].split(": ", 1)[0]
+                        # `compact` bo han nhan `Cot N`, nen doan KHONG co
+                        # ': ' la doan KHONG CO NHAN -- phai tinh la vo nghia.
+                        # Neu khong, `p.split(': ',1)[0]` tra ve chinh gia tri
+                        # va no khong khop `Cot \d+` nen duoc tinh la CO nghia:
+                        # cong se tu dong xanh len ma khong ai sua gi.
+                        labels[v] = (hit[0].split(": ", 1)[0]
+                                     if ": " in hit[0] else "")
                     if labels is None:
                         continue
                     total += 1
-                    if (all(not GENERIC_COLUMN.match(n) for n in labels.values())
+                    if (all(n and not GENERIC_COLUMN.match(n)
+                            for n in labels.values())
                             and len(set(labels.values())) == len(labels)):
                         ok += 1
     return ok, total
