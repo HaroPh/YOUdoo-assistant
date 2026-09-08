@@ -504,6 +504,22 @@ def table_row_runs(grid: list[list[str]], *, min_cells: int | None = None,
     return runs
 
 
+def has_numeric_data(row: list[str]) -> bool:
+    """Hàng lưới có mang dữ liệu SỐ không (mã số, tiền, ngày, tỷ lệ...).
+
+    Hàng thân KHÔNG có chữ số nào gần như luôn là văn xuôi lọt vào dải bảng:
+    dòng tiêu đề mục, câu chú thích cuối bảng, mảnh letterhead, khối chữ ký.
+    Xé chúng thành cột làm hỏng chunk — đo được 633/1980 = 32,0% hàng thân đi
+    qua đường lưới rơi vào loại này, và chuỗi sinh ra trông như
+    `Cột 2: Báo | VÕ THỊ KIM LANG: cáo này phải được doc cing với Bản`: một
+    câu bị băm làm đôi và dán nhãn bằng TÊN NGƯỜI.
+
+    Đây KHÔNG phải ngưỡng hiệu chỉnh mà là một bất biến: người gọi đưa hàng
+    không có số về đường dòng-phẳng, y như hàng nằm ngoài dải.
+    """
+    return any(c.isdigit() for cell in row for c in cell)
+
+
 def find_header_rows(grid: list[list[str]], body_start: int, *,
                      window: int | None = None,
                      min_cells: int | None = None) -> list[list[str]]:

@@ -1457,3 +1457,58 @@ bệnh có sẵn từ trước, không chân hiệu chỉnh nào đo được n�
 Kiểm C1: block dài nhất **818 → 326**, thấp hơn cả mức trước khi đổi
 `SUPPORT_RATIO` (348). Suite **2464 passed, 1 skipped, 0 failed**.
 Byte-identical so với `372b1fe`: 4/4.
+
+### 11. Văn xuôi bị xé thành cột — chỗ mù cuối cùng, và nó là lỗi định tuyến
+
+Mục 9 và 10 đều kết thúc bằng cùng một câu: **không chân hiệu chỉnh nào đo
+được việc văn xuôi bị đối xử như bảng.** Chân scan chỉ chấm hàng có ≥2 chuỗi
+tiền (văn xuôi không có); chân vector chỉ chấm bên trong khung bảng pdfplumber.
+
+Thước cho nó, vẫn không cần nhãn: **hàng thân đi qua đường lưới mà không chứa
+chữ số nào**. Hàng bảng tài chính thật gần như luôn mang mã số hoặc tiền; hàng
+sạch chữ số gần như chắc là văn xuôi lọt vào dải.
+
+Đo được: **633/1980 = 32,0%**. Chuỗi thật đi vào index:
+
+```
+Cột 1: a | Cột 2: Il. | CHỈ TIÊU: Lưu chuyển tiền từ hoạt | Cột 4: động đầu tư
+':  | Cột 2: Báo | VÕ THỊ KIM LANG: cáo này phải được doc cing với Bản
+| |} I ) \:  | TRUNG Thuyết Dia Cho:  | TAM ĐÀO TẠO NGHIỆP VỤ GIAO THONG minh
+```
+
+Dòng thứ hai là câu *"Báo cáo này phải được đọc cùng với Bản thuyết minh..."* bị
+băm làm đôi và **dán nhãn bằng tên người** (kế toán trưởng, đọc lệch cột).
+
+**Đây không phải bài toán hiệu chỉnh mà là lỗi định tuyến.** Không có đường
+cong đánh đổi để dò: hàng không mang dữ liệu số thì không nên bị xé thành cột,
+chấm hết. Sửa: `table.has_numeric_data(row)` và trong `_khoi_tu_luoi_anh`, hàng
+thân không có số đi **đúng đường dòng-phẳng** như hàng ngoài dải — qua
+`heading_level()` và qua bộ lọc furniture. Đường phẳng đó tách thành
+`_flat_line_block()` vì nay có hai chỗ gọi.
+
+| | trước | sau |
+|---|---|---|
+| block văn xuôi bị xé (≥2 nhãn cột, 0 chữ số) | 633 hàng | **0 / 4.722 block** |
+| tên cột có nghĩa | 0,6110 | **0,6110** (không đổi) |
+| tách hai cột tiền | trên lưới | không đụng lưới, không thể hồi quy |
+
+**Cổng thứ tư** khẳng định bất biến đó (không ngưỡng), kèm thử phá: ép
+`has_numeric_data` luôn trả `True` thì block xé văn xuôi quay lại — nếu không
+quay lại thì cổng không đo gì.
+
+Suite **2469 passed, 1 skipped, 0 failed**. Byte-identical `372b1fe`: 4/4.
+
+**Trạng thái bậc 2 sau bốn mục 8–11**, tất cả đo trên 95 trang / 6 tài liệu:
+
+| số đo | trước 2026-09-07 | nay |
+|---|---|---|
+| tách hai cột tiền | 0,774 | **0,977** |
+| trang sập về 1 cột | 12 | **0** |
+| tên cột có nghĩa | 0,301 | **0,611** |
+| văn xuôi bị xé thành cột | 633 hàng | **0** |
+
+Còn mở, không giấu: **39% hàng bảng vẫn mang tên cột vô nghĩa**, xấu nhất là
+RBC_2024 (0,091 — vệt dấu mộc chèn hàng rác giữa gần như mọi hàng thân, xem
+mục 10). Và cả bốn số trên đều đo trên **báo cáo tài chính tiếng Việt**; "khác
+định dạng" ở đây nghĩa là khác công ty/kiểm toán viên/máy quét, chưa phải khác
+thể loại tài liệu.

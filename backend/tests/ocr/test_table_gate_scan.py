@@ -34,6 +34,7 @@ import pytest
 from src.ocr import table, table_score
 from src.ocr.document import read_page
 from src.ocr.engine import OcrWord, tesseract_path
+from src.rag.parse import _khoi_tu_luoi_anh
 from src.rag.pdf_table import (column_names, row_to_text,
                                split_header_body)
 
@@ -478,3 +479,74 @@ def test_break_check_without_bridging_and_header_search_naming_collapses():
     assert ok / total < NAMING_THRESHOLD, (
         f"tat ca hai co che van dat {ok}/{total} = {ok/total:.4f}"
         f" >= {NAMING_THRESHOLD} -> cong nay khong do gi")
+
+
+# ---------------------------------------------------------------------------
+# CHAN THU TU: VAN XUOI KHONG DUOC XE THANH BANG
+# ---------------------------------------------------------------------------
+# Day KHONG phai nguong hieu chinh ma la BAT BIEN. Truoc 2026-09-08, 633/1980
+# = 32,0% hang than di qua duong luoi khong chua chu so nao -- tuc van xuoi lot
+# vao dai bang -- va chuoi sinh ra trong nhu:
+#   `Cot 2: Bao | VO THI KIM LANG: cao nay phai duoc doc cing voi Ban`
+# mot cau bi bam lam doi va dan nhan bang TEN NGUOI. Khong chan hieu chinh nao
+# do duoc chuyen nay: chan scan chi cham hang co >=2 chuoi tien (van xuoi khong
+# co), chan vector chi cham ben trong khung bang pdfplumber.
+BAD_LABEL = re.compile(r"(?:^|\| )[^:|]{1,40}: ")
+ANY_DIGIT = re.compile(r"\d")
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_no_block_is_prose_shredded_into_columns():
+    """Khong block nao vua mang >=2 nhan cot vua KHONG co chu so nao.
+
+    Do 2026-09-08 sau khi dinh tuyen lai: 0/4722 block. Truoc do: 633 hang.
+    """
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    xau, tong = [], 0
+    for path in _scan_pdfs():
+        for pageno in _image_pages(path)[::STRIDE]:
+            ws = [OcrWord(text=w["t"], conf=w["c"], left=w["l"], top=w["y"],
+                          width=w["w"], height=w["h"], line_id=tuple(w["g"]))
+                  for r in read_page(path, pageno).regions for w in r.words]
+            if not ws:
+                continue
+            for b in _khoi_tu_luoi_anh(table.build_grid(ws), pageno, set(), 0.9):
+                tong += 1
+                text = b["text"]
+                if len(BAD_LABEL.findall(text)) >= 2 and not ANY_DIGIT.search(text):
+                    xau.append(text[:90])
+    assert tong >= 1000, f"chi {tong} block -- corpus thieu"
+    assert not xau, (f"{len(xau)}/{tong} block la van xuoi bi xe thanh bang, "
+                     f"vi du: {xau[:3]}")
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_break_check_routing_prose_rows_through_the_grid_reintroduces_shredding():
+    """THU PHA: coi MOI hang la co du lieu so -> van xuoi quay lai duong luoi.
+
+    Neu tat co che dinh tuyen ma cong tren VAN xanh thi no khong do gi.
+    """
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    goc = table.has_numeric_data
+    try:
+        table.has_numeric_data = lambda row: True
+        xau = tong = 0
+        for path in _scan_pdfs():
+            for pageno in _image_pages(path)[::STRIDE]:
+                ws = [OcrWord(text=w["t"], conf=w["c"], left=w["l"], top=w["y"],
+                              width=w["w"], height=w["h"], line_id=tuple(w["g"]))
+                      for r in read_page(path, pageno).regions for w in r.words]
+                if not ws:
+                    continue
+                for b in _khoi_tu_luoi_anh(table.build_grid(ws), pageno,
+                                           set(), 0.9):
+                    tong += 1
+                    if (len(BAD_LABEL.findall(b["text"])) >= 2
+                            and not ANY_DIGIT.search(b["text"])):
+                        xau += 1
+    finally:
+        table.has_numeric_data = goc
+    assert xau > 0, ("tat dinh tuyen ma van khong sinh block nao xe van xuoi"
+                     " -> cong tren khong do gi")

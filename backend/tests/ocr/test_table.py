@@ -237,3 +237,19 @@ def test_row_runs_read_constants_at_call_time():
         assert m.table_row_runs(grid) == [(0, 2)]
     finally:
         m.MIN_TABLE_ROW_CELLS = goc
+
+
+def test_has_numeric_data_true_for_a_real_table_row():
+    assert m.has_numeric_data(["Tiền", "111", "1.000.000", "2.000.000"])
+
+
+def test_has_numeric_data_false_for_a_prose_row():
+    # Ca that: dong tieu de muc trong bao cao luu chuyen tien te, bi xe lam
+    # doi qua hai cot truoc khi co dinh tuyen nay.
+    assert not m.has_numeric_data(
+        ["a", "Il.", "Lưu chuyển tiền từ hoạt", "động đầu tư", ""])
+
+
+def test_has_numeric_data_sees_a_digit_anywhere_in_any_cell():
+    assert m.has_numeric_data(["", "", "Điều 5 khoản", ""])
+    assert not m.has_numeric_data(["", "", "Điều năm khoản", ""])

@@ -554,19 +554,38 @@ def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
             hr2 = table.find_header_rows(grid, i + len(header_rows))
             columns = column_names(hr2 or header_rows)
             for row in body_rows:
+                # Hàng thân KHÔNG mang dữ liệu số là văn xuôi lọt vào dải
+                # (tiêu đề mục, câu chú thích, mảnh letterhead, khối chữ ký).
+                # Xé nó thành cột làm hỏng chunk, nên đưa về ĐÚNG đường
+                # dòng-phẳng như hàng ngoài dải — qua `heading_level()` và
+                # qua bộ lọc furniture. Xem `table.has_numeric_data`.
+                if not table.has_numeric_data(row):
+                    blocks.extend(_flat_line_block(row, pageno, conf,
+                                                   furniture))
+                    continue
                 blocks.append({"text": row_to_text(row, columns),
                                "heading_level": None, "page": pageno,
                                "atomic": True, "source_kind": "ocr",
                                "ocr_conf": conf})
             i = end
             continue
-        text = " ".join(c.strip() for c in grid[i] if c.strip()).strip()
+        blocks.extend(_flat_line_block(grid[i], pageno, conf, furniture))
         i += 1
-        if not text or _normalize_digits(text) in furniture:
-            continue
-        blocks.append({"text": text, "heading_level": heading_level(text),
-                       "page": pageno, "source_kind": "ocr", "ocr_conf": conf})
     return blocks
+
+
+def _flat_line_block(row: list[str], pageno: int, conf, furniture) -> list[dict]:
+    """Một hàng lưới -> ĐÚNG đường dòng-phẳng cũ: nối ô bằng dấu cách, chấm
+    `heading_level()`, lọc furniture. Trả [] khi hàng rỗng hoặc là rác đầu/
+    chân trang.
+
+    Tách thành hàm riêng 2026-09-08 vì nay có HAI chỗ gọi: hàng nằm ngoài dải
+    bảng, và hàng THÂN không mang dữ liệu số."""
+    text = " ".join(c.strip() for c in row if c.strip()).strip()
+    if not text or _normalize_digits(text) in furniture:
+        return []
+    return [{"text": text, "heading_level": heading_level(text),
+             "page": pageno, "source_kind": "ocr", "ocr_conf": conf}]
 
 
 def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
