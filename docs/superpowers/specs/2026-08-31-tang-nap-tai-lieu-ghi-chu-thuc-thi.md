@@ -1670,3 +1670,60 @@ luận sai — lần đầu ghép hàng qua giá trị tiền (dòng tổng và 
 duy nhất bằng nhau), lần hai trích nhãn bằng ô dài nhất. Cả hai đều làm phép đo
 BI QUAN hơn thực tế và suýt dẫn tới xây nhầm thứ. Cùng lớp lỗi "thước không đo
 thứ mình tưởng" đã đếm được năm lần trong nhánh bậc 2.
+
+### 14. Đo bộ vàng cho nội dung OCR — và một lỗ hổng LỚN HƠN lộ ra
+
+**Việc định làm**: thêm ca vào bộ vàng truy xuất cho tài liệu scan, vì cả 64 ca
+hiện có đều hỏi về corpus cũ, **không ca nào chạm nội dung OCR**.
+
+**Chặn kỹ thuật đầu tiên**: `label_of()` neo nhãn theo `(tên tệp, section_path)`,
+mà `section_path` của chunk OCR là **rác** — 100 giá trị riêng biệt gồm `Z`,
+`Chương trình › HRT HE.`, `| : THẾ`, cùng các biến thể chỉ khác nhau ở lỗi dấu
+(`HỢP NHAT` / `HỢP NHÁT` / `HỢP NHẮT`). Neo vào đó sẽ gãy ngay khi đổi tham số
+OCR. Ca cho nội dung OCR phải chấm bằng **giá trị chính xác từ đáp án đã
+duyệt**, không phải bằng `section_path`.
+
+14 ca sinh bằng **quy tắc** (mỗi trang lấy 2 hàng có nhãn dài nhất), không chọn
+tay. Đo trên corpus thật:
+
+| dạng truy vấn | top-5 | top-20 |
+|---|---|---|
+| có dấu | 9/14 | 11/13 |
+| **không dấu** | **2/14** | **3/14** |
+
+**Chênh lệch đó không phải chuyện của OCR.** Đo lại trên **bộ vàng 64 ca hiện
+có**, dùng đúng `score_one` + `label_matches` của eval chính thức (bản có dấu
+tái lập chính xác 1,0000 / 0,9688 nên harness đã được kiểm chứng):
+
+| | recall@20 | recall@6 |
+|---|---|---|
+| có dấu (đối chứng) | 64/64 = **1,0000** | 62/64 = 0,9688 |
+| **không dấu** | 1/64 = **0,0156** | **0/64 = 0,0000** |
+
+**Toàn bộ tầng truy xuất sập khi người dùng gõ tiếng Việt không dấu.** Không
+phải trả về rỗng mà trả về **sai hẳn**: câu *"chinh sach doi tra hang nhu the
+nao?"* trả về ba chunk báo cáo tài chính SCID.
+
+Truy nguyên xem OCR có gây ra không — **không**:
+
+| | chunk SCID chiếm top-20 | bỏ SCID ra thì recall@20 |
+|---|---|---|
+| có dấu | 2,5% | 1,0000 |
+| không dấu | **80,4%** | **0,0156** |
+
+Bỏ hẳn SCID vẫn 1/64. Lỗi có sẵn từ trước; tài liệu OCR chỉ **lấp đầy chỗ** vì
+text méo của nó gần với truy vấn méo hơn là tài liệu sạch. Nói cách khác OCR
+làm lỗi này *dễ thấy hơn*, không làm nó *nặng hơn*.
+
+**Vì sao chưa ai thấy**: bộ vàng 64 ca **100% có dấu**. Không ca nào đo dạng
+gõ không dấu. Chân sparse (FTS) — thứ lẽ ra bắt được khớp mặt chữ — đã chết từ
+đầu (0/64 truy vấn có kết quả) và hồi sinh nó từng đo được là CÓ HẠI, nên hệ
+chạy **dense-only**; không có tầng nào bắt chữ khi nhúng trượt.
+
+**Chưa biết, phải hỏi chủ dự án**: người dùng thật của Youdoo có gõ không dấu
+không. Nếu có thì đây là lỗi nghiêm trọng nhất đang mở, trên mọi mục trong lộ
+trình. Nếu không thì nó vẫn cho thấy truy xuất **giòn** trước sai sót dấu.
+
+Bộ 14 ca OCR đã sinh và đo xong, **chưa đưa vào `evals/`** vì còn phụ thuộc một
+quyết định: tài liệu scan hiện nạp từ `D:/downloads`, không nằm trong `seed/`,
+nên một lượt nạp lại toàn bộ sẽ âm thầm làm mất nó và mọi ca đó thành skip.
