@@ -1567,3 +1567,106 @@ Suite **2474 passed, 1 skipped, 0 failed**.
 **Còn lại**: nguyên nhân thứ nhất của câu trượt — dấu tiếng Việt rụng khi scan —
 vẫn nguyên. Cổng tự nuôi bậc 1 chỉ chạy trên **ảnh rasterise sạch** và tự khai
 điều đó trong docstring; giờ đã có bằng chứng nó làm hỏng truy xuất thật.
+
+### 13. Spike: lexicon khớp mờ vs LLM sửa nhãn — đo cả hai, cả hai chiều
+
+Câu hỏi: có nên cho LLM làm giàu/sửa nhãn chỉ tiêu đọc từ scan không.
+
+**Tập thử**: 78 cặp `(nhãn OCR, nhãn đúng)` từ 7 trang SCID có đáp án đã duyệt,
+ghép qua **mã số** (duy nhất mỗi hàng) chứ không qua giá trị tiền — bản ghép
+đầu tiên dùng tiền và sai nhiều, vì trong BCTC một dòng tổng và dòng thành phần
+duy nhất thường **bằng nhau**, nên nhiều cặp bị ghép nhầm và mọi cách đều bị
+chấm oan. 51 nhãn OCR đọc đúng sẵn, 27 sai.
+
+**Thước đối xứng, bắt buộc**: sửa đúng bao nhiêu trên 27 nhãn sai, **và** làm
+hỏng bao nhiêu trên 51 nhãn đang đúng. Một bộ sửa được 19 mà phá 27 là lỗ.
+
+| cách | sửa đúng | làm hỏng | chi phí |
+|---|---|---|---|
+| A1 — lexicon 174 nhãn, khớp mờ | 19/27 = 70,4% | **0/51** | 0, tất định |
+| A2 — lexicon **thiếu** nhãn thật | 0/27 | **27/51** | 0 |
+| B1 — LLM, không lexicon | 22/27 = 81,5% | **0/51** | ~5k token/tài liệu |
+| **B2 — LLM + lexicon trong prompt** | **24/27 = 88,9%** | **0/51** | ~30k token/tài liệu |
+
+**Điểm mấu chốt không phải độ chính xác mà là độ bền.** A1 hơn kém B1 có 3 ca,
+nhưng A **sụp hoàn toàn** khi nhãn không có trong lexicon: không sửa được gì
+*và* kéo 27/51 nhãn đang đúng về mục sai. B1 không cần lexicon nào. Với tài liệu
+ngoài BCTC — nơi không có từ vựng đóng — A không dùng được, B vẫn chạy.
+
+Cả ba chế độ LLM **không làm hỏng nhãn nào** (0/51): chỉ dẫn "nếu đã đúng thì
+trả nguyên văn" giữ được.
+
+**Trần của việc sửa chữ là 24/27, và 3 ca còn lại nói lên vấn đề thật.** Cả ba
+là ô lưới chỉ chứa **mảnh đuôi** của nhãn xuống dòng — `đơn vị khác` là phần
+cuối của *"Tiền chi cho vay, mua các công cụ nợ của đơn vị khác"*. Thông tin
+không có trong đầu vào; không cách nào khôi phục. Và ở hai ca đó LLM sinh nhãn
+**sai nhưng nghe thuyết phục** (`Dự phòng tổn thất đầu tư vào đơn vị khác dài
+hạn`). Trong một chunk, nhãn sai-mà-nghe-đúng hại hơn nhãn bị cắt.
+
+**Phân loại 27 ca sai — đây mới là thứ đổi thứ tự việc:**
+
+| loại | số ca |
+|---|---|
+| **nhãn bị CẮT vì xuống dòng** | **18** |
+| đọc nhầm ký tự | 8 |
+| khác | 1 |
+
+Hai phần ba là **cấu trúc**, không phải tầng đọc. Cả A lẫn B chỉ *đoán bù* phần
+bị cắt; một bản sửa ô-xuống-dòng (gộp dòng gãy vào một hàng lưới) sẽ đóng trọn
+18 ca **mà không phải đoán**, đồng thời xoá luôn rủi ro bịa nhãn ở đó.
+
+**Đính chính hai điều tôi đã nói sai trong phiên này:**
+1. "Dấu tiếng Việt rụng là việc OCR tiếp theo rõ nhất" — dựa trên **một từ**.
+   Đo tử tế: 91,7% nhãn đọc đúng ở mức text phẳng.
+2. "Nên làm lexicon trước, LLM chưa đáng" — số đo nói **ngược lại**: LLM hơn cả
+   về độ chính xác lẫn độ bền, và không có chế độ hỏng thảm hoạ như A2.
+
+**Chi phí thật nếu bật LLM**: 16 lượt gọi/tài liệu (12 nhãn/lô). Hạn mức free
+RPD 500/khoá ⇒ ~31 tài liệu/ngày/khoá, **dùng chung hồ với chatbot**. B2 tốn
+gấp 6 lần token của B1 để đổi 2 ca — B1 gần như chắc chắn đáng giá hơn.
+
+**Khuyến nghị theo thứ tự**: sửa ô-xuống-dòng trước (đóng 18/27, tất định,
+không hạn mức), rồi đo lại xem 8 ca đọc nhầm còn lại có đáng gọi LLM không.
+
+#### 13b. Đính chính mục 13 — tập thử của tôi sai, và số đổi trọng yếu
+
+Mục 13 trích nhãn OCR bằng **ô dài nhất** trong hàng lưới. Sai: nhãn xuống dòng
+nằm rải sang **ô kế bên cùng hàng**, và `row_to_text` phát ra hết, nên chunk
+production **đã có đủ nhãn**. Ví dụ mã 110 — chunk thật là
+`Cột 3: Tiền và các khoản tương | CHỈ TIÊU: đương tiền`, đủ cả.
+
+Đo lại với nhãn = **nối mọi ô không-phải-số** (đúng thứ vào chunk) và tiêu chí
+**chứa** thay vì bằng:
+
+| | mục 13 (sai) | đo lại |
+|---|---|---|
+| nhãn thiếu/sai | 27/78 = 35% | **14/78 = 18%** |
+| trong đó: bị cắt | 18 | **5** |
+| trong đó: đọc nhầm ký tự | 8 | **9** |
+
+Tỉ lệ **đảo ngược**: đọc nhầm mới là phần chính, không phải cắt. Kéo theo đó,
+khuyến nghị "sửa ô-xuống-dòng trước" ở mục 13 **không còn đứng vững** — nó chỉ
+chạm 5 ca, và 3 trong số đó là mảnh đuôi mà phần đầu nằm ở hàng lưới khác.
+
+Bảng so sánh chấm lại theo tiêu chí chứa:
+
+| cách | sửa đúng | làm hỏng | ròng |
+|---|---|---|---|
+| A1 — lexicon đủ (ngưỡng 0,70) | 8/14 | **5/64** | +3 |
+| A2 — lexicon thiếu nhãn | 0/14 | **38/64** | −38 |
+| **B1 — LLM, không lexicon** | **10/14** | **0/64** | **+10** |
+| **B2 — LLM + lexicon** | **11/14** | **0/64** | **+11** |
+
+Lexicon tụt hẳn khi chấm trung thực: nó **thay** cả nhãn đang đúng bằng mục
+gần giống, nên vừa sửa 8 vừa phá 5. LLM không phá ca nào ở cả hai chế độ.
+
+**Kết luận sau khi sửa phép đo**: LLM thắng rõ, và B1 lấy được 10/11 phần
+thưởng với **1/6 chi phí token** của B2. Phần được: ~18% nhãn hàng bảng đang
+thiếu, LLM đóng được ~14%. Ba ca còn lại là mảnh đuôi — không cách nào khôi
+phục từ đầu vào, cần gộp hàng lưới trước.
+
+**Bài học của chính mục này**: hai lần liên tiếp tập thử của tôi tạo ra kết
+luận sai — lần đầu ghép hàng qua giá trị tiền (dòng tổng và dòng thành phần
+duy nhất bằng nhau), lần hai trích nhãn bằng ô dài nhất. Cả hai đều làm phép đo
+BI QUAN hơn thực tế và suýt dẫn tới xây nhầm thứ. Cùng lớp lỗi "thước không đo
+thứ mình tưởng" đã đếm được năm lần trong nhánh bậc 2.
