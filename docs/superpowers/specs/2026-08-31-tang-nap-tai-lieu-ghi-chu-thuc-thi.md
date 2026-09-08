@@ -1627,3 +1627,46 @@ gấp 6 lần token của B1 để đổi 2 ca — B1 gần như chắc chắn �
 
 **Khuyến nghị theo thứ tự**: sửa ô-xuống-dòng trước (đóng 18/27, tất định,
 không hạn mức), rồi đo lại xem 8 ca đọc nhầm còn lại có đáng gọi LLM không.
+
+#### 13b. Đính chính mục 13 — tập thử của tôi sai, và số đổi trọng yếu
+
+Mục 13 trích nhãn OCR bằng **ô dài nhất** trong hàng lưới. Sai: nhãn xuống dòng
+nằm rải sang **ô kế bên cùng hàng**, và `row_to_text` phát ra hết, nên chunk
+production **đã có đủ nhãn**. Ví dụ mã 110 — chunk thật là
+`Cột 3: Tiền và các khoản tương | CHỈ TIÊU: đương tiền`, đủ cả.
+
+Đo lại với nhãn = **nối mọi ô không-phải-số** (đúng thứ vào chunk) và tiêu chí
+**chứa** thay vì bằng:
+
+| | mục 13 (sai) | đo lại |
+|---|---|---|
+| nhãn thiếu/sai | 27/78 = 35% | **14/78 = 18%** |
+| trong đó: bị cắt | 18 | **5** |
+| trong đó: đọc nhầm ký tự | 8 | **9** |
+
+Tỉ lệ **đảo ngược**: đọc nhầm mới là phần chính, không phải cắt. Kéo theo đó,
+khuyến nghị "sửa ô-xuống-dòng trước" ở mục 13 **không còn đứng vững** — nó chỉ
+chạm 5 ca, và 3 trong số đó là mảnh đuôi mà phần đầu nằm ở hàng lưới khác.
+
+Bảng so sánh chấm lại theo tiêu chí chứa:
+
+| cách | sửa đúng | làm hỏng | ròng |
+|---|---|---|---|
+| A1 — lexicon đủ (ngưỡng 0,70) | 8/14 | **5/64** | +3 |
+| A2 — lexicon thiếu nhãn | 0/14 | **38/64** | −38 |
+| **B1 — LLM, không lexicon** | **10/14** | **0/64** | **+10** |
+| **B2 — LLM + lexicon** | **11/14** | **0/64** | **+11** |
+
+Lexicon tụt hẳn khi chấm trung thực: nó **thay** cả nhãn đang đúng bằng mục
+gần giống, nên vừa sửa 8 vừa phá 5. LLM không phá ca nào ở cả hai chế độ.
+
+**Kết luận sau khi sửa phép đo**: LLM thắng rõ, và B1 lấy được 10/11 phần
+thưởng với **1/6 chi phí token** của B2. Phần được: ~18% nhãn hàng bảng đang
+thiếu, LLM đóng được ~14%. Ba ca còn lại là mảnh đuôi — không cách nào khôi
+phục từ đầu vào, cần gộp hàng lưới trước.
+
+**Bài học của chính mục này**: hai lần liên tiếp tập thử của tôi tạo ra kết
+luận sai — lần đầu ghép hàng qua giá trị tiền (dòng tổng và dòng thành phần
+duy nhất bằng nhau), lần hai trích nhãn bằng ô dài nhất. Cả hai đều làm phép đo
+BI QUAN hơn thực tế và suýt dẫn tới xây nhầm thứ. Cùng lớp lỗi "thước không đo
+thứ mình tưởng" đã đếm được năm lần trong nhánh bậc 2.
