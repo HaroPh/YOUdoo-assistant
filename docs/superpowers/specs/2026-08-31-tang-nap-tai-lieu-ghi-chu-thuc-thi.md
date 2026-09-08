@@ -1512,3 +1512,58 @@ RBC_2024 (0,091 — vệt dấu mộc chèn hàng rác giữa gần như mọi h
 mục 10). Và cả bốn số trên đều đo trên **báo cáo tài chính tiếng Việt**; "khác
 định dạng" ở đây nghĩa là khác công ty/kiểm toán viên/máy quét, chưa phải khác
 thể loại tài liệu.
+
+### 12. Nạp thật lần đầu, và cái mà chỉ sản xuất mới chỉ ra được
+
+Sau khi merge bậc 2, nạp bản scan SCID vào corpus sản xuất: **968 chunk OCR**,
+0 từ chối, 0 cảnh báo, `ocr_conf` trung bình 82,0. Đây là lần đầu tiên corpus
+có chunk `source_kind='ocr'` — trước đó **3902/3902 là `text`**, tức cả tầng
+OCR chưa từng chạy thật một lần nào. Dự án này đã trả giá bốn lần cho đúng lớp
+lỗi đó (reranker chết 6 tuần, chân sparse chết từ ngày đầu, mail tool chết với
+mọi vai không phải admin, cơ chế xác nhận ghi chết hẳn trong prod).
+
+Ba câu hỏi vào retriever thật, so với giá trị trong đáp án đã duyệt:
+
+| câu hỏi | trước | sau |
+|---|---|---|
+| tiền và tương đương tiền **cuối kỳ** năm nay | hạng 1 | hạng 1 |
+| tiền và tương đương tiền **đầu năm** | hạng 1 | hạng 1 |
+| **tài sản ngắn hạn cuối kỳ** | KHÔNG có trong ứng viên, kể cả k=50 | **hạng 4** |
+
+Chunk trả về tự mang câu trả lời và phân biệt được hai kỳ:
+
+```
+CHỈ TIÊU: Tiền và tương đương tiền cuối kỳ | số: 70 | Nam nay: 148.058.124.948
+```
+
+**Câu trượt chỉ ra một thứ không cổng nào bắt được**: nó trượt vì *recall*, hàng
+đúng không vào nổi tập ứng viên. Hai nguyên nhân chồng nhau — tầng đọc rụng dấu
+(`TÀI SẢN NGẮN **HAN**`), và **37,7% số ô** trong chunk bảng là ô rỗng mang nhãn
+`Cột N`, chiếm **20,6% độ dài chunk**. Đó không phải rác vô hại: nó đi thẳng vào
+vector nhúng và pha loãng tín hiệu. Một phần năm mỗi chunk là `Cột 5: | Cột 7: |
+Cột 10: |`.
+
+Không cổng nào của bậc 2 thấy được chuyện này, và không thể thấy: cả bốn chân
+đều dừng ở *cấu trúc lưới* và *chuỗi text*, không chân nào đo **truy xuất**.
+Chỉ nạp thật mới lộ ra.
+
+**Sửa**: `row_to_text(..., compact=True)` bỏ đúng hai thứ không mang thông tin —
+ô rỗng, và nhãn `Cột N` khi ô có giá trị (giữ giá trị, bỏ nhãn). Cắt 39,2% độ
+dài. Sau khi nạp lại: **0 chunk còn nhãn `Cột N:`**.
+
+Ba lựa chọn thi hành đáng ghi:
+- **Tham số trên chính `row_to_text`, không phải bản dựng text thứ hai trong
+  `parse.py`** — hai bản chép tay sẽ lệch nhau, đúng phát hiện I6.
+- **Mặc định TẮT** nên đường bảng vector và .docx không đổi một byte; bất biến
+  byte-identical so với `372b1fe` vẫn 4/4.
+- **Cổng đặt tên phải sửa theo.** Nó đang gọi bản không-`compact`, tức đo một
+  chuỗi KHÁC chuỗi đi vào index. Tệ hơn: với `compact`, giá trị mang nhãn chung
+  xuất hiện **trần không nhãn**, mà bộ phân tích cũ lại tính đoạn không có
+  `': '` thành "có nhãn có nghĩa" — cổng sẽ tự xanh lên mà không ai sửa gì. Đã
+  sửa để đoạn không nhãn tính là vô nghĩa; số đo giữ nguyên 234/383 = 0,6110.
+
+Suite **2474 passed, 1 skipped, 0 failed**.
+
+**Còn lại**: nguyên nhân thứ nhất của câu trượt — dấu tiếng Việt rụng khi scan —
+vẫn nguyên. Cổng tự nuôi bậc 1 chỉ chạy trên **ảnh rasterise sạch** và tự khai
+điều đó trong docstring; giờ đã có bằng chứng nó làm hỏng truy xuất thật.

@@ -193,14 +193,43 @@ def column_names(header_rows: list[list]) -> list[str]:
     return names
 
 
-def row_to_text(row: list, columns: list[str]) -> str:
+_GENERIC_NAME = re.compile(r"^Cột \d+$")
+
+
+def row_to_text(row: list, columns: list[str], *, compact: bool = False) -> str:
     """'<Tên cột>: <giá trị> | ...' — mỗi hàng tự mang tên cột vì nó sẽ đứng
     RIÊNG một chunk (spec §3.4), khác `_bang_thanh_text` của .docx (cả bảng
-    một block nên header đứng dòng đầu là đủ ngữ cảnh)."""
+    một block nên header đứng dòng đầu là đủ ngữ cảnh).
+
+    `compact=True` bỏ hai thứ KHÔNG mang thông tin, và chỉ hai thứ đó:
+      - ô RỖNG (nhãn của một ô không có giá trị thì không nói lên điều gì);
+      - nhãn `Cột N` khi ô CÓ giá trị — giữ giá trị, bỏ nhãn.
+
+    Vì sao cần, đo trên corpus sản xuất sau khi nạp bản scan thật đầu tiên:
+    **37,7% số ô** trong chunk bảng OCR là ô rỗng mang nhãn `Cột N`, chiếm
+    **20,6% độ dài chunk**. Đó không phải rác vô hại — nó đi thẳng vào vector
+    nhúng. Truy vấn *"tài sản ngắn hạn cuối kỳ"* KHÔNG lấy được hàng đúng
+    (mã 100) dù ở k=50: hàng đó không vào nổi tập ứng viên, trong khi hàng
+    `Tài sản ngắn hạn khác` (mã 160) thì vào. `compact` cắt 39,2% độ dài.
+
+    MẶC ĐỊNH TẮT, có chủ ý: đường bảng vector và .docx đang gọi hàm này và
+    output của chúng phải không đổi một byte (bất biến byte-identical). Chỉ
+    đường OCR bật lên.
+
+    KHÔNG viết bản dựng text thứ hai trong `parse.py` cho việc này — hai bản
+    chép tay sẽ lệch nhau, đúng phát hiện I6 của review toàn nhánh.
+    """
     parts = []
     for i, val in enumerate(row):
         name = columns[i] if i < len(columns) else f"Cột {i + 1}"
-        parts.append(f"{name}: {_to_text(val)}")
+        text = _to_text(val)
+        if not compact:
+            parts.append(f"{name}: {text}")
+            continue
+        if not text.strip():
+            continue
+        parts.append(text if _GENERIC_NAME.match(name.strip())
+                     else f"{name}: {text}")
     return " | ".join(parts)
 
 
