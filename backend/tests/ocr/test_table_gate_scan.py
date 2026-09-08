@@ -27,12 +27,15 @@ duoc gi ve viec "cung hang").
 import glob
 import json
 import os
+import re
 
 import pytest
 
 from src.ocr import table, table_score
 from src.ocr.document import read_page
 from src.ocr.engine import OcrWord, tesseract_path
+from src.rag.pdf_table import (column_names, row_to_text,
+                               split_header_body)
 
 PDF_PATH = ("D:/downloads/SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat"
             "_SoatXet_2026_signed_05092026111802.pdf")
@@ -383,3 +386,95 @@ def test_break_check_huge_gap_factor_collapses_whole_corpus():
     assert collapsed >= pages * 0.9, (
         f"chi {collapsed}/{pages} trang sap -- gap_factor=1000 le ra phai lam"
         f" sap gan het")
+
+
+# ---------------------------------------------------------------------------
+# CHAN THU BA: CHUOI TEXT CUOI CUNG (`row_to_text`)
+# ---------------------------------------------------------------------------
+# VI SAO CAN: den 2026-09-07, KHONG cong nao trong ca nhanh nay cham chuoi text
+# thuc su di vao index. Ca hai chan tren dung o `build_grid` -- chung chung
+# minh cac O da tach dung, khong chung minh cai gi DAN NHAN cho chung. Do lan
+# dau: chi 98/326 = 0,301 hang bang co ten cot co nghia; 70% di vao index voi
+# `Cot 9`/`Cot 12`. Cau mo dau spec Sec 1 -- "khong biet so nao la cuoi ky so
+# nao la dau nam" -- do chinh la cho do.
+#
+# THUOC, van KHONG CAN DAP AN: hang co >=2 chuoi tien phan biet la hang bang;
+# hoi `row_to_text` gan cho hai chuoi do nhan gi. Nhan dat khi ca hai KHONG
+# phai "Cot N" VA khac nhau (trung nhau thi van khong phan biet duoc cuoi ky
+# voi dau nam).
+GENERIC_COLUMN = re.compile(r"^Cột \d+$")
+NAMING_THRESHOLD = 0.56
+
+
+def _naming_scores():
+    """(nhan dat, tong hang bang) tren corpus scan, qua DUNG duong san xuat."""
+    ok = total = 0
+    for path in _scan_pdfs():
+        for pageno in _image_pages(path)[::STRIDE]:
+            ws = [OcrWord(text=w["t"], conf=w["c"], left=w["l"], top=w["y"],
+                          width=w["w"], height=w["h"], line_id=tuple(w["g"]))
+                  for r in read_page(path, pageno).regions for w in r.words]
+            if not ws:
+                continue
+            grid = table.build_grid(ws)
+            for st, en in table.table_row_runs(grid):
+                head, body, _ = split_header_body(grid[st:en])
+                found = table.find_header_rows(grid, st + len(head))
+                cols = column_names(found or head)
+                for row in body:
+                    text = row_to_text(row, cols)
+                    money = sorted({t for c in row for t in c.split()
+                                    if table.MONEY.match(t)})
+                    if len(money) < 2:
+                        continue
+                    labels = {}
+                    for v in money:
+                        hit = [p for p in text.split(" | ")
+                               if v in p.split(": ", 1)[-1].split()]
+                        if len(hit) != 1:
+                            labels = None
+                            break
+                        labels[v] = hit[0].split(": ", 1)[0]
+                    if labels is None:
+                        continue
+                    total += 1
+                    if (all(not GENERIC_COLUMN.match(n) for n in labels.values())
+                            and len(set(labels.values())) == len(labels)):
+                        ok += 1
+    return ok, total
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_money_columns_get_meaningful_names_in_final_text():
+    """Do 2026-09-08: 234/383 = 0,611. NGUONG = floor2(0,611-0,05) = 0,56.
+
+    Tung tai lieu: NTC 0,869 | DVT 0,680 | TDC 0,673 | SID 0,591 | PGI 0,585
+    | RBC 0,091. RBC la ca xau nhat va CHUA duoc giai thich -- ghi ra chu
+    khong lam tron.
+    """
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    ok, total = _naming_scores()
+    assert total >= 100, f"chi {total} hang bang -- corpus thieu"
+    assert ok / total >= NAMING_THRESHOLD, (
+        f"ten cot co nghia {ok}/{total} = {ok/total:.4f} < {NAMING_THRESHOLD}")
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_break_check_without_bridging_and_header_search_naming_collapses():
+    """THU PHA: tat CA HAI co che 2026-09-08 -> ve lai muc 0,301 do duoc.
+
+    Neu tat ca hai ma van qua nguong thi cong nay khong do gi.
+    """
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    gap, win = table.MAX_RUN_GAP_ROWS, table.HEADER_SEARCH_ROWS
+    try:
+        table.MAX_RUN_GAP_ROWS = 0
+        table.HEADER_SEARCH_ROWS = 0
+        ok, total = _naming_scores()
+    finally:
+        table.MAX_RUN_GAP_ROWS, table.HEADER_SEARCH_ROWS = gap, win
+    assert ok / total < NAMING_THRESHOLD, (
+        f"tat ca hai co che van dat {ok}/{total} = {ok/total:.4f}"
+        f" >= {NAMING_THRESHOLD} -> cong nay khong do gi")

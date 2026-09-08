@@ -545,7 +545,14 @@ def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
         if i in runs:
             end = runs[i]
             header_rows, body_rows, _ = split_header_body(grid[i:end])
-            columns = column_names(header_rows)
+            # `split_header_body` coi MỌI hàng trước hàng-có-số-thuần đầu
+            # tiên là header, nên một token số lạc trong letterhead biến
+            # letterhead thành TÊN CỘT. Tìm lại header theo NỘI DUNG trên
+            # lưới ĐẦY ĐỦ (không phải lát cắt của dải) và ưu tiên nó khi có.
+            # Đo 2026-09-08: tên cột có nghĩa 0,301 -> 0,611 trên 95 trang /
+            # 6 tài liệu scan. Xem bảng cạnh `table.MAX_RUN_GAP_ROWS`.
+            hr2 = table.find_header_rows(grid, i + len(header_rows))
+            columns = column_names(hr2 or header_rows)
             for row in body_rows:
                 blocks.append({"text": row_to_text(row, columns),
                                "heading_level": None, "page": pageno,

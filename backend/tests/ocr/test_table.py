@@ -134,7 +134,7 @@ def test_rows_keep_input_order_not_y_order():
 # ── DẢI HÀNG TRÔNG NHƯ BẢNG (C1) ──────────────────────────────────────────
 
 
-def test_dai_bang_bo_qua_khoi_letterhead_thua_o():
+def test_row_runs_skip_the_sparse_letterhead_block():
     """Hàng letterhead ít ô không rỗng KHÔNG được vào dải bảng.
 
     Đây là lõi của bản vá C1: lưới bậc 2 phủ CẢ TRANG (bậc 1 nhả đúng một
@@ -148,24 +148,85 @@ def test_dai_bang_bo_qua_khoi_letterhead_thua_o():
     assert m.table_row_runs(grid) == [(2, 5)]
 
 
-def test_dai_NGAN_HON_MIN_TABLE_RUN_ROWS_khong_tinh_la_bang():
-    grid = [["a", "b", "c", "d"],          # dải 1 hàng -> dưới MIN (=2)
+def test_run_shorter_than_min_rows_is_not_a_table():
+    # Khe HAI hàng (> MAX_RUN_GAP_ROWS=1) nên KHÔNG bắc cầu — dải một hàng ở
+    # đầu đứng riêng và bị loại vì dưới MIN_TABLE_RUN_ROWS.
+    grid = [["a", "b", "c", "d"],
             ["x", "", "", ""],
+            ["y", "", "", ""],
             ["a", "b", "c", "d"],
-            ["a", "b", "c", "d"]]          # dải 2 hàng -> đủ
-    assert m.table_row_runs(grid) == [(2, 4)]
+            ["a", "b", "c", "d"]]
+    assert m.table_row_runs(grid) == [(3, 5)]
 
 
-def test_hai_dai_ROI_NHAU_tra_ve_HAI_khoang():
+def test_runs_separated_by_more_than_max_gap_stay_separate():
+    # Bất biến PHẢI giữ khi thêm bắc cầu: hai bảng thật sự rời nhau không
+    # được gộp, nếu không bảng sau mượn TÊN CỘT của bảng trước.
     grid = [["a", "b", "c", "d"],
             ["a", "b", "c", "d"],
             ["chu thich giua bang", "", "", ""],
+            ["", "", "", ""],
             ["a", "b", "c", "d"],
             ["a", "b", "c", "d"]]
-    assert m.table_row_runs(grid) == [(0, 2), (3, 5)]
+    assert m.table_row_runs(grid) == [(0, 2), (4, 6)]
 
 
-def test_dai_bang_doc_hang_so_LUC_GOI_khong_dong_bang_mac_dinh():
+def test_single_junk_row_inside_a_table_is_bridged():
+    # CỐ Ý, và đây là cả lý do MAX_RUN_GAP_ROWS tồn tại: trên SCID tr12 một
+    # hàng chứa ĐÚNG MỘT ký tự (vệt dấu mộc) nằm giữa hàng header thật và
+    # thân bảng, cắt header thành dải dài 1 rồi vứt đi, nên `column_names`
+    # trả rỗng và mọi cột thành "Cột N".
+    grid = [["CHỈ TIÊU", "Mã số", "Số cuối kỳ", "Số đầu năm"],
+            ["C", "", "", ""],
+            ["Tiền", "111", "1.000", "2.000"],
+            ["Nợ", "112", "3.000", "4.000"]]
+    assert m.table_row_runs(grid) == [(0, 4)]
+
+
+def test_run_does_not_extend_past_its_last_table_row():
+    # Khe ở CUỐI không được kéo dài dải: hàng rác cuối trang phải rơi ra
+    # ngoài để đi đường dòng-phẳng (qua heading_level + lọc furniture).
+    grid = [["a", "b", "c", "d"],
+            ["a", "b", "c", "d"],
+            ["rac cuoi trang", "", "", ""]]
+    assert m.table_row_runs(grid) == [(0, 2)]
+
+
+def test_find_header_rows_picks_the_money_free_row_above_the_body():
+    grid = [["CÔNG TY CP", "", "", ""],
+            ["CHỈ TIÊU", "Mã số", "Số cuối kỳ", "Số đầu năm"],
+            ["Tiền", "111", "1.000.000", "2.000.000"]]
+    assert m.find_header_rows(grid, 2) == [grid[1]]
+
+
+def test_find_header_rows_stops_at_a_row_containing_money():
+    # Hàng có tiền = đã chạm thân bảng; không leo tiếp lên trên nữa, nếu
+    # không sẽ vớ phải letterhead ở tít trên.
+    grid = [["CHỈ TIÊU", "Mã số", "Số cuối kỳ", "Số đầu năm"],
+            ["Tiền", "111", "1.000.000", "2.000.000"],
+            ["Nợ", "112", "3.000.000", "4.000.000"]]
+    assert m.find_header_rows(grid, 2) == []
+
+
+def test_find_header_rows_returns_empty_when_nothing_qualifies():
+    grid = [["chỉ một ô", "", "", ""],
+            ["Tiền", "111", "1.000.000", "2.000.000"]]
+    assert m.find_header_rows(grid, 1) == []
+
+
+def test_find_header_rows_reads_constants_at_call_time():
+    grid = [["a", "b", "", ""],
+            ["Tiền", "111", "1.000.000", "2.000.000"]]
+    assert m.find_header_rows(grid, 1) == []       # 2 ô < MIN_HEADER_CELLS=3
+    goc = m.MIN_HEADER_CELLS
+    try:
+        m.MIN_HEADER_CELLS = 2
+        assert m.find_header_rows(grid, 1) == [grid[0]]
+    finally:
+        m.MIN_HEADER_CELLS = goc
+
+
+def test_row_runs_read_constants_at_call_time():
     """Cùng bẫy đã cắn bậc 1: hằng số dùng làm giá trị mặc định của tham số
     thì bị đóng băng lúc định nghĩa hàm."""
     grid = [["a", "b", "", ""], ["a", "b", "", ""]]

@@ -3,6 +3,7 @@
 Module LÁ: nhận `list[OcrWord]`, trả về `list[list[str]]` là bảng với cấu trúc
 cột. KHÔNG sửa chữ trong ô, KHÔNG dò bảng — chỉ lo cấu trúc.
 """
+import re
 import statistics
 from .engine import OcrWord
 
@@ -290,6 +291,26 @@ SUPPORT_RATIO = 0.15
 MIN_TABLE_ROW_CELLS = 4
 MIN_TABLE_RUN_ROWS = 2
 
+# ĐO 2026-09-08, trên 95 trang / 6 tài liệu scan, thước KHÔNG CẦN ĐÁP ÁN
+# (hàng có ≥2 chuỗi tiền phân biệt; `row_to_text` gán cho chúng nhãn gì):
+#   bắc cầu  cửa sổ header   tên cột CÓ NGHĨA
+#   (không)  (không)          98/326 = 0,301   <- trước
+#   1        (không)         165/383 = 0,431
+#   (không)  3               153/326 = 0,469
+#   1        3               234/383 = 0,611   <- chốt
+#   1        6               235/383 = 0,614   (hơn 0,003, cửa sổ rộng gấp đôi)
+#   2        3               222/404 = 0,550
+# Trên 7 trang đáp án SCID cùng cấu hình: 24/88 = 0,273 -> 54/94 = 0,574. Số
+# trên CẢ CORPUS nhỉnh hơn số trên 7 trang, tức lần này KHÔNG có hiệu ứng chọn
+# mẫu — khác hẳn vòng chốt SUPPORT_RATIO (xem mục 8 ghi chú thi hành).
+MAX_RUN_GAP_ROWS = 1
+HEADER_SEARCH_ROWS = 3
+MIN_HEADER_CELLS = 3
+
+# Chuỗi tiền kiểu Việt. MỘT bản duy nhất, dùng bởi cả `find_header_rows` (loại
+# hàng có số ra khỏi ứng viên header) lẫn `table_score.score_unlabelled`.
+MONEY = re.compile(r"^\(?\d{1,3}(?:\.\d{3})+\)?$")
+
 
 def median_char_width(words: list[OcrWord]) -> float:
     """Bề rộng một ký tự, lấy TRUNG VỊ trên tỷ lệ TỪNG TỪ.
@@ -437,27 +458,81 @@ def is_table_like_row(row: list[str], *, min_cells: int | None = None) -> bool:
 
 
 def table_row_runs(grid: list[list[str]], *, min_cells: int | None = None,
-                   min_rows: int | None = None) -> list[tuple[int, int]]:
+                   min_rows: int | None = None,
+                   max_gap: int | None = None) -> list[tuple[int, int]]:
     """Các DẢI `[start, end)` hàng LIÊN TIẾP trông như bảng, dải đủ dài.
 
     Trả về danh sách khoảng nửa mở, tăng dần, KHÔNG chồng nhau. Hàng không
     nằm trong dải nào là hàng văn xuôi/letterhead/chân trang — người gọi phải
     đưa nó về đường dòng-phẳng, đừng nhét vào `split_header_body`.
 
-    Xem bảng đo cạnh `MIN_TABLE_ROW_CELLS` để biết vì sao hai hằng số là 4 và
-    2, và vì sao ngưỡng "≥2 ô không rỗng" một mình KHÔNG đủ.
+    BẮC CẦU (`max_gap`, 2026-09-08): dải được phép nuốt tối đa `max_gap` hàng
+    KHÔNG-trông-như-bảng nằm GIỮA hai hàng bảng. Không có nó thì một hàng rác
+    scan cắt lìa header khỏi thân: đo được trên SCID tr12 — hàng 11 là header
+    thật (`CHỈ TIÊU | số | minh | Số cuối kỳ | Số đầu năm`, 6 ô đầy), hàng 12
+    chứa ĐÚNG MỘT ký tự `C` (vệt dấu mộc), nên hàng 11 đứng một mình thành
+    dải dài 1 < `MIN_TABLE_RUN_ROWS` và bị vứt; thân bảng bắt đầu lại ở hàng
+    13 với KHÔNG hàng header nào, `column_names([])` trả rỗng, mọi cột thành
+    `Cột N`. Xem bảng đo cạnh `MAX_RUN_GAP_ROWS`.
+
+    Khe ở HAI ĐẦU dải KHÔNG được tính — chỉ khe nằm giữa hai hàng bảng, nên
+    dải không bao giờ dài ra quá hàng-bảng cuối cùng.
+
+    Xem bảng đo cạnh `MIN_TABLE_ROW_CELLS` để biết vì sao hai hằng số kia là 4
+    và 2, và vì sao ngưỡng "≥2 ô không rỗng" một mình KHÔNG đủ.
     """
     min_rows = MIN_TABLE_RUN_ROWS if min_rows is None else min_rows
+    max_gap = MAX_RUN_GAP_ROWS if max_gap is None else max_gap
     runs: list[tuple[int, int]] = []
     start: int | None = None
+    end = 0          # sau hàng-bảng CUỐI CÙNG đã thấy trong dải đang mở
+    gap = 0
     for i, row in enumerate(grid):
         if is_table_like_row(row, min_cells=min_cells):
             if start is None:
                 start = i
+            end = i + 1
+            gap = 0
         elif start is not None:
-            if i - start >= min_rows:
-                runs.append((start, i))
-            start = None
-    if start is not None and len(grid) - start >= min_rows:
-        runs.append((start, len(grid)))
+            gap += 1
+            if gap > max_gap:
+                if end - start >= min_rows:
+                    runs.append((start, end))
+                start, gap = None, 0
+    if start is not None and end - start >= min_rows:
+        runs.append((start, end))
     return runs
+
+
+def find_header_rows(grid: list[list[str]], body_start: int, *,
+                     window: int | None = None,
+                     min_cells: int | None = None) -> list[list[str]]:
+    """Tối đa hai hàng HEADER nằm ngay trên `body_start`, tìm theo NỘI DUNG.
+
+    Vì sao không tin `split_header_body` một mình: nó coi MỌI hàng trước hàng
+    có-ô-số-thuần đầu tiên là header. Trên scan thật, một token số lạc trong
+    letterhead (ngày tháng, số trang, mảnh dấu mộc) làm nó tuyên bố thân bảng
+    đã bắt đầu, nên hàng header THẬT rơi vào thân và tên cột lấy từ letterhead
+    — đo được trên SCID tr13: tên cột thành `'TY CỔ PHẦN ĐẦU Số 199-205
+    Nguyễn Thái TÀI CHÍNH HỢP'`. Đây là họ hàng gần của C1, thu nhỏ từ CẢ
+    TRANG xuống một dải.
+
+    Tiêu chí một hàng header: ≥`min_cells` ô không rỗng và KHÔNG chứa chuỗi
+    tiền nào. Gặp hàng có tiền thì DỪNG hẳn — đã chạm thân bảng, không leo
+    tiếp lên trên. Lấy tối đa hai hàng để đỡ được header hai dòng kiểu
+    `Mã`/`số`, `Thuyết`/`minh`.
+
+    Trả về [] khi không tìm thấy; người gọi giữ nguyên header cũ khi đó.
+    """
+    window = HEADER_SEARCH_ROWS if window is None else window
+    min_cells = MIN_HEADER_CELLS if min_cells is None else min_cells
+    out: list[list[str]] = []
+    for i in range(body_start - 1, max(-1, body_start - 1 - window), -1):
+        row = grid[i]
+        if any(MONEY.match(t) for cell in row for t in cell.split()):
+            break
+        if sum(1 for c in row if c.strip()) >= min_cells:
+            out.insert(0, row)
+            if len(out) == 2:
+                break
+    return out

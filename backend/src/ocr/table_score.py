@@ -11,7 +11,7 @@ một cái thước KHÁC cái thước cổng A đang gác — hai con số kh�
 Module LÁ: chỉ nhận lưới `list[list[str]]` + đáp án + text phẳng, không biết
 gì về pytest, pdfplumber hay đường dẫn tệp.
 """
-import re
+from src.ocr.table import MONEY
 
 MIN_TOKEN_LEN = 3
 
@@ -94,9 +94,7 @@ def score(answer: list[list], grid: list[list[str]], flat_text: str):
     return kept, keep_total, split, split_total, unreadable, wrapped
 
 
-# Chuỗi tiền kiểu Việt: >=4 chữ số, dấu chấm phân nhóm nghìn, âm đặt trong
-# ngoặc đơn theo lệ kế toán. Cố ý KHÔNG khớp mã số 2-3 chữ số hay năm.
-MONEY = re.compile(r"^\(?\d{1,3}(?:\.\d{3})+\)?$")
+# `MONEY` nhập từ `table` — MỘT bản duy nhất, cùng lý do module này tồn tại.
 
 
 def score_unlabelled(grid: list[list[str]]) -> tuple[int, int, int, int]:
