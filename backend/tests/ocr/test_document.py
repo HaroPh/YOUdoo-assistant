@@ -7,6 +7,16 @@ from src.ocr import document
 from src.ocr.engine import OcrResult, OcrWord
 
 
+def test_artifact_version_da_len_3_va_region_mang_grid():
+    """Hình dạng vùng đổi (thêm `grid`) thì ARTIFACT_VERSION PHẢI tăng, nếu
+    không đệm cũ sẽ được đọc lại dưới hình dạng mới và sai âm thầm."""
+    assert document.ARTIFACT_VERSION == 3
+    r = document.Region(kind="text", text="x", mean_conf=90.0,
+                        bbox=(0, 0, 10, 10))
+    assert r.grid == []
+    assert r.grid_error is None
+
+
 def test_van_tay_doi_khi_DPI_doi(monkeypatch):
     monkeypatch.setattr(document.engine, "tesseract_version", lambda: "5.4.0")
     a = document.config_fingerprint(dpi=200)
@@ -48,6 +58,21 @@ def test_van_tay_doi_khi_OCR_LANG_bi_gan_luc_chay(monkeypatch):
     monkeypatch.setattr(document.engine, "OCR_LANG", "eng")
     b = document.config_fingerprint()
     assert a != b, "đổi OCR_LANG lúc chạy phải làm vân tay đổi"
+
+
+def test_van_tay_doi_khi_HANG_SO_BAC_2_bi_gan_luc_chay(monkeypatch):
+    """I3 (review toàn nhánh): `Region.grid` được GHI vào artifact và ĐỌC LẠI
+    từ đó, nên `GAP_FACTOR`/`SUPPORT_RATIO` PHẢI nằm trong vân tay. Thiếu
+    chúng thì đổi tham số bậc 2 xong khoá đệm không đổi -> dùng lại LƯỚI CŨ
+    mà không ai biết, đúng lỗ hổng `convert.py` spec §7 viện dẫn để cấm."""
+    monkeypatch.setattr(document.engine, "tesseract_version", lambda: "5.4.0")
+    a = document.config_fingerprint()
+    monkeypatch.setattr(document.table, "GAP_FACTOR", 9.0)
+    b = document.config_fingerprint()
+    assert a != b, "đổi GAP_FACTOR lúc chạy phải làm vân tay đổi"
+    monkeypatch.setattr(document.table, "SUPPORT_RATIO", 0.9)
+    c = document.config_fingerprint()
+    assert b != c, "đổi SUPPORT_RATIO lúc chạy phải làm vân tay đổi"
 
 
 def _kq_gia(text="XIN CHAO", conf=91.5):

@@ -13,7 +13,7 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 
-from . import engine
+from . import engine, table
 
 OCR_CACHE_ENV = "YOUDOO_OCR_CACHE"
 
@@ -21,7 +21,10 @@ OCR_CACHE_ENV = "YOUDOO_OCR_CACHE"
 # dấu vân tay nên bản đệm cũ tự động thành lạc khoá, không cần xoá tay.
 # 2 (2026-09-05, review toàn nhánh B1): thêm trường "g" (line_id) vào mỗi
 # word — hình dạng artifact đã đổi, phải bump đúng chú thích ở trên.
-ARTIFACT_VERSION = 2
+# 3 (2026-09-06, bậc 2): vùng mang thêm trường "grid" (lưới bảng dựng từ toạ
+# độ). Hình dạng artifact đã đổi, phải bump — đệm cũ tự lạc khoá qua dấu vân
+# tay, không cần xoá tay.
+ARTIFACT_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,8 @@ class Region:
     mean_conf: float
     bbox: tuple[int, int, int, int]     # (left, top, right, bottom) theo pixel ảnh
     words: list[dict] = field(default_factory=list)
+    grid: list[list[str]] = field(default_factory=list)   # bậc 2; rỗng nếu chưa dựng
+    grid_error: str | None = None    # lý do dựng lưới hỏng; None = không hỏng
 
 
 @dataclass(frozen=True)
@@ -61,11 +66,20 @@ def config_fingerprint(*, dpi: int | None = None, psm: int | None = None,
     đang có, spec §7 yêu cầu không lặp lại.
 
     dpi, psm, lang đọc từ hằng số lúc GỌI, không phải lúc định nghĩa hàm, để
-    cho phép đột biến chúng lúc chạy mà vân tay vẫn thay đổi đúng."""
+    cho phép đột biến chúng lúc chạy mà vân tay vẫn thay đổi đúng.
+
+    HAI HẰNG SỐ BẬC 2 (`GAP_FACTOR`, `SUPPORT_RATIO`) NẰM TRONG VÂN TAY từ
+    2026-09-07 (phát hiện I3 của review toàn nhánh): `Region.grid` được GHI
+    vào artifact và ĐỌC LẠI từ đó, nên đổi hai tham số này mà vân tay không
+    đổi thì khoá đệm không đổi và ta dùng lại LƯỚI CŨ mà không ai biết —
+    đúng lỗ hổng `convert.py` mà spec §7 viện dẫn để cấm. Đọc lúc GỌI vì cùng
+    lý do với dpi/psm/lang: cổng A và cổng B đều đột biến `table.GAP_FACTOR`
+    lúc chạy để thử phá."""
     dpi = engine.OCR_DPI if dpi is None else dpi
     psm = engine.OCR_PSM if psm is None else psm
     lang = engine.OCR_LANG if lang is None else lang
-    raw = f"{ARTIFACT_VERSION}|{dpi}|{psm}|{lang}|{engine.tesseract_version()}"
+    raw = (f"{ARTIFACT_VERSION}|{dpi}|{psm}|{lang}|{engine.tesseract_version()}"
+           f"|{table.GAP_FACTOR}|{table.SUPPORT_RATIO}")
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
@@ -95,7 +109,8 @@ def _anh_cua_trang(path: str, pageno: int, dpi: int):
 
 def _tu_json(data: dict) -> PageRead:
     regions = [Region(kind=r["kind"], text=r["text"], mean_conf=r["mean_conf"],
-                      bbox=tuple(r["bbox"]), words=r["words"])
+                      bbox=tuple(r["bbox"]), words=r["words"],
+                      grid=r.get("grid", []), grid_error=r.get("grid_error"))
                for r in data["regions"]]
     return PageRead(page=data["page"], regions=regions,
                     mean_conf=data["mean_conf"], tu_dem=True)
@@ -138,6 +153,14 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
     img = _anh_cua_trang(path, pageno, dpi)
     kq = engine.ocr_image(img)
     rong, cao = getattr(img, "size", (0, 0))
+    # Bậc 2: dựng lưới từ toạ độ. Hỏng thì KHÔNG làm vỡ lượt đọc — mất cấu
+    # trúc còn hơn mất nội dung (spec §9). Nhưng KHÔNG được nuốt im lặng: ghi
+    # lý do vào artifact để `parse.py` biến nó thành cảnh báo CÓ TÊN. Tầng này
+    # là module lá, không biết `IngestReport`, nên nó chỉ ghi — không tự báo.
+    try:
+        grid, grid_error = table.build_grid(kq.words), None
+    except Exception as e:                               # noqa: BLE001
+        grid, grid_error = [], f"{type(e).__name__}: {e}"
     # BẬC 1: đúng MỘT vùng kiểu `text` phủ cả trang. Phân vùng hình học (vùng
     # rộng không có hộp chữ = vùng hình) là bộ định tuyến của bậc 3 — chưa có
     # tài liệu scan có hình để hiệu chỉnh, nên chưa dựng (spec §14).
@@ -145,7 +168,8 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
                     bbox=(0, 0, rong, cao),
                     words=[{"t": w.text, "c": w.conf, "l": w.left, "y": w.top,
                             "w": w.width, "h": w.height,
-                            "g": list(w.line_id)} for w in kq.words])
+                            "g": list(w.line_id)} for w in kq.words],
+                    grid=grid, grid_error=grid_error)
     data = {"artifact_version": ARTIFACT_VERSION, "page": pageno,
             "config": {"dpi": dpi, "psm": engine.OCR_PSM,
                        "lang": engine.OCR_LANG,
@@ -153,7 +177,8 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
             "mean_conf": kq.mean_conf,
             "regions": [{"kind": region.kind, "text": region.text,
                          "mean_conf": region.mean_conf,
-                         "bbox": list(region.bbox), "words": region.words}]}
+                         "bbox": list(region.bbox), "words": region.words,
+                         "grid": region.grid, "grid_error": region.grid_error}]}
     _ghi_nguyen_tu(duong, data)
     return PageRead(page=pageno, regions=[region], mean_conf=kq.mean_conf,
                     tu_dem=False)

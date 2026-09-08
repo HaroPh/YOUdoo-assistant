@@ -81,6 +81,113 @@ def _dung_canh(monkeypatch, pypdf_pages, ocr_text="Điều 1. Chữ đọc từ 
     return parse
 
 
+def _luoi_mot_trang(monkeypatch, grid, conf=90.0):
+    """Một trang RỖNG lớp text, đọc-từ-ảnh ra đúng `grid` đã cho."""
+    parse = _dung_canh(monkeypatch, [""])          # 1 trang RỖNG -> đi qua OCR
+    monkeypatch.setattr(parse, "read_page", lambda path, pageno, **kw: PageRead(
+        page=1, mean_conf=conf, tu_dem=False,
+        regions=[Region(kind="text", mean_conf=conf, bbox=(0, 0, 100, 100),
+                        text="\n".join(" ".join(h) for h in grid),
+                        words=[], grid=grid)]))
+    return parse
+
+
+def test_trang_ocr_co_luoi_sinh_block_atomic_theo_HANG(monkeypatch):
+    """Trang đọc-từ-ảnh có lưới >1 cột phải sinh MỖI HÀNG một block atomic,
+    đi đúng đường của B4 — không có đường code thứ hai phải giữ đồng bộ.
+
+    Lưới của ca này rộng 4 cột chứ không phải 3 như bản đầu: từ 2026-09-07 một
+    hàng chỉ được coi là "trông như bảng" khi có >= `MIN_TABLE_ROW_CELLS` (=4)
+    ô không rỗng — xem bảng đo cạnh hằng số đó trong `src/ocr/table.py`. Đây
+    là đổi test cho khớp một THAY ĐỔI THIẾT KẾ CÓ ĐO, không phải cho khớp một
+    lỗi: lưới 3 cột trên CẢ TRANG là thứ `find_column_bounds` dựng ra cho một
+    trang văn xuôi, và dựng bảng từ nó chính là lỗi C1."""
+    grid = [["Chi tieu", "Ma so", "So cuoi ky", "So dau nam"],
+            ["Tien mat", "111", "1.000", "900"],
+            ["Tien gui", "112", "2.000", "1.800"]]
+    parse = _luoi_mot_trang(monkeypatch, grid)
+
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    atomic = [b for b in blocks if b.get("atomic")]
+    assert len(atomic) == 2, "phai co 2 hang than, moi hang mot block atomic"
+    assert all(b["source_kind"] == "ocr" for b in atomic)
+    assert all(b["ocr_conf"] == 90.0 for b in atomic)
+    assert "Ma so: 111" in atomic[0]["text"]
+    assert warnings == []
+
+
+def test_letterhead_KHONG_thanh_ten_cot_va_van_qua_heading_level(monkeypatch):
+    """C1 (review toàn nhánh): bậc 1 nhả ĐÚNG MỘT vùng phủ CẢ TRANG nên lưới
+    bậc 2 phủ cả letterhead. Đưa TRỌN lưới vào `split_header_body` thì ba dòng
+    letterhead thành TÊN CỘT — đo được trên SCID tr12: tên cột dài 136 ký tự,
+    lặp trong MỌI block.
+
+    Sau bản vá: chỉ DẢI hàng trông như bảng đi đường lưới; hàng letterhead ra
+    block dòng-phẳng và VẪN qua `heading_level()` (đóng luôn I4 — trang lưới
+    trước đây `continue` sớm nên mất cả chấm tiêu đề lẫn lọc furniture)."""
+    grid = [["CONG TY CO PHAN ABC", "", "", ""],
+            ["Dia chi: 123 Nguyen Trai", "", "", ""],
+            ["Chi tieu", "Ma so", "So cuoi ky", "So dau nam"],
+            ["Tien mat", "111", "1.000", "900"],
+            ["Tien gui", "112", "2.000", "1.800"]]
+    parse = _luoi_mot_trang(monkeypatch, grid)
+
+    blocks, _ = parse.parse_pdf("x.pdf")
+    atomic = [b for b in blocks if b.get("atomic")]
+    assert len(atomic) == 2
+    assert all("CONG TY" not in b["text"] and "Nguyen Trai" not in b["text"]
+               for b in atomic), "letterhead KHONG duoc thanh ten cot"
+    assert all(b["text"].startswith("Chi tieu:") for b in atomic)
+
+    phang = [b for b in blocks if not b.get("atomic")]
+    assert [b["text"] for b in phang] == ["CONG TY CO PHAN ABC",
+                                          "Dia chi: 123 Nguyen Trai"]
+    assert phang[0]["heading_level"] is not None, (
+        "hang ngoai dai bang phai di qua heading_level() — I4")
+    assert all(b["source_kind"] == "ocr" for b in phang)
+
+
+def test_hang_ngoai_dai_bang_van_bi_LOC_FURNITURE(monkeypatch):
+    """I4, vế thứ hai: chân trang lặp lại phải bị bộ lọc furniture ăn, kể cả
+    trên trang có lưới. `detect_page_furniture` cần >=5 trang nên ca này dựng
+    5 trang giống nhau, chân trang nằm ở DÒNG CUỐI (điều kiện rìa)."""
+    grid = [["Chi tieu", "Ma so", "So cuoi ky", "So dau nam"],
+            ["Tien mat", "111", "1.000", "900"],
+            ["Trang 1/5 - ban in noi bo", "", "", ""]]
+    import pypdf
+    import pdfplumber
+    from src.rag import parse
+    monkeypatch.setattr(pypdf, "PdfReader", lambda path: _FakeReader([""] * 5))
+    monkeypatch.setattr(pdfplumber, "open", lambda path: _FakePlumberPDF(5))
+    monkeypatch.setattr(parse, "read_page", lambda path, pageno, **kw: PageRead(
+        page=pageno, mean_conf=90.0, tu_dem=False,
+        regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
+                        text="\n".join(" ".join(h) for h in grid),
+                        words=[], grid=grid)]))
+
+    blocks, _ = parse.parse_pdf("x.pdf")
+    assert not any("ban in noi bo" in b["text"] for b in blocks), (
+        "chan trang lap lai phai bi loc furniture an, ke ca tren trang co luoi")
+    assert len([b for b in blocks if b.get("atomic")]) == 5, "5 trang, moi trang 1 hang than"
+
+
+def test_dung_luoi_HONG_thi_bao_co_ten_va_van_giu_du_noi_dung(monkeypatch):
+    """Spec §9: mất cấu trúc còn hơn mất nội dung — nhưng KHÔNG được im lặng."""
+    parse = _dung_canh(monkeypatch, [""])
+    monkeypatch.setattr(parse, "read_page", lambda path, pageno, **kw: PageRead(
+        page=1, mean_conf=90.0, tu_dem=False,
+        regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
+                        text="Điều 1. Chữ đọc từ ảnh.", words=[], grid=[],
+                        grid_error="ValueError: hong that")]))
+
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    # noi dung phai con nguyen — mat cau truc KHONG duoc keo theo mat chu
+    assert [b["text"] for b in blocks] == ["Điều 1. Chữ đọc từ ảnh."]
+    # va phai co canh bao CO TEN, khong duoc nuot
+    assert len(warnings) == 1
+    assert "hong that" in warnings[0][1]
+
+
 def test_trang_RONG_thi_doc_bang_anh_va_gan_co_xuat_xu(monkeypatch):
     parse = _dung_canh(monkeypatch, [""])
     blocks, warnings = parse.parse_pdf("x.pdf")
@@ -265,6 +372,74 @@ def test_trang_DA_OCR_ma_lai_co_bang_thi_canh_bao_khong_im_lang(monkeypatch):
     where, reason = warnings[0]
     assert where == "trang 1"
     assert "bảng" in reason.lower() and "ảnh" in reason.lower()
+
+
+def test_trang_LAI_co_luoi_anh_thi_bang_VECTOR_KHONG_bien_mat(monkeypatch):
+    """I2 (review toàn nhánh): trang lai (không lớp text, đọc được bằng ảnh,
+    NHƯNG `find_tables()` cũng thấy bảng) đi đường VECTOR. Bản trước chỉ bỏ
+    `pageno` khỏi `ocr_pages` mà KHÔNG bỏ khỏi `grid_by_page`, nên vòng phát
+    block vẫn vào nhánh lưới rồi `continue` — nhảy qua CẢ `dai_lines` LẪN
+    `for bang in bangs: _khoi_bang(...)`. Bảng vector biến mất khỏi corpus
+    trong im lặng, cảnh báo khẳng định điều ngược lại, và block sinh ra mang
+    `source_kind="ocr"` + `ocr_conf=None` — nhãn tin cậy nói dối."""
+    import pypdf
+    import pdfplumber
+    from src.rag import parse
+
+    class _BangCoHang:
+        bbox = (0, 20, 100, 80)
+
+        def extract(self):
+            return [["Chi tieu", "So tien"], ["Doanh thu", "1.000"]]
+
+    class _WithinBbox:
+        def extract_text(self):
+            return "Dong van xuoi vector."
+
+        def find_tables(self, table_settings=None):
+            return []
+
+    class _PageCoBang:
+        width = 100
+        height = 100
+
+        def find_tables(self, table_settings=None):
+            return [_BangCoHang()]
+
+        def within_bbox(self, bbox, relative=False):
+            return _WithinBbox()
+
+    class _PDFCoBang:
+        def __init__(self):
+            self.pages = [_PageCoBang()]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    grid = [["Chi tieu", "Ma so", "So cuoi ky", "So dau nam"],
+            ["Tien mat", "111", "1.000", "900"],
+            ["Tien gui", "112", "2.000", "1.800"]]
+    monkeypatch.setattr(pypdf, "PdfReader", lambda path: _FakeReader([""]))
+    monkeypatch.setattr(pdfplumber, "open", lambda path: _PDFCoBang())
+    monkeypatch.setattr(parse, "read_page", lambda path, pageno, **kw: PageRead(
+        page=1, mean_conf=90.0, tu_dem=False,
+        regions=[Region(kind="text", mean_conf=90.0, bbox=(0, 0, 100, 100),
+                        text="\n".join(" ".join(h) for h in grid),
+                        words=[], grid=grid)]))
+
+    blocks, warnings = parse.parse_pdf("x.pdf")
+    assert any("Doanh thu" in b["text"] for b in blocks), (
+        "bang VECTOR phai vao corpus, khong duoc bien mat vi trang co luoi anh")
+    assert any(b["text"] == "Dong van xuoi vector." for b in blocks)
+    assert not any(b.get("source_kind") == "ocr" for b in blocks), (
+        "khong block nao cua trang nay den tu OCR -> khong duoc dan nhan 'ocr'")
+    assert not any("Tien gui" in b["text"] for b in blocks), (
+        "luoi doc-tu-anh cua trang lai bi BO — canh bao phai noi dung su that")
+    assert len(warnings) == 1
+    assert "lưới" in warnings[0][1]
 
 
 from PIL import Image, ImageDraw
