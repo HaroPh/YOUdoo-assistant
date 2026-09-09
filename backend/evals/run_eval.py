@@ -84,7 +84,8 @@ def _llm(alias: str, role: str) -> "RoutedChatModel":
     return RoutedChatModel(_get_router(), role, pin=alias)
 
 
-def baseline_path(model: str, set_name: str, role: str = "admin") -> str:
+def baseline_path(model: str, set_name: str, role: str = "admin",
+                  dang_go: str = "co_dau") -> str:
     """Đường dẫn file baseline. MỘT nguồn sự thật cho quy ước tên — eval_gate
     import lại hàm này thay vì tự ghép chuỗi.
 
@@ -109,6 +110,13 @@ def baseline_path(model: str, set_name: str, role: str = "admin") -> str:
     stem = f"baseline-{model.replace(':', '-')}-{set_name}"
     if role != "admin":
         stem = f"{stem}-{role}"
+    # `dang_go` vào TÊN TỆP vì mỗi dạng gõ là một baseline RIÊNG: cùng model,
+    # cùng bộ ca, nhưng ba mức chất lượng khác hẳn nhau (đo 2026-09-08:
+    # recall@20 0,9766 / 0,8359 / 0,6042). Thiếu chỗ này thì `--save-baseline
+    # --dang-go khong_dau` ĐÈ LÊN baseline dạng có dấu và xoá mốc so sánh.
+    # "co_dau" không thêm hậu tố, để tên tệp cũ giữ nguyên.
+    if dang_go != "co_dau":
+        stem = f"{stem}-{dang_go}"
     return os.path.join(here, f"{stem}.json")
 
 
@@ -1482,7 +1490,8 @@ async def main(argv=None):
         sys.exit(2)
 
     if args.save_baseline:
-        path = baseline_path(args.model, args.set, args.role)
+        path = baseline_path(args.model, args.set, args.role,
+                             getattr(args, "dang_go", "co_dau"))
         json.dump(result, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
         print(f"baseline saved: {path}"); sys.exit(0)
 

@@ -162,10 +162,17 @@ backend.
    `008_ts_vector_bo_dau.sql` — adds `chunk_text_fold` +
    `ts_vector_fold` for the accent-folded lexical leg. Without it,
    Vietnamese typed WITHOUT diacritics retrieves almost nothing
-   (measured 2026-09-08: recall@20 = 1/64). After running it on an
-   existing database you must backfill `chunk_text_fold` — the simplest
-   way is to delete `rag_documents` and re-ingest (see step 5), since
-   `chunk_text_fold` is written at ingest time.
+   (measured 2026-09-08: recall@20 = 1/64). `chunk_text_fold` is written at
+   ingest time, so on a database that already has chunks you must
+   backfill it — one command, no re-embedding:
+
+   ```powershell
+   cd backend; python -m tools.backfill_chunk_text_fold
+   ```
+
+   (~7s for 4,870 chunks. Add `--tat-ca` to overwrite existing values,
+   needed only if `fold_vi` itself changes.) Skipping this leaves the
+   folded leg silently doing nothing on the old rows.
 
    **On a fresh install, `rag_chunks` does not exist yet at this step** —
    it is created by `ensure_schema()` from `schema.sql` the first time you

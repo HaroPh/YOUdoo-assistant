@@ -2,32 +2,71 @@
   "set": "retrieval",
   "n": 64,
   "rerank": true,
+  "dang_go": "co_dau",
   "methods_seen": [
-    "dense-rrf+rerank"
+    "dense+fold-rrf+rerank"
   ],
-  "recall_at_20": 1.0,
+  "recall_at_20": 0.9766,
   "recall_at_6": 0.9688,
-  "mrr": 0.8646,
-  "chunk_span": 2.55,
+  "mrr": 0.8091,
+  "chunk_span": 2.42,
   "by_difficulty": {
     "easy": {
       "n": 31,
-      "recall_at_20": 1.0,
-      "mrr": 0.924
+      "recall_at_20": 0.9839,
+      "mrr": 0.8968
     },
     "hard": {
       "n": 17,
-      "recall_at_20": 1.0,
-      "mrr": 0.6879
+      "recall_at_20": 0.9412,
+      "mrr": 0.5755
     },
     "trap": {
       "n": 16,
       "recall_at_20": 1.0,
-      "mrr": 0.9375
+      "mrr": 0.8875
     }
   },
-  "lat_p50": 581,
-  "lat_p95": 724,
-  "fails": [],
+  "lat_p50": 556,
+  "lat_p95": 584,
+  "fails": [
+    {
+      "question": "ai là người được ký hợp đồng thay mặt cho công ty?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Điều 12. Người đại diện theo pháp luật của doanh nghiệp"
+        ]
+      ],
+      "got": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương II › THÀNH LẬP DOANH NGHIỆP › Điều 24. Điều lệ công ty"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương II › THÀNH LẬP DOANH NGHIỆP › Điều 18. Hợp đồng trước đăng ký doanh nghiệp"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 67. Hợp đồng, giao dịch phải được Hội đồng thành viên chấp thuận"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    }
+  ],
   "errors": []
 }
