@@ -1764,3 +1764,62 @@ trên không dấu và **+4 ca** trên nửa dấu.
 là CÓ HẠI (recall 1,0 → 0,9766). Điều đó vẫn đúng — nhưng nó đo chân FTS **có
 dấu** trên truy vấn **có dấu**. Chân đề xuất ở đây khác hẳn: nó bỏ dấu cả hai
 phía, và giá trị của nó nằm ở dạng truy vấn mà bộ vàng cũ **chưa từng đo**.
+
+### 15. Thi hành chân BỎ DẤU — và hai lỗi tự gây, cả hai chỉ số đo mới thấy
+
+Migration 008 (`chunk_text_fold` + `ts_vector_fold` GENERATED + GIN),
+`chunking.fold_vi()`, `retrieve._lexical_fold()` làm chân RRF ngang quyền, có
+công tắc lùi `RAG_FOLD_ENABLED=0`.
+
+**Lỗi tự gây thứ nhất: tôi tái tạo đúng lỗi đã giết chân sparse cũ.** Bản đầu
+dùng `plainto_tsquery`, mà hàm đó nối các từ bằng **AND** — câu dài đòi chunk
+chứa MỌI từ. Đo trên corpus 4.870 chunk: **0 chunk khớp**; đổi sang OR: 3.409.
+Đây đúng nguyên nhân `test_sparse_van_chet.py` ghi lại (0/64 truy vấn có kết
+quả sparse), và tôi vẫn giẫm lại. Bản mô phỏng trước đó dùng BM25 (OR có chấm
+điểm) nên không lộ. **Chỉ phép đo đầu-cuối mới bắt được**: recall không dấu
+nhích 0,0156 → 0,0312 thay vì lên 0,6406 như mô phỏng hứa.
+
+**Lỗi tự gây thứ hai: `segment_vi` trong chân bỏ dấu.** pyvi tạo token GHÉP
+(`chinh_sach`) đòi khớp y hệt hai phía, mà phía truy vấn người dùng gõ tự do.
+Mô phỏng đạt 0,7188 với tách từ THUẦN; bỏ `segment_vi` khỏi chân này rồi mới
+khớp lại được số đã đo.
+
+**Kết quả cuối, bộ eval CHÍNH THỨC, cùng thước cho cả hai chân:**
+
+| dạng gõ | | TẮT | BẬT |
+|---|---|---|---|
+| có dấu | recall@20 | 1,0000 | 0,9766 |
+| | **recall@6** | 0,9688 | **0,9688** |
+| | mrr | 0,8619 | 0,8091 |
+| nửa dấu | recall@20 | 0,8411 | 0,8359 |
+| | **recall@6** | 0,7682 | **0,8203** |
+| | mrr | 0,6360 | 0,6473 |
+| không dấu | recall@20 | 0,0156 | **0,6042** |
+| | **recall@6** | 0,0000 | **0,5208** |
+| | mrr | 0,0017 | 0,3569 |
+
+**`recall@6` trên truy vấn có dấu KHÔNG ĐỔI** (0,9688). Đó là con số đáng giá
+nhất ở đây: `recall@20` là kích thước pool cho reranker, còn `recall@6` mới là
+thứ LLM thật sự nhìn thấy. Giá phải trả nằm ở **thứ hạng trong pool** (mrr
+−0,053), không ở nội dung đến tay LLM. Độ trễ p50 473 → 549 ms (+16%).
+
+**Bộ vàng nay đo cả ba dạng gõ**: `--dang-go co_dau|nua_dau|khong_dau`. Cùng
+câu hỏi, cùng nhãn mong đợi, chỉ đổi cách gõ. Không có nó thì lỗi này lại vô
+hình đúng như suốt 64 ca trước đây.
+
+**Một nhãn nói dối, tự bắt được khi test cũ đỏ.** `method` bản đầu của tôi báo
+`dense+fold-rrf` khi chân bỏ dấu **được bật**, kể cả lúc nó trả về rỗng — đúng
+kiểu nói dối mà `test_sparse_van_chet.py` sinh ra để chặn (`hybrid` trong khi
+sparse luôn rỗng). Sửa: nhãn phản ánh **đóng góp thật**, và `method_label()`
+tách thành hàm riêng để test kiểm từng tổ hợp không cần DB. Sau khi sửa, ba
+test rerank cũ pass lại **mà không phải đụng vào chúng** — dấu hiệu nhãn nay
+đúng.
+
+Test cũ đó cũng phải sửa cơ chế: nó grep MÃ NGUỒN tìm chuỗi `"hybrid-rrf"` và
+bắt nhầm một **chú thích** trích lại nhãn cũ. Grep không phân biệt chú thích
+với nhãn phát ra.
+
+Suite **2481 passed, 1 skipped, 0 failed**; 30/30 test integration của `rag`.
+
+**Còn nợ**: `chunk_text_fold` được ghi lúc ingest, nên corpus có sẵn phải nạp
+lại (hoặc backfill) sau migration — đã ghi vào `getting-started.md`.

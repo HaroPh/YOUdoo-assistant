@@ -9,7 +9,8 @@ from .config import RAG_SCHEMA
 from .embed import EmbeddingError, embed_texts, get_embedder
 from .parse import (extract_effective_date, parse_docx, parse_pdf,
                     parse_pptx, parse_xlsx)
-from .chunking import chunk_text_blocks, chunk_xlsx_sheets, index_text
+from .chunking import (chunk_text_blocks, chunk_xlsx_sheets, fold_vi,
+                       index_text)
 from .ingest_report import IngestReport, Rejection, Warning
 from src.cli_console import use_utf8_streams
 
@@ -183,8 +184,13 @@ def _ingest_known(path: str, kind: str, conn,
                 "INSERT INTO rag_chunks (doc_id, source_file, doc_title, section_path, page, "
                 "sheet, row_range, columns, chunk_index, token_count, chunk_text, "
                 "source_kind, ocr_conf, embedding, "
-                "ts_vector) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, "
-                "to_tsvector('simple', %s))",
+                # `chunk_text_fold` đi qua ĐÚNG pipeline của `ts_vector`
+                # (index_text + segment_vi) rồi mới bỏ dấu, để hai chân
+                # nhìn cùng một chuỗi. `ts_vector_fold` là cột GENERATED
+                # nên KHÔNG liệt kê ở đây — Postgres tự dựng.
+                "ts_vector, chunk_text_fold) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, "
+                "to_tsvector('simple', %s), %s)",
                 (c["doc_id"], c["source_file"], c["doc_title"], c["section_path"], c["page"],
                  c["sheet"], c["row_range"], c["columns"], c["chunk_index"], c["token_count"],
                  c["chunk_text"],
@@ -192,7 +198,12 @@ def _ingest_known(path: str, kind: str, conn,
                  # đặt hai khoá này và không có lý do gì phải đặt.
                  c.get("source_kind", "text"), c.get("ocr_conf"),
                  vec,
-                 segment_vi(index_text(c["section_path"], c["chunk_text"]))),
+                 segment_vi(index_text(c["section_path"], c["chunk_text"])),
+                 # KHÔNG qua `segment_vi`: pyvi tạo token GHÉP
+                 # (`chinh_sach`) đòi khớp y hệt ở cả hai phía, mà phía truy
+                 # vấn thì người dùng gõ tự do. Mô phỏng 2026-09-08 đạt 0,7188
+                 # với tách từ THUẦN; chân này bám đúng thứ đã đo.
+                 fold_vi(index_text(c["section_path"], c["chunk_text"]))),
             )
     report = IngestReport(ingested=1, chunks=len(chunks))
     for sheet, reason in sheet_warnings:

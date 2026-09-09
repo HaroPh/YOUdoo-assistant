@@ -32,13 +32,21 @@ CREATE TABLE IF NOT EXISTS {schema}.rag_chunks (
     ocr_conf      real,
     chunk_text    text NOT NULL,
     embedding     vector({dim}),
-    ts_vector     tsvector
+    ts_vector     tsvector,
+    -- Chân từ vựng BỎ DẤU (migration 008). `chunk_text_fold` do Python
+    -- ghi qua `chunking.fold_vi` — KHÔNG dùng extension unaccent vì nó
+    -- không map đ/Đ, mà đó là chữ cái riêng trong tiếng Việt.
+    chunk_text_fold text,
+    ts_vector_fold tsvector GENERATED ALWAYS AS
+        (to_tsvector('simple', coalesce(chunk_text_fold, ''))) STORED
 );
 
 CREATE INDEX IF NOT EXISTS rag_chunks_embedding_hnsw
     ON {schema}.rag_chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS rag_chunks_ts_gin
     ON {schema}.rag_chunks USING gin (ts_vector);
+CREATE INDEX IF NOT EXISTS rag_chunks_ts_fold_gin
+    ON {schema}.rag_chunks USING gin (ts_vector_fold);
 CREATE INDEX IF NOT EXISTS rag_chunks_doc_id
     ON {schema}.rag_chunks (doc_id);
 

@@ -1,5 +1,6 @@
 import os
 import re
+import unicodedata
 
 import tiktoken
 
@@ -10,6 +11,28 @@ _enc = tiktoken.get_encoding(TIKTOKEN_ENCODING)
 _SENT_RE = re.compile(r"(?<=[.!?…])\s+")
 
 _XUAT_XU_RANK = {"text": 0, "ocr": 1, "vision_description": 2}
+
+
+def fold_vi(text: str) -> str:
+    """Bỏ dấu tiếng Việt: `Đầu tư` -> `dau tu`. Dùng ở CẢ ingest lẫn truy vấn.
+
+    Vì sao cần: đo 2026-09-08 trên bộ vàng 64 ca — truy vấn gõ KHÔNG DẤU cho
+    `recall@20 = 1/64 = 0,0156`, và không phải trả về rỗng mà trả về SAI HẲN.
+    Người dùng thật của Youdoo CÓ gõ không dấu (chủ dự án xác nhận). Bỏ dấu cả
+    hai phía làm phép khớp mặt chữ BẤT BIẾN với dấu: BM25 trên text bỏ dấu cho
+    đúng 0,7188 ở cả ba dạng gõ (có dấu / nửa dấu / không dấu).
+
+    `đ`/`Đ` phải map tay: chúng là CHỮ CÁI riêng (U+0111/U+0110), không phải
+    `d` + dấu tổ hợp, nên `NFD` không tách chúng ra. Bỏ sót chỗ này thì
+    `Đầu tư` thành `dau tu` ở một phía và `đau tu` ở phía kia — đã cắn một lần
+    khi đo, làm phép đo báo 0/181 nhãn đọc đúng trong khi thật ra là 91,7%.
+
+    KHÔNG dùng cho embedding: nhúng chính text bỏ dấu đã đo được là 0,4531 —
+    tệ hơn cả BM25 — vì dấu tiếng Việt mang nghĩa và BGE-M3 dựa vào nó.
+    """
+    text = text.replace("đ", "d").replace("Đ", "D")
+    return "".join(c for c in unicodedata.normalize("NFD", text)
+                   if unicodedata.category(c) != "Mn").lower()
 # Hạng của một `source_kind` LẠ (viết hoa nhầm "OCR", thừa dấu cách "ocr ",
 # hay một bậc mới gõ sai) — phải là hạng KÉM TIN CẬY NHẤT hiện có, không phải
 # hạng của "text" (0). `.get(k, 0)` từng lùi giá trị lạ về 0, tức về "text" —

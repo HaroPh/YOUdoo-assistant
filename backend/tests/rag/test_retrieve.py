@@ -335,3 +335,90 @@ def test_rerank_recovers_doc_when_bare_query_lacks_context(clean_tables, monkeyp
     with_aux = r.retrieve("SLA", k=2, conn=clean_tables,
                           aux_queries=("SLA giao hang khan cap",))
     assert with_aux.chunks[0].doc_id == "RIGHT"  # concatenation recovers it
+
+
+def _seed_fold(conn, rows, *, moi_nhu=0):
+    """Như `_seed` nhưng ghi CẢ `chunk_text_fold` — đúng thứ ingest làm.
+
+    `moi_nhu` chèn thêm N chunk MỒI có nhúng TRÙNG với truy vấn, để chân dense
+    KHÔNG còn chỗ trống trong pool. Không có mồi thì bảng chỉ vài chunk còn
+    pool là TOP_N=20, nên dense trả về TẤT CẢ và test không đo được gì —
+    phiên bản đầu của ba test dưới đây đã xanh một cách vô nghĩa đúng vì vậy.
+    """
+    from src.rag.chunking import fold_vi
+    for doc_id, text, vec in rows:
+        conn.execute("INSERT INTO rag_documents (doc_id, source_file, content_hash) "
+                     "VALUES (%s,%s,%s)", (doc_id, f"{doc_id}.docx", doc_id))
+        conn.execute(
+            "INSERT INTO rag_chunks (doc_id, source_file, doc_title, section_path, "
+            "chunk_index, token_count, chunk_text, embedding, ts_vector, "
+            "chunk_text_fold) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s, to_tsvector('simple', %s), %s)",
+            (doc_id, f"{doc_id}.docx", "T", "A › B", 0, 5, text, vec, text,
+             fold_vi(text)))
+    for n in range(moi_nhu):
+        did = f"MOI{n}"
+        conn.execute("INSERT INTO rag_documents (doc_id, source_file, content_hash) "
+                     "VALUES (%s,%s,%s)", (did, f"{did}.docx", did))
+        conn.execute(
+            "INSERT INTO rag_chunks (doc_id, source_file, doc_title, section_path, "
+            "chunk_index, token_count, chunk_text, embedding, ts_vector, "
+            "chunk_text_fold) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s, to_tsvector('simple', %s), %s)",
+            (did, f"{did}.docx", "T", "M", 0, 5, f"moi nhu {n}",
+             [0.0] * 1023 + [1.0], f"moi nhu {n}", f"moi nhu {n}"))
+
+
+_TRUY_VAN_KHONG_DAU = "chinh sach hoan hang"
+_MOI = 25          # > TOP_N=20 nên dense hết chỗ, A chỉ vào được qua chân bỏ dấu
+
+
+def _dung_boi_nhu(clean_tables, monkeypatch, bat: str):
+    from src.rag import retrieve as r
+    _seed_fold(clean_tables, [
+        ("A", "Chính sách hoàn hàng trong 30 ngày", [1.0] + [0.0] * 1023),
+    ], moi_nhu=_MOI)
+    # nhung tro HAN sang cac chunk MOI -> A khong the vao pool bang chan dense
+    monkeypatch.setattr(r, "embed_query", lambda q: [0.0] * 1023 + [1.0])
+    monkeypatch.setenv("RAG_FOLD_ENABLED", bat)
+    return r
+
+
+@pytest.mark.integration
+def test_dense_alone_cannot_reach_the_target_in_this_setup(clean_tables, monkeypatch):
+    """KIỂM CHÍNH BỘ DỰNG trước đã: không có chân bỏ dấu thì A phải NGOÀI pool.
+
+    Thiếu test này thì ba test dưới có thể xanh mà không đo gì — đúng lỗi
+    phiên bản đầu của chúng mắc phải (bảng 2 chunk, pool 20, dense trả hết)."""
+    r = _dung_boi_nhu(clean_tables, monkeypatch, "0")
+    res = r.retrieve(_TRUY_VAN_KHONG_DAU, k=20, conn=clean_tables)
+    assert "A" not in [c.doc_id for c in res.chunks]
+
+
+@pytest.mark.integration
+def test_folded_leg_finds_a_chunk_when_the_query_has_no_diacritics(
+        clean_tables, monkeypatch):
+    """Lý do cả chân này tồn tại: truy vấn gõ KHÔNG DẤU, nhúng trỏ hẳn sang
+    chỗ khác. Đo trên bộ vàng 64 ca 2026-09-08: dense một mình cho
+    recall@20 = 1/64 = 0,0156 với dạng gõ này."""
+    r = _dung_boi_nhu(clean_tables, monkeypatch, "1")
+    res = r.retrieve(_TRUY_VAN_KHONG_DAU, k=20, conn=clean_tables)
+    assert "A" in [c.doc_id for c in res.chunks]
+
+
+@pytest.mark.integration
+def test_folded_leg_is_off_when_the_env_switch_is_zero(clean_tables, monkeypatch):
+    """Công tắc lùi phải THẬT SỰ tắt — cùng bộ dựng, khác đúng một biến."""
+    r = _dung_boi_nhu(clean_tables, monkeypatch, "0")
+    res = r.retrieve(_TRUY_VAN_KHONG_DAU, k=20, conn=clean_tables)
+    assert "A" not in [c.doc_id for c in res.chunks]
+
+
+@pytest.mark.integration
+def test_folded_leg_also_serves_a_query_that_has_diacritics(
+        clean_tables, monkeypatch):
+    """`retrieve()` tự bỏ dấu phía truy vấn, nên chân này phục vụ CẢ hai kiểu
+    gõ. Nếu không, nó chỉ chạy cho một nửa số người dùng."""
+    r = _dung_boi_nhu(clean_tables, monkeypatch, "1")
+    res = r.retrieve("chính sách hoàn hàng", k=20, conn=clean_tables)
+    assert "A" in [c.doc_id for c in res.chunks]

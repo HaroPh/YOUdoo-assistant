@@ -17,6 +17,10 @@ class Chunk:
     rrf_score: float           # fused score (RRF) — luôn giữ, kể cả sau rerank
     rank: int                  # 0-based position in FINAL result order
     rerank_score: float | None = None  # cross-encoder score (None nếu tắt/hỏng)
+    # ts_rank của chân BỎ DẤU (migration 008). RIÊNG khỏi `sparse_score`:
+    # nhét chung thì trường đó nói sai chân nào sinh ra nó, đúng lớp lỗi
+    # "nhãn nói dối với người đọc trace" mà `method` đã trả giá một lần.
+    fold_score: float | None = None
     # Ngày hiệu lực của VĂN BẢN NGUỒN (rag_documents), không phải của chunk.
     # None hợp lệ và là ca THƯỜNG GẶP: 8/17 tài liệu trong corpus là tài liệu
     # nghiệp vụ (.docx/.xlsx), không phải văn bản quy phạm.

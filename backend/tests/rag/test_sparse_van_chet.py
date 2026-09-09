@@ -46,12 +46,26 @@ def test_chan_sparse_van_tra_rong_tren_corpus_that():
 
 
 def test_nhan_method_noi_dung_su_that():
-    """Nhãn phải nói `dense`, không được nói `hybrid`, chừng nào chân sparse
-    còn rỗng. Ba lần dự án này bị đốt đều vì một thành phần âm thầm không làm
-    điều tên nó nói."""
+    """Nhãn phải kể đúng chân nào đã chạy. Ba lần dự án này bị đốt đều vì một
+    thành phần âm thầm không làm điều tên nó nói.
+
+    ĐỔI 2026-09-08: bản trước grep MÃ NGUỒN tìm chuỗi `"hybrid-rrf"`, và nó
+    bắt nhầm một CHÚ THÍCH trích lại nhãn cũ để giải thích. Grep không phân
+    biệt được chú thích với nhãn thật sự phát ra. Nay kiểm chính giá trị mà
+    `method_label()` sinh, từng tổ hợp một.
+    """
+    from src.rag.retrieve import method_label
     from src.rag.types import RetrievalResult
     assert "hybrid" not in RetrievalResult.__dataclass_fields__["method"].default
-    import inspect
-    from src.rag import retrieve
-    src = inspect.getsource(retrieve.retrieve)
-    assert "hybrid-rrf" not in src, "retrieve() còn sinh ra nhãn 'hybrid'"
+    # Chân sparse CÓ DẤU vẫn rỗng (test trên), nên không nhãn nào được nói
+    # "hybrid"; và nhãn phải nêu chân bỏ dấu đúng khi nó bật.
+    # `fold_gop` = chân bỏ dấu CÓ ĐÓNG GÓP ứng viên, không phải
+    # "có bật". Chân bật mà rỗng thì nhãn KHÔNG được khoe nó —
+    # đó đúng là cách nhãn `hybrid` cũ nói dối.
+    for fold_gop in (True, False):
+        for reranked in (True, False):
+            nhan = method_label(fold_gop, reranked)
+            assert "hybrid" not in nhan
+            assert ("fold" in nhan) is fold_gop, (
+                f"fold_gop={fold_gop} mà nhãn là {nhan!r}")
+            assert ("rerank" in nhan) is reranked
