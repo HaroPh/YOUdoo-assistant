@@ -181,14 +181,23 @@ async def process_document(req: Request):
         # mất vài mili giây. Open WebUI cũng gọi loader của họ theo cách này.
         docs = await asyncio.to_thread(_stage_and_extract, data, ext, filename)
     except EmptyExtraction as e:
-        logger.exception("process_document: khong trich duoc noi dung - %s", filename)
+        # `warning`, không `exception`: đây là kết quả THƯỜNG GẶP (bản scan mà
+        # tầng OCR cũng chịu) — chính là ca sinh ra task này, không phải lỗi
+        # để debug từ stack trace.
+        logger.warning("process_document: khong trich duoc noi dung - %s", filename)
         raise HTTPException(status_code=422, detail=str(e))
     except UnsupportedFormat as e:
-        logger.exception("process_document: dinh dang khong ho tro - %s", filename)
+        # `warning`, không `exception`: tiền-kiểm ở trên đã lọc gần hết ca này
+        # rồi (hiếm khi tới được đây) — vẫn chỉ là lệch phía client, không
+        # phải lỗi hạ tầng.
+        logger.warning("process_document: dinh dang khong ho tro - %s", filename)
         raise HTTPException(status_code=415, detail=str(e))
     except TesseractMissing as e:
         # "thiếu binary" khác hẳn "tài liệu không có chữ" — đừng gộp vào 422,
         # người đọc log sẽ không biết phải sửa gì.
+        # RIÊNG nhánh này giữ `exception` (ERROR + stack trace): đây mới là
+        # lỗi HẠ TẦNG thật — thuộc trách nhiệm của ta sửa, không phải hệ quả
+        # bình thường từ những gì client gửi lên như hai nhánh trên.
         logger.exception("process_document: thieu Tesseract - %s", filename)
         raise HTTPException(status_code=503, detail=str(e))
     return docs
