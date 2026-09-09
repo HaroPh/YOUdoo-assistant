@@ -45,8 +45,8 @@ def test_docx_yields_exactly_one_document():
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(tesseract_path() is None or not os.path.isfile(SCAN),
-                    reason="chua cai tesseract hoac thieu kho scan")
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+@pytest.mark.skipif(not os.path.isfile(SCAN), reason="thieu kho scan")
 def test_the_scanned_pdf_open_webui_could_not_read_now_yields_real_text():
     """Phép nghiệm thu THẬT: cùng tệp, khác kết quả.
 
@@ -55,10 +55,10 @@ def test_the_scanned_pdf_open_webui_could_not_read_now_yields_real_text():
     """
     docs = extract_documents(SCAN, "DVT_2022.pdf")
     assert len(docs) >= 10, f"chi ra {len(docs)} trang tren tai lieu 16 trang"
-    tong = sum(len(d["page_content"]) for d in docs)
-    assert tong > 5000, f"chi trich duoc {tong} ky tu - Open WebUI ra 15"
-    assert any(d["metadata"]["source_kind"] == "ocr" for d in docs), \
-        "khong trang nao danh dau la OCR - tep nay KHONG co lop text"
-    assert any(d["metadata"]["ocr_conf"] for d in docs)
-    het = " ".join(d["page_content"] for d in docs).lower()
-    assert "báo cáo" in het or "bao cao" in het
+    total_chars = sum(len(d["page_content"]) for d in docs)
+    assert total_chars > 5000, f"chi trich duoc {total_chars} ky tu - Open WebUI ra 15"
+    assert all(d["metadata"]["source_kind"] == "ocr" for d in docs), \
+        "co trang khong danh dau la OCR - tep scan thuan tuy nen ca 16 trang phai la ocr"
+    assert all(d["metadata"]["ocr_conf"] is not None for d in docs)
+    all_text = " ".join(d["page_content"] for d in docs).lower()
+    assert "báo cáo" in all_text or "bao cao" in all_text
