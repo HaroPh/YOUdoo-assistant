@@ -12,9 +12,11 @@ import json
 import logging
 import os
 import secrets
+import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
+from urllib.parse import unquote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -28,6 +30,9 @@ logger = logging.getLogger(__name__)
 from src.llm.catalog import (MODEL_CHON_DUOC, MODEL_MAC_DINH,
                              MODEL_NGUOI_DUNG_CHON, model_tra_loi)
 from src.llm.router import THUNG_FALLBACK, THUNG_MODEL
+from src.ocr.engine import TesseractMissing
+from src.rag.extract import (EmptyExtraction, SUPPORTED_EXT, UnsupportedFormat,
+                             extract_documents)
 
 # Tên endpoint, KHÔNG phải một model. Từ 2026-08-21 nó không còn được
 # quảng cáo ở /v1/models (xem docstring ở đó) nhưng vẫn giữ: client cũ và
@@ -136,6 +141,61 @@ async def list_models(req: Request):
         {"id": i, "object": "model", "created": created, "owned_by": "erp-ai"}
         for i in ids
     ]}
+
+
+@app.put("/v1/documents/process")
+async def process_document(req: Request):
+    """Trích text từ tệp người dùng đính kèm.
+
+    Nói đúng hợp đồng `external_document_loader` của Open WebUI: body là bytes
+    THÔ (không multipart), tên tệp qua `X-Filename` đã urlencode, trả về list
+    {page_content, metadata}. Hợp đồng đó đủ tổng quát để cũng là hợp đồng của
+    ta — không có lớp adapter nào.
+
+    Vì sao tồn tại: đo 2026-09-09, Open WebUI trích `DVT_2022.pdf` (scan 16
+    trang) ra 15 ký tự toàn dấu cách và người dùng nghe "không tìm thấy tài
+    liệu liên quan". Repo đã có OCR đọc được tệp đó nhưng chưa route nào nhận
+    tệp.
+    """
+    _kiem_token(req)
+    filename = unquote(req.headers.get("x-filename") or "").strip()
+    if not filename:
+        raise HTTPException(
+            status_code=400,
+            detail="thieu header X-Filename - dinh dang suy tu TEN tep, "
+                   "khong doan tu noi dung")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in SUPPORTED_EXT:
+        raise HTTPException(
+            status_code=415,
+            detail=f"duoi {ext or '(khong co)'} chua ho tro. "
+                   f"Ho tro: {', '.join(sorted(SUPPORTED_EXT))}")
+    data = await req.body()
+    if not data:
+        raise HTTPException(status_code=400, detail="body rong")
+
+    fd, tmp = tempfile.mkstemp(suffix=ext)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        # `to_thread` BẮT BUỘC: parser (nhất là OCR) chặn CPU hàng phút. Chạy
+        # thẳng trong vòng lặp sự kiện là treo mọi request khác của backend.
+        # Open WebUI cũng gọi loader của họ theo đúng cách này.
+        docs = await asyncio.to_thread(extract_documents, tmp, filename)
+    except EmptyExtraction as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except UnsupportedFormat as e:
+        raise HTTPException(status_code=415, detail=str(e))
+    except TesseractMissing as e:
+        # "thiếu binary" khác hẳn "tài liệu không có chữ" — đừng gộp vào 422,
+        # người đọc log sẽ không biết phải sửa gì.
+        raise HTTPException(status_code=503, detail=str(e))
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+    return docs
 
 
 def _filter_messages(messages: list[dict]) -> list[dict]:
