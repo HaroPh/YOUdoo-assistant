@@ -1865,6 +1865,73 @@ Thời gian chạy cổng: khoảng **1 phút** trên máy nguội, **2 giây** 
 kết quả OCR được đệm theo băm nội dung tệp. Ghi cả hai số để người chạy lại sau
 không tưởng nhầm lượt nhanh là cổng đã hỏng (bỏ qua OCR thật).
 
+### Nghiệm thu sống — chạy thật, không phải đọc mã (2026-09-09, sau khi bộ test đã xanh)
+
+Tất cả số phía trên đến từ cổng nghiệm thu chạy qua pytest. Sau khi cổng đó
+xanh, controller còn tự tay đo thêm một lượt qua socket thật, để tách "mã
+chạy đúng trong test" khỏi "mã chạy đúng khi có ai đó thật sự gọi tới nó".
+
+**Backend chạy ở đâu.** Từ worktree này, trên cổng **8012**, không phải 8002.
+Cổng 8002 khi đó đang phục vụ backend của cây chính (tiến trình PID 12564) —
+và đây không phải giả định: `PUT /v1/documents/process` gọi vào cổng 8002 trả
+về **404** trong khi `/health` vẫn trả 200, tức đúng là code cũ, thiếu route
+mới. Tiến trình đó được để nguyên, không đụng vào — dừng một tiến trình ngoài
+worktree không nằm trong lựa chọn. Backend nghiệm thu chạy với
+`RAG_RERANK_ENABLED=0`, để không có hai reranker cùng tranh 8 GB GPU với cái
+đã nạp sẵn.
+
+**Gọi trực tiếp qua socket thật.** `curl -X PUT
+http://127.0.0.1:8012/v1/documents/process` với đúng tệp `DVT_2022.pdf` nặng
+**5.124.652 byte**:
+
+- HTTP **200** sau **0,50 giây** (bộ đệm OCR đã ấm), thân JSON **50.895 byte**
+- **16** tài liệu, **40.939 ký tự**, **16/16** trang mang `source_kind="ocr"`,
+  `metadata.source = "DVT_2022.pdf"`
+- trang 6 đọc lại là tiếng Việt sạch, đủ dấu — khớp với quan sát đã ghi ở mục
+  trên qua đường gate
+
+Thêm hai phép thử phá không có trong kế hoạch, chạy vì một kết quả đúng một
+mình không cho thấy các cổng chặn vẫn còn chặn:
+
+- đổi đuôi tệp thành `.doc` → HTTP **415**, không phải 200
+- bỏ header `Authorization` → HTTP **401**
+
+**Client thật của Open WebUI, chạy nguyên văn — phần quan trọng nhất.** Thay
+vì đọc mã nguồn `ExternalDocumentLoader` của Open WebUI rồi suy luận nó sẽ làm
+gì, class đó được chạy THẬT bên trong container của chính Open WebUI, gọi
+thẳng vào endpoint. Chỉ một chỗ bị giả (stub): `open_webui.utils.headers` —
+và chỉ sau khi chứng minh cả hai hàm trong đó là no-op với lượt gọi này
+(`headers.py:43-44` trả nguyên header khi `user is None`; `headers.py:95-96`
+trả `{}` khi `custom_headers` rỗng). Client của họ, mã của họ, gọi qua
+`host.docker.internal:8012`, trả về:
+
+- **16** đối tượng `Document` của langchain, **40.939 ký tự**, **16/16** gắn
+  nhãn OCR, `source="DVT_2022.pdf"`
+
+Tức là nửa hợp đồng thuộc về Open WebUI được xác nhận **bằng cách chạy**, chứ
+không phải bằng cách đọc mã của họ rồi tin.
+
+### Nửa còn lại: KHÔNG chạy, nói thẳng để không ai hiểu nhầm là xong xuôi
+
+Hai việc bị cố ý bỏ qua trong lượt đo trên, và phải ghi rõ ở đây kẻo sáu tháng
+sau ai đó đọc lại tưởng nhầm đây là nghiệm thu đầu-cuối trọn vẹn:
+
+1. **Open WebUI KHÔNG được cấu hình lại.** Bật
+   `rag.content_extraction_engine` sang External, cộng URL bộ nạp và API key,
+   nghĩa là ghi vào `webui.db` của một instance đang chạy sống — cả ba khoá
+   đó hiện chưa tồn tại trong đó, đã xác nhận bằng một truy vấn chỉ-đọc. Ghi
+   vào database cấu hình của một app đang chạy có rủi ro app đó ghi đè lại
+   bằng bản trong bộ nhớ của nó; hơn nữa backend nghiệm thu ở cổng 8012 mà
+   được trỏ tới rồi tắt đi sẽ để lại một cấu hình trỏ vào cổng chết. Vì vậy
+   việc này để lại cho người vận hành.
+2. **Do đó đường nạp tài liệu THẬT của Open WebUI vẫn CHƯA được xác nhận**:
+   rằng hướng dẫn bấm vào admin settings trong `getting-started.md` khớp đúng
+   với giao diện thật, và rằng sau khi nối dây xong, bảng `file` hiện
+   `status: completed` với nội dung thật thay vì 15 ký tự khoảng trắng như
+   hiện nay. Cả hai điều này không thuộc về đúng-sai của endpoint — cả hai
+   đều là phần lắp ráp của Open WebUI — và cả hai chỉ tốn khoảng ba mươi giây
+   thao tác tay của người vận hành qua giao diện.
+
 ### Cổng nghiệm thu KHÔNG chạy trong bộ test mặc định
 
 Ba test trên đều đánh dấu `@pytest.mark.integration`, nên lệnh mặc định của dự
