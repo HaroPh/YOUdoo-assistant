@@ -174,28 +174,55 @@ async def process_document(req: Request):
     if not data:
         raise HTTPException(status_code=400, detail="body rong")
 
-    fd, tmp = tempfile.mkstemp(suffix=ext)
     try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
-        # `to_thread` BẮT BUỘC: parser (nhất là OCR) chặn CPU hàng phút. Chạy
-        # thẳng trong vòng lặp sự kiện là treo mọi request khác của backend.
-        # Open WebUI cũng gọi loader của họ theo đúng cách này.
-        docs = await asyncio.to_thread(extract_documents, tmp, filename)
+        # MỘT `to_thread` duy nhất bọc CẢ ghi tệp lẫn gọi extractor: `f.write`
+        # cũng là I/O đồng bộ (không chỉ extractor) — chạy thẳng trong vòng
+        # lặp sự kiện là treo mọi request khác của backend, dù tệp vài MB chỉ
+        # mất vài mili giây. Open WebUI cũng gọi loader của họ theo cách này.
+        docs = await asyncio.to_thread(_stage_and_extract, data, ext, filename)
     except EmptyExtraction as e:
+        logger.exception("process_document: khong trich duoc noi dung - %s", filename)
         raise HTTPException(status_code=422, detail=str(e))
     except UnsupportedFormat as e:
+        logger.exception("process_document: dinh dang khong ho tro - %s", filename)
         raise HTTPException(status_code=415, detail=str(e))
     except TesseractMissing as e:
         # "thiếu binary" khác hẳn "tài liệu không có chữ" — đừng gộp vào 422,
         # người đọc log sẽ không biết phải sửa gì.
+        logger.exception("process_document: thieu Tesseract - %s", filename)
         raise HTTPException(status_code=503, detail=str(e))
+    return docs
+
+
+def _stage_and_extract(data: bytes, ext: str, filename: str) -> list[dict]:
+    """Ghi bytes ra tệp tạm rồi gọi extractor — CHẠY TRONG một luồng riêng.
+
+    Gộp cả bước ghi tệp (I/O đồng bộ) lẫn gọi extractor (CPU đồng bộ, có khi
+    là OCR hàng phút) vào MỘT hàm đồng bộ duy nhất, để `process_document` chỉ
+    cần một lượt `asyncio.to_thread` — không còn dòng nào chặn vòng lặp sự
+    kiện, kể cả `f.write`.
+
+    Gọi `extract_documents` qua TÊN TOÀN CỤC của module (không chốt sớm bằng
+    tham số mặc định hay biến local ngoài hàm): test monkeypatch
+    `main_module.extract_documents` để giả lập lỗi, và bản vá đó chỉ có tác
+    dụng nếu việc tra cứu tên xảy ra LÚC HÀM NÀY CHẠY — đúng như một lookup
+    global bình thường trong thân hàm, không phải lúc module được nạp.
+
+    Tệp tạm LUÔN bị xoá trước khi hàm này trả về, kể cả khi extractor ném.
+    Xoá thất bại (thường do parser để sót handle đang mở — trên Windows thì
+    `os.unlink` ném `PermissionError`) được LOG chứ không nuốt lặng lẽ: nuốt
+    lặng lẽ đúng là loại rò rỉ "chỉ lộ ra sau hàng nghìn request".
+    """
+    fd, tmp = tempfile.mkstemp(suffix=ext)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        return extract_documents(tmp, filename)
     finally:
         try:
             os.unlink(tmp)
-        except OSError:
-            pass
-    return docs
+        except OSError as e:
+            logger.warning("khong xoa duoc tep tam %s: %s", tmp, e)
 
 
 def _filter_messages(messages: list[dict]) -> list[dict]:
