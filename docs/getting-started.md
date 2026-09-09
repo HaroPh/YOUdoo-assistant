@@ -324,6 +324,21 @@ scenarios with known-good real data.
 Quick sanity check before running full scenarios — ask "Bạn là ai?"
 (who are you); expect "Tôi là Youdoo" in the reply.
 
+### Cho Open WebUI dùng bộ trích tài liệu của backend
+
+Mặc định Open WebUI trích PDF bằng bộ đọc lớp text — **tài liệu scan ra rỗng**
+(đo 2026-09-09: một bản scan 16 trang trích ra 15 ký tự toàn dấu cách). Trỏ nó
+vào backend để dùng OCR bậc 1 và bậc 2:
+
+Settings, Admin Settings, Documents, Content Extraction Engine, chọn **External**
+
+- URL: `http://host.docker.internal:8002/v1/documents`
+  (Open WebUI tự nối `/process` vào cuối)
+- API Key: cùng giá trị `YOUDOO_API_TOKEN` trong `.env`
+
+Tài liệu scan mất khoảng 4 giây mỗi trang ở lần đầu; lần sau tức thì nhờ đệm
+OCR khoá theo băm nội dung tệp.
+
 ## Stopping everything
 
 `Ctrl+C` in each of the four Python terminals (three `mcp-odoo` role

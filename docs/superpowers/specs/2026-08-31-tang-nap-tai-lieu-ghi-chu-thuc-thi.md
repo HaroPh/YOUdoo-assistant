@@ -1823,3 +1823,100 @@ Suite **2481 passed, 1 skipped, 0 failed**; 30/30 test integration của `rag`.
 
 **Còn nợ**: `chunk_text_fold` được ghi lúc ingest, nên corpus có sẵn phải nạp
 lại (hoặc backfill) sau migration — đã ghi vào `getting-started.md`.
+
+## 16. Endpoint trích tài liệu cho Open WebUI
+
+**Ngày**: 2026-09-09. **Nhánh**: `worktree-trich-tai-lieu`, base `e4d242a`.
+**Spec**: `2026-09-09-endpoint-trich-tai-lieu-design.md` · **Kế hoạch**: `plans/2026-09-09-endpoint-trich-tai-lieu.md`
+**Ledger**: `.superpowers/sdd/2026-09-09-endpoint-trich-tai-lieu/progress.md`
+
+Route `PUT /v1/documents/process` (`backend/src/main.py`) đưa `extract_documents()`
+— OCR bậc 1 đã có từ trước — ra khỏi nội bộ backend, cắm thẳng vào khe
+`external_document_loader` của Open WebUI. Năng lực OCR đã có sẵn trong repo
+nhưng không route nào nhận tệp, nên chưa từng tới tay người dùng qua đường đính
+kèm cho tới bản này.
+
+### Số đo thật, đặt cạnh số của Open WebUI
+
+Đo trên `DVT_2022.pdf` — báo cáo tài chính scan, 16 trang, 5,1 MB — qua cổng
+nghiệm thu chạy trên tệp thật (`backend/tests/rag/test_extract_real_files.py`):
+
+| | Open WebUI, bộ đọc mặc định (đo 2026-09-08) | Endpoint mới (đo 2026-09-09) |
+|---|---|---|
+| tổng số ký tự trích được | **15**, toàn dấu cách | **40.939** |
+| số tài liệu trả về | — (`status=failed`) | **16** (đúng 1 tài liệu/trang) |
+| người dùng nghe | *"Không tìm thấy tài liệu liên quan đến câu hỏi này."* | trả lời được từ nội dung thật |
+
+Cả **16/16** trang mang `source_kind="ocr"`; cả **16/16** trang có giá trị
+`ocr_conf`, khoảng tin cậy **43,4–92,5**, trung bình **80,1**.
+
+40.939 không phải con số đếm suông: trang 6 là văn xuôi tiếng Việt sạch, đủ dấu
+— "Báo cáo tài chính cho năm tài chính kết thúc tại ngày 31 tháng 12 năm 2021
+chưa được kiểm toán bởi Công ty kiểm toán độc lập". Trang 2 (mục lục) có nhiễu
+OCR thật — dấu chấm dẫn dòng và đường kẻ lẫn vào tiêu đề. Chỉ đếm ký tự sẽ
+không biết được điều này; đã đọc trực tiếp cả hai trang trước khi ghi số này
+vào đây.
+
+Hai tệp còn lại của cổng nghiệm thu cũng qua: `src/rag/seed/law/luat-thuegtgt.pdf`
+(PDF số) và `src/rag/seed/policy.docx` — `.docx` ra đúng MỘT tài liệu, vì
+`parse_docx` không có khái niệm trang.
+
+Thời gian chạy cổng: khoảng **1 phút** trên máy nguội, **2 giây** khi đã ấm, vì
+kết quả OCR được đệm theo băm nội dung tệp. Ghi cả hai số để người chạy lại sau
+không tưởng nhầm lượt nhanh là cổng đã hỏng (bỏ qua OCR thật).
+
+### Cổng nghiệm thu KHÔNG chạy trong bộ test mặc định
+
+Ba test trên đều đánh dấu `@pytest.mark.integration`, nên lệnh mặc định của dự
+án — `-m "not integration and not live"` — loại cả ba. Phải gọi tường minh
+`-m "integration and not live"` mới chạy thật. Đây là đánh đổi hợp lý (một
+phút OCR, cần cài Tesseract, cần tệp không nằm trong git) — nhưng phải nói
+thẳng: một cổng không ai chạy là cách dự án này để mất một đảm bảo nhiều lần
+nhất.
+
+### Chưa làm trong lát này
+
+- Không lưu tệp ở đâu lâu dài — ghi ra tệp tạm trong một lượt `to_thread` rồi
+  xoá ngay, kể cả khi parser ném lỗi.
+- Không ghi gì vào database.
+- `.doc` và `.xls` trả **415** — cần LibreOffice chuyển đổi, ngoài phạm vi
+  lát này.
+- Không báo trước thời gian dự kiến cho tệp lớn — cố ý để dành cho lát 2, khi
+  đã có số đo thật về kích thước/thời gian trên nhiều tệp hơn để thiết kế
+  đúng, thay vì đoán trước khi có dữ liệu.
+
+### Giới hạn cần biết: Open WebUI không đặt timeout
+
+Client `external_document_loader` của Open WebUI gọi bằng `requests.put`
+không đặt timeout, nên một lượt OCR chậm vài phút không bị họ ngắt ngang —
+tiện cho lát này, vì không cần dựng bảng job hay trạng thái riêng. Nhưng đó là
+hành vi đọc được từ mã nguồn Open WebUI HÔM NAY, không phải một cam kết trong
+hợp đồng giữa hai bên — không có gì đảm bảo một bản Open WebUI sau này vẫn giữ
+nguyên như vậy.
+
+### Khó khăn gặp phải khi thi hành
+
+- **Kiểm rỗng ban đầu hẹp hơn bất biến nó phải giữ (Task 1).** Bản đầu
+  `.strip()` chuỗi các ô ĐÃ NỐI lại, nên một ô `.xlsx` chỉ chứa ký tự tab
+  sống sót thành `"\t"` sau `.strip(" |")` — khác rỗng, "trích thành công"
+  nội dung rác. Đúng lớp lỗi module này sinh ra để chặn, chỉ đi vào bằng cửa
+  `.xlsx` thay vì cửa PDF scan. Sửa: lọc rỗng theo TỪNG Ô trước khi nối.
+- **Thiếu `.env` trong worktree (Task 2).** `tests/mcp/` và `tests/jobs/` lỗi
+  ngay từ bước import vì thiếu biến môi trường Odoo, dù hai thư mục đó không
+  liên quan gì tới tài liệu. Copy `.env` từ cây chính vào worktree là đủ; tệp
+  đã nằm trong `.gitignore`, không lọt vào git.
+- **Ba biến định danh tiếng Việt lọt vào mã** (`_moi_truong` ở Task 2,
+  `tong`/`het` ở Task 3) — cùng một lớp lỗi lặp lại lần thứ ba trong một kế
+  hoạch, cả ba đều bị copy nguyên văn từ code block trong brief. Đã đổi tên
+  cả ba.
+- **Mức log lẫn lộn giữa lỗi-thường-gặp và lỗi-hạ-tầng (Task 2).** Bản đầu
+  ghi `logger.exception` (ERROR + stack trace) cho cả `EmptyExtraction`/
+  `UnsupportedFormat` (422/415 — kết quả THƯỜNG gặp khi quét hỏng) lẫn
+  `TesseractMissing` (503 — lỗi hạ tầng thật). Theo dõi log ở mức ERROR sẽ
+  không phân biệt được "tài liệu này quét hỏng" với "máy chủ thiếu
+  Tesseract". Sửa: `warning` cho hai nhánh trước, giữ `exception` cho nhánh
+  sau.
+- **Hai khẳng định `any(...)` quá lỏng ở cổng nghiệm thu (Task 3).** Bản đầu
+  chỉ đòi MỘT trong 16 trang mang `source_kind="ocr"` / có `ocr_conf` — một
+  hồi quy khiến phần lớn trang trượt khỏi đường OCR vẫn lọt qua cổng nếu tổng
+  ký tự còn trên ngưỡng. Siết thành `all(...)`.
