@@ -159,6 +159,10 @@ async def process_document(req: Request):
     """
     _kiem_token(req)
     filename = unquote(req.headers.get("x-filename") or "").strip()
+    # Bỏ ký tự điều khiển (vd. \n giải mã từ %0A) khỏi tên tệp — header gốc
+    # không thể chứa xuống dòng nhưng SAU unquote thì có thể, cho phép giả
+    # mạo dòng log qua các nhánh lỗi bên dưới và metadata.source.
+    filename = "".join(c for c in filename if ord(c) >= 0x20)
     if not filename:
         raise HTTPException(
             status_code=400,

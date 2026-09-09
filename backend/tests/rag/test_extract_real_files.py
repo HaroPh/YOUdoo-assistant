@@ -32,7 +32,10 @@ def test_digital_pdf_yields_one_document_per_page_with_real_text():
     assert len(docs) > 1
     assert all(d["page_content"].strip() for d in docs)
     pages = [d["metadata"]["page"] for d in docs]
-    assert pages == sorted(pages)
+    # KHONG phai assert pages == sorted(pages) - dieu do dung voi moi list,
+    # ke ca thieu/trung trang, vi no chi kiem lai chinh sorted(). Kiem tinh
+    # chat ma test nay THAT SU can: day du, khong trung, dung thu tu 1..N.
+    assert pages == list(range(1, len(docs) + 1))
     assert all(d["metadata"]["source_kind"] == "text" for d in docs)
 
 

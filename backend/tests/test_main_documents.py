@@ -145,29 +145,43 @@ async def test_the_temp_file_is_removed_even_when_the_parser_raises(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_temp_file_cleanup_failure_is_logged(monkeypatch, caplog):
-    """Tren Windows, mot handle con mo lam os.unlink nem PermissionError.
+    """Gia lap that bai xoa tep tam bang monkeypatch, khong dua vao viec
+    Windows tu choi os.unlink khi con tay cam mo.
 
-    Xac nhan thuc nghiem truoc khi viet test nay (mo mot tay cam doc roi goi
-    os.unlink cung tep tren may nay): unlink NEM that. Route phai LOG that
-    bai do, khong duoc nuot lang le nhu truoc - nuot lang le dung la loai loi
-    "chi lo ra sau hang nghin request" ma docstring cua test ben tren canh bao.
+    Ban truoc mo mot tay cam doc roi khong dong, dua vao Windows tu choi
+    os.unlink - chi dung tren Windows: tren POSIX unlink thanh cong, khong
+    log gi, assertion cuoi rot, va dong don dep cua chinh test con nem
+    FileNotFoundError truoc ca do. Ban nay ep that bai truc tiep nen kiem
+    duoc nhanh logger.warning tren moi he dieu hanh.
+
+    Chi ep that bai o LAN GOI DAU (route tu don dep trong finally); lan goi
+    thu hai - don dep that cua chinh test ben duoi - duoc di qua that, vi tep
+    tam van con nguyen tren dia sau khi lan dau that bai.
     """
     seen = {}
 
-    def _leaves_a_handle_open(path, filename):
+    def _no(path, filename):
         seen["path"] = path
-        seen["handle"] = open(path, "rb")  # KHONG dong -> unlink se that bai
         raise RuntimeError("parser hong")
 
-    monkeypatch.setattr(main_module, "extract_documents", _leaves_a_handle_open)
+    real_unlink = os.unlink
+    calls = {"n": 0}
+
+    def _fail_once(path, *a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise PermissionError("gia lap: handle dang mo (Windows)")
+        return real_unlink(path, *a, **kw)
+
+    monkeypatch.setattr(main_module, "extract_documents", _no)
+    monkeypatch.setattr(os, "unlink", _fail_once)
     with caplog.at_level(logging.WARNING):
         async with _client() as c:
             with pytest.raises(RuntimeError):
                 await c.put("/v1/documents/process", content=b"abc",
                             headers=_headers("x.pdf"))
-    seen["handle"].close()
-    os.unlink(seen["path"])  # don that su cho test - route khong xoa duoc luc nay
     assert seen["path"] in caplog.text
+    os.unlink(seen["path"])  # don that su cho test - lan goi nay (thu 2) thanh cong that
 
 
 @pytest.mark.asyncio
@@ -181,3 +195,19 @@ async def test_the_filename_header_is_url_decoded(monkeypatch):
         r = await c.put("/v1/documents/process", content=b"abc",
                         headers=_headers("b%C3%A1o%20c%C3%A1o.pdf"))
     assert r.json()[0]["metadata"]["source"] == "báo cáo.pdf"
+
+
+@pytest.mark.asyncio
+async def test_a_percent_encoded_newline_is_stripped_from_the_filename(monkeypatch):
+    # Header goc khong the chua xuong dong, nhung "%0A" giai ma thanh "\n" -
+    # nguoi goi da xac thuc co the gia mao dong log qua ten tep. Ky tu dieu
+    # khien phai bi loai truoc khi ten tep di vao metadata.source.
+    monkeypatch.setattr(
+        main_module, "extract_documents",
+        lambda p, f: [{"page_content": "x", "metadata": {"source": f}}])
+    async with _client() as c:
+        r = await c.put("/v1/documents/process", content=b"abc",
+                        headers=_headers("bao%0Acao.pdf"))
+    source = r.json()[0]["metadata"]["source"]
+    assert "\n" not in source
+    assert source == "baocao.pdf"

@@ -122,9 +122,8 @@ def extract_documents(path: str, filename: str) -> list[dict]:
     ext = os.path.splitext(filename)[1].lower()
     kind = SUPPORTED_EXT.get(ext)
     if kind is None:
-        ten = ext or "(khong co)"
         raise UnsupportedFormat(
-            f"duoi {ten} khong nap thang duoc. "
+            f"duoi {ext or '(khong co)'} khong nap thang duoc. "
             f"Ho tro: {', '.join(sorted(SUPPORTED_EXT))}")
 
     if kind == "pdf":

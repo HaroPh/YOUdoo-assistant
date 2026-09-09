@@ -1943,14 +1943,45 @@ nhất.
 
 ### Chưa làm trong lát này
 
-- Không lưu tệp ở đâu lâu dài — ghi ra tệp tạm trong một lượt `to_thread` rồi
-  xoá ngay, kể cả khi parser ném lỗi.
+- Không lưu **tệp gốc** ở đâu lâu dài — ghi ra tệp tạm trong một lượt
+  `to_thread` rồi xoá ngay, kể cả khi parser ném lỗi. Điều này KHÔNG đúng cho
+  văn bản đã OCR ra từ tệp đó — xem đoạn "Bộ đệm OCR" ngay dưới đây, kẻo đọc
+  hai gạch đầu dòng này cạnh nhau lại tưởng nhầm endpoint hoàn toàn vô trạng
+  thái.
 - Không ghi gì vào database.
 - `.doc` và `.xls` trả **415** — cần LibreOffice chuyển đổi, ngoài phạm vi
   lát này.
 - Không báo trước thời gian dự kiến cho tệp lớn — cố ý để dành cho lát 2, khi
   đã có số đo thật về kích thước/thời gian trên nhiều tệp hơn để thiết kế
   đúng, thay vì đoán trước khi có dữ liệu.
+- `asyncio.to_thread` dùng **executor mặc định** của event loop — cùng
+  executor mà đường chat dùng cho `retrieve()` — nên một lượt OCR dài (hàng
+  phút) chiếm một worker, và đủ nhiều lượt tải lên đồng thời sẽ xếp hàng cả
+  những lượt truy xuất RAG phía sau; tách executor riêng cho OCR là việc của
+  lát sau.
+
+### Bộ đệm OCR: "không lưu tệp" không có nghĩa là vô trạng thái
+
+Hai gạch đầu dòng ở trên — không lưu tệp lâu dài, không ghi gì vào database —
+đều ĐÚNG từng câu một, nhưng đặt cạnh nhau dễ để lại cảm giác sai rằng
+endpoint này hoàn toàn vô trạng thái. Không phải vậy: `src/ocr/document.py`
+ghi một tệp JSON cho MỖI TRANG đã OCR vào `%TEMP%\youdoo_ocr` (đổi được qua
+biến môi trường `YOUDOO_OCR_CACHE`), khoá theo băm nội dung tệp, chứa trọn
+văn bản nhận dạng được cộng toạ độ từng từ và độ tin cậy trung bình. Không có
+TTL, không có cơ chế dọn ở bất kỳ đâu trong `src/ocr/` — đo trên máy này lúc
+viết đoạn này: **474 tệp, 22,6 MB**.
+
+Trước nhánh này, bộ đệm chỉ được nạp bởi kho tài liệu của chính người vận
+hành. Từ nhánh này, bất kỳ người dùng đã xác thực nào đính kèm một phiếu
+lương, hợp đồng hay sao kê ngân hàng dạng scan sẽ để lại TRỌN văn bản của nó
+dưới dạng chữ thường (plaintext) trên đĩa máy chủ, vô thời hạn, ngoài
+database và ngoài mọi lớp kiểm quyền vai. Nói rõ để không ai hiểu lầm: đây
+KHÔNG phải lỗ hổng ở phía ĐỌC — khoá đệm là băm nội dung tệp, nên không lấy
+lại được một mục nếu chưa sẵn có chính tệp đó trong tay. Đây là vấn đề LƯU
+GIỮ, BẢO MẬT của nơi lưu trữ, và TĂNG TRƯỞNG KHÔNG GIỚI HẠN. Dọn bộ đệm
+(TTL/eviction) là việc của lát sau; `YOUDOO_OCR_CACHE` đã có sẵn ngay từ bây
+giờ để trỏ nó sang một vị trí có quản lý thay vì thư mục tạm mặc định của hệ
+điều hành.
 
 ### Giới hạn cần biết: Open WebUI không đặt timeout
 

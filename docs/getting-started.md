@@ -337,9 +337,22 @@ Settings, Admin Settings, Documents, Content Extraction Engine, select **Externa
   (Open WebUI appends `/process` itself)
 - API Key: the same value as `YOUDOO_API_TOKEN` in `.env`
 
+**Only six file types can be attached while External is selected.** Open
+WebUI's loader picks the External engine first whenever it's configured, for
+*every* attachment type — there's no file-extension check on that branch, so
+this switch is not scoped to PDFs. Only `.pdf`, `.docx`, `.xlsx`, `.xlsm`,
+`.xltx` and `.pptx` reach this backend's extractor; every other type
+(`.txt`, `.md`, `.csv`, `.json`, `.html`, images, `.doc`, `.xls`, ...) gets a
+415 from this endpoint and fails to upload, even though those same types
+work today via Open WebUI's built-in loaders. Support for them is a later
+slice, not a bug in this one.
+
 A scanned document takes roughly 4 seconds per page on the first pass;
 re-uploading the same file comes back in about a second, because the OCR
-result is cached and keyed on the file's content hash.
+result is cached and keyed on the file's content hash. That cache is a set
+of per-page JSON files under `%TEMP%\youdoo_ocr` by default (override with
+`YOUDOO_OCR_CACHE`), and it is not evicted — see the execution notes for
+`2026-09-09-endpoint-trich-tai-lieu` for details.
 
 ## Stopping everything
 
