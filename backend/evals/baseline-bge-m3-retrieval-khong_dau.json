@@ -1,0 +1,976 @@
+{
+  "set": "retrieval",
+  "n": 64,
+  "rerank": true,
+  "dang_go": "khong_dau",
+  "methods_seen": [
+    "dense+fold-rrf+rerank"
+  ],
+  "recall_at_20": 0.6042,
+  "recall_at_6": 0.526,
+  "mrr": 0.3569,
+  "chunk_span": 1.08,
+  "by_difficulty": {
+    "easy": {
+      "n": 31,
+      "recall_at_20": 0.6344,
+      "mrr": 0.4012
+    },
+    "hard": {
+      "n": 17,
+      "recall_at_20": 0.4118,
+      "mrr": 0.2229
+    },
+    "trap": {
+      "n": 16,
+      "recall_at_20": 0.75,
+      "mrr": 0.4137
+    }
+  },
+  "lat_p50": 549,
+  "lat_p95": 585,
+  "fails": [
+    {
+      "question": "chính sách đổi trả hàng như thế nào?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "policy.docx",
+          "Chính sách hoàn hàng › Mục 1 — Điều kiện hoàn hàng"
+        ],
+        [
+          "policy.docx",
+          "Chính sách hoàn hàng › Mục 3 — Quy trình hoàn hàng"
+        ],
+        [
+          "policy.docx",
+          "Chính sách hoàn hàng › Mục 5 — Đổi hàng"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "NHH"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "KI"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › IN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "N M"
+        ],
+        [
+          "luat-baohiemxahoi.pdf",
+          "Chương X › QUẢN LÝ NHÀ NƯỚC VỀ BẢO HIỂM XÃ HỘI › Điều 138. Trách nhiệm của Ủy ban nhân dân các cấp"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "hàng giảm giá có được hoàn trả không?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "policy.docx",
+          "Chính sách hoàn hàng › Mục 2 — Ngoại lệ không được hoàn trả"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XV › XỬ PHẠT VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Mục 2. HÀNH VI VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 142. Hành vi khai sai dẫn đến thiếu số tiền thuế phải nộp hoặc tăng số tiền thuế được miễn, giảm, hoàn, không thu"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG BO THONG TIN TREN CONG THONG TIN DIEN TU CUA"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BAO CÁO SOÁT XÉT THONG TIN TAI CHÍNH GIỮA NIÊN ĐỘ Z"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG BO THONG TIN ĐỊNH KY BAO CAO TÀI CHÍNH"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 7. Giá tính thuế"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "thời gian xử lý hoàn tiền là bao lâu?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "policy.docx",
+          "Chính sách hoàn hàng › Mục 4 — Hoàn tiền"
+        ]
+      ],
+      "got": [
+        [
+          "luat-quanlythue.pdf",
+          "Chương VIII › THỦ TỤC HOÀN THUẾ › Điều 75. Thời hạn giải quyết hồ sơ hoàn thuế"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XV › XỬ PHẠT VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Mục 2. HÀNH VI VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 141. Hành vi vi phạm thủ tục thuế"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương VIII › THỦ TỤC HOÀN THUẾ › Điều 73. Phân loại hồ sơ hoàn thuế"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương IX › Mục 2. KHOANH TIỀN THUẾ NỢ › Điều 83. Các trường hợp được khoanh tiền thuế nợ"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương VI › NỘP THUẾ › Điều 59. Xử lý đối với việc chậm nộp tiền thuế"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "SLA giao hàng nội thành là bao lâu?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "sla.docx",
+          "Thỏa thuận mức dịch vụ nhà cung cấp › Điều 3 — Thời gian giao hàng"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › + RM"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › N"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › HRT HE."
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 9. Thuế suất"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "quy trình giao hàng gồm những bước nào?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "warehouse_outbound.docx",
+          "Quy trình xuất kho › Mục 3 — Đóng gói và dán nhãn"
+        ],
+        [
+          "warehouse_outbound.docx",
+          "Quy trình xuất kho › Mục 4 — Bàn giao và cập nhật hệ thống"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 386. Đề nghị giao kết hợp đồng"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 2. THỰC HIỆN NGHĨA VỤ › Điều 279. Thực hiện nghĩa vụ giao vật"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 406. Điều kiện giao dịch chung trong giao kết hợp đồng"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › VI. THONG TIN BO SUNG CHO CÁC KHOẢN MỤC TRÌNH BAY TRONG BAO CAO KET QUÁ"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 3. BẢO ĐẢM THỰC HIỆN NGHĨA VỤ › Điều 328. Đặt cọc"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "nhà cung cấp giao trễ thì bị xử lý ra sao?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "sla.docx",
+          "Thỏa thuận mức dịch vụ nhà cung cấp › Điều 5 — Phạt chậm trễ giao hàng"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 8. Giao dịch điện tử trong lĩnh vực thuế"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "THONG TIN CHUNG"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "N M"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XI › THÔNG TIN NGƯỜI NỘP THUẾ › Điều 98. Trách nhiệm của tổ chức, cá nhân có liên quan trong việc cung cấp thông tin người nộp thuế"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XIII › KIỂM TRA THUẾ, THANH TRA THUẾ › Mục 3. THANH TRA THUẾ › Điều 116. Nhiệm vụ, quyền hạn của người ra quyết định thanh tra thuế"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "khách nợ quá hạn mức thì làm gì?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "payment_policy.docx",
+          "Chính sách thanh toán và công nợ khách hàng › Điều 2 — Hạn mức công nợ"
+        ],
+        [
+          "payment_policy.docx",
+          "Chính sách thanh toán và công nợ khách hàng › Điều 4 — Xử lý chậm thanh toán"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "NHH"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "KI"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XIV › CƯỠNG CHẾ THI HÀNH QUYẾT ĐỊNH HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 131. Cưỡng chế bằng biện pháp dừng làm thủ tục hải quan đối với hàng hóa xuất khẩu, nhập khẩu"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VI › MỤC 4. DỊCH VỤ LOGISTICS › Điều 239. Quyền cầm giữ và định đoạt hàng hoá"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương VII › THỜI GIỜ LÀM VIỆC, THỜI GIỜ NGHỈ NGƠI › Mục 1. THỜI GIỜ LÀM VIỆC › Điều 105. Thời giờ làm việc bình thường"
+        ],
+        [
+          "luat-dautu.pdf",
+          "Chương VII › PHỤ LỤC II"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "mua nhiều thì có được giảm thêm không?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "discount_policy.docx",
+          "Chính sách chiết khấu theo cấp khách hàng › Mục 3 — Chiết khấu theo số lượng"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XV › XỬ PHẠT VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Mục 2. HÀNH VI VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 142. Hành vi khai sai dẫn đến thiếu số tiền thuế phải nộp hoặc tăng số tiền thuế được miễn, giảm, hoàn, không thu"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › IN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "KI"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BÁO CÁO TÀI CHÍNH HỢP NHÁT GIỮA NIÊN ĐỘ"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "hàng về kho có khớp với đơn đặt mua không thì ai kiểm?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "sop.docx",
+          "Quy trình nhập kho › Bước 2 — Đối chiếu với đơn mua"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 35. Địa điểm giao hàng"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XV › XỬ PHẠT VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Mục 2. HÀNH VI VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 142. Hành vi khai sai dẫn đến thiếu số tiền thuế phải nộp hoặc tăng số tiền thuế được miễn, giảm, hoàn, không thu"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương V › ẤN ĐỊNH THUẾ › Điều 50. Ấn định thuế đối với người nộp thuế trong trường hợp vi phạm pháp luật về thuế"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 7. Giá tính thuế"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "KI"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "bên bán phải đóng gói hàng ra sao trước khi chuyển đi?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "sla.docx",
+          "Thỏa thuận mức dịch vụ nhà cung cấp › Điều 4 — Đóng gói và vận chuyển"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 44. Kiểm tra hàng hoá trước khi giao hàng"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 36. Trách nhiệm khi giao hàng có liên quan đến người vận chuyển"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "THONG TIN CHUNG"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 9. Thuế suất"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 40. Trách nhiệm đối với hàng hoá không phù hợp với hợp đồng"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "giá niêm yết của sản phẩm là bao nhiêu?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "bang_gia.xlsx",
+          "Bảng giá"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "N M"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình phần mềm máy tính › BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình phần mềm máy tính › S"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BẢN THUYET MINH BAO CÁO TÀI CHÍNH HỢP NHẬT GIỮA NIÊN ĐỘ"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "các hình thức xử lý kỷ luật lao động gồm những gì?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "boluat-laodong.pdf",
+          "Điều 124. Hình thức xử lý kỷ luật lao động"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-laodong.pdf",
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 118. Nội quy lao động"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 122. Nguyên tắc, trình tự, thủ tục xử lý kỷ luật lao động"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương XVII › ĐIỀU KHOẢN THI HÀNH › Điều 219. Sửa đổi, bổ sung một số điều của các luật có liên quan đến lao động"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › IN"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 125. Áp dụng hình thức xử lý kỷ luật sa thải"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 125. Áp dụng hình thức xử lý kỷ luật sa thải"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "công ty muốn cho nhân viên nghỉ việc thì cần căn cứ gì?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "boluat-laodong.pdf",
+          "Điều 36. Quyền đơn phương chấm dứt hợp đồng lao động của người sử dụng lao động"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương VI › CÔNG TY HỢP DANH › Điều 181. Quyền và nghĩa vụ của thành viên hợp danh"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương VIII › NHÓM CÔNG TY › Điều 196. Quyền, nghĩa vụ và trách nhiệm của công ty mẹ đối với công ty con"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 156. Chủ tịch Hội đồng quản trị"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
+        ],
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương V › TỪNG NHÓM HÀNG CHỊU THUẾ"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "thời hạn giao hàng trong hợp đồng thương mại quy định ra sao?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "boluat-thuongmai.pdf",
+          "Điều 37. Thời hạn giao hàng"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 296. Kéo dài thời hạn, từ chối thực hiện hợp đồng trong trường hợp bất khả kháng"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VII › MỤC 2. GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 318. Thời hạn khiếu nại"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 296. Kéo dài thời hạn, từ chối thực hiện hợp đồng trong trường hợp bất khả kháng"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › IN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình phần mềm máy tính › BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 41. Khắc phục trong trường hợp giao thiếu hàng, giao hàng không phù hợp với hợp đồng"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "bồi thường thiệt hại trong thương mại được quy định thế nào?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "boluat-thuongmai.pdf",
+          "Điều 302. Bồi thường thiệt hại"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình phần mềm máy tính › BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XX › TRÁCH NHIỆM BỒI THƯỜNG THIỆT HẠI NGOÀI HỢP ĐỒNG › Mục 1. QUY ĐỊNH CHUNG › Điều 585. Nguyên tắc bồi thường thiệt hại"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XX › TRÁCH NHIỆM BỒI THƯỜNG THIỆT HẠI NGOÀI HỢP ĐỒNG › Mục 3. BỒI THƯỜNG THIỆT HẠI TRONG MỘT SỐ TRƯỜNG HỢP CỤ THỂ › Điều 607. Bồi thường thiệt hại do xâm phạm mồ mả"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XX › TRÁCH NHIỆM BỒI THƯỜNG THIỆT HẠI NGOÀI HỢP ĐỒNG › Mục 3. BỒI THƯỜNG THIỆT HẠI TRONG MỘT SỐ TRƯỜNG HỢP CỤ THỂ › Điều 606. Bồi thường thiệt hại do xâm phạm thi thể"
+        ],
+        [
+          "luat-dautu.pdf",
+          "Chương VII › IB"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "THONG TIN CHUNG"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "bên mua chưa trả tiền đúng hẹn thì luật thương mại nói gì?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "boluat-thuongmai.pdf",
+          "Điều 55. Thời hạn thanh toán"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 297. Buộc thực hiện đúng hợp đồng"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 438. Trách nhiệm do giao vật không đồng bộ"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "NHH"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "N M"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 448. Sửa chữa vật trong thời hạn bảo hành"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "hai bên ký hợp đồng giả để che giấu giao dịch khác thì hợp đồng đó ra sao?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "boluat-danssu.pdf",
+          "Điều 124. Giao dịch dân sự vô hiệu do giả tạo"
+        ]
+      ],
+      "got": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương VI › CÔNG TY HỢP DANH › Điều 181. Quyền và nghĩa vụ của thành viên hợp danh"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 67. Hợp đồng, giao dịch phải được Hội đồng thành viên chấp thuận"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 406. Điều kiện giao dịch chung trong giao kết hợp đồng"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là gì?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "boluat-danssu.pdf",
+          "Điều 428. Đơn phương chấm dứt thực hiện hợp đồng"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 2. HỢP ĐỒNG TRAO ĐỔI TÀI SẢN › Điều 455. Hợp đồng trao đổi tài sản"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 406. Điều kiện giao dịch chung trong giao kết hợp đồng"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "NHH"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 405. Hợp đồng theo mẫu"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 427. Hậu quả của việc hủy bỏ hợp đồng"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "điều lệ công ty phải có những nội dung gì?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Điều 24. Điều lệ công ty"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 61. Thủ tục thông qua nghị quyết, quyết định của Hội đồng thành viên theo hình thức lấy ý kiến bằng văn bản"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 164. Công khai các lợi ích liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 142. Chương trình và nội dung họp Đại hội đồng cổ đông"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "KI"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "công ty cổ phần được định nghĩa thế nào?",
+      "difficulty": "easy",
+      "expected": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Điều 111. Công ty cổ phần"
+        ]
+      ],
+      "got": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BẢN THUYET MINH BAO CÁO TÀI CHÍNH HỢP NHẬT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 138. Quyền và nghĩa vụ của Đại hội đồng cổ đông"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 135. Trả cổ tức"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương VI › CÔNG TY HỢP DANH › Điều 187. Quyền và nghĩa vụ của thành viên góp vốn"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "ai là người được ký hợp đồng thay mặt cho công ty?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Điều 12. Người đại diện theo pháp luật của doanh nghiệp"
+        ]
+      ],
+      "got": [
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 127. Chuyển nhượng cổ phần"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 113. Thanh toán cổ phần đã đăng ký mua khi đăng ký thành lập doanh nghiệp"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 149. Thẩm quyền và thể thức lấy ý kiến cổ đông bằng văn bản để thông qua nghị quyết Đại hội đồng cổ đông"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương VI › CÔNG TY HỢP DANH › Điều 181. Quyền và nghĩa vụ của thành viên hợp danh"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "Chương trình › BAO CÁO TÀI CHÍNH HỢP NHAT GIỮA NIÊN ĐỘ"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "thời hạn nộp thuế đối với hàng hoá xuất khẩu, nhập khẩu?",
+      "difficulty": "trap",
+      "expected": [
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Điều 9. Thời hạn nộp thuế"
+        ]
+      ],
+      "got": [
+        [
+          "luat-quanlythue.pdf",
+          "Chương VI › NỘP THUẾ › Điều 55. Thời hạn nộp thuế"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương VI › NỘP THUẾ › Điều 55. Thời hạn nộp thuế"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương VIII › THỦ TỤC HOÀN THUẾ › Điều 73. Phân loại hồ sơ hoàn thuế"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "NHH"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương XV › XỬ PHẠT VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Mục 2. HÀNH VI VI PHẠM HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 142. Hành vi khai sai dẫn đến thiếu số tiền thuế phải nộp hoặc tăng số tiền thuế được miễn, giảm, hoàn, không thu"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương V › ẤN ĐỊNH THUẾ › Điều 52. Ấn định thuế đối với hàng hóa xuất khẩu, nhập khẩu"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "hoàn thuế xuất nhập khẩu áp dụng trong trường hợp nào?",
+      "difficulty": "trap",
+      "expected": [
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Điều 19. Hoàn thuế"
+        ]
+      ],
+      "got": [
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương II › CĂN CỨ TÍNH THUẾ, THỜI ĐIỂM TÍNH THUẾ VÀ BIỂU THUẾ › Điều 5. Căn cứ tính thuế xuất khẩu, thuế nhập khẩu đối với hàng hóa áp dụng phương pháp tính thuế theo tỷ lệ phần trăm"
+        ],
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 2. Đối tượng chịu thuế"
+        ],
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 4. Giải thích từ ngữ"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 9. Thuế suất"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "NHH"
+        ],
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương IV › MIỄN THUẾ, GIẢM THUẾ, HOÀN THUẾ › Điều 16. Miễn thuế"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "hàng hoá nhập khẩu có thuộc đối tượng chịu thuế giá trị gia tăng không?",
+      "difficulty": "trap",
+      "expected": [
+        [
+          "luat-thuegtgt.pdf",
+          "Điều 3. Đối tượng chịu thuế"
+        ]
+      ],
+      "got": [
+        [
+          "luat-thuegtgt.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 5. Đối tượng không chịu thuế"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "CONG TY CO PHAN"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 7. Giá tính thuế"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương III › KHẤU TRỪ, HOÀN THUẾ › Điều 15. Hoàn thuế giá trị gia tăng"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 9. Thuế suất"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 4. Người nộp thuế"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "công ty tnhh hai thành viên trở lên đổi vốn điều lệ thì bao lâu được cập nhật?",
+      "difficulty": "trap",
+      "expected": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Điều 68. Tăng, giảm vốn điều lệ"
+        ]
+      ],
+      "got": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 55. Hội đồng thành viên"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 58. Điều kiện và thể thức tiến hành họp Hội đồng thành viên"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 59. Nghị quyết, quyết định của Hội đồng thành viên"
+        ],
+        [
+          "SID_000000016657191_01VI_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026_signed_05092026111802.pdf",
+          "BÁO CÁO TÀI CHÍNH HỢP NHÁT GIỮA NIÊN ĐỘ"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 87. Tăng, giảm vốn điều lệ"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 61. Thủ tục thông qua nghị quyết, quyết định của Hội đồng thành viên theo hình thức lấy ý kiến bằng văn bản"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    }
+  ],
+  "errors": []
+}

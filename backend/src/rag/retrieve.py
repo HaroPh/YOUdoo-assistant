@@ -1,11 +1,13 @@
 import dataclasses
+import os
+import re
 
 from . import db as _db
 from . import reranker
 from .config import TOP_N, TOP_K, RRF_K, RAG_SCHEMA
 from .embed import embed_query
 from .ingest import segment_vi
-from .chunking import index_text
+from .chunking import fold_vi, index_text
 from .types import Chunk, RetrievalResult
 
 # `d.effective_date` lấy qua LEFT JOIN: nó thuộc rag_documents chứ không
@@ -57,6 +59,82 @@ def _sparse(conn, qseg) -> list[tuple]:
     ).fetchall()
 
 
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _or_tsquery(text_fold: str) -> str:
+    """`a | b | c` — HỢP các từ, không phải GIAO.
+
+    `plainto_tsquery` nối bằng AND: câu dài đòi chunk chứa MỌI từ, và đo được
+    2026-09-08 là **0 chunk khớp** trên corpus 4.870 chunk. Đó chính là lỗi đã
+    giết chân sparse cũ (0/64 truy vấn có kết quả) — bản đầu của chân bỏ dấu
+    này tái tạo y nguyên nó, và chỉ số đo mới lộ ra: recall không dấu nhích
+    0,0156 -> 0,0312 thay vì lên 0,6406 như mô phỏng.
+
+    Lọc còn `[a-z0-9]+` sau khi đã bỏ dấu, nên chuỗi luôn an toàn cho
+    `to_tsquery` — không cần escape, và không token nào mang ký tự toán tử."""
+    return " | ".join(dict.fromkeys(
+        t for t in _TOKEN_RE.findall(text_fold) if len(t) >= 2))
+
+
+def method_label(fold_gop: bool, reranked: bool) -> str:
+    """Nhãn `method` — kể đúng chân nào ĐÓNG GÓP, không phải chân nào được bật.
+
+    `fold_gop` là "chân bỏ dấu có trả về ứng viên nào không", KHÔNG phải
+    "chân bỏ dấu có bật không". Phân biệt này chính là bài học đắt nhất của
+    tệp `test_sparse_van_chet.py`: nhãn cũ nói `hybrid` trong khi chân sparse
+    **có chạy nhưng luôn rỗng** suốt nhiều tháng. "Có chạy" không phải "có
+    đóng góp", và người đọc trace cần biết vế thứ hai.
+
+    Hàm riêng chứ không dựng chuỗi tại chỗ, để test kiểm được TỪNG tổ hợp mà
+    không cần DB.
+    """
+    return ("dense+fold-rrf" if fold_gop else "dense-rrf") +            ("+rerank" if reranked else "")
+
+
+def fold_enabled() -> bool:
+    """Công tắc chân BỎ DẤU. Đọc lúc GỌI để tắt được giữa chừng mà không
+    phải nạp lại module — cùng khuôn với `RAG_RERANK_ENABLED`."""
+    return os.environ.get("RAG_FOLD_ENABLED", "1") != "0"
+
+
+def _lexical_fold(conn, qseg_fold: str) -> list[tuple]:
+    """Chân khớp mặt chữ trên text ĐÃ BỎ DẤU — cả hai phía đều bỏ dấu.
+
+    Vì sao chân này tồn tại trong khi ghi chú cũ kết luận "hồi sinh sparse là
+    CÓ HẠI": kết luận đó vẫn đúng, nhưng nó đo chân FTS CÓ DẤU trên truy vấn
+    CÓ DẤU. Chân này khác hẳn — nó bỏ dấu cả hai phía, và giá trị của nó nằm ở
+    dạng truy vấn mà bộ vàng cũ CHƯA TỪNG ĐO.
+
+    Đo 2026-09-08, bộ vàng 64 ca, ba dạng gõ (có dấu / nửa dấu / không dấu):
+        dense một mình              1,0000 / 0,8594 / 0,0156
+        RRF dense + chân này        0,9844 / 0,9219 / 0,6406
+    Đổi 1 ca có dấu lấy +40 ca không dấu và +4 ca nửa dấu.
+    """
+    tq = _or_tsquery(qseg_fold)
+    if not tq:
+        return []
+    cur = conn.execute(
+        f"SELECT {_COLS}, ts_rank(c.ts_vector_fold, to_tsquery('simple', %s)) AS score "
+        f"FROM {_FROM} WHERE c.ts_vector_fold @@ to_tsquery('simple', %s) "
+        f"ORDER BY score DESC LIMIT {TOP_N}", (tq, tq))
+    return cur.fetchall()
+
+
+def _rrf_fold(folded: list[tuple], acc: dict) -> dict:
+    """Cộng chân BỎ DẤU vào cùng phép hợp nhất, NGANG QUYỀN với dense.
+
+    Không đi qua nhánh `sparse` của `_rrf()` vì nhánh đó ghi vào
+    `["sparse"]`, làm `Chunk.sparse_score` nói sai chân nào sinh ra nó.
+    """
+    for rank, row in enumerate(folded):
+        acc.setdefault(row[0], {"row": row, "rrf": 0.0, "dense": None,
+                                "sparse": None, "fold": None})
+        acc[row[0]]["rrf"] += 1.0 / (RRF_K + rank + 1)
+        acc[row[0]]["fold"] = float(row[-1])
+    return acc
+
+
 def _rrf(dense: list[tuple], sparse: list[tuple], acc: dict | None = None) -> dict:
     """Reciprocal Rank Fusion → {row_id: {'row', 'rrf', 'dense', 'sparse'}}.
 
@@ -65,11 +143,13 @@ def _rrf(dense: list[tuple], sparse: list[tuple], acc: dict | None = None) -> di
     one pool (aux_queries) — dedup by row id is inherent to the dict."""
     acc = {} if acc is None else acc
     for rank, row in enumerate(dense):
-        acc.setdefault(row[0], {"row": row, "rrf": 0.0, "dense": None, "sparse": None})
+        acc.setdefault(row[0], {"row": row, "rrf": 0.0, "dense": None,
+                                "sparse": None, "fold": None})
         acc[row[0]]["rrf"] += 1.0 / (RRF_K + rank + 1)
         acc[row[0]]["dense"] = float(row[-1])
     for rank, row in enumerate(sparse):
-        acc.setdefault(row[0], {"row": row, "rrf": 0.0, "dense": None, "sparse": None})
+        acc.setdefault(row[0], {"row": row, "rrf": 0.0, "dense": None,
+                                "sparse": None, "fold": None})
         acc[row[0]]["rrf"] += 1.0 / (RRF_K + rank + 1)
         acc[row[0]]["sparse"] = float(row[-1])
     return acc
@@ -162,12 +242,25 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         qseg = segment_vi(query)
         dense, sparse = _dense(conn, qvec), _sparse(conn, qseg)
         fused = _rrf(dense, sparse)
+        # Chân BỎ DẤU là một chân RRF NGANG QUYỀN với dense. Quét trọng số
+        # 2026-09-08 cho thấy 1,0 là điểm duy nhất chạy được: dưới 0,7 nó
+        # không bao giờ chen nổi vào top-20, từ 1,5 trở lên nó nuốt cả chân
+        # dense (cả ba dạng gõ tụt về 0,7188).
+        fold_gop = False
+        if fold_enabled():
+            hang_fold = _lexical_fold(conn, fold_vi(query))
+            fold_gop = bool(hang_fold)
+            fused = _rrf_fold(hang_fold, fused)
         for aux in aux_queries:
             if aux == query:
                 continue
             aux_dense = _dense(conn, embed_query(aux))
             aux_sparse = _sparse(conn, segment_vi(aux))
             fused = _rrf(aux_dense, aux_sparse, acc=fused)
+            if fold_enabled():
+                hang_fold = _lexical_fold(conn, fold_vi(aux))
+                fold_gop = fold_gop or bool(hang_fold)
+                fused = _rrf_fold(hang_fold, fused)
         ordered = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)
 
         # Pool RỘNG (TOP_N) cho reranker chọn lọc, cắt k SAU rerank —
@@ -181,6 +274,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
                 text=row[8],
                 effective_date=row[9].isoformat() if row[9] else None,
                 dense_score=e["dense"], sparse_score=e["sparse"],
+                fold_score=e.get("fold"),
                 rrf_score=e["rrf"], rank=rank))
         rerank_query = query if not aux_queries else query + "\n" + "\n".join(aux_queries)
         chunks, reranked = rerank(rerank_query, pool)
@@ -189,7 +283,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
             query=query, query_used=qseg, chunks=chunks,
             top_score=chunks[0].rrf_score if chunks else 0.0,
             total_candidates=len(fused),
-            method="dense-rrf+rerank" if reranked else "dense-rrf")
+            method=method_label(fold_gop, reranked))
     finally:
         if own:
             conn.close()

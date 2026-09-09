@@ -1670,3 +1670,156 @@ luận sai — lần đầu ghép hàng qua giá trị tiền (dòng tổng và 
 duy nhất bằng nhau), lần hai trích nhãn bằng ô dài nhất. Cả hai đều làm phép đo
 BI QUAN hơn thực tế và suýt dẫn tới xây nhầm thứ. Cùng lớp lỗi "thước không đo
 thứ mình tưởng" đã đếm được năm lần trong nhánh bậc 2.
+
+### 14. Đo bộ vàng cho nội dung OCR — và một lỗ hổng LỚN HƠN lộ ra
+
+**Việc định làm**: thêm ca vào bộ vàng truy xuất cho tài liệu scan, vì cả 64 ca
+hiện có đều hỏi về corpus cũ, **không ca nào chạm nội dung OCR**.
+
+**Chặn kỹ thuật đầu tiên**: `label_of()` neo nhãn theo `(tên tệp, section_path)`,
+mà `section_path` của chunk OCR là **rác** — 100 giá trị riêng biệt gồm `Z`,
+`Chương trình › HRT HE.`, `| : THẾ`, cùng các biến thể chỉ khác nhau ở lỗi dấu
+(`HỢP NHAT` / `HỢP NHÁT` / `HỢP NHẮT`). Neo vào đó sẽ gãy ngay khi đổi tham số
+OCR. Ca cho nội dung OCR phải chấm bằng **giá trị chính xác từ đáp án đã
+duyệt**, không phải bằng `section_path`.
+
+14 ca sinh bằng **quy tắc** (mỗi trang lấy 2 hàng có nhãn dài nhất), không chọn
+tay. Đo trên corpus thật:
+
+| dạng truy vấn | top-5 | top-20 |
+|---|---|---|
+| có dấu | 9/14 | 11/13 |
+| **không dấu** | **2/14** | **3/14** |
+
+**Chênh lệch đó không phải chuyện của OCR.** Đo lại trên **bộ vàng 64 ca hiện
+có**, dùng đúng `score_one` + `label_matches` của eval chính thức (bản có dấu
+tái lập chính xác 1,0000 / 0,9688 nên harness đã được kiểm chứng):
+
+| | recall@20 | recall@6 |
+|---|---|---|
+| có dấu (đối chứng) | 64/64 = **1,0000** | 62/64 = 0,9688 |
+| **không dấu** | 1/64 = **0,0156** | **0/64 = 0,0000** |
+
+**Toàn bộ tầng truy xuất sập khi người dùng gõ tiếng Việt không dấu.** Không
+phải trả về rỗng mà trả về **sai hẳn**: câu *"chinh sach doi tra hang nhu the
+nao?"* trả về ba chunk báo cáo tài chính SCID.
+
+Truy nguyên xem OCR có gây ra không — **không**:
+
+| | chunk SCID chiếm top-20 | bỏ SCID ra thì recall@20 |
+|---|---|---|
+| có dấu | 2,5% | 1,0000 |
+| không dấu | **80,4%** | **0,0156** |
+
+Bỏ hẳn SCID vẫn 1/64. Lỗi có sẵn từ trước; tài liệu OCR chỉ **lấp đầy chỗ** vì
+text méo của nó gần với truy vấn méo hơn là tài liệu sạch. Nói cách khác OCR
+làm lỗi này *dễ thấy hơn*, không làm nó *nặng hơn*.
+
+**Vì sao chưa ai thấy**: bộ vàng 64 ca **100% có dấu**. Không ca nào đo dạng
+gõ không dấu. Chân sparse (FTS) — thứ lẽ ra bắt được khớp mặt chữ — đã chết từ
+đầu (0/64 truy vấn có kết quả) và hồi sinh nó từng đo được là CÓ HẠI, nên hệ
+chạy **dense-only**; không có tầng nào bắt chữ khi nhúng trượt.
+
+**Chưa biết, phải hỏi chủ dự án**: người dùng thật của Youdoo có gõ không dấu
+không. Nếu có thì đây là lỗi nghiêm trọng nhất đang mở, trên mọi mục trong lộ
+trình. Nếu không thì nó vẫn cho thấy truy xuất **giòn** trước sai sót dấu.
+
+Bộ 14 ca OCR đã sinh và đo xong, **chưa đưa vào `evals/`** vì còn phụ thuộc một
+quyết định: tài liệu scan hiện nạp từ `D:/downloads`, không nằm trong `seed/`,
+nên một lượt nạp lại toàn bộ sẽ âm thầm làm mất nó và mọi ca đó thành skip.
+
+#### 14b. Đo bốn cách chữa — chân từ vựng BỎ DẤU thắng, nhúng bỏ dấu bị bác bỏ
+
+Chủ dự án xác nhận **người dùng thật có gõ không dấu**, nên đây là lỗi nghiêm
+trọng nhất đang mở. Đo bốn hướng, trên bộ vàng 64 ca, ba dạng truy vấn (có
+dấu / nửa dấu — bỏ dấu mỗi từ thứ hai / không dấu hoàn toàn):
+
+| cách | có dấu | nửa dấu | không dấu |
+|---|---|---|---|
+| **dense (hiện tại)** | 1,0000 | 0,8594 | **0,0156** |
+| chỉ BM25 bỏ dấu | 0,7188 | 0,7188 | 0,7188 |
+| **RRF dense + BM25 bỏ dấu** | **0,9844** | **0,9219** | **0,6406** |
+| định tuyến theo dấu | 1,0000 | 0,8594 | 0,7188 |
+| nhúng chính text BỎ DẤU | 0,4531 | 0,4531 | 0,4531 |
+
+**Bỏ dấu làm truy xuất bất biến với dấu** — BM25 bỏ dấu cho đúng 0,7188 ở cả
+ba dạng. Đó là tính chất cần.
+
+**Nhúng text bỏ dấu BỊ BÁC BỎ**: 0,4531, tệ hơn cả BM25. Dấu tiếng Việt mang
+nghĩa thật và BGE-M3 dựa vào nó; bỏ dấu ở phía index phá mất tín hiệu ngữ
+nghĩa. Tốn 254 giây nhúng lại để biết điều này — rẻ hơn nhiều so với xây rồi
+mới phát hiện.
+
+**Định tuyến theo dấu thắng hai đầu nhưng thua ở giữa** (0,8594 vs 0,9219),
+mà nửa dấu mới là dạng gõ thực tế nhất. Nó cũng cần một heuristic có thể sai.
+
+**Chốt: RRF dense + BM25 bỏ dấu, trọng số bằng nhau.** Quét trọng số cho thấy
+1,0 là điểm duy nhất hoạt động — dưới 0,7 chân từ vựng không bao giờ chen nổi
+vào top-20, từ 1,5 trở lên nó nuốt cả chân dense (cả ba dạng tụt về 0,7188).
+
+Cái giá: **1 ca** trên truy vấn có dấu (64/64 → 63/64). Cái được: **+40 ca**
+trên không dấu và **+4 ca** trên nửa dấu.
+
+**Lưu ý về "chân sparse đã chết"**: ghi chú cũ đo được rằng hồi sinh chân sparse
+là CÓ HẠI (recall 1,0 → 0,9766). Điều đó vẫn đúng — nhưng nó đo chân FTS **có
+dấu** trên truy vấn **có dấu**. Chân đề xuất ở đây khác hẳn: nó bỏ dấu cả hai
+phía, và giá trị của nó nằm ở dạng truy vấn mà bộ vàng cũ **chưa từng đo**.
+
+### 15. Thi hành chân BỎ DẤU — và hai lỗi tự gây, cả hai chỉ số đo mới thấy
+
+Migration 008 (`chunk_text_fold` + `ts_vector_fold` GENERATED + GIN),
+`chunking.fold_vi()`, `retrieve._lexical_fold()` làm chân RRF ngang quyền, có
+công tắc lùi `RAG_FOLD_ENABLED=0`.
+
+**Lỗi tự gây thứ nhất: tôi tái tạo đúng lỗi đã giết chân sparse cũ.** Bản đầu
+dùng `plainto_tsquery`, mà hàm đó nối các từ bằng **AND** — câu dài đòi chunk
+chứa MỌI từ. Đo trên corpus 4.870 chunk: **0 chunk khớp**; đổi sang OR: 3.409.
+Đây đúng nguyên nhân `test_sparse_van_chet.py` ghi lại (0/64 truy vấn có kết
+quả sparse), và tôi vẫn giẫm lại. Bản mô phỏng trước đó dùng BM25 (OR có chấm
+điểm) nên không lộ. **Chỉ phép đo đầu-cuối mới bắt được**: recall không dấu
+nhích 0,0156 → 0,0312 thay vì lên 0,6406 như mô phỏng hứa.
+
+**Lỗi tự gây thứ hai: `segment_vi` trong chân bỏ dấu.** pyvi tạo token GHÉP
+(`chinh_sach`) đòi khớp y hệt hai phía, mà phía truy vấn người dùng gõ tự do.
+Mô phỏng đạt 0,7188 với tách từ THUẦN; bỏ `segment_vi` khỏi chân này rồi mới
+khớp lại được số đã đo.
+
+**Kết quả cuối, bộ eval CHÍNH THỨC, cùng thước cho cả hai chân:**
+
+| dạng gõ | | TẮT | BẬT |
+|---|---|---|---|
+| có dấu | recall@20 | 1,0000 | 0,9766 |
+| | **recall@6** | 0,9688 | **0,9688** |
+| | mrr | 0,8619 | 0,8091 |
+| nửa dấu | recall@20 | 0,8411 | 0,8359 |
+| | **recall@6** | 0,7682 | **0,8203** |
+| | mrr | 0,6360 | 0,6473 |
+| không dấu | recall@20 | 0,0156 | **0,6042** |
+| | **recall@6** | 0,0000 | **0,5208** |
+| | mrr | 0,0017 | 0,3569 |
+
+**`recall@6` trên truy vấn có dấu KHÔNG ĐỔI** (0,9688). Đó là con số đáng giá
+nhất ở đây: `recall@20` là kích thước pool cho reranker, còn `recall@6` mới là
+thứ LLM thật sự nhìn thấy. Giá phải trả nằm ở **thứ hạng trong pool** (mrr
+−0,053), không ở nội dung đến tay LLM. Độ trễ p50 473 → 549 ms (+16%).
+
+**Bộ vàng nay đo cả ba dạng gõ**: `--dang-go co_dau|nua_dau|khong_dau`. Cùng
+câu hỏi, cùng nhãn mong đợi, chỉ đổi cách gõ. Không có nó thì lỗi này lại vô
+hình đúng như suốt 64 ca trước đây.
+
+**Một nhãn nói dối, tự bắt được khi test cũ đỏ.** `method` bản đầu của tôi báo
+`dense+fold-rrf` khi chân bỏ dấu **được bật**, kể cả lúc nó trả về rỗng — đúng
+kiểu nói dối mà `test_sparse_van_chet.py` sinh ra để chặn (`hybrid` trong khi
+sparse luôn rỗng). Sửa: nhãn phản ánh **đóng góp thật**, và `method_label()`
+tách thành hàm riêng để test kiểm từng tổ hợp không cần DB. Sau khi sửa, ba
+test rerank cũ pass lại **mà không phải đụng vào chúng** — dấu hiệu nhãn nay
+đúng.
+
+Test cũ đó cũng phải sửa cơ chế: nó grep MÃ NGUỒN tìm chuỗi `"hybrid-rrf"` và
+bắt nhầm một **chú thích** trích lại nhãn cũ. Grep không phân biệt chú thích
+với nhãn phát ra.
+
+Suite **2481 passed, 1 skipped, 0 failed**; 30/30 test integration của `rag`.
+
+**Còn nợ**: `chunk_text_fold` được ghi lúc ingest, nên corpus có sẵn phải nạp
+lại (hoặc backfill) sau migration — đã ghi vào `getting-started.md`.

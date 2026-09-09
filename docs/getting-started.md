@@ -144,6 +144,7 @@ backend.
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/002_mcp_call_log.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/004_user_memory.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/007_ocr_xuat_xu.sql
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/008_ts_vector_bo_dau.sql
    ```
 
    `admin` / `ai_assistant` are `POSTGRES_USER` and `POSTGRES_DB` from
@@ -151,13 +152,27 @@ backend.
    `DATABASE_URL`. If you overrode `POSTGRES_USER` in `.env`, use that
    value here instead.
 
-   All four scripts are idempotent (`CREATE TABLE IF NOT EXISTS` /
+   All five scripts are idempotent (`CREATE TABLE IF NOT EXISTS` /
    `ADD COLUMN IF EXISTS ... IF NOT EXISTS`), so re-running them is harmless.
 
    `001_llm_usage.sql` — the LLM budget ledger. `002_mcp_call_log.sql` —
    the audit trail for every MCP call. `004_user_memory.sql` — the
    cross-session per-user memory table. `007_ocr_xuat_xu.sql` — adds the
    `source_kind`/`ocr_conf` provenance columns to `rag_chunks`.
+   `008_ts_vector_bo_dau.sql` — adds `chunk_text_fold` +
+   `ts_vector_fold` for the accent-folded lexical leg. Without it,
+   Vietnamese typed WITHOUT diacritics retrieves almost nothing
+   (measured 2026-09-08: recall@20 = 1/64). `chunk_text_fold` is written at
+   ingest time, so on a database that already has chunks you must
+   backfill it — one command, no re-embedding:
+
+   ```powershell
+   cd backend; python -m tools.backfill_chunk_text_fold
+   ```
+
+   (~7s for 4,870 chunks. Add `--tat-ca` to overwrite existing values,
+   needed only if `fold_vi` itself changes.) Skipping this leaves the
+   folded leg silently doing nothing on the old rows.
 
    **On a fresh install, `rag_chunks` does not exist yet at this step** —
    it is created by `ensure_schema()` from `schema.sql` the first time you

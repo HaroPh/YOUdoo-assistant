@@ -84,7 +84,8 @@ def _llm(alias: str, role: str) -> "RoutedChatModel":
     return RoutedChatModel(_get_router(), role, pin=alias)
 
 
-def baseline_path(model: str, set_name: str, role: str = "admin") -> str:
+def baseline_path(model: str, set_name: str, role: str = "admin",
+                  dang_go: str = "co_dau") -> str:
     """Đường dẫn file baseline. MỘT nguồn sự thật cho quy ước tên — eval_gate
     import lại hàm này thay vì tự ghép chuỗi.
 
@@ -109,6 +110,13 @@ def baseline_path(model: str, set_name: str, role: str = "admin") -> str:
     stem = f"baseline-{model.replace(':', '-')}-{set_name}"
     if role != "admin":
         stem = f"{stem}-{role}"
+    # `dang_go` vào TÊN TỆP vì mỗi dạng gõ là một baseline RIÊNG: cùng model,
+    # cùng bộ ca, nhưng ba mức chất lượng khác hẳn nhau (đo 2026-09-08:
+    # recall@20 0,9766 / 0,8359 / 0,6042). Thiếu chỗ này thì `--save-baseline
+    # --dang-go khong_dau` ĐÈ LÊN baseline dạng có dấu và xoá mốc so sánh.
+    # "co_dau" không thêm hậu tố, để tên tệp cũ giữ nguyên.
+    if dang_go != "co_dau":
+        stem = f"{stem}-{dang_go}"
     return os.path.join(here, f"{stem}.json")
 
 
@@ -1069,8 +1077,21 @@ async def eval_multi_source_gather(llm, pace: float = 0.0, checkpoint_path=None)
             "fails": fails, "errors": errors}
 
 
+def _go_nua_dau(q: str) -> str:
+    """Bỏ dấu mỗi từ thứ hai — mô phỏng kiểu gõ THỰC TẾ NHẤT: người dùng gõ
+    vội, một số từ có dấu một số không."""
+    from src.rag.chunking import fold_vi
+    return " ".join(fold_vi(w) if i % 2 else w for i, w in enumerate(q.split()))
+
+
+def _dang_go(ten: str):
+    from src.rag.chunking import fold_vi
+    return {"co_dau": lambda q: q, "nua_dau": _go_nua_dau,
+            "khong_dau": fold_vi}[ten]
+
+
 async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
-                         rerank: bool = True):
+                         rerank: bool = True, dang_go: str = "co_dau"):
     """Đo TẦNG TRUY XUẤT trên corpus thật — KHÔNG gọi LLM lần nào.
 
     Khác mọi bộ eval khác ở đúng điểm này: `synthesis` và `multi_source` nạp
@@ -1097,8 +1118,12 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
         #
         # An toàn vì compress() chỉ là phép cắt tiền tố: 6 chunk đầu của lượt
         # k=20 giống HỆT production k=6. Không đổi một dòng production nào.
+        # `dang_go` chỉ đổi TRUY VẤN, không đổi nhãn mong đợi: cùng một câu
+        # hỏi gõ ba kiểu vẫn phải ra cùng tài liệu. Thêm 2026-09-08 sau khi đo
+        # được truy vấn KHÔNG DẤU cho recall@20 = 1/64 = 0,0156 — bộ vàng cũ
+        # 100% có dấu nên chưa bao giờ chạm dạng gõ này.
         result, ms = await _timed(
-            asyncio.to_thread(_retrieve, question, _TOP_N))
+            asyncio.to_thread(_retrieve, _dang_go(dang_go)(question), _TOP_N))
         lat.append(ms)
         ranked = [label_of(c) for c in result.chunks]
         score = score_one(ranked, {tuple(x) for x in expected},
@@ -1140,7 +1165,7 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
     span = sum(len(r["hit_ranks"]) for r in per_case) / m
 
     p50, p95 = _percentiles(lat)
-    return {"set": "retrieval", "n": n, "rerank": rerank,
+    return {"set": "retrieval", "n": n, "rerank": rerank, "dang_go": dang_go,
             "methods_seen": sorted({r["method"] for r in per_case}),
             "recall_at_20": round(_avg("recall_at_pool"), 4),
             "recall_at_6": round(_avg("recall_at_final"), 4),
@@ -1374,6 +1399,11 @@ async def main(argv=None):
                              "synthesis_live", "multiturn", "memory",
                              "write_suggest"],
                     required=True)
+    ap.add_argument("--dang-go", default="co_dau",
+                    choices=["co_dau", "nua_dau", "khong_dau"],
+                    help="dạng gõ tiếng Việt của TRUY VẤN (chỉ bộ retrieval). "
+                         "Nhãn mong đợi không đổi: cùng câu hỏi gõ ba kiểu vẫn "
+                         "phải ra cùng tài liệu.")
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
                     choices=sorted(roles.load_profile()),
@@ -1438,6 +1468,7 @@ async def main(argv=None):
             # KHÔNG dựng LLM: cả hai bộ này thuần truy xuất.
             if args.set == "retrieval":
                 kwargs["rerank"] = not args.no_rerank
+                kwargs["dang_go"] = args.dang_go
             result = await _FN[args.set](**kwargs)
         elif args.set == "synthesis_live":
             # "synthesis_live" KHÔNG nằm trong catalog.ROLES; production chạy
@@ -1459,7 +1490,8 @@ async def main(argv=None):
         sys.exit(2)
 
     if args.save_baseline:
-        path = baseline_path(args.model, args.set, args.role)
+        path = baseline_path(args.model, args.set, args.role,
+                             getattr(args, "dang_go", "co_dau"))
         json.dump(result, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
         print(f"baseline saved: {path}"); sys.exit(0)
 
