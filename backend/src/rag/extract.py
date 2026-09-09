@@ -87,13 +87,17 @@ def _documents_from_sheets(sheets, filename, warnings):
     lines = _warning_lines(warnings)
     docs = []
     for sh in sheets:
-        rows = [" | ".join("" if c is None else str(c) for c in row)
-                for row in sh["rows"]]
-        rows = [r for r in rows if r.strip(" |")]
-        if not rows:
+        # Lọc hàng per-cell trước khi nối: giữ chỉ hàng có ít nhất một ô không rỗng
+        kept = [row for row in sh["rows"]
+                if any(c is not None and str(c).strip() for c in row)]
+        if not kept:
             continue
-        header = " | ".join(str(c) for c in sh["columns"])
-        body = [header] + rows if header.strip(" |") else rows
+        rows = [" | ".join("" if c is None else str(c) for c in row)
+                for row in kept]
+        # Áp dụng cùng logic cho header: kiểm tra xem có ô không rỗng nào không
+        has_header = any(c is not None and str(c).strip() for c in sh["columns"])
+        header = " | ".join("" if c is None else str(c) for c in sh["columns"])
+        body = [header] + rows if has_header else rows
         docs.append({
             "page_content": "\n".join(body),
             "metadata": {"source": filename, "sheet": sh["sheet"],

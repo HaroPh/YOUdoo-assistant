@@ -31,6 +31,10 @@ def test_docx_becomes_a_single_document_because_it_has_no_pages(monkeypatch):
     assert len(docs) == 1
     assert docs[0]["page_content"] == "mot\nhai"
     assert "page" not in docs[0]["metadata"]
+    # single-doc path không inject source_kind/ocr_conf; page-grouped path có.
+    # Nếu group_by_page lật thành True cho docx, test này sẽ fail.
+    assert "source_kind" not in docs[0]["metadata"]
+    assert "ocr_conf" not in docs[0]["metadata"]
 
 
 def test_whitespace_only_extraction_raises_instead_of_returning_content(monkeypatch):
@@ -73,3 +77,55 @@ def test_supported_ext_stays_in_sync_with_the_ingest_table():
     """
     from src.rag import ingest
     assert set(extract.SUPPORTED_EXT) == set(ingest._EXT)
+
+
+def test_xlsx_whitespace_only_raises_same_as_pdf(monkeypatch):
+    # xlsx là cửa khác của bẫy PDF: một ô chỉ chứa tab sẽ lọt qua .strip(" |")
+    # nhưng phải bị bắt bởi kiểm tra rỗng như PDF. Đây là xlsx_twin của
+    # whitespace trap.
+    monkeypatch.setattr(extract, "parse_xlsx", lambda p: ([{
+        "sheet": "sheet1",
+        "columns": ["col1"],
+        "rows": [["\t"], [None]],
+    }], []))
+    with pytest.raises(extract.EmptyExtraction):
+        extract.extract_documents("/x.xlsx", "x.xlsx")
+
+
+def test_xlsx_with_multiple_sheets_and_blank_rows(monkeypatch):
+    # Mỗi sheet trở thành một document, mang sheet name trong metadata.
+    # Hàng toàn trắng không xuất hiện trong page_content.
+    monkeypatch.setattr(extract, "parse_xlsx", lambda p: ([
+        {
+            "sheet": "sheet1",
+            "columns": ["name", "age"],
+            "rows": [["Alice", "30"], ["", ""], ["Bob", "25"]],
+        },
+        {
+            "sheet": "sheet2",
+            "columns": ["id", "value"],
+            "rows": [["S2-1", "100"]],
+        },
+    ], []))
+    docs = extract.extract_documents("/x.xlsx", "x.xlsx")
+    assert len(docs) == 2
+    assert docs[0]["metadata"]["sheet"] == "sheet1"
+    assert docs[1]["metadata"]["sheet"] == "sheet2"
+    content_lines = docs[0]["page_content"].split("\n")
+    # Hàng toàn trắng ["", ""] bị lọc, nên chỉ có 3 hàng (header + 2 data rows)
+    assert len(content_lines) == 3
+    assert "name | age" in content_lines[0]
+    assert "Alice | 30" in content_lines[1]
+    assert "Bob | 25" in content_lines[2]
+
+
+def test_pptx_groups_by_slide_number(monkeypatch):
+    # pptx nhóm theo trang/slide, giống PDF nhóm theo trang.
+    monkeypatch.setattr(extract, "parse_pptx", lambda p: [
+        {"text": "slide 1 text", "heading_level": None, "page": 1},
+        {"text": "slide 2 text", "heading_level": None, "page": 2},
+    ])
+    docs = extract.extract_documents("/x.pptx", "x.pptx")
+    assert [d["metadata"]["page"] for d in docs] == [1, 2]
+    assert docs[0]["page_content"] == "slide 1 text"
+    assert docs[1]["page_content"] == "slide 2 text"
