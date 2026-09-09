@@ -1824,7 +1824,7 @@ Suite **2481 passed, 1 skipped, 0 failed**; 30/30 test integration của `rag`.
 **Còn nợ**: `chunk_text_fold` được ghi lúc ingest, nên corpus có sẵn phải nạp
 lại (hoặc backfill) sau migration — đã ghi vào `getting-started.md`.
 
-## 16. Endpoint trích tài liệu cho Open WebUI
+## Endpoint trích tài liệu cho Open WebUI
 
 **Ngày**: 2026-09-09. **Nhánh**: `worktree-trich-tai-lieu`, base `e4d242a`.
 **Spec**: `2026-09-09-endpoint-trich-tai-lieu-design.md` · **Kế hoạch**: `plans/2026-09-09-endpoint-trich-tai-lieu.md`
@@ -1841,7 +1841,7 @@ kèm cho tới bản này.
 Đo trên `DVT_2022.pdf` — báo cáo tài chính scan, 16 trang, 5,1 MB — qua cổng
 nghiệm thu chạy trên tệp thật (`backend/tests/rag/test_extract_real_files.py`):
 
-| | Open WebUI, bộ đọc mặc định (đo 2026-09-08) | Endpoint mới (đo 2026-09-09) |
+| | Open WebUI, bộ đọc mặc định (đo 2026-09-09) | Endpoint mới (đo 2026-09-09) |
 |---|---|---|
 | tổng số ký tự trích được | **15**, toàn dấu cách | **40.939** |
 | số tài liệu trả về | — (`status=failed`) | **16** (đúng 1 tài liệu/trang) |

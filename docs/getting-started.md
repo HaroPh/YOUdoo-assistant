@@ -324,20 +324,22 @@ scenarios with known-good real data.
 Quick sanity check before running full scenarios — ask "Bạn là ai?"
 (who are you); expect "Tôi là Youdoo" in the reply.
 
-### Cho Open WebUI dùng bộ trích tài liệu của backend
+### Point Open WebUI at the backend's document extractor
 
-Mặc định Open WebUI trích PDF bằng bộ đọc lớp text — **tài liệu scan ra rỗng**
-(đo 2026-09-09: một bản scan 16 trang trích ra 15 ký tự toàn dấu cách). Trỏ nó
-vào backend để dùng OCR bậc 1 và bậc 2:
+By default Open WebUI extracts PDFs with a text-layer-only reader —
+**scanned documents come back empty** (measured 2026-09-09: a 16-page scan
+extracted to 15 characters, all whitespace). Point it at the backend instead
+to use OCR tier 1 and tier 2:
 
-Settings, Admin Settings, Documents, Content Extraction Engine, chọn **External**
+Settings, Admin Settings, Documents, Content Extraction Engine, select **External**
 
 - URL: `http://host.docker.internal:8002/v1/documents`
-  (Open WebUI tự nối `/process` vào cuối)
-- API Key: cùng giá trị `YOUDOO_API_TOKEN` trong `.env`
+  (Open WebUI appends `/process` itself)
+- API Key: the same value as `YOUDOO_API_TOKEN` in `.env`
 
-Tài liệu scan mất khoảng 4 giây mỗi trang ở lần đầu; lần sau tức thì nhờ đệm
-OCR khoá theo băm nội dung tệp.
+A scanned document takes roughly 4 seconds per page on the first pass;
+re-uploading the same file comes back in about a second, because the OCR
+result is cached and keyed on the file's content hash.
 
 ## Stopping everything
 
