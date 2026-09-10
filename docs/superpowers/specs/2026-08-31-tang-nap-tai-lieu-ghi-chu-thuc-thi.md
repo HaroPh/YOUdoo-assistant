@@ -1924,13 +1924,41 @@ sau ai đó đọc lại tưởng nhầm đây là nghiệm thu đầu-cuối tr
    bằng bản trong bộ nhớ của nó; hơn nữa backend nghiệm thu ở cổng 8012 mà
    được trỏ tới rồi tắt đi sẽ để lại một cấu hình trỏ vào cổng chết. Vì vậy
    việc này để lại cho người vận hành.
-2. **Do đó đường nạp tài liệu THẬT của Open WebUI vẫn CHƯA được xác nhận**:
-   rằng hướng dẫn bấm vào admin settings trong `getting-started.md` khớp đúng
-   với giao diện thật, và rằng sau khi nối dây xong, bảng `file` hiện
-   `status: completed` với nội dung thật thay vì 15 ký tự khoảng trắng như
-   hiện nay. Cả hai điều này không thuộc về đúng-sai của endpoint — cả hai
-   đều là phần lắp ráp của Open WebUI — và cả hai chỉ tốn khoảng ba mươi giây
-   thao tác tay của người vận hành qua giao diện.
+2. ~~Do đó đường nạp tài liệu THẬT của Open WebUI vẫn chưa được xác nhận.~~
+   **ĐÃ ĐÓNG 2026-09-10 — xem ngay dưới.**
+
+### Nghiệm thu qua Open WebUI THẬT — đóng mục 2 ở trên (2026-09-10)
+
+Chủ dự án tự cắm dây qua giao diện, rồi đính kèm lại `DVT_2022.pdf`. Trợ lý trả
+lời được **từ nội dung tài liệu** — nêu đúng đơn vị sự nghiệp, TSCĐ, Bản thuyết
+minh, và tên người ký (Kế toán trưởng, Thủ trưởng đơn vị) — kèm dẫn nguồn
+`DVT_2022.pdf`. Trước bản vá, câu trả lời là *"Không tìm thấy tài liệu liên quan
+đến câu hỏi này."*
+
+Số đo trong DB của chính Open WebUI, và cái đáng giá là **before/after nằm cùng
+một bảng `file`**:
+
+| lần tải lên | `status` | độ dài `content` |
+|---|---|---|
+| sau khi cắm dây | **`completed`** | **40.953 ký tự** |
+| ba lần trước đó | `failed` | 15 ký tự |
+
+40.953 lệch 14 ký tự so với 40.939 mà endpoint trả về: Open WebUI nối 16 trang
+lại bằng ký tự phân cách của nó. Không phải lệch nội dung.
+
+Hai điều được xác nhận kèm theo, cả hai trước đó chỉ là suy luận từ đọc mã:
+
+- **Nhãn giao diện trong `getting-started.md` khớp bản thật** (Open WebUI
+  0.11.0): "Content Extraction Engine" → **External**, rồi "External Document
+  Loader" và "External Document Loader API Key". Dropdown có 8 lựa chọn; giá trị
+  nội bộ cần là `external`.
+- **URL không kèm `/process`** — Open WebUI tự nối. Cấu hình chạy được là
+  `http://host.docker.internal:8002/v1/documents`.
+
+Một cái bẫy đã trả giá ba lần: Open WebUI trích text lúc **tải lên**, không phải
+lúc gửi câu hỏi. Ba bản đính kèm cũ đã bị đóng dấu `failed` vĩnh viễn trong DB
+của nó, nên sau khi đổi cấu hình phải đính kèm **tệp mới**, dùng lại bản cũ sẽ
+vẫn thấy hỏng.
 
 ### Cổng nghiệm thu KHÔNG chạy trong bộ test mặc định
 
