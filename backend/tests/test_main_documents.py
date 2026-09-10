@@ -7,6 +7,7 @@ Nói đúng hợp đồng `external_document_loader` của Open WebUI (đọc t�
 """
 import logging
 import os
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -211,3 +212,49 @@ async def test_a_percent_encoded_newline_is_stripped_from_the_filename(monkeypat
     source = r.json()[0]["metadata"]["source"]
     assert "\n" not in source
     assert source == "baocao.pdf"
+
+
+@pytest.mark.parametrize("ma_hoa,ten", [
+    ("%C2%85", "NEL U+0085"),
+    ("%E2%80%A8", "LINE SEPARATOR U+2028"),
+    ("%E2%80%A9", "PARAGRAPH SEPARATOR U+2029"),
+])
+@pytest.mark.asyncio
+async def test_every_character_splitlines_breaks_on_is_stripped(monkeypatch, ma_hoa, ten):
+    """Chan rieng C0 la CHUA DU.
+
+    Ba ky tu nay khong nam trong C0 (0x00-0x1F) nen bo loc `ord(c) >= 0x20`
+    cho chung di qua, NHUNG `splitlines()` cua Python van tach dong o chung -
+    tuc chung gia mao duoc dong log y nhu "\n".
+
+    Tap ky tu nay khong phai doan: quet toan mien Unicode tim moi c ma
+    ('a'+c+'b').splitlines() dai hon 1 -> dung 10 ky tu, category chi gom
+    Cc, Zl, Zp. Bo loc cu de sot dung ba cai duoi day.
+    """
+    monkeypatch.setattr(
+        main_module, "extract_documents",
+        lambda p, f: [{"page_content": "x", "metadata": {"source": f}}])
+    async with _client() as c:
+        r = await c.put("/v1/documents/process", content=b"abc",
+                        headers=_headers(f"bao{ma_hoa}cao.pdf"))
+    source = r.json()[0]["metadata"]["source"]
+    assert len(source.splitlines()) == 1, f"{ten} van tach duoc dong"
+    assert source == "baocao.pdf"
+
+
+@pytest.mark.asyncio
+async def test_a_vietnamese_filename_survives_the_filter_intact(monkeypatch):
+    """Bo loc phai chan ky tu dieu khien ma KHONG cham dau tieng Viet.
+
+    Day dung la ca endpoint sinh ra de phuc vu. Dau tieng Viet la Mn/Lo,
+    khoang trang la Zs - khong cai nao thuoc nhom bi loai. Mot bo loc qua
+    tay se lam hong chinh thu no phai bao ve.
+    """
+    monkeypatch.setattr(
+        main_module, "extract_documents",
+        lambda p, f: [{"page_content": "x", "metadata": {"source": f}}])
+    ten_that = "Bảng cân đối kế toán 2022.xlsx"
+    async with _client() as c:
+        r = await c.put("/v1/documents/process", content=b"abc",
+                        headers=_headers(quote(ten_that)))
+    assert r.json()[0]["metadata"]["source"] == ten_that

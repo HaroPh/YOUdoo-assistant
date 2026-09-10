@@ -14,6 +14,7 @@ import os
 import secrets
 import tempfile
 import time
+import unicodedata
 import uuid
 from contextlib import asynccontextmanager
 from urllib.parse import unquote
@@ -143,6 +144,15 @@ async def list_models(req: Request):
     ]}
 
 
+# Category Unicode bị loại khỏi tên tệp. `Cc` chứa cả C0 VÀ C1 nên bắt được NEL
+# U+0085; `Zl`/`Zp` bắt U+2028/U+2029. Đo bằng cách quét toàn miền Unicode: đúng
+# 10 ký tự làm `splitlines()` tách dòng, và category của chúng chỉ gồm Cc, Zl,
+# Zp — nên ba nhóm này vừa ĐỦ vừa CẦN. `Cf`/`Cs`/`Co`/`Cn` bị loại kèm: ký tự vô
+# hình (BOM, đảo chiều RTL) không việc gì nằm trong tên tệp rồi đi vào log.
+# KHÔNG loại `Zs` — khoảng trắng thường nằm trong tên tệp thật.
+_BAD_FILENAME_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
+
+
 @app.put("/v1/documents/process")
 async def process_document(req: Request):
     """Trích text từ tệp người dùng đính kèm.
@@ -159,10 +169,12 @@ async def process_document(req: Request):
     """
     _kiem_token(req)
     filename = unquote(req.headers.get("x-filename") or "").strip()
-    # Bỏ ký tự điều khiển (vd. \n giải mã từ %0A) khỏi tên tệp — header gốc
-    # không thể chứa xuống dòng nhưng SAU unquote thì có thể, cho phép giả
-    # mạo dòng log qua các nhánh lỗi bên dưới và metadata.source.
-    filename = "".join(c for c in filename if ord(c) >= 0x20)
+    # Bỏ ký tự điều khiển khỏi tên tệp — header gốc không thể chứa xuống dòng
+    # nhưng SAU unquote thì có thể, cho phép giả mạo dòng log qua các nhánh lỗi
+    # bên dưới và metadata.source. Chặn riêng C0 (`ord(c) >= 0x20`) là CHƯA ĐỦ:
+    # %C2%85, %E2%80%A8, %E2%80%A9 nằm ngoài C0 mà `splitlines()` vẫn tách dòng.
+    filename = "".join(c for c in filename
+                       if unicodedata.category(c) not in _BAD_FILENAME_CATEGORIES)
     if not filename:
         raise HTTPException(
             status_code=400,
