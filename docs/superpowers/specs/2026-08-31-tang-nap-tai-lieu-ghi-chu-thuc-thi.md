@@ -1959,6 +1959,15 @@ nhất.
   phút) chiếm một worker, và đủ nhiều lượt tải lên đồng thời sẽ xếp hàng cả
   những lượt truy xuất RAG phía sau; tách executor riêng cho OCR là việc của
   lát sau.
+- **Chống giả mạo dòng log chưa chặn hết.** Tên tệp sau `unquote` bị lọc bằng
+  `ord(c) >= 0x20`, tức chỉ chặn khối điều khiển C0 (0x00-0x1F). Đo được:
+  `%C2%85` giải mã thành NEL U+0085 **vượt qua** bộ lọc, và `splitlines()` của
+  Python **vẫn tách dòng** ở ký tự đó; `%E2%80%A8` (U+2028) y hệt. Nên một
+  caller ĐÃ XÁC THỰC vẫn còn đường chèn dòng log giả, dù ca `%0A` trong báo
+  cáo review đã bị bịt. Mức Minor — cần token hợp lệ, hậu quả là dòng log giả
+  và một `metadata.source` kỳ quái, không phải thực thi mã hay rò dữ liệu.
+  Sửa đúng là một dòng: loại theo `unicodedata.category` thuộc nhóm `C` cộng
+  `Zl`/`Zp`, thay vì so sánh `ord`. Để lại có ý thức, không phải bỏ sót.
 
 ### Bộ đệm OCR: "không lưu tệp" không có nghĩa là vô trạng thái
 
