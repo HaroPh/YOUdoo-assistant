@@ -12,9 +12,11 @@ import json
 import logging
 import os
 import secrets
+import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
+from urllib.parse import unquote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -28,6 +30,9 @@ logger = logging.getLogger(__name__)
 from src.llm.catalog import (MODEL_CHON_DUOC, MODEL_MAC_DINH,
                              MODEL_NGUOI_DUNG_CHON, model_tra_loi)
 from src.llm.router import THUNG_FALLBACK, THUNG_MODEL
+from src.ocr.engine import TesseractMissing
+from src.rag.extract import (EmptyExtraction, SUPPORTED_EXT, UnsupportedFormat,
+                             extract_documents)
 
 # Tên endpoint, KHÔNG phải một model. Từ 2026-08-21 nó không còn được
 # quảng cáo ở /v1/models (xem docstring ở đó) nhưng vẫn giữ: client cũ và
@@ -136,6 +141,101 @@ async def list_models(req: Request):
         {"id": i, "object": "model", "created": created, "owned_by": "erp-ai"}
         for i in ids
     ]}
+
+
+@app.put("/v1/documents/process")
+async def process_document(req: Request):
+    """Trích text từ tệp người dùng đính kèm.
+
+    Nói đúng hợp đồng `external_document_loader` của Open WebUI: body là bytes
+    THÔ (không multipart), tên tệp qua `X-Filename` đã urlencode, trả về list
+    {page_content, metadata}. Hợp đồng đó đủ tổng quát để cũng là hợp đồng của
+    ta — không có lớp adapter nào.
+
+    Vì sao tồn tại: đo 2026-09-09, Open WebUI trích `DVT_2022.pdf` (scan 16
+    trang) ra 15 ký tự toàn dấu cách và người dùng nghe "không tìm thấy tài
+    liệu liên quan". Repo đã có OCR đọc được tệp đó nhưng chưa route nào nhận
+    tệp.
+    """
+    _kiem_token(req)
+    filename = unquote(req.headers.get("x-filename") or "").strip()
+    # Bỏ ký tự điều khiển (vd. \n giải mã từ %0A) khỏi tên tệp — header gốc
+    # không thể chứa xuống dòng nhưng SAU unquote thì có thể, cho phép giả
+    # mạo dòng log qua các nhánh lỗi bên dưới và metadata.source.
+    filename = "".join(c for c in filename if ord(c) >= 0x20)
+    if not filename:
+        raise HTTPException(
+            status_code=400,
+            detail="thieu header X-Filename - dinh dang suy tu TEN tep, "
+                   "khong doan tu noi dung")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in SUPPORTED_EXT:
+        raise HTTPException(
+            status_code=415,
+            detail=f"duoi {ext or '(khong co)'} chua ho tro. "
+                   f"Ho tro: {', '.join(sorted(SUPPORTED_EXT))}")
+    data = await req.body()
+    if not data:
+        raise HTTPException(status_code=400, detail="body rong")
+
+    try:
+        # MỘT `to_thread` duy nhất bọc CẢ ghi tệp lẫn gọi extractor: `f.write`
+        # cũng là I/O đồng bộ (không chỉ extractor) — chạy thẳng trong vòng
+        # lặp sự kiện là treo mọi request khác của backend, dù tệp vài MB chỉ
+        # mất vài mili giây. Open WebUI cũng gọi loader của họ theo cách này.
+        docs = await asyncio.to_thread(_stage_and_extract, data, ext, filename)
+    except EmptyExtraction as e:
+        # `warning`, không `exception`: đây là kết quả THƯỜNG GẶP (bản scan mà
+        # tầng OCR cũng chịu) — chính là ca sinh ra task này, không phải lỗi
+        # để debug từ stack trace.
+        logger.warning("process_document: khong trich duoc noi dung - %s", filename)
+        raise HTTPException(status_code=422, detail=str(e))
+    except UnsupportedFormat as e:
+        # `warning`, không `exception`: tiền-kiểm ở trên đã lọc gần hết ca này
+        # rồi (hiếm khi tới được đây) — vẫn chỉ là lệch phía client, không
+        # phải lỗi hạ tầng.
+        logger.warning("process_document: dinh dang khong ho tro - %s", filename)
+        raise HTTPException(status_code=415, detail=str(e))
+    except TesseractMissing as e:
+        # "thiếu binary" khác hẳn "tài liệu không có chữ" — đừng gộp vào 422,
+        # người đọc log sẽ không biết phải sửa gì.
+        # RIÊNG nhánh này giữ `exception` (ERROR + stack trace): đây mới là
+        # lỗi HẠ TẦNG thật — thuộc trách nhiệm của ta sửa, không phải hệ quả
+        # bình thường từ những gì client gửi lên như hai nhánh trên.
+        logger.exception("process_document: thieu Tesseract - %s", filename)
+        raise HTTPException(status_code=503, detail=str(e))
+    return docs
+
+
+def _stage_and_extract(data: bytes, ext: str, filename: str) -> list[dict]:
+    """Ghi bytes ra tệp tạm rồi gọi extractor — CHẠY TRONG một luồng riêng.
+
+    Gộp cả bước ghi tệp (I/O đồng bộ) lẫn gọi extractor (CPU đồng bộ, có khi
+    là OCR hàng phút) vào MỘT hàm đồng bộ duy nhất, để `process_document` chỉ
+    cần một lượt `asyncio.to_thread` — không còn dòng nào chặn vòng lặp sự
+    kiện, kể cả `f.write`.
+
+    Gọi `extract_documents` qua TÊN TOÀN CỤC của module (không chốt sớm bằng
+    tham số mặc định hay biến local ngoài hàm): test monkeypatch
+    `main_module.extract_documents` để giả lập lỗi, và bản vá đó chỉ có tác
+    dụng nếu việc tra cứu tên xảy ra LÚC HÀM NÀY CHẠY — đúng như một lookup
+    global bình thường trong thân hàm, không phải lúc module được nạp.
+
+    Tệp tạm LUÔN bị xoá trước khi hàm này trả về, kể cả khi extractor ném.
+    Xoá thất bại (thường do parser để sót handle đang mở — trên Windows thì
+    `os.unlink` ném `PermissionError`) được LOG chứ không nuốt lặng lẽ: nuốt
+    lặng lẽ đúng là loại rò rỉ "chỉ lộ ra sau hàng nghìn request".
+    """
+    fd, tmp = tempfile.mkstemp(suffix=ext)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        return extract_documents(tmp, filename)
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError as e:
+            logger.warning("khong xoa duoc tep tam %s: %s", tmp, e)
 
 
 def _filter_messages(messages: list[dict]) -> list[dict]:
