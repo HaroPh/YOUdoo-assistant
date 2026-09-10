@@ -74,4 +74,5 @@ def test_cong_tu_nuoi_duong_doc_bang_anh_con_song(tep, trang, tmp_path, monkeypa
     goc = pypdf.PdfReader(duong).pages[trang - 1].extract_text() or ""
     assert _tu(goc), f"{tep} tr.{trang} không có lớp text — chọn sai trang mẫu"
     r = _recall_tu(goc, read_page(duong, trang).text)
+    print(f"\n[tu nuoi] {tep} tr.{trang}: recall={r:.4f}")
     assert r >= NGUONG_RECALL, f"{tep} tr.{trang}: recall {r:.3f} < {NGUONG_RECALL}"
