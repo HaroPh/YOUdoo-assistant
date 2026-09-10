@@ -1959,15 +1959,27 @@ nhất.
   phút) chiếm một worker, và đủ nhiều lượt tải lên đồng thời sẽ xếp hàng cả
   những lượt truy xuất RAG phía sau; tách executor riêng cho OCR là việc của
   lát sau.
-- **Chống giả mạo dòng log chưa chặn hết.** Tên tệp sau `unquote` bị lọc bằng
-  `ord(c) >= 0x20`, tức chỉ chặn khối điều khiển C0 (0x00-0x1F). Đo được:
-  `%C2%85` giải mã thành NEL U+0085 **vượt qua** bộ lọc, và `splitlines()` của
-  Python **vẫn tách dòng** ở ký tự đó; `%E2%80%A8` (U+2028) y hệt. Nên một
-  caller ĐÃ XÁC THỰC vẫn còn đường chèn dòng log giả, dù ca `%0A` trong báo
-  cáo review đã bị bịt. Mức Minor — cần token hợp lệ, hậu quả là dòng log giả
-  và một `metadata.source` kỳ quái, không phải thực thi mã hay rò dữ liệu.
-  Sửa đúng là một dòng: loại theo `unicodedata.category` thuộc nhóm `C` cộng
-  `Zl`/`Zp`, thay vì so sánh `ord`. Để lại có ý thức, không phải bỏ sót.
+
+### Đóng nợ: bộ lọc tên tệp chặn ĐỦ ký tự tách dòng (2026-09-10)
+
+Bản vá đầu chặn tên tệp bằng `ord(c) >= 0x20`, tức chỉ khối điều khiển C0. Đo
+lại thì thiếu: `%C2%85` (NEL U+0085), `%E2%80%A8` (U+2028) và `%E2%80%A9`
+(U+2029) đều nằm ngoài C0 mà `splitlines()` của Python **vẫn tách dòng** ở
+chúng — nên một caller đã xác thực vẫn giả mạo được dòng log, dù ca `%0A` mà
+review nêu đã bị bịt.
+
+Tập ký tự không lấy bằng suy luận: quét toàn miền Unicode tìm mọi `c` mà
+`('a'+c+'b').splitlines()` dài hơn 1 — được **đúng 10 ký tự**, và category của
+chúng chỉ gồm `Cc`, `Zl`, `Zp`. Ba nhóm đó vừa **đủ** vừa **cần**, nên bộ lọc
+chuyển sang loại theo category (`_BAD_FILENAME_CATEGORIES` trong `main.py`)
+thay vì so `ord`. Loại kèm `Cf`/`Cs`/`Co`/`Cn` — ký tự vô hình như BOM hay đảo
+chiều RTL không việc gì nằm trong tên tệp rồi đi vào log. **Không** loại `Zs`:
+khoảng trắng nằm trong tên tệp thật.
+
+Số đo sau khi vá: 0/10 ký tự tách dòng lọt qua (trước là 3/10), và các tên
+thật như `Bảng cân đối kế toán 2022.xlsx` hay `Hợp đồng số 12/2022 (bản ký).docx`
+giữ nguyên từng ký tự — chốt chống lọc quá tay có test riêng, vì một bộ lọc
+hăng quá sẽ làm hỏng đúng thứ nó phải bảo vệ.
 
 ### Bộ đệm OCR: "không lưu tệp" không có nghĩa là vô trạng thái
 
