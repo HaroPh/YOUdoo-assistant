@@ -2196,3 +2196,96 @@ Không phải thay đổi hành vi, có giá trị độc lập với PSM:
   nào gọi**, nên chưa bao giờ chặn được gì. Đã nối vào suite (85/85, 0,04s,
   không cần tesseract nên THỰC SỰ chạy ở CI). Đã thử phá: đổi một chữ số ở chỉ
   tiêu 100 làm cổng đỏ.
+
+## OCR bậc 3 — lát 0: bộ kiểm số học ĐI TRƯỚC ống dẫn VLM (2026-09-11)
+
+Spec: `2026-09-11-ocr-bac-3-vlm-kiem-so-hoc-design.md`. Lát 0 không gọi API nào.
+Nó dựng cái thước để lượt gọi VLM đầu tiên (lát 2) đã có thứ bác được nó. Mọi số
+dưới đây đo trên **10 trang đáp án tay** (`tests/fixtures/ocr_bang_that/*.json`:
+7 trang SCID TT 99/2025, 3 trang DVT TT 107/2017 viết mới từ ảnh 200 DPI trước
+khi nhìn output VLM nào), chạy trong CI vì không cần tesseract.
+
+### Cái ship: `src/ocr/so_hoc.py`, module lá
+
+| tầng | hàm | đo trên đáp án |
+|---|---|---|
+| ô tiền | `parse_money` | `"(58.099.826.029)"` → âm; `"19078257365"` (không phân cách) → BAD; chữ O → BAD |
+| (e1) công thức in | `parse_printed_formula` — đếm ngoặc, dấu âm, ngoặc lồng | 0 FAIL trên 10 trang; phủ 15/15 ràng buộc nội trang của DVT (TT 107 in công thức ở MỌI hàng tổng) |
+| (e2) cấu trúc | `check_structure` — width / bad_money / dup_ma_so / bad_ma_so / non_monotonic | 0 vi phạm trên 10 trang đáp án |
+| (b) phân cấp | `derive_hierarchy` — 5 mức `A-` > `I.` > `1.` > `a)` > `-`/không | B01: suy lại 32/35 ràng buộc tay, **0 sai**; B02/B03: sai 5 lần → lý do giới hạn vào B01, ghi thành test "phải đỏ" |
+| (c) bảng thông tư | `form_table("99/2025/TT-BTC", "B01-DN")` đọc `src/ocr/ma_so/tt99.json` | riêng (c) trên SCID: 33/40, 0 FAIL |
+| gộp | `merge_constraints` — (e1) > (c) > (b) theo tổng; cùng tầng giữ cả hai | (e1)∪(c)∪(b): **48/55** ràng buộc tay nội trang |
+| hàng | `classify_rows` → `PageReport` | chế độ VLM (`strict_absent=False`): **131/136 hàng có số `vision_verified`, 0 hàng đúng bị loại** |
+
+5 hàng có số không xác minh được: 52 (DVT tr9, phân phối kết quả — không có
+ràng buộc nào), 70/71 (SCID tr16, lãi trên cổ phiếu), 280/440/B03:50 (tổng xuyên
+trang — thành phần ở trang trước). Tất cả ở `vision_unverified`, không mất.
+
+### Bảng (c) suy từ mẫu chính thức, và chỗ phải gõ tay
+
+`tools/derive_form_table.py` đọc `tmp-docs/b01-dn.docx`, `b03-dn-truc-tiep.docx`,
+`b03-dn-pp-gian-tiep.docx` (sha256 ghi vào JSON), chạy CHÍNH `derive_hierarchy`
+production lên mẫu sạch cho B01 (28 ràng buộc, 2 in sẵn), quy tắc thành-phần-
+trước-tổng cho B03 (gián tiếp có tổng phụ chạy `08 = 01 + 02..07`,
+`20 = 08 + 09..17`). **B02-DN gõ tay**: tmp-docs không có mẫu KQKD (`b02-dn.docx`
+là B01 dán nhầm — sha256 trùng; `B02a-DN.docx` là B01-DNKLT), và quan hệ có dấu
+`10 = 01 − 02` không nằm trong bố cục mẫu mà trong văn bản hướng dẫn. JSON ghi
+`"nguon": "tay — ..."` để không ai tưởng nó suy từ mẫu. TT 107 **không có bảng**:
+(e1) đã phủ 15/15 trên DVT, bảng sẽ không đo được gì — thêm khi có trang TT 107
+kích hoạt mà (e1) không phủ.
+
+Hai lỗi của chính bộ suy lộ ra **khi sinh bảng từ mẫu**, không phải khi chạy
+trên đáp án: (1) mẫu B01 có mức `a)`/`b)` (231 = 232 + 233, 233 = 234 + 235) mà
+bộ suy 4 mức bỏ qua → dashes gắn nhầm lên `1.`; (2) hàng "TỔNG CỘNG NGUỒN VỐN
+(440 = 300 + 400)" không STT gắn làm con của `10.` (420) → `420 = 420a + 420b +
+440`. Sửa: hàng mang công thức in của chính nó không là con của ai. Cả hai lỗi
+**không đỏ** trên 10 trang đáp án vì các hàng liên quan đều "-" — một lần nữa
+đáp án chỉ bắt được sai ở chỗ có số.
+
+### Q4 — áp bảng SAI: 0 PASS khác 0 trên 6 cặp
+
+TT 99 B01 lên DVT tr7/tr8 (TT 107): toàn NA (mã số khác hệ). TT 99 B02 lên DVT
+tr9, B03 lên SCID tr16, B02 lên SCID tr17, B03 lên SCID tr12: **FAIL 6–8, PASS
+0**. Chọn sai thông tư **không** sinh `vision_verified` giả; nó loại hàng đúng —
+chi phí phạm vi, không phải chi phí đúng-sai. Vì thế cổng chọn thông tư ở lát 3
+không cần "cứng": sai thì mất phủ và cảnh báo nói ra, không có gì lọt.
+
+### Q5 — 11 ca phá, đỏ đúng chỗ, và hai điểm mù ghi thành test
+
+Đổi một chữ số ở 11 → loại đúng cụm `10 = 11 + 12 + 13 + 14` (5 hàng), nêu công
+thức và độ lệch −1 ở đúng cột, **và 50 vẫn xác minh** vì ô của 10 không đổi (tôi
+viết test kỳ vọng 01 bị loại — sai, bộ kiểm chính xác hơn tôi). Đổi tổng 31 →
+cụm 31 và cụm 30 (vì 31 là thành phần của 30) đi. Đảo cột một hàng → FAIL cả hai
+cột. Ô rác → loại riêng hàng, ràng buộc chứa nó thành NA (không kết luận sai về
+hàng khác). Hàng lặp → loại bản lặp, giữ bản gốc, **không** trần trang (lúc đầu
+"14 sau 14" kích `non_monotonic` — sửa). Hai điểm mù:
+
+- **Đảo cột MỌI hàng → số học QUA.** Không phải việc của số học; lát 2 dùng
+  x-toạ-độ token Tesseract. Test tồn tại để không ai kỳ vọng nhầm.
+- **(b) mù với hàng bị rơi**: suy từ hàng có mặt, nên rơi hàng 14 thì ràng buộc
+  thành `10 = 11 + 12 + 13`, FAIL vì lệch nhưng `absent` rỗng. Chỉ (e1)/(c) —
+  tham chiếu cố định — mới báo được vắng cái gì.
+
+### Một quyết định lệch spec, có số đo: lệch + vắng → NA, không FAIL
+
+Spec viết: thành phần vắng tính 0, tổng lệch → FAIL. Đo ở chế độ VLM trên SCID:
+`280 = 100 + 200` (100 ở tr12), `440 = 300 + 400` (300 ở tr14), B03 `50 = 20 + 30
++ 40` (20/30 ở tr17) → **6 hàng tổng ĐÚNG bị loại**, và đó là chính hàng người
+dùng hỏi ("tổng tài sản"). Không phân biệt được "VLM rơi một hàng khác 0" với
+"hàng ở trang trước" bằng số học nội trang. Đổi: lệch mà có hàng vắng → **NA**,
+lý do nêu cả độ lệch lẫn mã số vắng. Hậu quả với hàng rơi thật: cụm mất phủ →
+`unverified` (không kết luận), tổng vẫn xác minh được qua ràng buộc cha nếu ô
+nó đúng. **Không cách nào xác minh sai hơn cách nào**; khác nhau ở chi phí phạm
+vi, và cách mới trả chi phí đó cho đúng hàng.
+
+### Điều chưa chắc sau lát 0
+
+- SCID là báo cáo **hợp nhất**, có hàng ngoài mẫu DN (279, 429). Trên trang này
+  chúng "-" nên (c) B01-DN không FAIL; một báo cáo hợp nhất có 279 ≠ 0 sẽ làm
+  (c) loại đúng cụm 270. `tmp-docs/bieumau_bctc_hopnhat.pdf` có thể cho bảng
+  B01-DN/HN — chưa đọc.
+- Xung đột (c) vs (b) trên SCID = 6, đều do SCID **bỏ hàng "-"** (mẫu ghi chú
+  (1): chỉ tiêu không có số liệu được miễn trình bày). Lenient coi vắng = 0 nên
+  (c) vẫn PASS. Đúng cho hàng "-"; chưa có ca hàng vắng ≠ 0 thật để đo.
+- `rows_from_vision` chưa gặp output VLM thật nào — hình dạng theo hợp đồng spec,
+  lát 2 sẽ là lần đầu nó chạm dữ liệu sống.
