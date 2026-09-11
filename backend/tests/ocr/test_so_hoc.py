@@ -195,3 +195,91 @@ def test_signed_formula_evaluates_with_negative_coefficients():
     c = so_hoc.parse_printed_formula("Thặng dư/thâm hụt trong năm (50=09+12+22+32-40)")
     e = so_hoc.evaluate(c, rows.get, "v", strict_absent=True)
     assert e.verdict is so_hoc.Verdict.PASS
+
+
+# --- (b) suy ràng buộc từ phân cấp đánh dấu --------------------------------
+
+def _hang(muc, ma, gia_tri=1):
+    return {"muc": muc, "ma_so": ma, "v": gia_tri}
+
+
+def test_hierarchy_roman_sums_its_arabic_children_and_unmarked_rows_belong_to_the_numbered_row_above():
+    # DVT tr7, phần TSCĐ: VI.(30) = 1.(31) + 2.(35); 1.(31) = [Nguyên giá 32] + [Khấu hao 33]
+    rows = [_hang("VI.", "30"), _hang("1.", "31"), _hang(None, "32"), _hang(None, "33"),
+            _hang("2.", "35"), _hang(None, "36"), _hang(None, "37")]
+    cs = so_hoc.derive_hierarchy(rows)
+    by_total = {c.total: c for c in cs}
+    assert set(by_total) == {"30", "31", "35"}
+    assert list(by_total["30"].terms) == [("31", 1), ("35", 1)]
+    assert list(by_total["31"].terms) == [("32", 1), ("33", 1)]
+    assert list(by_total["35"].terms) == [("36", 1), ("37", 1)]
+    assert all(c.source == "phan_cap" for c in cs)
+
+
+def test_hierarchy_letter_sums_roman_children():
+    # SCID tr12: A-(100) = I.(110) + II.(120) + ...
+    rows = [_hang("A-", "100"), _hang("I.", "110"), _hang("1.", "111"), _hang("2.", "112"),
+            _hang("II.", "120"), _hang("1.", "121"), _hang("2.", "122")]
+    cs = {c.total: c for c in so_hoc.derive_hierarchy(rows)}
+    assert list(cs["100"].terms) == [("110", 1), ("120", 1)]
+    assert list(cs["110"].terms) == [("111", 1), ("112", 1)]
+    assert list(cs["120"].terms) == [("121", 1), ("122", 1)]
+
+
+def test_markers_are_normalised_across_dot_dash_and_none_styles():
+    # DVT tr8 dùng "I"/"1" không chấm; tr7 dùng "I."/"1."; SCID dùng "A-"/"I."/"1.".
+    rows = [_hang("I", "60"), _hang("1", "61"), _hang("2", "62"),
+            _hang("II", "70"), _hang("1", "71"), _hang("2", "72")]
+    cs = {c.total: c for c in so_hoc.derive_hierarchy(rows)}
+    assert list(cs["60"].terms) == [("61", 1), ("62", 1)]
+    assert list(cs["70"].terms) == [("71", 1), ("72", 1)]
+
+
+def test_a_header_row_without_ma_so_scopes_children_but_is_not_a_total():
+    # DVT tr9: "I" Hoạt động hành chính (KHÔNG có mã số) chứa 1.(01), 2.(05), 3.(09).
+    # Nó không phải tổng, nhưng con của nó không được gán cho la-mã trước đó.
+    rows = [_hang("I", None), _hang("1", "01"), _hang("2", "05"),
+            _hang("II", None), _hang("1", "10"), _hang("2", "11")]
+    cs = so_hoc.derive_hierarchy(rows)
+    assert cs == []                     # không hàng cha nào có mã số -> không ràng buộc
+
+
+def test_a_parent_with_fewer_than_two_children_yields_no_constraint():
+    # 01 và 05 không có con; 10 chỉ có MỘT con -> không ràng buộc nào. Một "tổng"
+    # một con là đồng nhất, không phải phép cộng — và cho phép nó là cách hàng
+    # TỔNG CỘNG (không STT) bị gán nhầm làm con: Q1 đo được 74=80, 279=280,
+    # 429=440 trên ba trang B01 trước khi có luật này.
+    rows = [_hang("I.", "01"), _hang("II.", "05"), _hang("III.", "10"), _hang("1.", "11")]
+    assert so_hoc.derive_hierarchy(rows) == []
+
+
+def test_grand_total_without_marker_is_not_attached_as_a_child():
+    # DVT tr8: ... 4(74) rồi "TỔNG CỘNG NGUỒN VỐN" (80) không STT.
+    rows = [_hang("II", "70"), _hang("1", "71"), _hang("2", "72"), _hang("3", "73"),
+            _hang("4", "74"), _hang(None, "80")]
+    cs = {c.total: c for c in so_hoc.derive_hierarchy(rows)}
+    assert "74" not in cs               # 74 = [80] bị loại vì một hạng tử
+    assert list(cs["70"].terms) == [("71", 1), ("72", 1), ("73", 1), ("74", 1)]
+
+
+def test_dash_bullet_is_treated_as_unmarked_child():
+    # SCID tr13/15/17 dùng "-" làm gạch đầu dòng cho mục con.
+    rows = [_hang("1.", "221"), _hang("-", "222"), _hang("-", "223")]
+    cs = {c.total: c for c in so_hoc.derive_hierarchy(rows)}
+    assert list(cs["221"].terms) == [("222", 1), ("223", 1)]
+
+
+def test_dash_bullets_directly_under_a_roman_row_skip_the_numbered_level():
+    # SCID tr13: IV.(240) Bất động sản đầu tư rồi "-" Nguyên giá (241), "-" Hao mòn (242).
+    rows = [_hang("III.", "230"), _hang("IV.", "240"), _hang("-", "241"), _hang("-", "242"),
+            _hang("V.", "250")]
+    cs = {c.total: c for c in so_hoc.derive_hierarchy(rows)}
+    assert list(cs["240"].terms) == [("241", 1), ("242", 1)]
+
+
+def test_numbered_rows_directly_under_a_letter_row_skip_the_roman_level():
+    # SCID tr15: D-(400) VỐN CHỦ SỞ HỮU rồi 1.(411), 2.(412) ... 11.(429) — không có la-mã.
+    rows = [_hang("D-", "400"), _hang("1.", "411"), _hang("2.", "412"), _hang("10.", "420"),
+            _hang("11.", "429")]
+    cs = {c.total: c for c in so_hoc.derive_hierarchy(rows)}
+    assert list(cs["400"].terms) == [("411", 1), ("412", 1), ("420", 1), ("429", 1)]

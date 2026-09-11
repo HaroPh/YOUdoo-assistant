@@ -269,3 +269,88 @@ def evaluate(c: Constraint, lookup, column: str, *, strict_absent: bool) -> Eval
     return Evaluation(c, column, Verdict.FAIL, total_value=tong_v, computed=computed,
                       delta=tong_v - computed, absent=tuple(absent),
                       reason=f"{c.total} = {cong_thuc}")
+
+
+# --- (b) suy ràng buộc từ phân cấp đánh dấu ---------------------------------
+
+_ROMAN_RE = re.compile(r"^(?=[IVX])M{0,3}(X{0,3})(IX|IV|V?I{0,3})$")
+
+
+def _marker_level(muc) -> int | None:
+    """Mức phân cấp của đánh dấu STT: 0 = chữ cái (A-/B-), 1 = la-mã (I./II.),
+    2 = số (1./2.), 3 = không đánh dấu hoặc gạch đầu dòng (-). None = không
+    hiểu được (không tham gia phân cấp)."""
+    if muc is None:
+        return 3
+    s = str(muc).strip().rstrip(".-").strip()
+    if not s:
+        return 3                                  # "-" gạch đầu dòng -> như không đánh dấu
+    if len(s) == 1 and s.isalpha() and s.isupper() and s not in "IVX":
+        return 0
+    if _ROMAN_RE.match(s):
+        return 1
+    if s.isdigit():
+        return 2
+    return None
+
+
+def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
+    """Suy `cha = Σ con` từ đánh dấu STT, theo thứ tự hàng trên trang.
+
+    Quy tắc: mỗi hàng là con của tổ tiên ĐANG MỞ gần nhất phía trên ở mức phân
+    cấp nhỏ hơn — bất kể cách mấy bậc (chữ cái > la-mã > số > không đánh dấu).
+    Nhảy bậc là chuyện thật trên mẫu TT 99 (xem chú thích trong vòng lặp). Hàng cha không có
+    mã số (tiêu đề mục như "I. Hoạt động hành chính") vẫn giới hạn phạm vi con,
+    nhưng không sinh ràng buộc vì không có ô tổng.
+
+    Mọi hệ số là +1 — nên tầng này SAI trên báo cáo kết quả kinh doanh và lưu
+    chuyển tiền (12 = 10 - 11). Spec giới hạn nó vào B01; phép đo Q1 chứng minh
+    lý do bằng cách để nó FAIL trên SCID tr16/17.
+
+    Chỉ sinh ràng buộc khi cha có >= 2 con — xem chú thích trong `_close`.
+    Dư số đã biết: nếu một trang có HAI hàng không STT liền sau hàng số cuối
+    (chưa gặp trên 10 trang), (b) vẫn có thể gán sai; (e1)/(c) đứng trước nó
+    nên hàng TỔNG CỘNG có công thức in sẽ được ưu tiên đúng.
+
+    Tầng ưu tiên THẤP NHẤT: chỉ điền chỗ (e1)/(c) chưa phủ.
+    """
+    # stack[level] = (ma_so hoặc None, list con). Chỉ giữ 4 mức.
+    stack: list[tuple[str | None, list[str]] | None] = [None, None, None, None]
+    parents: list[tuple[str, list[str]]] = []      # (ma_so cha, con) theo thứ tự gặp
+
+    def _close(level: int) -> None:
+        for lv in range(level, 4):
+            if stack[lv] is not None:
+                ma, con = stack[lv]
+                # >= 2 con, có chủ ý: đo trên 10 trang đáp án (2026-09-11), ràng
+                # buộc MỘT hạng tử chỉ tồn tại dưới dạng đồng nhất xuyên trang
+                # (80 = tt107:50, 440 = 280) — không có tổng phụ nội trang nào
+                # một con. Cho phép 1 con thì hàng TỔNG CỘNG (không STT) bị gán
+                # làm con của hàng số cuối cùng → "74 = 80", "279 = 280",
+                # "429 = 440" — ba ràng buộc SAI đo được trên B01 ở Q1.
+                if ma is not None and len(con) >= 2:
+                    parents.append((ma, con))
+                stack[lv] = None
+
+    for r in rows:
+        lv = _marker_level(r.get("muc"))
+        if lv is None:
+            continue
+        ma = r.get("ma_so")
+        # Đóng mọi mức >= lv TRƯỚC khi gắn — anh em cùng mức đã xong.
+        _close(lv)
+        if lv > 0 and ma is not None:
+            # Cha = tổ tiên ĐANG MỞ gần nhất ở BẤT KỲ mức nhỏ hơn — không phải
+            # "đúng một bậc". Q1 đo được hai kiểu nhảy bậc trên B01 thật:
+            # SCID tr13 IV.(240) rồi "-"(241, 242) — gạch đầu dòng thẳng dưới
+            # la-mã, không qua mức số; SCID tr15 D-(400) rồi 1.(411)... — số
+            # thẳng dưới chữ cái, không qua la-mã.
+            for up in range(lv - 1, -1, -1):
+                if stack[up] is not None:
+                    stack[up][1].append(str(ma))
+                    break
+        if lv == 3:
+            continue                      # hàng không đánh dấu không có con
+        stack[lv] = (str(ma) if ma is not None else None, [])
+    _close(0)
+    return [Constraint(cha, [(c, 1) for c in con], "phan_cap") for cha, con in parents]
