@@ -2289,3 +2289,85 @@ vi, và cách mới trả chi phí đó cho đúng hàng.
   (c) vẫn PASS. Đúng cho hàng "-"; chưa có ca hàng vắng ≠ 0 thật để đo.
 - `rows_from_vision` chưa gặp output VLM thật nào — hình dạng theo hợp đồng spec,
   lát 2 sẽ là lần đầu nó chạm dữ liệu sống.
+
+## OCR bậc 3 — lát 1–4: kích hoạt, xoay, ống dẫn VLM, xuất xứ (2026-09-11)
+
+Tất cả đo/kiểm KHÔNG gọi API nào. Lượt VLM thật đầu tiên (Q7/Q8, fixture
+`vlm_raw/`) và nghiệm thu sống qua Open WebUI **chưa chạy**: cần
+`YOUDOO_VLM_API_KEY` trong `.env` — khoá riêng, chủ dự án cấp.
+
+### Lát 1 — `tools/calibrate_vlm_trigger.py` trên 281 trang ảnh, 6 báo cáo
+
+Kết quả đầy đủ: `tools/calibrate_vlm_trigger_result.txt`. Bốn phép đo, hai bác bỏ:
+
+- **Q9 — tỉ lệ dấu tiếng Việt BỊ BÁC.** Trang Tesseract được số học bảo lãnh
+  p50 = 0,78; trang không được bảo lãnh p50 = 0,78; đối chứng vector rasterise
+  0,84. Hai phân bố chồng nhau ngay chỗ trang cờ nằm — spec đề xuất tín hiệu
+  này làm lọc thô, và nó không lọc được gì. Không có ngưỡng nào để chốt.
+- **Q2 — số học vouch cho Tesseract có răng, nhưng hẹp.** 52/281 trang dựng
+  được cột mã số; 21 trong đó ≥ 1 PASS và 0 FAIL (giữ hàng Tesseract, không gọi
+  VLM); 30 trang có cột mã số nhưng 0 ràng buộc đánh giá được (mã số đọc sai
+  làm mất khoá). Đúng lo ngại của spec — vì thế quy tắc kích hoạt KHÔNG dựa
+  vào "không vouch" một mình (260/281 trang không vouch, đa số là thuyết minh
+  và văn xuôi).
+- **Tín hiệu TIÊU ĐỀ báo cáo chính** (không có trong spec, tìm ra khi đọc text
+  Tesseract của DVT tr7: dòng "Báo cáo tình hình tài chính" đọc ĐÚNG dù thân
+  trang 1/8 số đúng): 1/3 đầu trang, bỏ dấu, khớp "bảng cân đối kế toán / báo
+  cáo tình hình tài chính / kết quả hoạt động / lưu chuyển tiền", loại "bản
+  thuyết minh". Bắt 50/281 trang, **đúng mọi trang báo cáo chính của cả 6 tài
+  liệu**; 8 trang khớp ≥ 2 loại là mục lục/ý kiến kiểm toán → loại. Quy tắc
+  chốt: **gọi VLM ⇔ tiêu đề đúng một loại VÀ số học không vouch**. Trên corpus:
+  43 trang tiêu đề một loại − 19 vouched = **24 lượt VLM / 6 tài liệu** (DVT 4,
+  NTC 3, PGI 5, RBC 6, TDC 3, SCID 3), gồm DVT tr7/8/9. Hai trang tốt không có
+  tiêu đề (PGI tr9, SCID tr56) không sao — chúng đi Tesseract như cũ.
+- **Q3 — Tesseract làm oracle: bác dứt điểm.** Ô tiền đáp án có mặt nguyên văn
+  trong token Tesseract: tr7 **0/23**, tr8 3/12, tr9 13/17; mã số 2/19, 2/15,
+  5/23. (a) không bao giờ được phủ quyết — con số này biến khẳng định thành số.
+- **Q6 — xoay.** OSD báo 27 trang; đọc thêm hướng xoay và giữ hướng conf cao
+  hơn: **20 xoay thật** (conf 43→86, số tiền đọc được 0→20..57 mỗi trang), 7
+  báo sai (độ tin OSD 0–3, conf 92→47 nếu tin) không bị xoay. Cả 20 là trang
+  thuyết minh ngang — VLM không kích hoạt trên chúng, nhưng Tesseract đọc
+  được chữ thay vì rác: cải thiện bậc 1 độc lập với VLM. `ARTIFACT_VERSION` 3
+  → 4, đệm cũ tự lạc khoá (không xoá).
+
+### Lát 2–4 — cái ship
+
+- `providers.KeyRing` + `keys_for_env` tách từ `Router._xoay_khoa`; Router uỷ
+  quyền, 50 test cũ không đổi. `vision.py`: khoá riêng `YOUDOO_VLM_API_KEY*`
+  (không có → tắt, log một lần), xoay chỉ khi 429, trần 200/lượt nạp (SUY
+  LUẬN, ghi rõ), ghi sổ `vlm-ocr`, prompt v1 "chép, không diễn giải", JSON hỏng
+  → lỗi mang độ dài không mang nội dung.
+- `trigger.decide` + `parse._khoi_tu_vlm`: mỗi hàng một block atomic mang
+  `source_kind` theo trạng thái; REJECTED không lưu, cảnh báo nêu mã số; một
+  xuất xứ mỗi trang; hết khoá → dừng phần còn lại lượt nạp.
+- `_XUAT_XU_RANK` 6 bậc; `extract.py` gộp bậc xấu nhất (trước đó trang toàn
+  VLM chưa kiểm mang nhãn "text"); `Chunk.source_kind` từ `rag_chunks` tới
+  `_format_context` với tag "CHƯA kiểm được bằng số học — không trích như số
+  chính xác". `conftest` xoá khoá VLM trong mọi test không `live`.
+
+### Ba ruling lệch/ngoài spec
+
+1. **(b) chỉ khi không có bảng (c).** Trên lưới Tesseract thật, đánh dấu STT đọc
+   sai ("L", "2;") làm (b) sinh `238 = 240 + 241 + 242` → FAIL giả → gọi VLM
+   thừa; trên hàng VLM cũng có thể loại oan. (c) riêng đã phủ 33/40 trên TT 99.
+2. **Chọn bảng bằng số học**, không đọc header: thử mọi bảng, giữ bảng (PASS
+   nhiều, FAIL ít, NA ít). Q4 bảo đảm bảng sai không PASS khác 0 nên không cần
+   ngưỡng. Hoà không phân được (B03 trang 2 giống nhau ở hai phương pháp) → chỉ
+   đòi đúng họ mẫu.
+3. **Trần VLM tính theo lượt `parse_pdf`** (một tài liệu), không theo lượt nạp
+   corpus — vì `parse_pdf` không biết nó nằm trong lượt nạp nào. 100 tài liệu ×
+   ~4 trang = 400 > 500 rpd một khoá → 429 → xoay → hết vòng thì dừng có tên.
+
+### Chưa làm, nói thẳng
+
+- **Chưa một lượt VLM thật nào.** Prompt v1, `rows_from_vision`, và giả định
+  "VLM đọc đánh dấu STT tốt hơn Tesseract" đều chưa chạm dữ liệu sống. Q7 (giải
+  ngược) và Q8 (0 ô sai vào `vision_verified`) chạy bằng `test_vision_live.py`
+  khi có khoá; phản hồi thô lưu làm fixture cho `test_vision_replay.py`.
+- Nghiệm thu sống (đính `DVT_2022.pdf`, hỏi "tổng tài sản đầu năm") chưa chạy;
+  đáp án chờ sẵn: **69.862.687.223** (mã 50, Số đầu năm, tr7), phải là block
+  `vision_verified`.
+- Tesseract đồng ý ((a) kiểm hướng cột bằng x-toạ-độ) CHƯA nối — điểm mù "đảo
+  cột toàn trang" còn nguyên, ghi thành test.
+- Trang thuyết minh (221/281 trang không có cột mã số) hoàn toàn ngoài phạm vi
+  bậc 3 lượt này.
