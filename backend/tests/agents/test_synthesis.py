@@ -447,3 +447,32 @@ async def test_cong_hong_thi_GHI_LOG_chu_khong_im_lang(caplog):
     with caplog.at_level(logging.WARNING, logger="src.agents.synthesis"):
         await syn.verify_citations("Trả lời.", _two_chunks(), llm)
     assert any("verify_citations" in r.message for r in caplog.records)
+
+
+# ─── xuất xứ tới prompt tổng hợp (OCR bậc 3 lát 4, 2026-09-11) ────────────────
+def test_format_context_khong_tag_chunk_text_vector():
+    from src.agents.synthesis import _format_context
+    assert "[xuất xứ" not in _format_context([_chunk()])
+
+
+def test_format_context_tag_so_lieu_VLM_chua_kiem_de_LLM_khong_trich_nhu_so_chinh_xac():
+    from src.agents.synthesis import _format_context
+    text = _format_context([_chunk(source_kind="vision_unverified", text="Mã số: 280 | Số cuối kỳ: 1.234")])
+    assert "[xuất xứ: số liệu do mô hình đọc ảnh, CHƯA kiểm được bằng số học" in text
+    assert text.endswith("Mã số: 280 | Số cuối kỳ: 1.234")
+
+
+def test_format_context_tag_moi_bac_khac_text():
+    from src.agents.synthesis import _format_context, _SOURCE_KIND_TAGS
+    from src.rag.chunking import _XUAT_XU_RANK
+    assert set(_SOURCE_KIND_TAGS) == set(_XUAT_XU_RANK) - {"text"}, "mỗi bậc xuất xứ phải có tag, trừ text"
+    for kind in _SOURCE_KIND_TAGS:
+        assert f"[xuất xứ: {_SOURCE_KIND_TAGS[kind]}]" in _format_context([_chunk(source_kind=kind)])
+
+
+def test_chunk_mac_dinh_text_de_state_cu_dung_lai_duoc():
+    from src.agents.fanout import chunk_to_dict, chunks_from_dicts
+    d = chunk_to_dict(_chunk())
+    assert d["source_kind"] == "text"
+    d.pop("source_kind")                       # state ghi trước 2026-09-11
+    assert chunks_from_dicts([d])[0].source_kind == "text"

@@ -30,6 +30,12 @@ class Chunk:
     # là JSON thuần (bất biến ghi ở fanout.py). Một datetime.date sẽ đi lọt
     # mọi unit test dùng checkpointer giả rồi hỏng đúng lúc gặp Postgres thật.
     effective_date: str | None = None
+    # Bậc xuất xứ của chunk (`chunking._XUAT_XU_RANK`): text | ocr | ocr_repaired
+    # | vision_verified | vision_unverified | vision_description. Mặc định
+    # "text" để state cũ trong checkpointer (chưa có trường này) vẫn dựng lại
+    # được. Trước 2026-09-11 KHÔNG gì phía sau ingest đọc trường này: "to
+    # tiếng" của tầng OCR dừng ở log, người dùng không bao giờ thấy.
+    source_kind: str = "text"
 
 
 @dataclass(frozen=True)

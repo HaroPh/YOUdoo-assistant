@@ -14,7 +14,7 @@ from .types import Chunk, RetrievalResult
 # thuộc chunk. LEFT chứ không INNER — tài liệu nghiệp vụ không có ngày, và
 # INNER JOIN sẽ lặng lẽ loại chúng khỏi mọi kết quả truy xuất.
 _COLS = ("c.id, c.doc_id, c.source_file, c.doc_title, c.section_path, c.page, "
-         "c.sheet, c.row_range, c.chunk_text, d.effective_date")
+         "c.sheet, c.row_range, c.chunk_text, d.effective_date, c.source_kind")
 _FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
 
@@ -273,6 +273,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
                 section_path=row[4], page=row[5], sheet=row[6], row_range=row[7],
                 text=row[8],
                 effective_date=row[9].isoformat() if row[9] else None,
+                source_kind=row[10] or "text",
                 dense_score=e["dense"], sparse_score=e["sparse"],
                 fold_score=e.get("fold"),
                 rrf_score=e["rrf"], rank=rank))
