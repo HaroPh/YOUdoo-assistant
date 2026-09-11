@@ -2499,3 +2499,61 @@ Và một ô Tesseract trên trang được bảo lãnh đọc `10.298.000.000` 
 `10.296.000.000` ở hàng KHÔNG có ràng buộc phủ — quy tắc vouch là theo TRANG
 (≥1 PASS, 0 FAIL), nên hàng không được phủ vẫn mang bậc `ocr` như trước đây;
 không phải hồi quy, nhưng là chỗ có thể hạ bậc theo hàng sau.
+
+## Trang thuyết minh scan: không xé văn xuôi có chữ số thành cột (2026-09-11)
+
+Câu hỏi kích hoạt: *"gửi text thô của mục 29 của NTC_2025"* → "không có thông tin".
+Mục 29 ("CAM KẾT THUÊ VÀ CHO THUÊ HOẠT ĐỘNG", tr61) CÓ trong bản trích nhưng dòng
+tiêu đề bị lưới bậc 2 xé: `r: r | vào ngày 29. |: 291 | 30 tháng CAM KET: Cam kết…`.
+Nguyên nhân đọc từ lưới đệm sẵn: hàng `r | 29. | CAM KET | THUÊ…` 4 ô → trong dải
+bảng; `has_numeric_data` thấy "29." → hàng dữ liệu → `row_to_text` với tên cột lấy
+từ letterhead. Các dòng văn xuôi KHÔNG chữ số kề bên đi đúng đường phẳng — quy
+tắc đúng hướng, nhưng "có chữ số bất kỳ" quá rộng cho trang thuyết minh.
+
+**Phạm vi đo trước khi sửa** (229 trang scan không có cột mã số, đệm sẵn): 1.782
+hàng thân trong dải bảng có chữ số, **887 (49,8%) không có ô tiền** — số mục, ngày
+tháng, số trang. 895 hàng có ô tiền là bảng thật. Cột 0 của 131/227 trang là **cột
+rác gáy sách** (`r`, `c`, `la`, `E`): tỉ lệ ô ≤ 2 ký tự phân bố lưỡng cực p25 = 0,02 /
+p50 = 0,87 / p75 = 0,97 → ngưỡng 0,8 nằm giữa hai đỉnh. Rác này phá
+`heading_level`: `29. CAM KẾT…` → cấp 2, `r 29. CAM KẾT…` → None.
+
+**Sửa (commit `b765593`), CHỈ cho trang không phải báo cáo chính:**
+- `trigger.is_statement_page`: tiêu đề đúng một loại HOẶC ≥ 6 hàng mã số. Con số
+  6 từ khe sạch trên 281 trang: trang không tiêu đề có coded ∈ {0, 2, 3, 4} trừ ba
+  trang báo cáo chính Tesseract không đọc ra tiêu đề (9, 12, 19); trang có tiêu đề:
+  0 hoặc ≥ 9. Lần đầu tôi dùng `rows_from_grid is None` làm tiêu chí — SAI: tr61 có
+  ba ô "29.", "291", "30." đủ thành "cột mã số" và trang cần sửa nhất lại đi đường
+  cũ. Phát hiện nhờ test synthetic trang 61 đỏ.
+- `table.has_money_data`: hàng bảng ⇔ có token `MONEY` hoặc ≥ 2 ô gạch ngang (1
+  gạch lẻ là dấu nối trong khối chữ ký — 63 hàng lọt với quy tắc ≥ 1).
+- `table.margin_junk_columns` / `is_margin_junk`: chỉ xét cột rìa; bỏ ô rác TRƯỚC
+  khi xét hàng có phải bảng không (một `-`/`—` ở rìa cộng một gạch thật thành "≥ 2
+  gạch" giả) và trước khi nối dòng phẳng — nhưng chỉ bỏ ô THỰC SỰ rác, vì cột đó
+  vẫn chứa chữ thật ở vài hàng ("Công ty hiện").
+- `_khoi_tu_luoi_anh(strict_numeric=True)`: header dải theo `split_header_body`
+  (letterhead + tiêu đề mục "29.") phát ra dòng phẳng thay vì nuốt làm tên cột —
+  trước đó block "29." KHÔNG TỒN TẠI vì bị coi là header; header CỤC BỘ cho bảng con
+  (đúng một dòng ngay trên hàng tiền, tối thiểu 2 ô) → `Số cuối năm: … | Số đầu năm: …`
+  thay cho `cho năm tài chính kết thúc 29.: Đến 1 năm`.
+- Trang báo cáo chính: đường cũ nguyên byte (test snapshot trên lưới tr7).
+
+**Đo sau sửa** (235 trang strict / 46 báo cáo chính): hàng xé không tiền **887 → 7**
+(đều hai gạch thật); tiêu đề mục dạng "N. …" nhận được **157** (trước: 44 trong tập bị
+xé); 350 hàng bảng mang tên cột kỳ; tổng block 10.328 → 10.057. NTC tr61: `29. CAM
+KET THUÊ VA CHO THUÊ HOAT ĐỌNG` thành block tiêu đề cấp 2, `29.2` cấp 5, `30.` cấp 2.
+Cổng: lat2 0,9794 · lat3 0,6276 (mẫu số đổi do đệm v4 đọc thêm 20 trang xoay) ·
+lat4 0/4202 · **lat5 mới** (trang strict, STRIDE 3: 79 trang, 51 tiêu đề mục, 367
+hàng bảng, 1 hàng lọt có tên — khối chữ ký SCID tr40, ghim ≤ 1) · tự-nuôi 0,9473 ·
+Gate A xanh. Suite 2.700 passed.
+
+**Nghiệm thu sống qua `:8012` + Open WebUI** (upload lại NTC, 75 s, 172.172 ký tự):
+trang 61 trong `webui.db` có dòng riêng `29. | CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG` và
+`29.2 Cam kết thuê hoạt động` (`|` là ký tự Tesseract đọc từ đường kẻ). Hỏi lại *"text
+thô của mục 29"*: **vẫn không** — "Retrieved 1 source" là chunk MỤC LỤC ("thuyết minh
+từ trang 10 đến 31"). Về nghĩa, câu hỏi "mục 29 của file" giống mục lục hơn nội dung
+mục 29; BM25 với "29" trúng ngày tháng. Đây là số đo cho việc kế tiếp, không phải lý
+do nới sửa này: **truy vấn theo số mục cần TRA CỨU CẤU TRÚC** (bảng mục lục thuyết
+minh "số mục → trang/đoạn" dựng lúc trích), không phải tìm tương tự.
+
+Lỗi tự gây trong ngày: `sed` với `\d` trong regex mất hết dấu gạch chéo → cổng đo
+lat5 báo 354 hàng "không tiền" giả; nhìn ra ngay vì ví dụ in kèm đều có tiền.
