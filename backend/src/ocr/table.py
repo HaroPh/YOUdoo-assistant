@@ -520,6 +520,77 @@ def has_numeric_data(row: list[str]) -> bool:
     return any(c.isdigit() for cell in row for c in cell)
 
 
+_DASH_CELLS = frozenset({"-", "–", "—"})
+
+
+def has_money_data(row: list[str]) -> bool:
+    """Hàng lưới có mang dữ liệu BẢNG TÀI CHÍNH không: ≥ 1 token khớp `MONEY`
+    hoặc ≥ 1 ô chỉ là gạch ngang (ô "không có nghiệp vụ").
+
+    Chặt hơn `has_numeric_data`, dùng cho trang KHÔNG có cột mã số (thuyết
+    minh, văn xuôi). Đo 2026-09-11 trên 229 trang scan như vậy: 1.782 hàng
+    thân trong dải bảng có chữ số, **887 (49,8%) không có ô tiền nào** — số
+    mục ("29."), ngày tháng ("31 tháng 12 năm 2022"), số trang. Xé chúng
+    thành cột cho ra `r: r | vào ngày 29. |: 291 | 30 tháng CAM KET: Cam kết`
+    thay cho dòng tiêu đề "29. CAM KẾT THUÊ VÀ CHO THUÊ HOẠT ĐỌNG" (NTC_2025
+    tr61). 895 hàng có ô tiền là bảng thật, giữ nguyên đường bảng.
+
+    Gạch ngang phải có ≥ 2 ô: một ô "-" lẻ là dấu gạch nối trong khối chữ ký /
+    letterhead ("KẾ TOÁN TRƯỞNG | - | Bình Định, ngày…") — đo trên 229 trang,
+    63 hàng như vậy lọt lưới với quy tắc ≥ 1; hai ô "-" cùng hàng là hàng bảng
+    "không có nghiệp vụ" ở cả hai kỳ.
+
+    KHÔNG dùng cho trang có cột mã số: ở đó hàng `124 | Dự phòng … | - | -`
+    vẫn cần đi đường bảng để mang nhãn `Mã số: 124` — bậc 3 lo trang đó.
+    """
+    gach = 0
+    for cell in row:
+        c = cell.strip()
+        if c in _DASH_CELLS:
+            gach += 1
+            if gach >= 2:
+                return True
+            continue
+        if any(MONEY.match(t) for t in c.split()):
+            return True
+    return False
+
+
+# Cột rác gáy sách: scan báo cáo đóng gáy để lại một dải bóng ở rìa, Tesseract
+# đọc thành ô 1–2 ký tự (`r`, `c`, `la`, `E`) trên gần MỌI hàng. Đo 2026-09-11
+# trên 227 trang scan không có cột mã số: tỉ lệ ô ≤ 2 ký tự ở cột 0 phân bố
+# LƯỚNG CỰC — p25 = 0,02, p50 = 0,87, p75 = 0,97; 131/227 trang ≥ 0,8. Ngưỡng
+# 0,8 nằm giữa hai đỉnh, không phải rút từ không khí. Cột này phá
+# `heading_level`: "29. CAM KẾT…" là cấp 2, "r 29. CAM KẾT…" là None.
+MARGIN_JUNK_SHARE = 0.8
+MARGIN_MIN_CELLS = 5
+
+
+def is_margin_junk(cell: str) -> bool:
+    """Ô rác gáy sách: ≤ 2 ký tự, không phải chữ số (mã số ngắn "01" không tính)."""
+    c = cell.strip()
+    return len(c) <= 2 and not c.isdigit()
+
+
+def margin_junk_columns(grid: list[list[str]]) -> set[int]:
+    """Chỉ số các cột RÌA (cột 0, cột cuối) là cột rác gáy: ≥ `MARGIN_MIN_CELLS`
+    ô không rỗng và ≥ `MARGIN_JUNK_SHARE` trong đó ≤ 2 ký tự KHÔNG phải chữ số.
+    Chỉ xét rìa: cột "Mã số" thật ở giữa là các ô 2–3 chữ số — đã loại bằng
+    "không phải chữ số", nhưng khoanh vùng rìa cho chắc."""
+    n = max((len(r) for r in grid), default=0)
+    if n == 0:
+        return set()
+    out: set[int] = set()
+    for j in {0, n - 1}:
+        cells = [r[j].strip() for r in grid if j < len(r) and r[j].strip()]
+        if len(cells) < MARGIN_MIN_CELLS:
+            continue
+        junk = sum(1 for c in cells if is_margin_junk(c))
+        if junk / len(cells) >= MARGIN_JUNK_SHARE:
+            out.add(j)
+    return out
+
+
 def find_header_rows(grid: list[list[str]], body_start: int, *,
                      window: int | None = None,
                      min_cells: int | None = None) -> list[list[str]]:

@@ -253,3 +253,32 @@ def test_has_numeric_data_false_for_a_prose_row():
 def test_has_numeric_data_sees_a_digit_anywhere_in_any_cell():
     assert m.has_numeric_data(["", "", "Điều 5 khoản", ""])
     assert not m.has_numeric_data(["", "", "Điều năm khoản", ""])
+
+
+# ─── trang thuyết minh: dữ liệu bảng = tiền/gạch, cột rác gáy (2026-09-11) ──────
+def test_has_money_data_money_token_or_two_dashes():
+    assert m.has_money_data(["", "Đến 1 năm", "4.941.448.061", "15.611.296.360"])
+    assert m.has_money_data(["Cổ phiếu ưu đãi", "-", "-"])
+    assert m.has_money_data(["Trên 5 năm", "-", "94.841.935.650"])
+    # Một gạch lẻ là dấu nối trong khối chữ ký / letterhead, không phải ô bảng.
+    assert not m.has_money_data(["KE TOAN TRUONG", "-", "Binh Dinh, ngay 11 thang 07"])
+    assert not m.has_money_data(["r", "29.", "CAM KET", "THUÊ VA CHO THUÊ HOAT ĐỘNG"])
+    assert not m.has_money_data(["Cho năm tài chính kết thúc", "31 tháng", "12 năm", "2022"])
+    assert not m.has_money_data(["Số lượng cổ phần", "29200", "625000"])   # không nhóm 3 -> không phải tiền in
+
+
+def test_margin_junk_columns_detects_binding_shadow_edge_only():
+    grid = [["r", "29.", "CAM KET", "THUÊ"], ["c", "Công ty", "hiện đang", "thuê"],
+            ["la", "các hợp", "đồng", ""], ["E", "ngày kết", "thúc", "kỳ"],
+            ["r", "Đến 1 năm", "4.941.448.061", "15.611.296.360"], ["[", "30.", "SỰ KIỆN", ""]]
+    assert m.margin_junk_columns(grid) == {0}
+    # Cột mã số thật (chữ số) không phải rác dù ngắn.
+    ma = [["100", "TÀI SẢN", "1", "2"], ["110", "Tiền", "1", "2"], ["111", "Tiền", "1", "2"],
+          ["112", "Tương đương", "1", "2"], ["120", "Đầu tư", "1", "2"]]
+    assert m.margin_junk_columns(ma) == set()
+    # Dưới MARGIN_MIN_CELLS ô -> không kết luận.
+    assert m.margin_junk_columns(grid[:4]) == set()
+    # Cột giữa toàn ký tự rác KHÔNG bị xét (chỉ rìa).
+    giua = [["Tiền", "|", "1.000", "2.000"]] * 6
+    assert m.margin_junk_columns(giua) == set()
+    assert m.margin_junk_columns([]) == set()

@@ -565,3 +565,53 @@ def test_break_check_routing_prose_rows_through_the_grid_reintroduces_shredding(
         table.has_numeric_data = goc
     assert xau > 0, ("tat dinh tuyen ma van khong sinh block nao xe van xuoi"
                      " -> cong tren khong do gi")
+
+
+# ─── lat5: trang THUYET MINH khong xe van xuoi co chu so (2026-09-11) ──────────
+# Truoc: `has_numeric_data` ("co chu so bat ky") xe 887/1.782 hang than co chu so
+# tren 229 trang khong co cot ma so — so muc "29.", ngay thang. Sau: chi hang co
+# o tien / >=2 gach di duong bang. Do STRIDE=1 tren 235 trang strict (2026-09-11):
+#   hang bang co tien/gach = 1.061; hang xe khong tien = 7 (deu la hang hai gach; sau khi
+#   bo o rac gay TRUOC khi xet: con 1 o STRIDE=3)
+#   block tieu de dang "N. ..." = 157 (truoc khi sua: 44 trong tap bi xe)
+#   hang bang mang ten cot ky (cuoi/dau nam) = 350
+# Cong duoi day chay STRIDE=3 nen nguong la san cua mau 1/3, do 2026-09-11.
+SECTION_HEADING = re.compile(r"^\d{1,2}(\.\d)?\.?\s+\S")
+MONEY_TOKEN = re.compile(r"\d{1,3}(?:\.\d{3})+")   # `table.MONEY` neo ^$ ca o; day la token trong text block
+
+
+@pytest.mark.skipif(tesseract_path() is None, reason="chua cai tesseract")
+def test_strict_pages_keep_section_headings_and_only_money_rows_go_tabular():
+    from src.ocr import trigger
+    if not _scan_pdfs():
+        pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
+    trang = 0
+    tieu_de_muc = 0
+    hang_bang = 0
+    xe_khong_tien: list[str] = []
+    for path in _scan_pdfs():
+        for pageno in _image_pages(path)[::STRIDE]:
+            kq = read_page(path, pageno)
+            ws = _words_from_page(kq)
+            if not ws:
+                continue
+            grid = table.build_grid(ws)
+            if trigger.is_statement_page(kq.text, grid):
+                continue
+            trang += 1
+            for b in _khoi_tu_luoi_anh(grid, pageno, set(), 0.9, strict_numeric=True):
+                if b.get("atomic"):
+                    hang_bang += 1
+                    if not (MONEY_TOKEN.search(b["text"]) or b["text"].count(": -") >= 2):
+                        xe_khong_tien.append(b["text"][:90])
+                elif b["heading_level"] and SECTION_HEADING.match(b["text"]):
+                    tieu_de_muc += 1
+    print(f"\n[lat5 thuyet minh] trang={trang} tieu de muc={tieu_de_muc} hang bang={hang_bang} "
+          f"xe khong tien={len(xe_khong_tien)}")
+    assert trang >= 60, f"chi {trang} trang strict -- corpus thieu"
+    # Do 2026-09-11: DUNG MOT hang lot — khoi chu ky SCID tr40 `Ché thanh | ly |
+    # - | = | : | e | . | -`, hai gach that o cot giua va cot cuoi (cot cuoi trang do
+    # khong du rac de thanh cot gay). Ghim <= 1: them mot hang la do.
+    assert len(xe_khong_tien) <= 1, f"hang xe thanh cot ma khong co tien/gach: {xe_khong_tien[:3]}"
+    assert tieu_de_muc >= 40, f"tieu de muc nhan duoc {tieu_de_muc} < san 40 (do 157 o STRIDE=1)"
+    assert hang_bang >= 300, f"hang bang {hang_bang} < san 300 (do 1.061 o STRIDE=1)"
