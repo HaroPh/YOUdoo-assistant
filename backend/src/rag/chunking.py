@@ -10,7 +10,13 @@ from .config import (CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS, MIN_CHUNK_TOKENS,
 _enc = tiktoken.get_encoding(TIKTOKEN_ENCODING)
 _SENT_RE = re.compile(r"(?<=[.!?…])\s+")
 
-_XUAT_XU_RANK = {"text": 0, "ocr": 1, "vision_description": 2}
+# Bậc xuất xứ, tăng = kém tin cậy hơn. Thứ tự là CHÍNH SÁCH, chủ dự án xác
+# nhận 2026-09-11 (spec OCR bậc 3 §"Xuất xứ"): `vision_verified` (VLM đọc số,
+# số học đã kiểm) đứng DƯỚI mọi bậc Tesseract-thuần vì vẫn là LLM viết chữ số
+# — thật về xuất xứ; `vision_unverified` (VLM đọc, không kiểm được) chỉ trên
+# `vision_description` (mô tả hình, không có số để kiểm).
+_XUAT_XU_RANK = {"text": 0, "ocr": 1, "ocr_repaired": 2, "vision_verified": 3,
+                 "vision_unverified": 4, "vision_description": 5}
 
 
 def fold_vi(text: str) -> str:

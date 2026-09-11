@@ -12,6 +12,7 @@ chính tệp đó, nhưng không route nào nhận tệp nên năng lực đó c
 """
 import os
 
+from .chunking import _gop_bi_quan
 from .parse import parse_docx, parse_pdf, parse_pptx, parse_xlsx
 
 
@@ -61,11 +62,13 @@ def _documents_from_blocks(blocks, filename, warnings, *, group_by_page):
     docs = []
     for page in sorted(by_page, key=lambda p: (p is None, p)):
         group = by_page[page]
-        # `source_kind`/`ocr_conf` do `parse_pdf` đặt CHUNG cho cả trang, nên
-        # lấy giá trị đầu tiên gặp là đủ; mặc định "text" khi không có.
-        conf = next((b["ocr_conf"] for b in group
-                     if b.get("ocr_conf") is not None), None)
-        kind = "ocr" if any(b.get("source_kind") == "ocr" for b in group) else "text"
+        # Bậc xuất xứ XẤU NHẤT của trang + conf nhỏ nhất — cùng quy tắc với
+        # chunking (`_gop_bi_quan`). Trước 2026-09-11 dòng này gộp thành
+        # `"ocr" if any(... == "ocr") else "text"`: một trang toàn hàng VLM chưa
+        # kiểm sẽ mang nhãn "text", bậc tin cậy CAO NHẤT — sai đúng chiều duy
+        # nhất trường này không được sai.
+        kind, conf = _gop_bi_quan([(b["text"], b.get("source_kind", "text"), b.get("ocr_conf"))
+                                   for b in group])
         meta = {"source": filename, "source_kind": kind, "ocr_conf": conf,
                 # Cảnh báo gắn vào MỌI document chứ không riêng cái đầu: Open
                 # WebUI cắt chunk theo từng document, nên gắn một chỗ nghĩa là
