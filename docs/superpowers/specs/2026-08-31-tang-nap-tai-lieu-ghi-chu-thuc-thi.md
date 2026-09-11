@@ -2067,3 +2067,132 @@ nguyên như vậy.
   chỉ đòi MỘT trong 16 trang mang `source_kind="ocr"` / có `ocr_conf` — một
   hồi quy khiến phần lớn trang trượt khỏi đường OCR vẫn lọt qua cổng nếu tổng
   ký tự còn trên ngưỡng. Siết thành `all(...)`.
+
+## Đổi PSM cho OCR — ĐÃ THỬ VÀ BỊ BÁC BỎ (2026-09-10/11)
+
+**Ngày**: 2026-09-10 → 2026-09-11. **Nhánh**: `worktree-ocr-psm`, base `35fc75d`.
+**Kết luận**: cả hai phương án đổi PSM đều **bị số đo bác bỏ**. Không thay đổi
+production nào. Giữ `OCR_PSM = 6`.
+
+### Vì sao thử: một câu hỏi số liệu không trả lời được
+
+Người dùng đính kèm `DVT_2022.pdf` qua Open WebUI (endpoint trích tài liệu chạy
+đúng, 40.953 ký tự) rồi hỏi *"tổng tài sản đầu năm là bao nhiêu"*. Trả lời:
+"không có thông tin", kèm dẫn nguồn một tài liệu KHÁC trong corpus.
+
+Con số **có** trong tệp; nhãn để tìm nó thì **không**. Cột nhãn trang 7 (trang
+TÀI SẢN của bảng cân đối) đọc ra: `'Pap s'`, `'2 mmeeomeih'`, `'[xamasu'`,
+`'F káananyee'`, `'H999'`. `TỔNG CỘNG TÀI SẢN` không xuất hiện ở đâu.
+
+### Hai giả thuyết bị bác bỏ trước khi thử PSM
+
+- **DPI không phải nguyên nhân**: 200 → 300 → 400 cho conf 63,3 → 60,0 → 60,2
+  trên trang 7, và không nhãn nào nhận ra được ở bất kỳ DPI nào. Đừng thử lại.
+- **PSM 11 (chữ thưa) phải loại** dù conf cao nhất (90,0): `build_grid` gom hàng
+  theo `line_id` của Tesseract, chế độ chữ thưa không sinh cấu trúc dòng, nên
+  grid ra **135 hàng × 1 cột** và `table_row_runs` ra **0 run**. Bảng biến mất.
+
+### `mean_conf` KHÔNG phải thước đo chất lượng đọc
+
+Đây là bài học đắt nhất của lượt này. Bảng "PSM 6 tệ nhất ở 16/16 trang" (conf
+trung bình 80,1 so với 89,5 của PSM 4) **đã dẫn tới một khuyến nghị sai**.
+
+Bằng chứng trực tiếp, `luat-thuexuatnhapkhau.pdf` tr.13: conf **tăng** 93,7 →
+95,3 trong khi recall theo TỪ **giảm** 0,9473 → 0,9308. Conf là mức tự tin của
+Tesseract về những gì nó đã đọc, không phải về những gì nó bỏ sót.
+
+### Phương án 1 — PSM 4 toàn cục: BỊ BÁC BỎ, 3 cổng đỏ
+
+| thước | PSM 6 | PSM 4 toàn cục |
+|---|---|---|
+| tự-nuôi bậc 1 (min) | 0,9473 | **0,8725** ✗ dưới 0,89 |
+| lát 3 tên cột | 234/383 = 0,6110 | **101/251 = 0,4024** ✗ dưới 0,56 |
+| Cổng A mẫu SSC | 0,7143 | **0,6364** ✗ dưới 0,66 |
+| lát 2 sụp về 1 cột | 0 trang | 1 trang |
+| lát 2 mật độ ô | 0,3911 | 0,4488 (tốt hơn) |
+
+Hồi quy tự-nuôi tr.20 **tất định**: 0,8725 hai lượt riêng, 0,9508 dưới PSM 6.
+Lưu ý lát 3 đếm được **251 hàng bảng thay vì 383** — PSM 4 làm ít hàng được
+nhận là hàng bảng hơn: nó đọc chữ khác đi nhưng phá cấu trúc bảng.
+
+### Phương án 2 — PSM thích ứng theo conf: BỊ BÁC BỎ, hằng số ăn may
+
+Quy tắc: đọc PSM 6 trước, `mean_conf < T` thì đọc lại bằng PSM 4. Quét 13 giá
+trị T trong MỘT tiến trình, OCR mỗi trang đúng một lần mỗi PSM rồi ghi nhớ —
+cùng lối `calibrate_table.py` dùng cho lưới gap/support.
+
+T=0 nghĩa là không bao giờ đổi (= PSM 6 thuần) và T=101 là luôn đổi (= PSM 4
+thuần), nên **phép quét bao trùm cả hai đầu**, và cả ba giá trị 0/85/101 **tái
+tạo khít** ba phép đo độc lập trước đó — đó là bước tự kiểm thước.
+
+| T | tự-nuôi min | lát 3 tên cột | lát 2 tách | sụp | mật độ | đổi PSM4 |
+|---|---|---|---|---|---|---|
+| 0 | 0,9473 | 234/383 = 0,6110 | 0,9771 | 0 | 0,3911 | 0/101 |
+| 55 | 0,9473 | 234/383 = 0,6110 | 0,9771 | 0 | 0,3911 | 8/101 |
+| 65 | 0,9473 | 234/392 = **0,5969** | 0,9776 | 0 | 0,3896 | 10/101 |
+| 70 | 0,9473 | 234/392 = **0,5969** | 0,9776 | 0 | 0,3896 | 11/101 |
+| 75 | 0,9473 | 234/392 = **0,5969** | 0,9776 | 0 | 0,3896 | 14/101 |
+| 80 | 0,9473 | 234/392 = **0,5969** | 0,9776 | 0 | 0,3896 | 16/101 |
+| **85** | 0,9473 | **247/394 = 0,6269** | 0,9797 | 0 | 0,3955 | 25/101 |
+| 88 | 0,9473 | 160/309 = **0,5178** | 0,9775 | 0 | 0,4125 | 42/101 |
+| 90 | 0,9473 | 117/283 = 0,4134 | 0,9769 | 1 | 0,4358 | 55/101 |
+| 92 | 0,9473 | 106/270 = 0,3926 | 0,9727 | 1 | 0,4387 | 67/101 |
+| 95 | **0,8725** | 101/251 = 0,4024 | 0,9749 | 1 | 0,4488 | 96/101 |
+| 98 · 101 | **0,8725** | 101/251 = 0,4024 | 0,9749 | 1 | 0,4488 | 101/101 |
+
+**T=85 là một LƯỠI DAO, không phải cao nguyên.** Nó là giá trị duy nhất trong
+13 giá trị vượt được nền, và **hai bên nó đều tệ hơn việc không làm gì**: T=80
+cho 0,5969 và T=88 cho 0,5178, so với nền 0,6110. Từ 85 sang 88, số trang đổi
+PSM tăng 25 lên 42 và lát 3 sụp 0,6269 xuống 0,5178 — độ nhạy đó nghĩa là kết
+quả chỉ phụ thuộc việc trang nào tình cờ rơi bên nào của ngưỡng trong đúng
+corpus này.
+
+Đó đúng lớp "chốt đúng rìa lưới" mà `calibrate_table.py:68-74` ghi là đã bị bắt
+hai lần. Cơ chế thật phải bền quanh điểm chốt.
+
+### Cái vẫn đúng
+
+Dưới PSM 4, trang 7 của DVT **thật sự** đọc được. Trước:
+
+    I |: h | Báo cáo tình hình tài chính Địa chỉ: 361 Tây Sơn, P. Quang:
+    ~m.|cáckhoinphittu | Bình Định.: 19 | || | (Ban hành theo ngày: 19078257365)
+
+Sau:
+
+    STT Chỉ tiêu Mã số minh Số cuối năm Số đầu năm
+    TÀI SẢN
+    IIL | Các khoản phải thu        | 10 | 19.078.257.265 | 8.331.692.341
+    1.  | Phải thu khách hàng       | 11 | 8.812.478.000  | 4.773.193.000
+    Lu  | Đầu tư tài chính ngắn hạn | 05 | -              | -
+
+Nhãn thật, mã số thật, hai cột năm, có dấu phân cách nghìn. **Khả năng đọc tồn
+tại** — chỉ là không lấy được nó qua công tắc PSM mà không phá chỗ khác. Và ngay
+cả khi lấy được: `TỔNG CỘNG TÀI SẢN` vẫn 0 trang, vì nhãn hàng tổng vẫn mất.
+
+### Hướng KHÔNG nên thử tiếp
+
+Biến thể thứ ba của cùng một ý — chọn PSM theo tín hiệu cấu trúc thay vì conf —
+**không nên làm ngay**. Hai lần thất bại cùng một cần điều khiển là lúc hỏi lại
+cần điều khiển, không phải thử biến thể thứ ba. Hai cần còn lại:
+
+- **Dò hàng tiêu đề**: tất định, không hạ tầng mới. `table.find_header_rows`
+  chỉ có hai vị từ (>=3 ô không rỗng; không ô nào khớp `MONEY`), trong khi đường
+  xlsx đã có `xlsx_header.find_header` với `_looks_like_label`
+  (`_LABEL_MAX_LEN=40`), `MIN_SCORE=0.92` và hợp đồng "thà trả None chứ không
+  đoán bừa" — mà None ở đây TỐT HƠN văn xuôi, vì `compact=True` sẽ phát giá trị
+  trần thay vì `(Ban hành theo: 19.078.257.365`.
+- **VLM bậc 3**: theo `reference_youdoo_compute_and_model_capability` (đo
+  2026-09-04), Gemini flash-lite đọc ảnh tốt (30/30 số hoá đơn) nhưng hạn mức là
+  hồ CHUNG với chatbot.
+
+### Hai thứ giữ lại từ lượt này
+
+Không phải thay đổi hành vi, có giá trị độc lập với PSM:
+
+- `c664786` — bốn cổng OCR (lát 2, lát 3, lát 4, tự-nuôi) trước đây **không in
+  số nào**, nên một cổng xanh ở 0,57 trông y hệt một cổng xanh ở 0,99. Giờ chúng
+  in. Không đổi một assert nào. Chính nhờ commit này mới dựng được bảng trên.
+- `2f41343` — `kiem_so_hoc.py` chạy được như CLI từ 2026-09-06 nhưng **chưa test
+  nào gọi**, nên chưa bao giờ chặn được gì. Đã nối vào suite (85/85, 0,04s,
+  không cần tesseract nên THỰC SỰ chạy ở CI). Đã thử phá: đổi một chữ số ở chỉ
+  tiêu 100 làm cổng đỏ.

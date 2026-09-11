@@ -361,6 +361,9 @@ def test_whole_scan_corpus_separates_money_columns():
     assert pages >= 20, f"chi {pages} trang dat nguong hang bang -- corpus thieu"
     ty_le = sep / rows
     mat_do = filled / cells
+    print(f"\n[lat2 corpus] tach={sep}/{rows}={ty_le:.4f} "
+          f"sap={collapsed} matdo={filled}/{cells}={mat_do:.4f} "
+          f"tren {pages} trang / {len(_scan_pdfs())} tai lieu")
     assert ty_le >= CORPUS_SEPARATION_THRESHOLD, (
         f"tach {sep}/{rows} = {ty_le:.4f} < {CORPUS_SEPARATION_THRESHOLD}"
         f" tren {pages} trang / {len(_scan_pdfs())} tai lieu")
@@ -466,6 +469,7 @@ def test_money_columns_get_meaningful_names_in_final_text():
     if not _scan_pdfs():
         pytest.skip(f"khong co corpus scan tai {SCAN_DIR}")
     ok, total = _naming_scores()
+    print(f"\n[lat3 ten cot] ok={ok}/{total}={ok / total if total else 0:.4f}")
     assert total >= 100, f"chi {total} hang bang -- corpus thieu"
     assert ok / total >= NAMING_THRESHOLD, (
         f"ten cot co nghia {ok}/{total} = {ok/total:.4f} < {NAMING_THRESHOLD}")
@@ -526,6 +530,7 @@ def test_no_block_is_prose_shredded_into_columns():
                 text = b["text"]
                 if len(BAD_LABEL.findall(text)) >= 2 and not ANY_DIGIT.search(text):
                     xau.append(text[:90])
+    print(f"\n[lat4 van xuoi] bi xe={len(xau)}/{tong}")
     assert tong >= 1000, f"chi {tong} block -- corpus thieu"
     assert not xau, (f"{len(xau)}/{tong} block la van xuoi bi xe thanh bang, "
                      f"vi du: {xau[:3]}")
