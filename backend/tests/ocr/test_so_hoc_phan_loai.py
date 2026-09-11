@@ -210,14 +210,30 @@ class TestBreak:
         # 31 là thành phần của 30 = 31 + 35 → 30 cũng lệch → 30, 35 đi theo.
         assert _status(rep, "30").status == RowStatus.REJECTED
 
-    def test_dropping_a_nonzero_component_row_fails_in_lenient_mode(self):
+    def test_dropping_a_nonzero_component_row_is_NA_naming_the_absent_code(self):
+        """Lệch + có hàng vắng → NA, không FAIL: không phân biệt được "rơi hàng"
+        với "hàng ở trang trước" (280 = 100 + 200 trên SCID tr13). Kết quả: 11/12/13
+        mất phủ → unverified; 10 vẫn verified qua 50 = ... + 10 + ... vì ô của nó
+        đúng. Không hàng nào bị xác minh sai."""
         rows, cols = _tr7()
         cs = _constraints(rows)                  # tham chiếu cố định, như (c)/(e1)
         rows = [r for r in rows if r.get("ma_so") != "14"]
         rep = so_hoc.classify_rows(rows, cs, cols, strict_absent=False)
         e = next(e for e in rep.evaluations if e.constraint.total == "10" and e.column == "so_cuoi_nam")
-        assert e.verdict == Verdict.FAIL and e.absent == ("14",)
-        assert _status(rep, "11").status == RowStatus.REJECTED
+        assert e.verdict == Verdict.NA and e.absent == ("14",) and "vắng ['14']" in e.reason
+        assert _status(rep, "11").status == RowStatus.UNVERIFIED
+        assert _status(rep, "10").status == RowStatus.VERIFIED
+        assert rep.count(RowStatus.REJECTED) == 0
+
+    def test_cross_page_grand_total_stays_unverified_not_rejected(self):
+        """SCID tr13: 280 = 100 + 200, 100 ở tr12. Bảng (c) TT 99 tham chiếu cố định
+        → 100 vắng → NA. 280 unverified (có tag), 200 vẫn verified qua 200 = 210 + ..."""
+        rows, cols, _ = _load("SCID_2026H1_tr13.json")
+        ft = so_hoc.form_table("99/2025/TT-BTC", "B01-DN")
+        rep = so_hoc.classify_rows(rows, ft.constraints, cols, strict_absent=False)
+        assert rep.count(RowStatus.REJECTED) == 0
+        assert _status(rep, "280").status == RowStatus.UNVERIFIED
+        assert _status(rep, "200").status == RowStatus.VERIFIED
 
     def test_dropping_a_dash_row_still_passes_and_counts_it_absent(self):
         rows, cols = _tr7()

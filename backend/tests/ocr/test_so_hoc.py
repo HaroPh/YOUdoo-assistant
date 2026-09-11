@@ -179,13 +179,16 @@ def test_absent_component_is_NA_in_strict_mode_but_zero_and_COUNTED_in_lenient_m
     assert lenient.absent == ("05", "25")
 
 
-def test_absent_NONZERO_component_fails_in_lenient_mode():
-    # Bỏ một hàng có giá trị thật -> tổng không còn khớp -> FAIL, không phải PASS-với-vắng.
+def test_absent_NONZERO_component_is_NA_not_pass_in_lenient_mode():
+    # Bỏ một hàng có giá trị thật -> tổng không còn khớp. KHÔNG phải PASS-với-vắng;
+    # cũng không FAIL (không phân biệt được với hàng nằm ở trang trước — đo trên
+    # SCID, 6 hàng tổng đúng bị loại nếu FAIL). NA, nêu cả độ lệch lẫn mã số vắng.
     rows = dict(_TR7); del rows["45"]                        # 235.682.832 bị rơi
     e = so_hoc.evaluate(_C50, rows.get, "so_dau_nam", strict_absent=False)
-    assert e.verdict is so_hoc.Verdict.FAIL
+    assert e.verdict is so_hoc.Verdict.NA
     assert e.absent == ("45",)
     assert e.delta == 235682832
+    assert "vắng ['45']" in e.reason and "235.682.832" in e.reason
 
 
 def test_signed_formula_evaluates_with_negative_coefficients():

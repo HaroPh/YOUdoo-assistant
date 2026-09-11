@@ -16,6 +16,9 @@ Module lá: import được từ bất cứ đâu, không kéo theo DB, PDF, hay
 """
 from __future__ import annotations
 
+import functools
+import json
+import os
 import re
 from dataclasses import dataclass, field
 
@@ -223,10 +226,12 @@ def evaluate(c: Constraint, lookup, column: str, *, strict_absent: bool) -> Eval
     """`lookup(ma_so) -> hàng | None`; hàng là dict `{cột: ô}`.
 
     `strict_absent=True` — ĐÁP ÁN: mọi hàng phải có mặt, thành phần vắng là NA.
-    `strict_absent=False` — TRANG VLM: trang có thể bỏ hàng "-", thành phần vắng
-    được tính bằng 0 NHƯNG ghi vào `absent` để người đọc thấy. Đây KHÔNG phải bẫy
-    `null` README ghi (hàng tiêu đề bị cộng thành 0): ở đây là vắng-khỏi-trang,
-    được đếm và báo — và một hàng KHÁC 0 bị rơi vẫn làm tổng lệch → FAIL.
+    `strict_absent=False` — TRANG VLM: trang có thể bỏ hàng "-" (mẫu TT 99 ghi
+    chú (1): chỉ tiêu không có số liệu được miễn trình bày), thành phần vắng
+    được tính bằng 0 NHƯNG ghi vào `absent`. Khớp → PASS (hàng vắng nhất quán
+    với 0). Lệch mà có hàng vắng → NA, KHÔNG FAIL — xem chú thích trong thân
+    hàm. Đây KHÔNG phải bẫy `null` README ghi (hàng tiêu đề bị cộng thành 0):
+    ở đây là vắng-khỏi-trang, được đếm và báo.
 
     Ô `null` (không áp dụng) trong ràng buộc luôn là NA: một ràng buộc trỏ tới
     hàng tiêu đề là lỗi dữ liệu, không được lặng lẽ coi là 0.
@@ -266,8 +271,19 @@ def evaluate(c: Constraint, lookup, column: str, *, strict_absent: bool) -> Eval
     if computed == tong_v:
         return Evaluation(c, column, Verdict.PASS, total_value=tong_v, computed=computed,
                           absent=tuple(absent))
+    if absent:
+        # Lệch MÀ có thành phần vắng: không phân biệt được "VLM rơi một hàng
+        # khác 0" với "hàng nằm ở trang trước" (280 = 100 + 200 khi 100 ở tr12,
+        # 50 = 20 + 30 + 40 khi 20/30 ở trang trước — đo trên SCID: 6 hàng tổng
+        # ĐÚNG bị loại nếu coi đây là FAIL, và đó là chính hàng người dùng hỏi).
+        # NA giữ hàng ở `unverified` có tag, thay vì mất hẳn. Không có hàng nào
+        # được xác minh sai theo cả hai cách — chỉ khác ở chi phí phạm vi.
+        return Evaluation(c, column, Verdict.NA, total_value=tong_v, computed=computed,
+                          delta=tong_v - computed, absent=tuple(absent),
+                          reason=f"{c.total} = {cong_thuc} lệch {tong_v - computed:,} "
+                                 f"nhưng vắng {list(absent)} — không kết luận được".replace(",", "."))
     return Evaluation(c, column, Verdict.FAIL, total_value=tong_v, computed=computed,
-                      delta=tong_v - computed, absent=tuple(absent),
+                      delta=tong_v - computed, absent=(),
                       reason=f"{c.total} = {cong_thuc}")
 
 
@@ -276,21 +292,27 @@ def evaluate(c: Constraint, lookup, column: str, *, strict_absent: bool) -> Eval
 _ROMAN_RE = re.compile(r"^(?=[IVX])M{0,3}(X{0,3})(IX|IV|V?I{0,3})$")
 
 
+_LEVELS = 5
+
+
 def _marker_level(muc) -> int | None:
-    """Mức phân cấp của đánh dấu STT: 0 = chữ cái (A-/B-), 1 = la-mã (I./II.),
-    2 = số (1./2.), 3 = không đánh dấu hoặc gạch đầu dòng (-). None = không
-    hiểu được (không tham gia phân cấp)."""
+    """Mức phân cấp của đánh dấu STT: 0 = chữ cái hoa (A-/B-), 1 = la-mã (I./II.),
+    2 = số (1./2.), 3 = chữ cái thường (a)/b) — mẫu B01 TT 99: 231 = 232 + 233),
+    4 = không đánh dấu hoặc gạch đầu dòng (-). None = không hiểu được (không
+    tham gia phân cấp)."""
     if muc is None:
-        return 3
-    s = str(muc).strip().rstrip(".-").strip()
+        return 4
+    s = str(muc).strip().rstrip(".-)").strip()
     if not s:
-        return 3                                  # "-" gạch đầu dòng -> như không đánh dấu
+        return 4                                  # "-" gạch đầu dòng -> như không đánh dấu
     if len(s) == 1 and s.isalpha() and s.isupper() and s not in "IVX":
         return 0
     if _ROMAN_RE.match(s):
         return 1
     if s.isdigit():
         return 2
+    if len(s) == 1 and s.isalpha() and s.islower():
+        return 3
     return None
 
 
@@ -298,7 +320,7 @@ def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
     """Suy `cha = Σ con` từ đánh dấu STT, theo thứ tự hàng trên trang.
 
     Quy tắc: mỗi hàng là con của tổ tiên ĐANG MỞ gần nhất phía trên ở mức phân
-    cấp nhỏ hơn — bất kể cách mấy bậc (chữ cái > la-mã > số > không đánh dấu).
+    cấp nhỏ hơn — bất kể cách mấy bậc (chữ hoa > la-mã > số > chữ thường > không đánh dấu).
     Nhảy bậc là chuyện thật trên mẫu TT 99 (xem chú thích trong vòng lặp). Hàng cha không có
     mã số (tiêu đề mục như "I. Hoạt động hành chính") vẫn giới hạn phạm vi con,
     nhưng không sinh ràng buộc vì không có ô tổng.
@@ -317,12 +339,12 @@ def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
     thì (b) chỉ thấy tổng lệch — không biết vì thiếu hàng. Chỉ (e1)/(c), tham
     chiếu mã số cố định, mới báo được `absent`.
     """
-    # stack[level] = (ma_so hoặc None, list con). Chỉ giữ 4 mức.
-    stack: list[tuple[str | None, list[str]] | None] = [None, None, None, None]
+    # stack[level] = (ma_so hoặc None, list con), một ô mỗi mức.
+    stack: list[tuple[str | None, list[str]] | None] = [None] * _LEVELS
     parents: list[tuple[str, list[str]]] = []      # (ma_so cha, con) theo thứ tự gặp
 
     def _close(level: int) -> None:
-        for lv in range(level, 4):
+        for lv in range(level, _LEVELS):
             if stack[lv] is not None:
                 ma, con = stack[lv]
                 # >= 2 con, có chủ ý: đo trên 10 trang đáp án (2026-09-11), ràng
@@ -340,6 +362,13 @@ def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
         if lv is None:
             continue
         ma = r.get("ma_so")
+        if parse_printed_formula(r.get("chi_tieu") or "") is not None:
+            # Hàng mang công thức in của CHÍNH nó ("TỔNG CỘNG NGUỒN VỐN (440 =
+            # 300 + 400)") tự khai cấu thành — không phải con của ai. Không có
+            # dòng này, hàng không STT ấy gắn vào hàng số cuối cùng phía trên
+            # (mẫu B01 TT 99: "420 = 420a + 420b + 440", đo khi sinh bảng (c)).
+            _close(0)
+            continue
         # Đóng mọi mức >= lv TRƯỚC khi gắn — anh em cùng mức đã xong.
         _close(lv)
         if lv > 0 and ma is not None:
@@ -356,7 +385,7 @@ def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
                     if str(ma) not in stack[up][1]:
                         stack[up][1].append(str(ma))
                     break
-        if lv == 3:
+        if lv == _LEVELS - 1:
             continue                      # hàng không đánh dấu không có con
         stack[lv] = (str(ma) if ma is not None else None, [])
     _close(0)
@@ -437,18 +466,26 @@ _SOURCE_RANK = {"in_san": 0, "bang_tt": 1, "phan_cap": 2, "dap_an": -1}
 
 
 def merge_constraints(*groups: list[Constraint]) -> tuple[list[Constraint], list[tuple[Constraint, Constraint]]]:
-    """Khử trùng THEO TỔNG: mỗi mã số tổng giữ một ràng buộc, tầng ưu tiên cao
-    thắng. Trả thêm các cặp (thắng, thua) KHÁC thành phần — spec: "(e1) thắng
-    khi cùng tổng khác thành phần → cảnh báo nêu cả hai"."""
-    chon: dict[str, Constraint] = {}
+    """Khử trùng THEO TỔNG giữa các TẦNG: mỗi mã số tổng giữ ràng buộc của tầng
+    ưu tiên cao nhất; tầng thấp hơn cùng tổng mà KHÁC thành phần là xung đột —
+    trả về cặp (thắng, thua) để cảnh báo nêu cả hai (spec: "(e1) thắng khi cùng
+    tổng khác thành phần").
+
+    CÙNG một tầng nói hai điều về một tổng thì giữ cả hai — mẫu B02 có 60 =
+    50 - 51 - 52 VÀ 60 = 61 + 62, đều là đồng nhất của mẫu, không phải xung đột.
+    """
+    chon: dict[str, list[Constraint]] = {}
     conflicts: list[tuple[Constraint, Constraint]] = []
     for c in sorted((c for g in groups for c in g), key=lambda c: _SOURCE_RANK[c.source]):
         cu = chon.get(c.total)
-        if cu is None:
-            chon[c.total] = c
-        elif sorted(cu.terms) != sorted(c.terms):
-            conflicts.append((cu, c))
-    return list(chon.values()), conflicts
+        if not cu:
+            chon[c.total] = [c]
+        elif cu[0].source == c.source:
+            if all(sorted(x.terms) != sorted(c.terms) for x in cu):
+                cu.append(c)
+        elif all(sorted(x.terms) != sorted(c.terms) for x in cu):
+            conflicts.append((cu[0], c))
+    return [c for cs in chon.values() for c in cs], conflicts
 
 
 # --- trạng thái hàng + báo cáo trang ------------------------------------------
@@ -581,3 +618,55 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
         out.append(RowVerdict(i, ma_s, RowStatus.VERIFIED, numeric=True))
     return PageReport(rows=out, evaluations=evaluations, issues=issues,
                       capped_unverified=capped, conflicts=list(conflicts or []))
+
+
+# --- (c) bảng mã số theo thông tư ------------------------------------------------
+
+_MA_SO_DIR = os.path.join(os.path.dirname(__file__), "ma_so")
+
+# Số hiệu thông tư (như in trên header báo cáo) -> tệp bảng. Thêm TT 107/2017
+# khi có trang TT 107 kích hoạt mà (e1) không phủ — hôm nay (e1) phủ 15/15 ràng
+# buộc nội trang trên DVT tr7/8/9, bảng sẽ không đo được gì.
+_FORM_FILES = {"99/2025/TT-BTC": "tt99.json"}
+
+
+@dataclass(frozen=True)
+class FormTable:
+    """Một mẫu của một thông tư: ràng buộc chuẩn (nguồn `bang_tt`) + nhãn chuẩn
+    theo mã số. Sinh bởi `tools/derive_form_table.py` từ mẫu docx chính thức;
+    production chỉ đọc JSON."""
+    thong_tu: str
+    mau: str
+    constraints: list[Constraint]
+    labels: dict[str, str]
+    origin: str                          # `nguon` trong JSON: tệp docx + sha, hoặc "tay ..."
+
+
+@functools.lru_cache(maxsize=None)
+def _load_form_file(name: str) -> dict:
+    with open(os.path.join(_MA_SO_DIR, name), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def form_table(thong_tu: str, mau: str) -> FormTable | None:
+    """`form_table("99/2025/TT-BTC", "B01-DN")`. None khi chưa có bảng cho cặp
+    này — người gọi coi là "không có (c)", không phải lỗi. Việc ĐỌC số thông tư
+    từ header Tesseract và nhận dạng mẫu là của tầng tài liệu, không phải đây."""
+    ten = _FORM_FILES.get(thong_tu.strip())
+    if ten is None:
+        return None
+    data = _load_form_file(ten)
+    m = data["mau"].get(mau)
+    if m is None:
+        return None
+    cs = [Constraint(rb["tong"], [(x, h) for x, h in rb["cong"]], "bang_tt") for rb in m["rang_buoc"]]
+    return FormTable(thong_tu=data["thong_tu"], mau=mau, constraints=cs,
+                     labels=dict(m["nhan"]), origin=m["nguon"])
+
+
+def known_forms() -> list[tuple[str, str]]:
+    """Mọi cặp (thông tư, mẫu) có bảng — cho test quét và cho Q4."""
+    out = []
+    for tt, ten in _FORM_FILES.items():
+        out += [(tt, mau) for mau in _load_form_file(ten)["mau"]]
+    return out
