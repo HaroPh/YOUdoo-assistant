@@ -574,7 +574,9 @@ def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[
             blocks.append({"text": text, "heading_level": heading_level(text), "page": pageno,
                            "source_kind": so_hoc.RowStatus.UNVERIFIED, "ocr_conf": None})
             continue
-        row = [r.get("muc") or "", r.get("chi_tieu") or "", r.get("ma_so") or "",
+        # VLM chép nhãn xuống dòng như trên giấy ("TỔNG CỘNG TÀI SẢN" rồi
+        # "(50=01+...)" ở dòng dưới); một block là một dòng, nên gộp khoảng trắng.
+        row = [r.get("muc") or "", " ".join((r.get("chi_tieu") or "").split()), r.get("ma_so") or "",
                r.get("thuyet_minh") or "", *(r.get(c) or "" for c in cols)]
         blocks.append({"text": row_to_text(row, columns, compact=True), "heading_level": None,
                        "page": pageno, "atomic": True, "source_kind": rv.status, "ocr_conf": None})
