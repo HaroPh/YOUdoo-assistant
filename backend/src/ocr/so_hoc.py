@@ -312,7 +312,10 @@ def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
     (chưa gặp trên 10 trang), (b) vẫn có thể gán sai; (e1)/(c) đứng trước nó
     nên hàng TỔNG CỘNG có công thức in sẽ được ưu tiên đúng.
 
-    Tầng ưu tiên THẤP NHẤT: chỉ điền chỗ (e1)/(c) chưa phủ.
+    Tầng ưu tiên THẤP NHẤT: chỉ điền chỗ (e1)/(c) chưa phủ. Và MÙ với hàng bị
+    rơi: ràng buộc suy từ chính các hàng có mặt, nên VLM bỏ một hàng thành phần
+    thì (b) chỉ thấy tổng lệch — không biết vì thiếu hàng. Chỉ (e1)/(c), tham
+    chiếu mã số cố định, mới báo được `absent`.
     """
     # stack[level] = (ma_so hoặc None, list con). Chỉ giữ 4 mức.
     stack: list[tuple[str | None, list[str]] | None] = [None, None, None, None]
@@ -347,10 +350,234 @@ def derive_hierarchy(rows: list[dict]) -> list[Constraint]:
             # thẳng dưới chữ cái, không qua la-mã.
             for up in range(lv - 1, -1, -1):
                 if stack[up] is not None:
-                    stack[up][1].append(str(ma))
+                    # Không thêm cùng mã số hai lần: hàng lặp đã bị (e2) loại
+                    # khỏi lookup, cộng nó hai lần chỉ làm ràng buộc sai và
+                    # kéo cả cụm hàng đúng đi theo.
+                    if str(ma) not in stack[up][1]:
+                        stack[up][1].append(str(ma))
                     break
         if lv == 3:
             continue                      # hàng không đánh dấu không có con
         stack[lv] = (str(ma) if ma is not None else None, [])
     _close(0)
     return [Constraint(cha, [(c, 1) for c in con], "phan_cap") for cha, con in parents]
+
+
+# --- (e2) bất biến cấu trúc — cổng chạy TRƯỚC số học ------------------------
+
+_MA_SO_KEY_RE = re.compile(r"^(\d{1,3})([a-z]?)$")
+
+
+def ma_so_key(ma) -> tuple[int, str] | None:
+    """Khoá sắp xếp của mã số: `411a` -> (411, "a"); không hiểu -> None."""
+    m = _MA_SO_KEY_RE.match(str(ma).strip()) if ma is not None else None
+    return (int(m.group(1)), m.group(2)) if m else None
+
+
+@dataclass(frozen=True)
+class RowIssue:
+    """Một vi phạm cấu trúc ở một hàng. `kind` là enum chuỗi nhỏ để log đếm được:
+    `width` — thiếu ô so với cột khai báo;
+    `bad_money` — ô tiền không đọc thành số (rác, chữ O thay 0, thiếu nhóm 3);
+    `dup_ma_so` — mã số xuất hiện lần thứ hai (hàng lặp);
+    `bad_ma_so` — mã số không đúng dạng `\\d{1,3}[a-z]?`;
+    `non_monotonic` — mã số không lớn hơn hàng trước (hàng gộp, 13->18 đọc sai)."""
+    index: int
+    ma_so: str | None
+    kind: str
+    detail: str
+
+
+def check_structure(rows: list[dict], value_columns: list[str]) -> list[RowIssue]:
+    """(e2): bất biến rẻ, tất định, không cần ràng buộc nào.
+
+    Đây là CỔNG chứ không phải ràng buộc: hàng `width`/`bad_money`/`dup_ma_so`/
+    `bad_ma_so` bị loại ngay; `non_monotonic` trần cả trang ở `unverified`
+    (không biết hàng nào lệch — hàng gộp là nguyên nhân dễ nhất). Mù với đọc
+    sai giữ thứ tự (14 -> 15): đó là việc của số học.
+
+    Hàng `ma_so` None (tiêu đề mục) không tham gia đơn điệu/trùng; ô null của
+    nó không phải `bad_money` — null nghĩa là "không tồn tại ô" theo quy ước
+    đáp án, khác chuỗi rác.
+    """
+    issues: list[RowIssue] = []
+    seen: set[str] = set()
+    prev: tuple[int, str] | None = None
+    for i, r in enumerate(rows):
+        ma = r.get("ma_so")
+        ma_s = None if ma is None else str(ma)
+        thieu = [c for c in value_columns if c not in r]
+        if thieu:
+            issues.append(RowIssue(i, ma_s, "width", f"thiếu cột {thieu}"))
+        for c in value_columns:
+            if c in r and r[c] is not None and parse_money(r[c]) is BAD:
+                issues.append(RowIssue(i, ma_s, "bad_money", f"cột {c}: {r[c]!r}"))
+        if ma_s is None:
+            continue
+        if ma_s in seen:
+            # Hàng lặp là lỗi CÓ TÊN, loại riêng hàng đó; không để nó kích thêm
+            # `non_monotonic` (14 sau 14) rồi trần cả trang vì một hàng lặp.
+            issues.append(RowIssue(i, ma_s, "dup_ma_so", "mã số lặp"))
+            continue
+        seen.add(ma_s)
+        k = ma_so_key(ma_s)
+        if k is None:
+            issues.append(RowIssue(i, ma_s, "bad_ma_so", "mã số không đúng dạng"))
+            continue
+        if prev is not None and k <= prev:
+            issues.append(RowIssue(i, ma_s, "non_monotonic", f"{ma_s} sau {prev[0]}{prev[1]}"))
+        prev = k
+    return issues
+
+
+# --- gộp ràng buộc từ nhiều tầng ---------------------------------------------
+
+# Thứ tự ưu tiên theo spec: (e1) công thức in > (c) bảng thông tư > (b) phân cấp.
+_SOURCE_RANK = {"in_san": 0, "bang_tt": 1, "phan_cap": 2, "dap_an": -1}
+
+
+def merge_constraints(*groups: list[Constraint]) -> tuple[list[Constraint], list[tuple[Constraint, Constraint]]]:
+    """Khử trùng THEO TỔNG: mỗi mã số tổng giữ một ràng buộc, tầng ưu tiên cao
+    thắng. Trả thêm các cặp (thắng, thua) KHÁC thành phần — spec: "(e1) thắng
+    khi cùng tổng khác thành phần → cảnh báo nêu cả hai"."""
+    chon: dict[str, Constraint] = {}
+    conflicts: list[tuple[Constraint, Constraint]] = []
+    for c in sorted((c for g in groups for c in g), key=lambda c: _SOURCE_RANK[c.source]):
+        cu = chon.get(c.total)
+        if cu is None:
+            chon[c.total] = c
+        elif sorted(cu.terms) != sorted(c.terms):
+            conflicts.append((cu, c))
+    return list(chon.values()), conflicts
+
+
+# --- trạng thái hàng + báo cáo trang ------------------------------------------
+
+class RowStatus:
+    REJECTED = "REJECTED"                   # không lưu
+    VERIFIED = "vision_verified"            # mọi cột có số đều có >= 1 PASS phủ
+    UNVERIFIED = "vision_unverified"        # còn lại
+    LABEL = "label"                         # hàng tiêu đề, không có ô số
+
+
+@dataclass(frozen=True)
+class RowVerdict:
+    index: int
+    ma_so: str | None
+    status: str
+    reason: str = ""
+    numeric: bool = False               # có >= 1 ô số nguyên (khác "-" và null)
+
+
+@dataclass(frozen=True)
+class PageReport:
+    """Kết quả kiểm một trang — thứ `parse.py` biến thành `Warning` có tên và
+    thứ test Q5/Q8 soi từng hàng. Không biết PDF, không biết DB."""
+    rows: list[RowVerdict]
+    evaluations: list[Evaluation]
+    issues: list[RowIssue]
+    capped_unverified: bool             # trang không đơn điệu -> trần cả trang
+    conflicts: list[tuple[Constraint, Constraint]] = field(default_factory=list)
+
+    def count(self, status: str) -> int:
+        return sum(r.status == status for r in self.rows)
+
+    @property
+    def summary(self) -> str:
+        """Một dòng cho `Warning` — LUÔN phát, kể cả khi 0 hàng xác minh, để
+        lượt 0/12 nhìn khác lượt 12/12."""
+        co_so = sum(r.numeric for r in self.rows)
+        gach = sum(r.status == RowStatus.UNVERIFIED and not r.numeric for r in self.rows)
+        p = sum(e.verdict == Verdict.PASS for e in self.evaluations)
+        f = sum(e.verdict == Verdict.FAIL for e in self.evaluations)
+        na = sum(e.verdict == Verdict.NA for e in self.evaluations)
+        s = (f"xác minh {self.count(RowStatus.VERIFIED)}/{co_so} hàng có số · "
+             f"chưa xác minh {self.count(RowStatus.UNVERIFIED) - gach} · "
+             f"toàn gạch ngang {gach} · "
+             f"loại {self.count(RowStatus.REJECTED)} · "
+             f"ràng buộc PASS {p} / FAIL {f} / NA {na}")
+        if self.capped_unverified:
+            s += " · mã số KHÔNG đơn điệu, cả trang trần unverified"
+        return s
+
+
+_REJECT_KINDS = frozenset({"width", "bad_money", "dup_ma_so", "bad_ma_so"})
+
+
+def classify_rows(rows: list[dict], constraints: list[Constraint],
+                  value_columns: list[str], *, strict_absent: bool = False,
+                  conflicts: list[tuple[Constraint, Constraint]] | None = None) -> PageReport:
+    """Quy tắc theo hàng của spec — tất định, khớp đầu tiên thắng:
+
+    1. REJECTED: có ô BAD / sai độ rộng / trùng mã số; HOẶC được BẤT KỲ ràng
+       buộc FAIL nào tham chiếu (tổng hay thành phần, bất kỳ cột) — cả cụm đi.
+    2. vision_verified: có >= 1 ô số nguyên, và MỌI cột có số đều có >= 1 ràng
+       buộc tham chiếu hàng PASS ở cột đó.
+    3. vision_unverified: còn lại (0 ràng buộc phủ, toàn NA, toàn "-", hay trang
+       không đơn điệu -> trần cả trang).
+
+    Hàng không có mã số và không có ô số -> `label` (block nhãn thuần).
+    Tesseract đồng ý KHÔNG nâng bậc (F1) — không có tham số nào cho nó ở đây.
+    """
+    issues = check_structure(rows, value_columns)
+    capped = any(i.kind == "non_monotonic" for i in issues)
+    reject_idx: dict[int, str] = {}
+    for i in issues:
+        if i.kind in _REJECT_KINDS:
+            reject_idx.setdefault(i.index, f"{i.kind}: {i.detail}")
+
+    # Hàng bị loại vì cấu trúc KHÔNG được tham gia lookup: một hàng lặp mã số
+    # nếu vào lookup sẽ che hàng thật; một ô BAD đã là NA sẵn nhưng loại sớm
+    # cho nhất quán.
+    by_ma: dict[str, dict] = {}
+    for i, r in enumerate(rows):
+        if i in reject_idx or r.get("ma_so") is None:
+            continue
+        by_ma[str(r["ma_so"])] = r
+    evaluations = [evaluate(c, by_ma.get, col, strict_absent=strict_absent)
+                   for c in constraints for col in value_columns]
+
+    # ma_so -> {cột có PASS}; và mã số chạm ràng buộc FAIL (cả cụm đi).
+    pass_at: dict[str, set[str]] = {}
+    fail_reason: dict[str, str] = {}
+    for e in evaluations:
+        refs = [e.constraint.total, *(m for m, _ in e.constraint.terms)]
+        if e.verdict == Verdict.PASS:
+            for m in refs:
+                pass_at.setdefault(m, set()).add(e.column)
+        elif e.verdict == Verdict.FAIL:
+            lech = f"{e.delta:,}".replace(",", ".")
+            ly_do = f"loại {len(refs)} hàng vì {e.reason} lệch {lech} ở cột {e.column}"
+            for m in refs:
+                fail_reason.setdefault(m, ly_do)
+
+    out: list[RowVerdict] = []
+    for i, r in enumerate(rows):
+        ma = r.get("ma_so")
+        ma_s = None if ma is None else str(ma)
+        if i in reject_idx:
+            out.append(RowVerdict(i, ma_s, RowStatus.REJECTED, reject_idx[i]))
+            continue
+        cells = {c: parse_money(r[c]) for c in value_columns if r.get(c) is not None}
+        so_cot = [c for c, v in cells.items() if isinstance(v, int)]
+        if ma_s is None and not so_cot:
+            out.append(RowVerdict(i, None, RowStatus.LABEL))
+            continue
+        num = bool(so_cot)
+        if ma_s is not None and ma_s in fail_reason:
+            out.append(RowVerdict(i, ma_s, RowStatus.REJECTED, fail_reason[ma_s], num))
+            continue
+        if capped:
+            out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, "trang không đơn điệu", num))
+            continue
+        if not num:
+            out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, "không có ô số", False))
+            continue
+        thieu = [c for c in so_cot if c not in pass_at.get(ma_s or "", set())]
+        if thieu:
+            out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED,
+                                  f"không ràng buộc PASS nào phủ cột {thieu}", True))
+            continue
+        out.append(RowVerdict(i, ma_s, RowStatus.VERIFIED, numeric=True))
+    return PageReport(rows=out, evaluations=evaluations, issues=issues,
+                      capped_unverified=capped, conflicts=list(conflicts or []))
