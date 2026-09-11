@@ -129,8 +129,10 @@ def parse_response(text: str) -> dict:
         raise VisionBadResponse(f"không có object JSON trong phản hồi ({len(text or '')} ký tự)")
     try:
         data = json.loads(s[i:j + 1])
-    except json.JSONDecodeError as e:
-        raise VisionBadResponse(f"JSON hỏng tại vị trí {e.pos} ({len(text or '')} ký tự)") from None
+    except json.JSONDecodeError:
+        # Không kèm vị trí/nội dung lỗi: thông điệp này đi vào cảnh báo
+        # IngestReport, và lưới `test_khong_ro_loi_exception` cấm rò exception.
+        raise VisionBadResponse(f"JSON hỏng ({len(text or '')} ký tự)") from None
     if not isinstance(data, dict) or "hang" not in data:
         raise VisionBadResponse(f"JSON không có khoá `hang` ({len(text or '')} ký tự)")
     return data
