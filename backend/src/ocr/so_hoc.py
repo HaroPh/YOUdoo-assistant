@@ -736,3 +736,73 @@ def rows_from_vision(payload: dict) -> tuple[list[dict], list[str], list[RowIssu
             issues.append(RowIssue(i, ma_s, "width", f"{len(so_tien)} ô cho {len(cols)} cột"))
         rows.append(r)
     return rows, list(cols), issues
+
+
+# --- lắp ráp: chọn bảng bằng số học, gộp tầng, phân loại ----------------------------
+
+def select_form(rows: list[dict], value_columns: list[str], *,
+                strict_absent: bool) -> tuple[FormTable | None, int]:
+    """Chọn mẫu thông tư bằng CHÍNH số học: thử mọi bảng đã biết, giữ bảng có
+    nhiều PASS nhất; hoà hoặc 0 PASS -> None.
+
+    Vì sao không đọc header: trang SCID tr12 không in số thông tư (chỉ mẫu TT 99
+    mới in "Kèm theo Thông tư..."), còn DVT in `107/2017/TT-BTC` nhưng Tesseract
+    đọc thân trang thành rác. Q4 đã đo: bảng SAI cho 0 PASS khác 0 trên 6 cặp —
+    nên "bảng nào PASS nhiều nhất" là bộ chọn tất định, không cần ngưỡng, và
+    chọn sai chỉ có thể xảy ra khi không bảng nào PASS (→ None, không có (c)).
+    Trả thêm số PASS của bảng thắng để người gọi ghi log."""
+    lookup = {str(r["ma_so"]): r for r in rows if r.get("ma_so") is not None}.get
+    # Xếp theo (PASS nhiều, FAIL ít, NA ít). Hoà cả ba -> None. Hoà PASS xảy ra
+    # thật: B03 trực tiếp và gián tiếp CÙNG có 30 = 21..27 và 40 = 31..36; khác
+    # nhau ở nhóm I, nơi FAIL/NA phân xử.
+    xep: list[tuple[tuple[int, int, int], FormTable]] = []
+    for tt, mau in known_forms():
+        ft = form_table(tt, mau)
+        vs = [evaluate(c, lookup, col, strict_absent=strict_absent).verdict
+              for c in ft.constraints for col in value_columns]
+        p, f, na = vs.count(Verdict.PASS), vs.count(Verdict.FAIL), vs.count(Verdict.NA)
+        if p:
+            xep.append(((-p, f, na), ft))
+    if not xep:
+        return None, 0
+    xep.sort(key=lambda x: x[0])
+    if len(xep) > 1 and xep[0][0] == xep[1][0]:
+        return None, 0
+    return xep[0][1], -xep[0][0][0]
+
+
+@dataclass(frozen=True)
+class PageAssessment:
+    report: PageReport
+    form: FormTable | None
+    constraints: list[Constraint]
+    layers: dict[str, int]              # số ràng buộc theo nguồn: in_san / bang_tt / phan_cap
+
+
+def assess_page(rows: list[dict], value_columns: list[str], *, strict_absent: bool,
+                extra_issues: list[RowIssue] = ()) -> PageAssessment:
+    """Một cửa cho cả hai đường: hàng từ lưới Tesseract (để quyết định có gọi
+    VLM không) và hàng từ VLM (để quyết định lưu gì).
+
+    Tầng: (e1) công thức in trên trang; (c) bảng chọn bằng số học; (b) phân cấp
+    đánh dấu CHỈ KHI không chọn được bảng nào. Ruling 2026-09-11: trên hàng
+    Tesseract, đánh dấu STT đọc sai ("L" thay "I.", "2;" thay "2.") làm (b) sinh
+    ràng buộc sai (`238 = 240 + 241 + 242` trên SCID tr13) → FAIL giả → gọi VLM
+    thừa; khi đã có (c) thì (b) chỉ thêm rủi ro, không thêm phủ đáng kể (Q1: (c)
+    riêng 33/40, (e1)∪(c)∪(b) 48/55, phần (b) thêm nằm ở TT 107 không có bảng)."""
+    e1 = [c for c in (parse_printed_formula(r.get("chi_tieu") or "") for r in rows) if c]
+    form, _ = select_form(rows, value_columns, strict_absent=strict_absent)
+    c = form.constraints if form else []
+    b = derive_hierarchy(rows) if form is None else []
+    cs, conflicts = merge_constraints(e1, c, b)
+    rep = classify_rows(rows, cs, value_columns, strict_absent=strict_absent,
+                        conflicts=conflicts, extra_issues=extra_issues)
+    layers = {"in_san": len(e1), "bang_tt": len(c), "phan_cap": len(b)}
+    return PageAssessment(report=rep, form=form, constraints=cs, layers=layers)
+
+
+def tesseract_vouched(rep: PageReport) -> bool:
+    """Quy tắc kích hoạt của spec: số học vouch cho Tesseract khi có ≥ 1 PASS và
+    0 FAIL. Không ngưỡng nào khác. Q2 đo răng của quy tắc này trên 95 trang."""
+    verdicts = [e.verdict for e in rep.evaluations]
+    return Verdict.PASS in verdicts and Verdict.FAIL not in verdicts
