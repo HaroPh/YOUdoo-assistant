@@ -12,6 +12,7 @@ ChatOpenAI: cả hai vẫn OpenAI-compatible và giữ tool-calling tiếng Vi�
 thường (đã đo — spec Phụ lục A). Đây vẫn là lý do SP-1 bỏ LiteLLM cho hai nhà
 này: giá trị "hợp nhất giao thức" của nó đã bốc hơi.
 """
+import logging
 import os
 import re
 
@@ -98,8 +99,17 @@ def strip_thought(content: str | None) -> str:
 KEY_SUFFIX_MAX = 9
 
 
+logger = logging.getLogger(__name__)
+
+
 def keys_for(provider: str) -> tuple[str, ...]:
-    """Mọi khoá API của một provider, theo thứ tự ưu tiên.
+    """Mọi khoá API của một provider, theo thứ tự ưu tiên — `keys_for_env` áp
+    lên tên biến của provider đó. Xem docstring hàm kia cho hai quy tắc quét."""
+    return keys_for_env(ENV_KEYS[provider])
+
+
+def keys_for_env(env_name: str) -> tuple[str, ...]:
+    """Mọi khoá API dưới một TIỀN TỐ biến môi trường, theo thứ tự ưu tiên.
 
     `X_API_KEY` là khoá chính; `X_API_KEY_2`…`_9` là dự phòng. Hạn mức free
     tier của Google tính theo **project**, nên hai khoá của hai project là HAI
@@ -113,8 +123,12 @@ def keys_for(provider: str) -> tuple[str, ...]:
     KHỬ TRÙNG giữ nguyên thứ tự: dán nhầm cùng một khoá vào hai biến là lỗi
     sao chép rất dễ xảy ra, và nếu không khử thì mỗi lượt 429 phải trả giá hai
     lần cho cùng một ví.
+
+    Tách khỏi `keys_for(provider)` 2026-09-11 vì OCR bậc 3 dùng một tập khoá
+    RIÊNG (`YOUDOO_VLM_API_KEY[_2.._9]`) — cùng provider Google nhưng KHÔNG được
+    xoay vào khoá chat: hạn mức là hồ chung, một lượt nạp 200 trang không được
+    làm chatbot cạn. Cùng quy tắc quét, khác tiền tố.
     """
-    env_name = ENV_KEYS[provider]
     thu = [os.environ.get(env_name)]
     thu += [os.environ.get(f"{env_name}_{i}")
             for i in range(2, KEY_SUFFIX_MAX + 1)]
@@ -123,6 +137,48 @@ def keys_for(provider: str) -> tuple[str, ...]:
         if k and k not in ra:
             ra.append(k)
     return tuple(ra)
+
+
+class KeyRing:
+    """Chỉ số khoá đang dùng cho từng TÊN (alias model, hay "vlm-ocr"), trong bộ
+    nhớ tiến trình. Tách từ `Router._xoay_khoa` (2026-09-11) để `ocr/vision.py`
+    dùng cùng một lớp với tiền tố khác — một cơ chế xoay, hai vòng khoá.
+
+    Không lưu bền: một lượt 429 dạy lại ngay, còn lưu bền thì một lần cạn tạm
+    thời sẽ đóng đinh khoá đó là "hỏng" mãi mãi. Người gọi quyết định KHI NÀO
+    xoay (Router: chỉ khi 429); lớp này chỉ biết xoay thế nào.
+    """
+
+    def __init__(self) -> None:
+        self.index: dict[str, int] = {}
+
+    def current(self, name: str, env_name: str) -> tuple[int, str | None]:
+        """(chỉ số, khoá) đang dùng cho `name`; khoá None khi không cấu hình."""
+        idx = self.index.get(name, 0)
+        khoa = keys_for_env(env_name)
+        return idx, (khoa[idx] if idx < len(khoa) else None)
+
+    def rotate(self, name: str, env_name: str) -> bool:
+        """Chuyển sang khoá kế. True = đã chuyển, False = hết khoá.
+
+        Hạn mức Google tính theo PROJECT, nên hai khoá của hai project là hai
+        ví riêng — xoay khoá là cách duy nhất tiêu được ví thứ hai.
+
+        Hết khoá thì ĐẶT LẠI VỀ 0 chứ không giữ ở khoá cuối. Hạn mức ngày của
+        Google là cửa sổ TRƯỢT 24h (đo 2026-08-21: model vừa báo
+        PerDayPerProjectPerModel trả 200 lại sau vài phút), nên sau khi hết
+        cooldown thì khoá đầu rất có thể đã có chỗ trống. Giữ nguyên ở khoá
+        cuối là tự khoá mình vào cái ví cạn gần nhất.
+        """
+        so_khoa = len(keys_for_env(env_name))
+        idx = self.index.get(name, 0)
+        if idx + 1 >= so_khoa:
+            self.index[name] = 0
+            return False
+        self.index[name] = idx + 1
+        logger.warning("%s: khoá #%d cạn hạn mức — xoay sang khoá #%d",
+                       name, idx + 1, idx + 2)
+        return True
 
 
 def client_for(spec: ModelSpec, api_key: str | None = None):

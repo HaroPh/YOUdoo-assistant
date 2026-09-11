@@ -248,3 +248,33 @@ def test_client_for_dung_dung_khoa_duoc_truyen(monkeypatch):
     o = client_for(GROQ, api_key="groq-rieng")
     assert o.openai_api_key.get_secret_value() == "groq-rieng"
     assert client_for(GROQ).openai_api_key.get_secret_value() == "groq-chinh"
+
+
+# ─── KeyRing: cơ chế xoay tách khỏi Router (2026-09-11, OCR bậc 3 dùng lại) ─────
+def test_keyring_tien_to_rieng_khong_dinh_khoa_chat(monkeypatch):
+    """Vòng khoá VLM đọc `YOUDOO_VLM_API_KEY*`, KHÔNG đụng `GOOGLE_API_KEY*`:
+    hạn mức là hồ chung, một lượt nạp không được làm chatbot cạn."""
+    from src.llm.providers import KeyRing, keys_for_env
+    monkeypatch.setenv("GOOGLE_API_KEY", "chat-a")
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "chat-b")
+    monkeypatch.setenv("YOUDOO_VLM_API_KEY", "vlm-a")
+    monkeypatch.setenv("YOUDOO_VLM_API_KEY_3", "vlm-c")            # khoảng trống _2: vẫn quét
+    assert keys_for_env("YOUDOO_VLM_API_KEY") == ("vlm-a", "vlm-c")
+    ring = KeyRing()
+    assert ring.current("vlm-ocr", "YOUDOO_VLM_API_KEY") == (0, "vlm-a")
+    assert ring.rotate("vlm-ocr", "YOUDOO_VLM_API_KEY") is True
+    assert ring.current("vlm-ocr", "YOUDOO_VLM_API_KEY") == (1, "vlm-c")
+    assert ring.rotate("vlm-ocr", "YOUDOO_VLM_API_KEY") is False, "hết khoá → False"
+    assert ring.index["vlm-ocr"] == 0, "hết khoá phải đặt lại về 0 (cửa sổ trượt 24h)"
+    # Chỉ số của tên khác không bị đụng.
+    assert ring.current("gemini", "GOOGLE_API_KEY") == (0, "chat-a")
+
+
+def test_keyring_khong_cau_hinh_thi_khoa_None_va_khong_xoay(monkeypatch):
+    from src.llm.providers import KeyRing
+    monkeypatch.delenv("YOUDOO_VLM_API_KEY", raising=False)
+    for i in range(2, 10):
+        monkeypatch.delenv(f"YOUDOO_VLM_API_KEY_{i}", raising=False)
+    ring = KeyRing()
+    assert ring.current("vlm-ocr", "YOUDOO_VLM_API_KEY") == (0, None)
+    assert ring.rotate("vlm-ocr", "YOUDOO_VLM_API_KEY") is False
