@@ -2423,3 +2423,37 @@ script vá thành ký tự thật → một comment vỡ thành dòng mã (`Synt
 khi khởi động backend, KHÔNG lộ ở 8 test đi qua chính hàm đó vì import thành
 công trước khi tôi vá), một đường dẫn `tmp-docs` thành `<tab>mp-docs` (không
 lộ vì có đường dự phòng). Từ giờ script vá đi qua tệp, không qua heredoc.
+
+### Nghiệm thu sống qua Open WebUI THẬT — ĐẠT, sau một lượt lộ thêm một lỗi KHÁC (2026-09-11)
+
+Backend phụ `:8012` từ worktree (cụm MCP `:8003–8006` do chủ dự án bật bằng
+`start-dev.ps1`; backend `:8002` của cây chính để nguyên). Chủ dự án trỏ
+External Document Loader sang `host.docker.internal:8012`, tải lại
+`DVT_2022.pdf`, hỏi đúng câu hỏi gốc.
+
+**Lượt 1 — SAI, và sai ở tầng khác.** Trả lời "không được đề cập", nguồn
+`DVT_2022.pdf` (đúng tài liệu — defect B "dẫn nguồn tài liệu khác" đã đóng).
+Đọc `webui.db` chế độ chỉ-đọc: hai lượt upload mới nhất đã gọi `:8012` (log
+backend: 2 × PUT, mỗi lượt 4 lượt VLM), nội dung 40.269 ký tự — trang 7 mang
+dòng mã 50 `vision_verified`. Cấu hình RAG của Open WebUI:
+`embedding_model = sentence-transformers/all-MiniLM-L6-v2` (model tiếng Anh),
+`top_k = 3`, `hybrid_search = false`, không reranker → 3 chunk lấy ra đều là
+thuyết minh chung, dòng bảng không vào tập ứng viên. Lỗi này TRƯỚC ĐÓ bị lỗi
+trích xuất che khuất: khi trang 7 còn là rác thì không có gì để chọn sai.
+
+**Lượt 2 — ĐẠT.** Chủ dự án bật *Bypass Embedding and Retrieval* (gửi trọn nội
+dung tệp đính kèm vào prompt, ~15k token), hỏi lại trong cùng chat:
+
+> Theo Báo cáo tình hình tài chính tại ngày 31 tháng 12 năm 2022, tổng tài
+> sản đầu năm … là **69.862.687.223 VND** — nguồn DVT_2022.pdf
+
+Đúng đáp án tay (`DVT_2022_tr7.json`, mã 50, Số đầu năm, viết từ ảnh trước khi
+nhìn output VLM). Chuỗi hoàn chỉnh đã chạy thật một lần: scan rác → tiêu đề
+kích hoạt → VLM → 10 ràng buộc PASS → block `vision_verified` → Open WebUI →
+câu trả lời.
+
+**Việc mở, KHÔNG thuộc mã này:** truy hồi của Open WebUI cho tệp đính kèm tiếng
+Việt. Hai đường: giữ *Bypass* (đơn giản, nhưng mọi tệp đính kèm đi trọn vào
+prompt — tệp 60 trang là ~60k token mỗi câu hỏi), hoặc đổi embedding sang
+`bge-m3` qua Ollama (đã có trong stack) + bật hybrid search + nâng `top_k`.
+Cần đo trước khi chọn; là cấu hình, không phải mã.
