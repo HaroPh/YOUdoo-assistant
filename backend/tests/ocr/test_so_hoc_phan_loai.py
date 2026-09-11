@@ -319,7 +319,7 @@ class TestBreak:
         rep = so_hoc.classify_rows(rows, _constraints(rows), cols)
         assert rep.capped_unverified
         assert rep.count(RowStatus.VERIFIED) == 0
-        assert "KHÔNG đơn điệu" in rep.summary
+        assert "KHÔNG đơn điệu" in rep.summary and rep.capped_reason
         assert _status(rep, "32").status == RowStatus.UNVERIFIED         # 31 = 32 + 33 PASS mà vẫn trần
 
     def test_missing_column_on_a_row_rejects_only_that_row(self):
@@ -328,3 +328,50 @@ class TestBreak:
         rep = so_hoc.classify_rows(rows, _constraints(rows), cols, strict_absent=True)
         assert _status(rep, "45").status == RowStatus.REJECTED
         assert _status(rep, "45").reason.startswith("width")
+
+
+# --- hợp đồng VLM -> hàng + cổng trang -------------------------------------------------
+
+class TestRowsFromVision:
+    _P = {"trang": {"mau": "B01/BCTC", "thong_tu": "107/2017/TT-BTC",
+                    "cot_gia_tri": ["Số cuối năm", "Số đầu năm"]},
+          "hang": [{"muc": None, "nhan": "TÀI SẢN", "ma_so": None, "thuyet_minh": None, "so_tien": []},
+                   {"muc": "I.", "nhan": "Tiền", "ma_so": "01", "thuyet_minh": "III.1",
+                    "so_tien": ["750.005.854", "40.565.652.481"]},
+                   {"muc": "II.", "nhan": "Đầu tư tài chính ngắn hạn", "ma_so": "05",
+                    "thuyet_minh": None, "so_tien": ["-", "-"]}]}
+
+    def test_maps_so_tien_onto_declared_columns_verbatim(self):
+        rows, cols, issues = so_hoc.rows_from_vision(copy.deepcopy(self._P))
+        assert cols == ["Số cuối năm", "Số đầu năm"] and issues == []
+        assert rows[1]["chi_tieu"] == "Tiền" and rows[1]["Số cuối năm"] == "750.005.854"
+        assert rows[2]["Số đầu năm"] == "-"
+        assert rows[0]["ma_so"] is None and "Số cuối năm" not in rows[0]
+
+    def test_header_row_without_cells_is_label_not_width_rejected(self):
+        rows, cols, issues = so_hoc.rows_from_vision(copy.deepcopy(self._P))
+        rep = so_hoc.classify_rows(rows, [], cols, extra_issues=issues)
+        assert rep.rows[0].status == RowStatus.LABEL
+        assert rep.count(RowStatus.REJECTED) == 0
+
+    def test_too_many_cells_is_a_width_issue_that_rejects_the_row(self):
+        p = copy.deepcopy(self._P)
+        p["hang"][1]["so_tien"].append("1")
+        rows, cols, issues = so_hoc.rows_from_vision(p)
+        assert [(i.kind, i.ma_so) for i in issues] == [("width", "01")]
+        rep = so_hoc.classify_rows(rows, [], cols, extra_issues=issues)
+        assert _status(rep, "01").status == RowStatus.REJECTED
+
+    def test_missing_or_bad_columns_declaration_is_a_page_error(self):
+        for bad in ({"trang": {}, "hang": []}, {"trang": {"cot_gia_tri": []}, "hang": []},
+                    {"trang": {"cot_gia_tri": ["a", "a"]}, "hang": []},
+                    {"trang": {"cot_gia_tri": ["a"]}, "hang": {}}):
+            with pytest.raises(ValueError):
+                so_hoc.rows_from_vision(bad)
+
+    def test_fewer_than_two_coded_rows_caps_the_page(self):
+        rows, cols, issues = so_hoc.rows_from_vision(copy.deepcopy(self._P))
+        rows = rows[:2]                                          # chỉ còn 01
+        rep = so_hoc.classify_rows(rows, [], cols, extra_issues=issues)
+        assert rep.capped_unverified and "ít hơn 2" in rep.capped_reason
+        assert _status(rep, "01").status == RowStatus.UNVERIFIED

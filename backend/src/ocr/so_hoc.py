@@ -436,7 +436,10 @@ def check_structure(rows: list[dict], value_columns: list[str]) -> list[RowIssue
         ma = r.get("ma_so")
         ma_s = None if ma is None else str(ma)
         thieu = [c for c in value_columns if c not in r]
-        if thieu:
+        # Hàng tiêu đề (không mã số) không có ô nào là bình thường — VLM trả
+        # `so_tien: []` cho "TÀI SẢN". Có mã số, hoặc có MỘT PHẦN ô, mà thiếu
+        # cột thì mới là sai độ rộng.
+        if thieu and (ma_s is not None or len(thieu) < len(value_columns)):
             issues.append(RowIssue(i, ma_s, "width", f"thiếu cột {thieu}"))
         for c in value_columns:
             if c in r and r[c] is not None and parse_money(r[c]) is BAD:
@@ -513,7 +516,8 @@ class PageReport:
     rows: list[RowVerdict]
     evaluations: list[Evaluation]
     issues: list[RowIssue]
-    capped_unverified: bool             # trang không đơn điệu -> trần cả trang
+    capped_unverified: bool             # trần cả trang ở unverified; lý do ở `capped_reason`
+    capped_reason: str = ""
     conflicts: list[tuple[Constraint, Constraint]] = field(default_factory=list)
 
     def count(self, status: str) -> int:
@@ -534,16 +538,22 @@ class PageReport:
              f"loại {self.count(RowStatus.REJECTED)} · "
              f"ràng buộc PASS {p} / FAIL {f} / NA {na}")
         if self.capped_unverified:
-            s += " · mã số KHÔNG đơn điệu, cả trang trần unverified"
+            s += f" · cả trang trần unverified: {self.capped_reason}"
         return s
 
 
 _REJECT_KINDS = frozenset({"width", "bad_money", "dup_ma_so", "bad_ma_so"})
 
 
+# Cổng trang của spec: dưới hai hàng có mã số thì không có gì để đối chiếu —
+# không ngưỡng nào khác ngoài "≥ 2".
+MIN_CODED_ROWS = 2
+
+
 def classify_rows(rows: list[dict], constraints: list[Constraint],
                   value_columns: list[str], *, strict_absent: bool = False,
-                  conflicts: list[tuple[Constraint, Constraint]] | None = None) -> PageReport:
+                  conflicts: list[tuple[Constraint, Constraint]] | None = None,
+                  extra_issues: list[RowIssue] = ()) -> PageReport:
     """Quy tắc theo hàng của spec — tất định, khớp đầu tiên thắng:
 
     1. REJECTED: có ô BAD / sai độ rộng / trùng mã số; HOẶC được BẤT KỲ ràng
@@ -555,9 +565,16 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
 
     Hàng không có mã số và không có ô số -> `label` (block nhãn thuần).
     Tesseract đồng ý KHÔNG nâng bậc (F1) — không có tham số nào cho nó ở đây.
+    `extra_issues`: vi phạm phát hiện TRƯỚC khi có hàng dạng dict — độ rộng
+    `so_tien` sai từ `rows_from_vision` — gộp vào cùng một danh sách.
     """
-    issues = check_structure(rows, value_columns)
-    capped = any(i.kind == "non_monotonic" for i in issues)
+    issues = [*extra_issues, *check_structure(rows, value_columns)]
+    capped_reason = ""
+    if any(i.kind == "non_monotonic" for i in issues):
+        capped_reason = "mã số KHÔNG đơn điệu"
+    elif sum(r.get("ma_so") is not None for r in rows) < MIN_CODED_ROWS:
+        capped_reason = f"ít hơn {MIN_CODED_ROWS} hàng có mã số"
+    capped = bool(capped_reason)
     reject_idx: dict[int, str] = {}
     for i in issues:
         if i.kind in _REJECT_KINDS:
@@ -605,7 +622,7 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
             out.append(RowVerdict(i, ma_s, RowStatus.REJECTED, fail_reason[ma_s], num))
             continue
         if capped:
-            out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, "trang không đơn điệu", num))
+            out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, capped_reason, num))
             continue
         if not num:
             out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, "không có ô số", False))
@@ -617,7 +634,8 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
             continue
         out.append(RowVerdict(i, ma_s, RowStatus.VERIFIED, numeric=True))
     return PageReport(rows=out, evaluations=evaluations, issues=issues,
-                      capped_unverified=capped, conflicts=list(conflicts or []))
+                      capped_unverified=capped, capped_reason=capped_reason,
+                      conflicts=list(conflicts or []))
 
 
 # --- (c) bảng mã số theo thông tư ------------------------------------------------
@@ -670,3 +688,51 @@ def known_forms() -> list[tuple[str, str]]:
     for tt, ten in _FORM_FILES.items():
         out += [(tt, mau) for mau in _load_form_file(ten)["mau"]]
     return out
+
+
+# --- hợp đồng VLM -> hàng ------------------------------------------------------------
+
+def rows_from_vision(payload: dict) -> tuple[list[dict], list[str], list[RowIssue]]:
+    """Hợp đồng VLM (spec §"Hợp đồng VLM"): `{"trang": {"cot_gia_tri": [...]},
+    "hang": [{"muc", "nhan", "ma_so", "thuyet_minh", "so_tien": [chuỗi nguyên văn]}]}`
+    -> hàng dạng dict theo đúng hình dạng đáp án (`chi_tieu`, cột giá trị đặt
+    theo tên VLM khai) + cột giá trị + vi phạm độ rộng.
+
+    Không parse số ở đây — chuỗi nguyên văn giữ nguyên tới `parse_money` để
+    (e2) bắt được `"8.812.478.00O"`. `so_tien` dài hơn K ô: ô thừa bị BỎ, hàng
+    mang `width` (spec: len != K → loại). Ngắn hơn: thiếu cột → `width` bởi
+    `check_structure`, không cần làm gì thêm — kể cả hàng tiêu đề `so_tien: []`,
+    vì hàng tiêu đề không có mã số và không có ô số thì vẫn là `label` (loại
+    theo `width` chỉ áp cho hàng có mã số — xem `classify_rows`). Thiếu
+    `cot_gia_tri` hay không phải list → ValueError: trang không dùng được,
+    người gọi bỏ trang và đếm.
+    """
+    trang = payload.get("trang") or {}
+    cols = trang.get("cot_gia_tri")
+    if not isinstance(cols, list) or not cols or not all(isinstance(c, str) and c for c in cols):
+        raise ValueError("VLM không khai `trang.cot_gia_tri` hợp lệ")
+    if len(set(cols)) != len(cols):
+        raise ValueError(f"`cot_gia_tri` trùng tên: {cols}")
+    hang = payload.get("hang")
+    if not isinstance(hang, list):
+        raise ValueError("VLM không trả `hang` là list")
+    rows: list[dict] = []
+    issues: list[RowIssue] = []
+    for i, h in enumerate(hang):
+        if not isinstance(h, dict):
+            raise ValueError(f"hàng {i} không phải object")
+        so_tien = h.get("so_tien")
+        if so_tien is None:
+            so_tien = []
+        if not isinstance(so_tien, list):
+            raise ValueError(f"hàng {i}: `so_tien` không phải list")
+        ma = h.get("ma_so")
+        ma_s = None if ma in (None, "") else str(ma).strip()
+        r = {"muc": h.get("muc"), "chi_tieu": h.get("nhan") or "", "ma_so": ma_s,
+             "thuyet_minh": h.get("thuyet_minh")}
+        for c, v in zip(cols, so_tien):
+            r[c] = None if v is None else str(v).strip()
+        if len(so_tien) > len(cols):
+            issues.append(RowIssue(i, ma_s, "width", f"{len(so_tien)} ô cho {len(cols)} cột"))
+        rows.append(r)
+    return rows, list(cols), issues
