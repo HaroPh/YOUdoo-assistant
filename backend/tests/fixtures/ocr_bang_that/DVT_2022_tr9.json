@@ -1,0 +1,400 @@
+{
+  "tep_nguon": "DVT_2022.pdf",
+  "duong_dan_goc": "D:/Youdoo/tmp-docs/ocr-scan-that/DVT_2022.pdf",
+  "doanh_nghiep": "Trung tam Dao tao Nghiep vu Giao thong Van tai Binh Dinh",
+  "ky": "Nam 2022",
+  "thong_tu": "107/2017/TT-BTC",
+  "mau": "B02/BCTC",
+  "trang_pdf": 9,
+  "trang_in_tren_giay": 7,
+  "nhom": "ket_qua_hoat_dong_tt107",
+  "bang": "Bao cao ket qua hoat dong - Nam 2022",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI). Chua xem output Tesseract cua trang nay truoc khi doc. Moi so da cong tay theo cong thuc in truoc khi ghi.",
+  "ngay_doc": "2026-09-11",
+  "quy_uoc_o": {
+    "so": "gia tri that, so nguyen, am = trong ngoac don tren giay",
+    "\"-\"": "o co dau gach ngang: CO o, KHONG co so (bang khong ve nghiep vu)",
+    "null": "KHONG AP DUNG: hang tieu de/nhom, khong ton tai o"
+  },
+  "ghi_chu_cau_truc": [
+    "Ma so HAI CHU SO. Cot gia tri la 'Nam nay' / 'Nam truoc' (khac B01: 'So cuoi nam'/'So dau nam').",
+    "CONG THUC IN TRONG NHAN o NHIEU hang, co DAU AM: (01=02+03+04), (05=06+07+08), (09=01-05), (12=10-11), (22=20-21), (32=30-31), (50=09+12+22+32-40).",
+    "Hang la-ma I/II/III/IV la TIEU DE NHOM khong co ma so (khac B01 noi la-ma co ma so). Hang V va VI co ma so (40, 50).",
+    "Con 'a./b./c.' nam trong cot chi_tieu (khong co cot STT rieng) - muc de null, chu a./b./c. giu trong chi_tieu.",
+    "Hang 51/52/53 nam DUOI hang tong 50 va KHONG phai thanh phan cua 50 - la phan phoi ket qua. Khong co cong thuc in cho chung.",
+    "Quan sat KHONG ep thanh rang buoc: 52 (nam truoc) = 358.487.382 = 50 (nam truoc) - thang du duoc phan phoi het vao quy. La quan he nghiep vu, khong phai cong thuc mau.",
+    "Trang co dau moc do va hai chu ky muc xanh o nua duoi, giong tr8."
+  ],
+  "vung_hinh_can_bac_3": [
+    "dau moc tron do lon de len chu ky Thu truong don vi, giua-phai duoi bang",
+    "dau moc do bi cat cut o le phai, ngang dong 04-09",
+    "hai chu ky muc xanh o cuoi trang"
+  ],
+  "cot": [
+    "chi_tieu",
+    "ma_so",
+    "thuyet_minh",
+    "nam_nay",
+    "nam_truoc"
+  ],
+  "hang": [
+    {
+      "muc": "I",
+      "chi_tieu": "Hoat dong hanh chinh, su nghiep",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "1",
+      "chi_tieu": "Doanh thu (01=02+03+04)",
+      "ma_so": "01",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "a. Tu NSNN cap",
+      "ma_so": "02",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "b. Tu nguon vien tro, vay no nuoc ngoai",
+      "ma_so": "03",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "c. Tu nguon kinh phi duoc khau tru de lai",
+      "ma_so": "04",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "2",
+      "chi_tieu": "Chi phi (05=06+07+08)",
+      "ma_so": "05",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "a. Chi phi hoat dong",
+      "ma_so": "06",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "b. Chi phi tu nguon vien tro, vay no nuoc ngoai",
+      "ma_so": "07",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": null,
+      "chi_tieu": "c. Chi phi hoat dong thu phi",
+      "ma_so": "08",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "3",
+      "chi_tieu": "Thang du / tham hut (09=01-05)",
+      "ma_so": "09",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "II",
+      "chi_tieu": "Hoat dong san xuat kinh doanh, dich vu",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "1",
+      "chi_tieu": "Doanh thu",
+      "ma_so": "10",
+      "thuyet_minh": "IV.1a",
+      "nam_nay": 61209241398,
+      "nam_truoc": 40346712824
+    },
+    {
+      "muc": "2",
+      "chi_tieu": "Chi phi",
+      "ma_so": "11",
+      "thuyet_minh": "IV.1b",
+      "nam_nay": 54590187833,
+      "nam_truoc": 40594540684
+    },
+    {
+      "muc": "3",
+      "chi_tieu": "Thang du / tham hut (12=10-11)",
+      "ma_so": "12",
+      "thuyet_minh": null,
+      "nam_nay": 6619053565,
+      "nam_truoc": -247827860
+    },
+    {
+      "muc": "III",
+      "chi_tieu": "Hoat dong tai chinh",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "1",
+      "chi_tieu": "Doanh thu",
+      "ma_so": "20",
+      "thuyet_minh": "IV.2a",
+      "nam_nay": 392605794,
+      "nam_truoc": 664673653
+    },
+    {
+      "muc": "2",
+      "chi_tieu": "Chi phi",
+      "ma_so": "21",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "3",
+      "chi_tieu": "Thang du / tham hut (22=20-21)",
+      "ma_so": "22",
+      "thuyet_minh": null,
+      "nam_nay": 392605794,
+      "nam_truoc": 664673653
+    },
+    {
+      "muc": "IV",
+      "chi_tieu": "Hoat dong khac",
+      "ma_so": null,
+      "thuyet_minh": null,
+      "nam_nay": null,
+      "nam_truoc": null
+    },
+    {
+      "muc": "1",
+      "chi_tieu": "Thu nhap khac",
+      "ma_so": "30",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "2",
+      "chi_tieu": "Chi phi khac",
+      "ma_so": "31",
+      "thuyet_minh": "IV.3",
+      "nam_nay": 2853754923,
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "3",
+      "chi_tieu": "Thang du / tham hut (32=30-31)",
+      "ma_so": "32",
+      "thuyet_minh": null,
+      "nam_nay": -2853754923,
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "V",
+      "chi_tieu": "Chi phi thue TNDN",
+      "ma_so": "40",
+      "thuyet_minh": "IV.4",
+      "nam_nay": 7078394234,
+      "nam_truoc": 58358411
+    },
+    {
+      "muc": "VI",
+      "chi_tieu": "Thang du/tham hut trong nam (50=09+12+22+32-40)",
+      "ma_so": "50",
+      "thuyet_minh": null,
+      "nam_nay": -2920489798,
+      "nam_truoc": 358487382
+    },
+    {
+      "muc": "1",
+      "chi_tieu": "Su dung kinh phi tiet kiem cua don vi hanh chinh",
+      "ma_so": "51",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    },
+    {
+      "muc": "2",
+      "chi_tieu": "Phan phoi cho cac quy",
+      "ma_so": "52",
+      "thuyet_minh": "IV.4",
+      "nam_nay": "-",
+      "nam_truoc": 358487382
+    },
+    {
+      "muc": "3",
+      "chi_tieu": "Kinh phi cai cach tien luong",
+      "ma_so": "53",
+      "thuyet_minh": null,
+      "nam_nay": "-",
+      "nam_truoc": "-"
+    }
+  ],
+  "rang_buoc_so_hoc": [
+    {
+      "tong": "01",
+      "cong": [
+        "02",
+        "03",
+        "04"
+      ]
+    },
+    {
+      "tong": "05",
+      "cong": [
+        "06",
+        "07",
+        "08"
+      ]
+    },
+    {
+      "tong": "09",
+      "cong": [
+        [
+          "01",
+          1
+        ],
+        [
+          "05",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "12",
+      "cong": [
+        [
+          "10",
+          1
+        ],
+        [
+          "11",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "22",
+      "cong": [
+        [
+          "20",
+          1
+        ],
+        [
+          "21",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "32",
+      "cong": [
+        [
+          "30",
+          1
+        ],
+        [
+          "31",
+          -1
+        ]
+      ]
+    },
+    {
+      "tong": "50",
+      "cong": [
+        [
+          "09",
+          1
+        ],
+        [
+          "12",
+          1
+        ],
+        [
+          "22",
+          1
+        ],
+        [
+          "32",
+          1
+        ],
+        [
+          "40",
+          -1
+        ]
+      ]
+    }
+  ],
+  "rang_buoc_lien_bao_cao": [
+    {
+      "trai": {
+        "nhom": "ket_qua_hoat_dong_tt107",
+        "ma_so": "50",
+        "cot": "nam_nay"
+      },
+      "phai": {
+        "nhom": "bang_can_doi_tt107",
+        "ma_so": "72",
+        "cot": "so_cuoi_nam"
+      },
+      "ghi_chu": "Tham hut trong nam (B02:50) = Thang du/tham hut luy ke cuoi nam (B01:72)"
+    }
+  ],
+  "cong_thuc_in_tren_giay": [
+    {
+      "ma_so": "01",
+      "nguyen_van": "(01=02+03+04)"
+    },
+    {
+      "ma_so": "05",
+      "nguyen_van": "(05=06+07+08)"
+    },
+    {
+      "ma_so": "09",
+      "nguyen_van": "(09=01-05)"
+    },
+    {
+      "ma_so": "12",
+      "nguyen_van": "(12=10-11)"
+    },
+    {
+      "ma_so": "22",
+      "nguyen_van": "(22=20-21)"
+    },
+    {
+      "ma_so": "32",
+      "nguyen_van": "(32=30-31)"
+    },
+    {
+      "ma_so": "50",
+      "nguyen_van": "(50=09+12+22+32-40)"
+    }
+  ],
+  "duyet": null
+}

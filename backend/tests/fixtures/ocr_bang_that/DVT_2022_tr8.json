@@ -1,0 +1,61 @@
+{
+  "tep_nguon": "DVT_2022.pdf",
+  "duong_dan_goc": "D:/Youdoo/tmp-docs/ocr-scan-that/DVT_2022.pdf",
+  "doanh_nghiep": "Trung tam Dao tao Nghiep vu Giao thong Van tai Binh Dinh",
+  "ky": "Nam tai chinh ket thuc 31/12/2022",
+  "thong_tu": "107/2017/TT-BTC",
+  "mau": "B01/BCTC",
+  "trang_pdf": 8,
+  "trang_in_tren_giay": 6,
+  "nhom": "bang_can_doi_tt107",
+  "bang": "Bao cao tinh hinh tai chinh (Tiep theo) — NGUON VON",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI). Da thay output Tesseract PSM 6 cua trang nay (rac) trong luc chan doan truoc khi doc anh. Moi so da cong tay theo cong thuc in truoc khi ghi.",
+  "ngay_doc": "2026-09-11",
+  "quy_uoc_o": {
+    "so": "gia tri that, so nguyen, am = trong ngoac don tren giay",
+    "\"-\"": "o co dau gach ngang: CO o, KHONG co so (bang khong ve nghiep vu)",
+    "null": "KHONG AP DUNG: hang tieu de/nhom, khong ton tai o"
+  },
+  "ghi_chu_cau_truc": [
+    "Ma so HAI CHU SO. Cha/con theo THAP PHAN: 60 = 61..68; 70 = 71..74.",
+    "STT o trang nay la so A-rap (1, 2, 3...) cho con va la-ma (I, II) cho nhom — khong co dau cham sau la-ma.",
+    "CONG THUC IN TRONG NHAN: 'TONG CONG NGUON VON (80=60+70)'.",
+    "Trang co DAU MOC TRON DO lon de len chu ky va hai CHU KY MUC XANH (Vo Thi Kim Lang - Ke toan truong; Le Van Sinh - Thu truong don vi) o nua duoi — vung can bac 3 (mo ta hinh), KHONG phai bang.",
+    "Dong 'Binh Dinh, ngay 11 thang 07 nam 2023' la ngay ky, khong phai so lieu."
+  ],
+  "vung_hinh_can_bac_3": [
+    "dau moc tron do lon de len chu ky Thu truong don vi, giua-phai duoi bang",
+    "dau moc do bi cat cut o le phai, ngang dong 66-70",
+    "hai chu ky muc xanh o cuoi trang, tren ten Vo Thi Kim Lang va Le Van Sinh"
+  ],
+  "cot": ["chi_tieu", "ma_so", "thuyet_minh", "so_cuoi_nam", "so_dau_nam"],
+  "hang": [
+    {"muc": null, "chi_tieu": "NGUON VON",                              "ma_so": null, "thuyet_minh": null,    "so_cuoi_nam": null,         "so_dau_nam": null},
+    {"muc": "I",  "chi_tieu": "No phai tra",                            "ma_so": "60", "thuyet_minh": null,    "so_cuoi_nam": 12069821170,  "so_dau_nam": 24517272},
+    {"muc": "1",  "chi_tieu": "Phai tra nha cung cap",                  "ma_so": "61", "thuyet_minh": "III.7", "so_cuoi_nam": 2409506727,   "so_dau_nam": "-"},
+    {"muc": "2",  "chi_tieu": "Cac khoan nhan truoc cua khach hang",    "ma_so": "62", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "3",  "chi_tieu": "Phai tra noi bo",                        "ma_so": "63", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "4",  "chi_tieu": "Phai tra no vay",                        "ma_so": "64", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "5",  "chi_tieu": "Tam thu",                                "ma_so": "65", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "6",  "chi_tieu": "Cac quy dac thu",                        "ma_so": "66", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "7",  "chi_tieu": "Cac khoan nhan truoc chua ghi thu",      "ma_so": "67", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "8",  "chi_tieu": "No phai tra khac",                       "ma_so": "68", "thuyet_minh": "III.8", "so_cuoi_nam": 9660314443,   "so_dau_nam": 24517272},
+    {"muc": "II", "chi_tieu": "Von chu so huu",                         "ma_so": "70", "thuyet_minh": "III.9", "so_cuoi_nam": 67541296634,  "so_dau_nam": 69838169951},
+    {"muc": "1",  "chi_tieu": "Nguon von kinh doanh",                   "ma_so": "71", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": "2",  "chi_tieu": "Thang du / tham hut luy ke",             "ma_so": "72", "thuyet_minh": null,    "so_cuoi_nam": -2920489798,  "so_dau_nam": "-"},
+    {"muc": "3",  "chi_tieu": "Cac quy",                                "ma_so": "73", "thuyet_minh": null,    "so_cuoi_nam": 70461786432,  "so_dau_nam": 69838169951},
+    {"muc": "4",  "chi_tieu": "Tai san thuan khac",                     "ma_so": "74", "thuyet_minh": null,    "so_cuoi_nam": "-",          "so_dau_nam": "-"},
+    {"muc": null, "chi_tieu": "TONG CONG NGUON VON (80=60+70)",         "ma_so": "80", "thuyet_minh": null,    "so_cuoi_nam": 79611117804,  "so_dau_nam": 69862687223}
+  ],
+  "rang_buoc_so_hoc": [
+    {"tong": "60", "cong": ["61", "62", "63", "64", "65", "66", "67", "68"]},
+    {"tong": "70", "cong": ["71", "72", "73", "74"]},
+    {"tong": "80", "cong": ["60", "70"]},
+    {"tong": "80", "cong": ["bang_can_doi_tt107:50"]}
+  ],
+  "cong_thuc_in_tren_giay": [
+    {"ma_so": "80", "nguyen_van": "(80=60+70)"}
+  ],
+  "duyet": null
+}

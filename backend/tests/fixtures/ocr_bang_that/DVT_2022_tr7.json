@@ -1,0 +1,61 @@
+{
+  "tep_nguon": "DVT_2022.pdf",
+  "duong_dan_goc": "D:/Youdoo/tmp-docs/ocr-scan-that/DVT_2022.pdf",
+  "doanh_nghiep": "Trung tam Dao tao Nghiep vu Giao thong Van tai Binh Dinh",
+  "ky": "Nam tai chinh ket thuc 31/12/2022",
+  "thong_tu": "107/2017/TT-BTC",
+  "mau": "B01/BCTC",
+  "trang_pdf": 7,
+  "trang_in_tren_giay": 5,
+  "nhom": "bang_can_doi_tt107",
+  "bang": "Bao cao tinh hinh tai chinh — TAI SAN",
+  "trang_thai": "MAY_DOC_CHUA_DUYET",
+  "nguoi_doc": "Claude (doc anh 200 DPI). LUU Y NEO: da THAY output Tesseract PSM 6 (rac) va PSM 4 (mot phan) cua trang nay trong luc chan doan TRUOC khi doc anh — khac giao thuc SCID. Bu lai: moi so da duoc cong tay theo cong thuc in tren giay truoc khi ghi.",
+  "ngay_doc": "2026-09-11",
+  "quy_uoc_o": {
+    "so": "gia tri that, so nguyen, am = trong ngoac don tren giay",
+    "\"-\"": "o co dau gach ngang: CO o, KHONG co so (bang khong ve nghiep vu)",
+    "null": "KHONG AP DUNG: hang tieu de/nhom, khong ton tai o"
+  },
+  "ghi_chu_cau_truc": [
+    "Ma so HAI CHU SO (01, 05, 10, 11...) theo TT 107 — khac TT 99/200 ba chu so.",
+    "Phan cap: la-ma I./II./... la nhom; 1./2./... la con; hang KHONG danh dau (Nguyen gia, Khau hao luy ke) la con cua hang so ngay tren.",
+    "CONG THUC IN NGAY TRONG NHAN hang tong: 'TONG CONG TAI SAN (50=01+05+10+20+25+30+40+45)'. Day la nguon rang buoc manh nhat — tren giay, khong phai bang ta nuoi.",
+    "Cha/con theo THAP PHAN: 10 = 11+12+13+14; 30 = 31+35; 31 = 32+33; 35 = 36+37 — khac TT 99 (tien to chuoi).",
+    "Cot 'Thuyet minh' ghi III.1, III.2... tach rieng, KHONG phai so tien."
+  ],
+  "cot": ["chi_tieu", "ma_so", "thuyet_minh", "so_cuoi_nam", "so_dau_nam"],
+  "hang": [
+    {"muc": null,   "chi_tieu": "TAI SAN",                    "ma_so": null, "thuyet_minh": null,    "so_cuoi_nam": null,          "so_dau_nam": null},
+    {"muc": "I.",   "chi_tieu": "Tien",                       "ma_so": "01", "thuyet_minh": "III.1", "so_cuoi_nam": 750005854,     "so_dau_nam": 40565652481},
+    {"muc": "II.",  "chi_tieu": "Dau tu tai chinh ngan han",  "ma_so": "05", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": "III.", "chi_tieu": "Cac khoan phai thu",         "ma_so": "10", "thuyet_minh": null,    "so_cuoi_nam": 19078257265,   "so_dau_nam": 8331692341},
+    {"muc": "1.",   "chi_tieu": "Phai thu khach hang",        "ma_so": "11", "thuyet_minh": "III.2", "so_cuoi_nam": 8812478000,    "so_dau_nam": 4773193000},
+    {"muc": "2.",   "chi_tieu": "Tra truoc cho nguoi ban",    "ma_so": "12", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": "3.",   "chi_tieu": "Phai thu noi bo",            "ma_so": "13", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": "4.",   "chi_tieu": "Cac khoan phai thu khac",    "ma_so": "14", "thuyet_minh": "III.3", "so_cuoi_nam": 10265779265,   "so_dau_nam": 3558499341},
+    {"muc": "IV.",  "chi_tieu": "Hang ton kho",               "ma_so": "20", "thuyet_minh": "III.4", "so_cuoi_nam": 120870554,     "so_dau_nam": 76383313},
+    {"muc": "V.",   "chi_tieu": "Dau tu tai chinh dai han",   "ma_so": "25", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": "VI.",  "chi_tieu": "Tai san co dinh",            "ma_so": "30", "thuyet_minh": null,    "so_cuoi_nam": 56715984131,   "so_dau_nam": 17097932256},
+    {"muc": "1.",   "chi_tieu": "Tai san co dinh huu hinh",   "ma_so": "31", "thuyet_minh": "III.5", "so_cuoi_nam": 56715984131,   "so_dau_nam": 17097932256},
+    {"muc": null,   "chi_tieu": "Nguyen gia",                 "ma_so": "32", "thuyet_minh": null,    "so_cuoi_nam": 114815810160,  "so_dau_nam": 71585395488},
+    {"muc": null,   "chi_tieu": "Khau hao luy ke",            "ma_so": "33", "thuyet_minh": null,    "so_cuoi_nam": -58099826029,  "so_dau_nam": -54487463232},
+    {"muc": "2.",   "chi_tieu": "Tai san co dinh vo hinh",    "ma_so": "35", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": null,   "chi_tieu": "Nguyen gia",                 "ma_so": "36", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": null,   "chi_tieu": "Khau hao luy ke",            "ma_so": "37", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": "-"},
+    {"muc": "VII",  "chi_tieu": "Xay dung co ban do dang",    "ma_so": "40", "thuyet_minh": "III.6", "so_cuoi_nam": 2946000000,    "so_dau_nam": 3555344000},
+    {"muc": "VIII", "chi_tieu": "Tai san khac",               "ma_so": "45", "thuyet_minh": null,    "so_cuoi_nam": "-",           "so_dau_nam": 235682832},
+    {"muc": null,   "chi_tieu": "TONG CONG TAI SAN (50=01+05+10+20+25+30+40+45)", "ma_so": "50", "thuyet_minh": null, "so_cuoi_nam": 79611117804, "so_dau_nam": 69862687223}
+  ],
+  "rang_buoc_so_hoc": [
+    {"tong": "10", "cong": ["11", "12", "13", "14"]},
+    {"tong": "31", "cong": ["32", "33"]},
+    {"tong": "35", "cong": ["36", "37"]},
+    {"tong": "30", "cong": ["31", "35"]},
+    {"tong": "50", "cong": ["01", "05", "10", "20", "25", "30", "40", "45"]}
+  ],
+  "cong_thuc_in_tren_giay": [
+    {"ma_so": "50", "nguyen_van": "(50=01+05+10+20+25+30+40+45)"}
+  ],
+  "duyet": null
+}
