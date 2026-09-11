@@ -1,0 +1,142 @@
+{
+ "dap_an": "SCID_2026H1_tr18.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:17:34.599099+00:00",
+ "tokens": [
+  1549,
+  912,
+  2461
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Năm nay\", \"Năm trước\"]},\n \"hang\": [{\"muc\": \"III.\",\n           \"nhan\": \"Lưu chuyển tiền từ hoạt động tài chính\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": []},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Tiền thu từ phát hành cổ phiếu, nhận vốn góp của chủ sở hữu\",\n           \"ma_so\": \"31\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Tiền trả lại vốn góp cho các chủ sở hữu, mua lại cổ phiếu đã phát hành\",\n           \"ma_so\": \"32\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Tiền thu từ đi vay\",\n           \"ma_so\": \"33\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Tiền trả nợ gốc vay\",\n           \"ma_so\": \"34\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Tiền trả nợ gốc thuê tài chính\",\n           \"ma_so\": \"35\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Cổ tức, lợi nhuận đã trả cho chủ sở hữu\",\n           \"ma_so\": \"36\",\n           \"thuyet_minh\": \"V.15\",\n           \"so_tien\": [\"(2.774.400)\", \"(15.135.000)\"]},\n          {\"muc\": null,\n           \"nhan\": \"Lưu chuyển tiền thuần từ hoạt động tài chính\",\n           \"ma_so\": \"40\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(2.774.400)\", \"(15.135.000)\"]},\n          {\"muc\": null,\n           \"nhan\": \"Lưu chuyển tiền thuần trong kỳ\",\n           \"ma_so\": \"50\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(47.906.010.323)\", \"144.970.712.564\"]},\n          {\"muc\": null,\n           \"nhan\": \"Tiền và tương đương tiền đầu năm\",\n           \"ma_so\": \"60\",\n           \"thuyet_minh\": \"V.1\",\n           \"so_tien\": [\"195.964.135.271\", \"209.613.045.664\"]},\n          {\"muc\": null,\n           \"nhan\": \"Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ\",\n           \"ma_so\": \"61\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": null,\n           \"nhan\": \"Tiền và tương đương tiền cuối kỳ\",\n           \"ma_so\": \"70\",\n           \"thuyet_minh\": \"V.1\",\n           \"so_tien\": [\"148.058.124.948\", \"354.583.758.228\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Năm nay",
+    "Năm trước"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "III.",
+    "nhan": "Lưu chuyển tiền từ hoạt động tài chính",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": []
+   },
+   {
+    "muc": "1.",
+    "nhan": "Tiền thu từ phát hành cổ phiếu, nhận vốn góp của chủ sở hữu",
+    "ma_so": "31",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Tiền trả lại vốn góp cho các chủ sở hữu, mua lại cổ phiếu đã phát hành",
+    "ma_so": "32",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Tiền thu từ đi vay",
+    "ma_so": "33",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Tiền trả nợ gốc vay",
+    "ma_so": "34",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Tiền trả nợ gốc thuê tài chính",
+    "ma_so": "35",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Cổ tức, lợi nhuận đã trả cho chủ sở hữu",
+    "ma_so": "36",
+    "thuyet_minh": "V.15",
+    "so_tien": [
+     "(2.774.400)",
+     "(15.135.000)"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Lưu chuyển tiền thuần từ hoạt động tài chính",
+    "ma_so": "40",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(2.774.400)",
+     "(15.135.000)"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Lưu chuyển tiền thuần trong kỳ",
+    "ma_so": "50",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(47.906.010.323)",
+     "144.970.712.564"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Tiền và tương đương tiền đầu năm",
+    "ma_so": "60",
+    "thuyet_minh": "V.1",
+    "so_tien": [
+     "195.964.135.271",
+     "209.613.045.664"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ",
+    "ma_so": "61",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Tiền và tương đương tiền cuối kỳ",
+    "ma_so": "70",
+    "thuyet_minh": "V.1",
+    "so_tien": [
+     "148.058.124.948",
+     "354.583.758.228"
+    ]
+   }
+  ]
+ }
+}

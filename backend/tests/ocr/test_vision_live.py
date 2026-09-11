@@ -30,6 +30,21 @@ _RAW = os.path.join(_THU_MUC, "vlm_raw")
 SO_LAN = 2
 
 
+# Đáp án SCID (schema 2026-09-06) chỉ có `tep_nguon`; đáp án DVT có `duong_dan_goc`.
+_THU_MUC_GOC = ["D:/Youdoo/tmp-docs/ocr-scan-that", "D:/downloads"]
+
+
+def _duong_dan_goc(d: dict) -> str | None:
+    p = d.get("duong_dan_goc")
+    if p and os.path.isfile(p):
+        return p
+    for t in _THU_MUC_GOC:
+        q = os.path.join(t, d["tep_nguon"])
+        if os.path.isfile(q):
+            return q
+    return None
+
+
 def _keys():
     return sorted(os.path.basename(p) for p in glob.glob(os.path.join(_THU_MUC, "*.json")))
 
@@ -45,9 +60,9 @@ def reader():
 @pytest.mark.parametrize("ten", _keys())
 def test_bat_phan_hoi_tho_va_khong_o_sai_nao_duoc_xac_minh(reader, ten, lan):
     d = json.load(open(os.path.join(_THU_MUC, ten), encoding="utf-8"))
-    path, pg = d["duong_dan_goc"], d["trang_pdf"]
-    if not os.path.isfile(path):
-        pytest.skip(f"thiếu tệp gốc {path}")
+    path, pg = _duong_dan_goc(d), d["trang_pdf"]
+    if path is None:
+        pytest.skip(f"thiếu tệp gốc {d['tep_nguon']}")
     kq = read_page(path, pg)                         # để biết góc xoay OSD đã chọn
     img = _anh_cua_trang(path, pg, OCR_DPI)
     if kq.rotation:

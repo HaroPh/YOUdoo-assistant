@@ -1,0 +1,315 @@
+{
+ "dap_an": "SCID_2026H1_tr14.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:16:27.991266+00:00",
+ "tokens": [
+  1549,
+  2168,
+  3717
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Số cuối kỳ\", \"Số đầu năm\"]},\n \"hang\": [{\"muc\": \"C-\",\n           \"nhan\": \"NỢ PHẢI TRẢ\",\n           \"ma_so\": \"300\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"183.279.250.176\", \"167.825.254.324\"]},\n          {\"muc\": \"I.\",\n           \"nhan\": \"Nợ ngắn hạn\",\n           \"ma_so\": \"310\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"64.414.313.394\", \"52.407.429.534\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Phải trả người bán ngắn hạn\",\n           \"ma_so\": \"311\",\n           \"thuyet_minh\": \"V.14\",\n           \"so_tien\": [\"34.663.172.338\", \"26.739.056.020\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Người mua trả tiền trước ngắn hạn\",\n           \"ma_so\": \"312\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"471.782.300\", \"473.129.550\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Phải trả cổ tức, lợi nhuận\",\n           \"ma_so\": \"313\",\n           \"thuyet_minh\": \"V.15\",\n           \"so_tien\": [\"423.838.290\", \"426.612.690\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Thuế và các khoản phải nộp Nhà nước ngắn hạn\",\n           \"ma_so\": \"314\",\n           \"thuyet_minh\": \"V.16\",\n           \"so_tien\": [\"2.188.866.039\", \"1.984.422.813\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Phải trả người lao động\",\n           \"ma_so\": \"315\",\n           \"thuyet_minh\": \"V.17\",\n           \"so_tien\": [\"2.436.517.662\", \"2.720.018.867\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Chi phí phải trả ngắn hạn\",\n           \"ma_so\": \"316\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"525.283.482\", \"667.616.038\"]},\n          {\"muc\": \"7.\",\n           \"nhan\": \"Phải trả theo tiến độ hợp đồng xây dựng ngắn hạn\",\n           \"ma_so\": \"318\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"8.\",\n           \"nhan\": \"Doanh thu chưa thực hiện ngắn hạn\",\n           \"ma_so\": \"319\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"36.897.422\", \"87.692.269\"]},\n          {\"muc\": \"9.\",\n           \"nhan\": \"Phải trả ngắn hạn khác\",\n           \"ma_so\": \"320\",\n           \"thuyet_minh\": \"V.18a, c\",\n           \"so_tien\": [\"4.371.405.691\", \"3.934.683.654\"]},\n          {\"muc\": \"10.\",\n           \"nhan\": \"Vay và nợ thuê tài chính ngắn hạn\",\n           \"ma_so\": \"321\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"11.\",\n           \"nhan\": \"Dự phòng phải trả ngắn hạn\",\n           \"ma_so\": \"322\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"12.\",\n           \"nhan\": \"Quỹ khen thưởng, phúc lợi\",\n           \"ma_so\": \"323\",\n           \"thuyet_minh\": \"V.19\",\n           \"so_tien\": [\"19.296.550.170\", \"15.374.197.633\"]},\n          {\"muc\": \"13.\",\n           \"nhan\": \"Quỹ bình ổn giá\",\n           \"ma_so\": \"324\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"14.\",\n           \"nhan\": \"Giao dịch mua bán lại trái phiếu Chính phủ\",\n           \"ma_so\": \"325\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"II.\",\n           \"nhan\": \"Nợ dài hạn\",\n           \"ma_so\": \"330\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"118.864.936.782\", \"115.417.824.790\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Phải trả người bán dài hạn\",\n           \"ma_so\": \"331\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Người mua trả tiền trước dài hạn\",\n           \"ma_so\": \"332\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Thuế và các khoản phải nộp Nhà nước dài hạn\",\n           \"ma_so\": \"333\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Chi phí phải trả dài hạn\",\n           \"ma_so\": \"334\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Doanh thu chưa thực hiện dài hạn\",\n           \"ma_so\": \"337\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Phải trả dài hạn khác\",\n           \"ma_so\": \"338\",\n           \"thuyet_minh\": \"V.18b, c\",\n           \"so_tien\": [\"115.066.564.616\", \"111.980.997.483\"]},\n          {\"muc\": \"7.\",\n           \"nhan\": \"Vay và nợ thuê tài chính dài hạn\",\n           \"ma_so\": \"339\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"8.\",\n           \"nhan\": \"Trái phiếu chuyển đổi\",\n           \"ma_so\": \"340\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"9.\",\n           \"nhan\": \"Cổ phiếu ưu đãi\",\n           \"ma_so\": \"341\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"10.\",\n           \"nhan\": \"Thuế thu nhập hoãn lại phải trả\",\n           \"ma_so\": \"342\",\n           \"thuyet_minh\": \"V.20\",\n           \"so_tien\": [\"3.798.372.166\", \"3.436.827.307\"]},\n          {\"muc\": \"11.\",\n           \"nhan\": \"Dự phòng phải trả dài hạn\",\n           \"ma_so\": \"343\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"12.\",\n           \"nhan\": \"Quỹ phát triển khoa học và công nghệ\",\n           \"ma_so\": \"344\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Số cuối kỳ",
+    "Số đầu năm"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "C-",
+    "nhan": "NỢ PHẢI TRẢ",
+    "ma_so": "300",
+    "thuyet_minh": null,
+    "so_tien": [
+     "183.279.250.176",
+     "167.825.254.324"
+    ]
+   },
+   {
+    "muc": "I.",
+    "nhan": "Nợ ngắn hạn",
+    "ma_so": "310",
+    "thuyet_minh": null,
+    "so_tien": [
+     "64.414.313.394",
+     "52.407.429.534"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Phải trả người bán ngắn hạn",
+    "ma_so": "311",
+    "thuyet_minh": "V.14",
+    "so_tien": [
+     "34.663.172.338",
+     "26.739.056.020"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Người mua trả tiền trước ngắn hạn",
+    "ma_so": "312",
+    "thuyet_minh": null,
+    "so_tien": [
+     "471.782.300",
+     "473.129.550"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Phải trả cổ tức, lợi nhuận",
+    "ma_so": "313",
+    "thuyet_minh": "V.15",
+    "so_tien": [
+     "423.838.290",
+     "426.612.690"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Thuế và các khoản phải nộp Nhà nước ngắn hạn",
+    "ma_so": "314",
+    "thuyet_minh": "V.16",
+    "so_tien": [
+     "2.188.866.039",
+     "1.984.422.813"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Phải trả người lao động",
+    "ma_so": "315",
+    "thuyet_minh": "V.17",
+    "so_tien": [
+     "2.436.517.662",
+     "2.720.018.867"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Chi phí phải trả ngắn hạn",
+    "ma_so": "316",
+    "thuyet_minh": null,
+    "so_tien": [
+     "525.283.482",
+     "667.616.038"
+    ]
+   },
+   {
+    "muc": "7.",
+    "nhan": "Phải trả theo tiến độ hợp đồng xây dựng ngắn hạn",
+    "ma_so": "318",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "8.",
+    "nhan": "Doanh thu chưa thực hiện ngắn hạn",
+    "ma_so": "319",
+    "thuyet_minh": null,
+    "so_tien": [
+     "36.897.422",
+     "87.692.269"
+    ]
+   },
+   {
+    "muc": "9.",
+    "nhan": "Phải trả ngắn hạn khác",
+    "ma_so": "320",
+    "thuyet_minh": "V.18a, c",
+    "so_tien": [
+     "4.371.405.691",
+     "3.934.683.654"
+    ]
+   },
+   {
+    "muc": "10.",
+    "nhan": "Vay và nợ thuê tài chính ngắn hạn",
+    "ma_so": "321",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "11.",
+    "nhan": "Dự phòng phải trả ngắn hạn",
+    "ma_so": "322",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "12.",
+    "nhan": "Quỹ khen thưởng, phúc lợi",
+    "ma_so": "323",
+    "thuyet_minh": "V.19",
+    "so_tien": [
+     "19.296.550.170",
+     "15.374.197.633"
+    ]
+   },
+   {
+    "muc": "13.",
+    "nhan": "Quỹ bình ổn giá",
+    "ma_so": "324",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "14.",
+    "nhan": "Giao dịch mua bán lại trái phiếu Chính phủ",
+    "ma_so": "325",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "II.",
+    "nhan": "Nợ dài hạn",
+    "ma_so": "330",
+    "thuyet_minh": null,
+    "so_tien": [
+     "118.864.936.782",
+     "115.417.824.790"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Phải trả người bán dài hạn",
+    "ma_so": "331",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Người mua trả tiền trước dài hạn",
+    "ma_so": "332",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Thuế và các khoản phải nộp Nhà nước dài hạn",
+    "ma_so": "333",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Chi phí phải trả dài hạn",
+    "ma_so": "334",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Doanh thu chưa thực hiện dài hạn",
+    "ma_so": "337",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Phải trả dài hạn khác",
+    "ma_so": "338",
+    "thuyet_minh": "V.18b, c",
+    "so_tien": [
+     "115.066.564.616",
+     "111.980.997.483"
+    ]
+   },
+   {
+    "muc": "7.",
+    "nhan": "Vay và nợ thuê tài chính dài hạn",
+    "ma_so": "339",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "8.",
+    "nhan": "Trái phiếu chuyển đổi",
+    "ma_so": "340",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "9.",
+    "nhan": "Cổ phiếu ưu đãi",
+    "ma_so": "341",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "10.",
+    "nhan": "Thuế thu nhập hoãn lại phải trả",
+    "ma_so": "342",
+    "thuyet_minh": "V.20",
+    "so_tien": [
+     "3.798.372.166",
+     "3.436.827.307"
+    ]
+   },
+   {
+    "muc": "11.",
+    "nhan": "Dự phòng phải trả dài hạn",
+    "ma_so": "343",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "12.",
+    "nhan": "Quỹ phát triển khoa học và công nghệ",
+    "ma_so": "344",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   }
+  ]
+ }
+}

@@ -627,6 +627,15 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
         if not num:
             out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, "không có ô số", False))
             continue
+        trong = [c for c in value_columns if r.get(c) is None]
+        if trong:
+            # Q7 (2026-09-11, ô tổng bị che): VLM trả null cho ô đó và số ở cột
+            # kia vẫn đúng → hàng lẽ ra "verified" trong khi trên giấy CÓ số.
+            # Mẫu BCTC in "-" cho ô không có nghiệp vụ, nên null ở cột giá trị
+            # của hàng có mã số là "đọc không ra", không phải "trống": không
+            # loại (không lưu gì sai) nhưng không được bảo lãnh.
+            out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, f"ô trống ở cột {trong}", True))
+            continue
         thieu = [c for c in so_cot if c not in pass_at.get(ma_s or "", set())]
         if thieu:
             out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED,

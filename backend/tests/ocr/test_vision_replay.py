@@ -72,7 +72,13 @@ def so_voi_dap_an(payload: dict, dap_an: dict) -> dict:
 
 
 def _raws():
-    return sorted(glob.glob(os.path.join(_RAW, "*.json")))
+    """Fixture Q8 (trang nguyên vẹn). Q7_* là ảnh BỊ BÔI ĐEN có chủ ý — test riêng."""
+    return sorted(p for p in glob.glob(os.path.join(_RAW, "*.json"))
+                  if not os.path.basename(p).startswith("Q7_"))
+
+
+def _q7():
+    return sorted(glob.glob(os.path.join(_RAW, "Q7_*.json")))
 
 
 @pytest.mark.skipif(not _raws(), reason="chưa có fixture vlm_raw (chạy test_vision_live.py -m live)")
@@ -111,3 +117,20 @@ def test_so_voi_dap_an_bat_duoc_o_sai_tren_payload_gia():
     assert kq["sai_ma_verified"] == []
     assert [x[0] for x in kq["sai_bat_duoc"]] == ["11"]
     assert {x[0] for x in kq["dung_bi_loai"]} == {"10", "12", "13", "14"}, "cả cụm đi — chi phí phạm vi, ghi rõ"
+
+
+@pytest.mark.skipif(not _q7(), reason="chưa có fixture Q7 (chạy test_vision_q7_live.py -m live)")
+@pytest.mark.parametrize("p", _q7())
+def test_q7_o_bi_che_khong_bi_giai_nguoc_va_khong_lot_vao_verified(p):
+    """Đo 2026-09-11 (SCID tr12, flash-lite): che ô thành phần 112 → VLM trả "-";
+    che ô tổng 110 → null; che ô "-" → "-". KHÔNG tính ra số bị che. Bộ kiểm:
+    "-" giả làm 110 = 111 + 112 lệch → cụm 3 hàng loại (2 hàng đúng bị loại —
+    chi phí phạm vi); null → hàng 110 unverified (quy tắc ô trống). 0 ô sai
+    được lưu verified ở cả ba."""
+    raw = json.load(open(p, encoding="utf-8"))
+    d = json.load(open(os.path.join(_THU_MUC, "SCID_2026H1_tr12.json"), encoding="utf-8"))
+    if raw["gia_tri_that"] != "-":
+        assert raw["vlm_tra"] != raw["gia_tri_that"], "VLM đã GIẢI NGƯỢC ô bị che — lỗ số học có thật"
+    kq = so_voi_dap_an(raw["payload"], d)
+    print(f"\n[Q7 replay {os.path.basename(p)}] VLM trả {raw['vlm_tra']!r} | {kq['tom_tat']}")
+    assert kq["sai_ma_verified"] == [], kq["sai_ma_verified"]

@@ -1,0 +1,475 @@
+{
+ "dap_an": "SCID_2026H1_tr13.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:16:10.546717+00:00",
+ "tokens": [
+  1549,
+  3394,
+  4943
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Số cuối kỳ\", \"Số đầu năm\"]},\n \"hang\": [{\"muc\": \"B -\",\n           \"nhan\": \"TÀI SẢN DÀI HẠN\",\n           \"ma_so\": \"200\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"2.083.822.081.658\", \"2.078.113.448.434\"]},\n          {\"muc\": \"I.\",\n           \"nhan\": \"Các khoản phải thu dài hạn\",\n           \"ma_so\": \"210\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"122.586.388.288\", \"122.838.542.831\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Phải thu dài hạn của khách hàng\",\n           \"ma_so\": \"211\",\n           \"thuyet_minh\": \"V.3b\",\n           \"so_tien\": [\"11.371.676.288\", \"11.623.830.831\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Trả trước cho người bán dài hạn\",\n           \"ma_so\": \"212\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Phải thu dài hạn khác\",\n           \"ma_so\": \"215\",\n           \"thuyet_minh\": \"V.5b\",\n           \"so_tien\": [\"111.214.712.000\", \"111.214.712.000\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Dự phòng phải thu dài hạn khó đòi\",\n           \"ma_so\": \"216\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"II.\",\n           \"nhan\": \"Tài sản cố định\",\n           \"ma_so\": \"220\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"68.845.804.199\", \"73.176.339.987\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Tài sản cố định hữu hình\",\n           \"ma_so\": \"221\",\n           \"thuyet_minh\": \"V.9\",\n           \"so_tien\": [\"66.842.115.906\", \"70.809.368.710\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"222\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"163.061.274.678\", \"163.314.245.035\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Giá trị hao mòn lũy kế\",\n           \"ma_so\": \"223\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(96.219.158.772)\", \"(92.504.876.325)\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Tài sản cố định thuê tài chính\",\n           \"ma_so\": \"224\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"225\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Giá trị hao mòn lũy kế\",\n           \"ma_so\": \"226\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Tài sản cố định vô hình\",\n           \"ma_so\": \"227\",\n           \"thuyet_minh\": \"V.10\",\n           \"so_tien\": [\"2.003.688.293\", \"2.366.971.277\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"228\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"5.946.410.250\", \"5.946.410.250\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Giá trị hao mòn lũy kế\",\n           \"ma_so\": \"229\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(3.942.721.957)\", \"(3.579.438.973)\"]},\n          {\"muc\": \"III.\",\n           \"nhan\": \"Tài sản sinh học dài hạn\",\n           \"ma_so\": \"230\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Súc vật nuôi cho sản phẩm định kỳ\",\n           \"ma_so\": \"231\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"a)\",\n           \"nhan\": \"Súc vật nuôi cho sản phẩm định kỳ chưa đến giai đoạn trưởng thành\",\n           \"ma_so\": \"232\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"b)\",\n           \"nhan\": \"Súc vật nuôi cho sản phẩm định kỳ đến giai đoạn trưởng thành\",\n           \"ma_so\": \"233\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"234\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Giá trị khấu hao lũy kế\",\n           \"ma_so\": \"235\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Súc vật nuôi lấy sản phẩm một lần dài hạn\",\n           \"ma_so\": \"236\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Cây trồng theo mùa vụ hoặc lấy sản phẩm một lần dài hạn\",\n           \"ma_so\": \"237\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Dự phòng tổn thất tài sản sinh học dài hạn\",\n           \"ma_so\": \"238\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"IV.\",\n           \"nhan\": \"Bất động sản đầu tư\",\n           \"ma_so\": \"240\",\n           \"thuyet_minh\": \"V.11\",\n           \"so_tien\": [\"33.573.026.922\", \"34.408.243.014\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"241\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"57.817.638.519\", \"57.817.638.519\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Giá trị hao mòn lũy kế\",\n           \"ma_so\": \"242\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(24.244.611.597)\", \"(23.409.395.505)\"]},\n          {\"muc\": \"V.\",\n           \"nhan\": \"Tài sản dở dang dài hạn\",\n           \"ma_so\": \"250\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"663.165.363.359\", \"603.788.245.651\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Chi phí sản xuất, kinh doanh dở dang dài hạn\",\n           \"ma_so\": \"251\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Chi phí xây dựng cơ bản dở dang\",\n           \"ma_so\": \"252\",\n           \"thuyet_minh\": \"V.12\",\n           \"so_tien\": [\"663.165.363.359\", \"603.788.245.651\"]},\n          {\"muc\": \"VI.\",\n           \"nhan\": \"Đầu tư tài chính dài hạn\",\n           \"ma_so\": \"260\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"1.192.035.446.884\", \"1.239.525.493.720\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Đầu tư vào công ty con\",\n           \"ma_so\": \"261\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Đầu tư vào công ty liên doanh, liên kết\",\n           \"ma_so\": \"262\",\n           \"thuyet_minh\": \"V.2c\",\n           \"so_tien\": [\"1.192.035.446.884\", \"1.239.525.493.720\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Đầu tư góp vốn vào đơn vị khác\",\n           \"ma_so\": \"263\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Dự phòng tổn thất đầu tư vào đơn vị khác dài hạn\",\n           \"ma_so\": \"264\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Đầu tư nắm giữ đến ngày đáo hạn dài hạn\",\n           \"ma_so\": \"265\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Dự phòng đầu tư nắm giữ đến ngày đáo hạn dài hạn\",\n           \"ma_so\": \"266\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"VII.\",\n           \"nhan\": \"Tài sản dài hạn khác\",\n           \"ma_so\": \"270\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"3.616.052.006\", \"4.376.583.231\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Chi phí chờ phân bổ dài hạn\",\n           \"ma_so\": \"271\",\n           \"thuyet_minh\": \"V.8b\",\n           \"so_tien\": [\"3.508.678.195\", \"4.151.284.755\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Tài sản thuế thu nhập hoãn lại\",\n           \"ma_so\": \"272\",\n           \"thuyet_minh\": \"V.13\",\n           \"so_tien\": [\"107.373.811\", \"225.298.476\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Thiết bị, vật tư, phụ tùng thay thế dài hạn\",\n           \"ma_so\": \"273\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Tài sản dài hạn khác\",\n           \"ma_so\": \"274\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Lợi thế thương mại\",\n           \"ma_so\": \"279\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": null,\n           \"nhan\": \"TỔNG CỘNG TÀI SẢN\",\n           \"ma_so\": \"280\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"2.650.517.727.926\", \"2.612.157.923.416\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Số cuối kỳ",
+    "Số đầu năm"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "B -",
+    "nhan": "TÀI SẢN DÀI HẠN",
+    "ma_so": "200",
+    "thuyet_minh": null,
+    "so_tien": [
+     "2.083.822.081.658",
+     "2.078.113.448.434"
+    ]
+   },
+   {
+    "muc": "I.",
+    "nhan": "Các khoản phải thu dài hạn",
+    "ma_so": "210",
+    "thuyet_minh": null,
+    "so_tien": [
+     "122.586.388.288",
+     "122.838.542.831"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Phải thu dài hạn của khách hàng",
+    "ma_so": "211",
+    "thuyet_minh": "V.3b",
+    "so_tien": [
+     "11.371.676.288",
+     "11.623.830.831"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Trả trước cho người bán dài hạn",
+    "ma_so": "212",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Phải thu dài hạn khác",
+    "ma_so": "215",
+    "thuyet_minh": "V.5b",
+    "so_tien": [
+     "111.214.712.000",
+     "111.214.712.000"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Dự phòng phải thu dài hạn khó đòi",
+    "ma_so": "216",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "II.",
+    "nhan": "Tài sản cố định",
+    "ma_so": "220",
+    "thuyet_minh": null,
+    "so_tien": [
+     "68.845.804.199",
+     "73.176.339.987"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Tài sản cố định hữu hình",
+    "ma_so": "221",
+    "thuyet_minh": "V.9",
+    "so_tien": [
+     "66.842.115.906",
+     "70.809.368.710"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Nguyên giá",
+    "ma_so": "222",
+    "thuyet_minh": null,
+    "so_tien": [
+     "163.061.274.678",
+     "163.314.245.035"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Giá trị hao mòn lũy kế",
+    "ma_so": "223",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(96.219.158.772)",
+     "(92.504.876.325)"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Tài sản cố định thuê tài chính",
+    "ma_so": "224",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Nguyên giá",
+    "ma_so": "225",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Giá trị hao mòn lũy kế",
+    "ma_so": "226",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Tài sản cố định vô hình",
+    "ma_so": "227",
+    "thuyet_minh": "V.10",
+    "so_tien": [
+     "2.003.688.293",
+     "2.366.971.277"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Nguyên giá",
+    "ma_so": "228",
+    "thuyet_minh": null,
+    "so_tien": [
+     "5.946.410.250",
+     "5.946.410.250"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Giá trị hao mòn lũy kế",
+    "ma_so": "229",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(3.942.721.957)",
+     "(3.579.438.973)"
+    ]
+   },
+   {
+    "muc": "III.",
+    "nhan": "Tài sản sinh học dài hạn",
+    "ma_so": "230",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Súc vật nuôi cho sản phẩm định kỳ",
+    "ma_so": "231",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "a)",
+    "nhan": "Súc vật nuôi cho sản phẩm định kỳ chưa đến giai đoạn trưởng thành",
+    "ma_so": "232",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "b)",
+    "nhan": "Súc vật nuôi cho sản phẩm định kỳ đến giai đoạn trưởng thành",
+    "ma_so": "233",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Nguyên giá",
+    "ma_so": "234",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Giá trị khấu hao lũy kế",
+    "ma_so": "235",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Súc vật nuôi lấy sản phẩm một lần dài hạn",
+    "ma_so": "236",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Cây trồng theo mùa vụ hoặc lấy sản phẩm một lần dài hạn",
+    "ma_so": "237",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Dự phòng tổn thất tài sản sinh học dài hạn",
+    "ma_so": "238",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "IV.",
+    "nhan": "Bất động sản đầu tư",
+    "ma_so": "240",
+    "thuyet_minh": "V.11",
+    "so_tien": [
+     "33.573.026.922",
+     "34.408.243.014"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Nguyên giá",
+    "ma_so": "241",
+    "thuyet_minh": null,
+    "so_tien": [
+     "57.817.638.519",
+     "57.817.638.519"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Giá trị hao mòn lũy kế",
+    "ma_so": "242",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(24.244.611.597)",
+     "(23.409.395.505)"
+    ]
+   },
+   {
+    "muc": "V.",
+    "nhan": "Tài sản dở dang dài hạn",
+    "ma_so": "250",
+    "thuyet_minh": null,
+    "so_tien": [
+     "663.165.363.359",
+     "603.788.245.651"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Chi phí sản xuất, kinh doanh dở dang dài hạn",
+    "ma_so": "251",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Chi phí xây dựng cơ bản dở dang",
+    "ma_so": "252",
+    "thuyet_minh": "V.12",
+    "so_tien": [
+     "663.165.363.359",
+     "603.788.245.651"
+    ]
+   },
+   {
+    "muc": "VI.",
+    "nhan": "Đầu tư tài chính dài hạn",
+    "ma_so": "260",
+    "thuyet_minh": null,
+    "so_tien": [
+     "1.192.035.446.884",
+     "1.239.525.493.720"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Đầu tư vào công ty con",
+    "ma_so": "261",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Đầu tư vào công ty liên doanh, liên kết",
+    "ma_so": "262",
+    "thuyet_minh": "V.2c",
+    "so_tien": [
+     "1.192.035.446.884",
+     "1.239.525.493.720"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Đầu tư góp vốn vào đơn vị khác",
+    "ma_so": "263",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Dự phòng tổn thất đầu tư vào đơn vị khác dài hạn",
+    "ma_so": "264",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Đầu tư nắm giữ đến ngày đáo hạn dài hạn",
+    "ma_so": "265",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Dự phòng đầu tư nắm giữ đến ngày đáo hạn dài hạn",
+    "ma_so": "266",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "VII.",
+    "nhan": "Tài sản dài hạn khác",
+    "ma_so": "270",
+    "thuyet_minh": null,
+    "so_tien": [
+     "3.616.052.006",
+     "4.376.583.231"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Chi phí chờ phân bổ dài hạn",
+    "ma_so": "271",
+    "thuyet_minh": "V.8b",
+    "so_tien": [
+     "3.508.678.195",
+     "4.151.284.755"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Tài sản thuế thu nhập hoãn lại",
+    "ma_so": "272",
+    "thuyet_minh": "V.13",
+    "so_tien": [
+     "107.373.811",
+     "225.298.476"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Thiết bị, vật tư, phụ tùng thay thế dài hạn",
+    "ma_so": "273",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Tài sản dài hạn khác",
+    "ma_so": "274",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Lợi thế thương mại",
+    "ma_so": "279",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "TỔNG CỘNG TÀI SẢN",
+    "ma_so": "280",
+    "thuyet_minh": null,
+    "so_tien": [
+     "2.650.517.727.926",
+     "2.612.157.923.416"
+    ]
+   }
+  ]
+ }
+}

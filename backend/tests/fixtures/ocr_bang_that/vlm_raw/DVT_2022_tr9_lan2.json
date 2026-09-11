@@ -1,0 +1,305 @@
+{
+ "dap_an": "DVT_2022_tr9.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:14:58.160889+00:00",
+ "tokens": [
+  1549,
+  1958,
+  3507
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": \"B02/BCTC\",\n           \"thong_tu\": \"107/2017/TT-BTC\",\n           \"cot_gia_tri\": [\"Năm nay\", \"Năm trước\"]},\n \"hang\": [{\"muc\": \"A\",\n           \"nhan\": \"Chỉ tiêu\",\n           \"ma_so\": \"C\",\n           \"thuyet_minh\": \"D\",\n           \"so_tien\": [\"1\", \"2\"]},\n          {\"muc\": \"I\",\n           \"nhan\": \"Hoạt động hành chính, sự nghiệp\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Doanh thu (01=02+03+04)\",\n           \"ma_so\": \"01\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"a\",\n           \"nhan\": \"Từ NSNN cấp\",\n           \"ma_so\": \"02\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"b\",\n           \"nhan\": \"Từ nguồn viện trợ, vay nợ nước ngoài\",\n           \"ma_so\": \"03\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"c\",\n           \"nhan\": \"Từ nguồn kinh phí được khấu trừ để lại\",\n           \"ma_so\": \"04\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Chi phí (05=06+07+08)\",\n           \"ma_so\": \"05\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"a\",\n           \"nhan\": \"Chi phí hoạt động\",\n           \"ma_so\": \"06\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"b\",\n           \"nhan\": \"Chi phí từ nguồn viện trợ, vay nợ nước ngoài\",\n           \"ma_so\": \"07\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"c\",\n           \"nhan\": \"Chi phí hoạt động thu phí\",\n           \"ma_so\": \"08\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Thặng dư / thâm hụt (09=01-05)\",\n           \"ma_so\": \"09\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"II\",\n           \"nhan\": \"Hoạt động sản xuất kinh doanh, dịch vụ\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Doanh thu\",\n           \"ma_so\": \"10\",\n           \"thuyet_minh\": \"IV.1a\",\n           \"so_tien\": [\"61.209.241.398\", \"40.346.712.824\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Chi phí\",\n           \"ma_so\": \"11\",\n           \"thuyet_minh\": \"IV.1b\",\n           \"so_tien\": [\"54.590.187.833\", \"40.594.540.684\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Thặng dư / thâm hụt (12=10-11)\",\n           \"ma_so\": \"12\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"6.619.053.565\", \"(247.827.860)\"]},\n          {\"muc\": \"III\",\n           \"nhan\": \"Hoạt động tài chính\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Doanh thu\",\n           \"ma_so\": \"20\",\n           \"thuyet_minh\": \"IV.2a\",\n           \"so_tien\": [\"392.605.794\", \"664.673.653\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Chi phí\",\n           \"ma_so\": \"21\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Thặng dư / thâm hụt (22=20-21)\",\n           \"ma_so\": \"22\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"392.605.794\", \"664.673.653\"]},\n          {\"muc\": \"IV\",\n           \"nhan\": \"Hoạt động khác\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Thu nhập khác\",\n           \"ma_so\": \"30\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Chi phí khác\",\n           \"ma_so\": \"31\",\n           \"thuyet_minh\": \"IV.3\",\n           \"so_tien\": [\"2.853.754.923\", \"-\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Thặng dư / thâm hụt (32=30-31)\",\n           \"ma_so\": \"32\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(2.853.754.923)\", \"-\"]},\n          {\"muc\": \"V\",\n           \"nhan\": \"Chi phí thuế TNDN\",\n           \"ma_so\": \"40\",\n           \"thuyet_minh\": \"IV.4\",\n           \"so_tien\": [\"7.078.394.234\", \"58.358.411\"]},\n          {\"muc\": \"VI\",\n           \"nhan\": \"Thặng dư/thâm hụt trong năm\\n(50=09+12+22+32-40)\",\n           \"ma_so\": \"50\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(2.920.489.798)\", \"358.487.382\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Sử dụng kinh phí tiết kiệm của đơn vị\\nhành chính\",\n           \"ma_so\": \"51\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Phân phối cho các quỹ\",\n           \"ma_so\": \"52\",\n           \"thuyet_minh\": \"IV.4\",\n           \"so_tien\": [\"-\", \"358.487.382\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Kinh phí cải cách tiền lương\",\n           \"ma_so\": \"53\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": "B02/BCTC",
+   "thong_tu": "107/2017/TT-BTC",
+   "cot_gia_tri": [
+    "Năm nay",
+    "Năm trước"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "A",
+    "nhan": "Chỉ tiêu",
+    "ma_so": "C",
+    "thuyet_minh": "D",
+    "so_tien": [
+     "1",
+     "2"
+    ]
+   },
+   {
+    "muc": "I",
+    "nhan": "Hoạt động hành chính, sự nghiệp",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Doanh thu (01=02+03+04)",
+    "ma_so": "01",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "a",
+    "nhan": "Từ NSNN cấp",
+    "ma_so": "02",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "b",
+    "nhan": "Từ nguồn viện trợ, vay nợ nước ngoài",
+    "ma_so": "03",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "c",
+    "nhan": "Từ nguồn kinh phí được khấu trừ để lại",
+    "ma_so": "04",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Chi phí (05=06+07+08)",
+    "ma_so": "05",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "a",
+    "nhan": "Chi phí hoạt động",
+    "ma_so": "06",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "b",
+    "nhan": "Chi phí từ nguồn viện trợ, vay nợ nước ngoài",
+    "ma_so": "07",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "c",
+    "nhan": "Chi phí hoạt động thu phí",
+    "ma_so": "08",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Thặng dư / thâm hụt (09=01-05)",
+    "ma_so": "09",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "II",
+    "nhan": "Hoạt động sản xuất kinh doanh, dịch vụ",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Doanh thu",
+    "ma_so": "10",
+    "thuyet_minh": "IV.1a",
+    "so_tien": [
+     "61.209.241.398",
+     "40.346.712.824"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Chi phí",
+    "ma_so": "11",
+    "thuyet_minh": "IV.1b",
+    "so_tien": [
+     "54.590.187.833",
+     "40.594.540.684"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Thặng dư / thâm hụt (12=10-11)",
+    "ma_so": "12",
+    "thuyet_minh": null,
+    "so_tien": [
+     "6.619.053.565",
+     "(247.827.860)"
+    ]
+   },
+   {
+    "muc": "III",
+    "nhan": "Hoạt động tài chính",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Doanh thu",
+    "ma_so": "20",
+    "thuyet_minh": "IV.2a",
+    "so_tien": [
+     "392.605.794",
+     "664.673.653"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Chi phí",
+    "ma_so": "21",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Thặng dư / thâm hụt (22=20-21)",
+    "ma_so": "22",
+    "thuyet_minh": null,
+    "so_tien": [
+     "392.605.794",
+     "664.673.653"
+    ]
+   },
+   {
+    "muc": "IV",
+    "nhan": "Hoạt động khác",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Thu nhập khác",
+    "ma_so": "30",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Chi phí khác",
+    "ma_so": "31",
+    "thuyet_minh": "IV.3",
+    "so_tien": [
+     "2.853.754.923",
+     "-"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Thặng dư / thâm hụt (32=30-31)",
+    "ma_so": "32",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(2.853.754.923)",
+     "-"
+    ]
+   },
+   {
+    "muc": "V",
+    "nhan": "Chi phí thuế TNDN",
+    "ma_so": "40",
+    "thuyet_minh": "IV.4",
+    "so_tien": [
+     "7.078.394.234",
+     "58.358.411"
+    ]
+   },
+   {
+    "muc": "VI",
+    "nhan": "Thặng dư/thâm hụt trong năm\n(50=09+12+22+32-40)",
+    "ma_so": "50",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(2.920.489.798)",
+     "358.487.382"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Sử dụng kinh phí tiết kiệm của đơn vị\nhành chính",
+    "ma_so": "51",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Phân phối cho các quỹ",
+    "ma_so": "52",
+    "thuyet_minh": "IV.4",
+    "so_tien": [
+     "-",
+     "358.487.382"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Kinh phí cải cách tiền lương",
+    "ma_so": "53",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   }
+  ]
+ }
+}

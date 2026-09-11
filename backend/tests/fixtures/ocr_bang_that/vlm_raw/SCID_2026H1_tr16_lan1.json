@@ -1,0 +1,265 @@
+{
+ "dap_an": "SCID_2026H1_tr16.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:17:01.632704+00:00",
+ "tokens": [
+  1549,
+  1987,
+  3536
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Năm nay\", \"Năm trước\"]},\n \"hang\": [{\"muc\": \"1.\",\n           \"nhan\": \"Doanh thu bán hàng và cung cấp dịch vụ\",\n           \"ma_so\": \"01\",\n           \"thuyet_minh\": \"VI.1\",\n           \"so_tien\": [\"53.729.054.078\", \"47.462.113.079\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Các khoản giảm trừ doanh thu\",\n           \"ma_so\": \"02\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Doanh thu thuần về bán hàng và cung cấp dịch vụ\",\n           \"ma_so\": \"10\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"53.729.054.078\", \"47.462.113.079\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Giá vốn hàng bán\",\n           \"ma_so\": \"11\",\n           \"thuyet_minh\": \"VI.2\",\n           \"so_tien\": [\"19.762.876.194\", \"18.537.005.253\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Lợi nhuận gộp về bán hàng và cung cấp dịch vụ\",\n           \"ma_so\": \"20\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"33.966.177.884\", \"28.925.107.826\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Lãi/lỗ của hoạt động bán, thanh lý bất động sản đầu tư\",\n           \"ma_so\": \"21\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"7.\",\n           \"nhan\": \"Doanh thu hoạt động tài chính\",\n           \"ma_so\": \"22\",\n           \"thuyet_minh\": \"VI.3\",\n           \"so_tien\": [\"2.741.348.241\", \"12.322.083.964\"]},\n          {\"muc\": \"8.\",\n           \"nhan\": \"Chi phí tài chính\",\n           \"ma_so\": \"23\",\n           \"thuyet_minh\": \"VI.4\",\n           \"so_tien\": [\"305.100.000\", \"1.118.700.000\"]},\n          {\"muc\": null,\n           \"nhan\": \"Trong đó: chi phí đi vay\",\n           \"ma_so\": \"24\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"9.\",\n           \"nhan\": \"Chi phí bán hàng\",\n           \"ma_so\": \"25\",\n           \"thuyet_minh\": \"VI.5\",\n           \"so_tien\": [\"9.511.296.823\", \"9.461.263.516\"]},\n          {\"muc\": \"10.\",\n           \"nhan\": \"Chi phí quản lý doanh nghiệp\",\n           \"ma_so\": \"26\",\n           \"thuyet_minh\": \"VI.6\",\n           \"so_tien\": [\"29.910.740.968\", \"27.940.784.262\"]},\n          {\"muc\": \"11.\",\n           \"nhan\": \"Phần lãi hoặc lỗ trong công ty liên doanh, liên kết\",\n           \"ma_so\": \"27\",\n           \"thuyet_minh\": \"V.2c\",\n           \"so_tien\": [\"35.578.694.264\", \"41.749.565.893\"]},\n          {\"muc\": \"12.\",\n           \"nhan\": \"Lợi nhuận thuần từ hoạt động kinh doanh\",\n           \"ma_so\": \"30\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"32.559.082.598\", \"44.476.009.905\"]},\n          {\"muc\": \"13.\",\n           \"nhan\": \"Thu nhập khác\",\n           \"ma_so\": \"31\",\n           \"thuyet_minh\": \"VI.7\",\n           \"so_tien\": [\"465.805.113\", \"26.713.972\"]},\n          {\"muc\": \"14.\",\n           \"nhan\": \"Chi phí khác\",\n           \"ma_so\": \"32\",\n           \"thuyet_minh\": \"VI.8\",\n           \"so_tien\": [\"341.792.843\", \"495.656.789\"]},\n          {\"muc\": \"15.\",\n           \"nhan\": \"Lợi nhuận khác\",\n           \"ma_so\": \"40\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"124.012.270\", \"(468.942.817)\"]},\n          {\"muc\": \"16.\",\n           \"nhan\": \"Tổng lợi nhuận kế toán trước thuế\",\n           \"ma_so\": \"50\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"32.683.094.868\", \"44.007.067.088\"]},\n          {\"muc\": \"17.\",\n           \"nhan\": \"Chi phí thuế thu nhập doanh nghiệp hiện hành\",\n           \"ma_so\": \"51\",\n           \"thuyet_minh\": \"VI.16\",\n           \"so_tien\": [\"3.069.566.270\", \"3.093.696.573\"]},\n          {\"muc\": \"18.\",\n           \"nhan\": \"Chi phí thuế thu nhập doanh nghiệp hoãn lại\",\n           \"ma_so\": \"52\",\n           \"thuyet_minh\": \"VI.9\",\n           \"so_tien\": [\"479.469.524\", \"498.747.540\"]},\n          {\"muc\": \"19.\",\n           \"nhan\": \"Lợi nhuận sau thuế thu nhập doanh nghiệp\",\n           \"ma_so\": \"60\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"29.134.059.074\", \"40.414.622.975\"]},\n          {\"muc\": \"20.\",\n           \"nhan\": \"Lợi nhuận sau thuế của công ty mẹ\",\n           \"ma_so\": \"61\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"29.134.059.074\", \"40.414.622.975\"]},\n          {\"muc\": \"21.\",\n           \"nhan\": \"Lợi nhuận sau thuế của cổ đông không kiểm soát\",\n           \"ma_so\": \"62\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"22.\",\n           \"nhan\": \"Lãi cơ bản trên cổ phiếu\",\n           \"ma_so\": \"70\",\n           \"thuyet_minh\": \"VI.10\",\n           \"so_tien\": [\"251\", \"373\"]},\n          {\"muc\": \"23.\",\n           \"nhan\": \"Lãi suy giảm trên cổ phiếu\",\n           \"ma_so\": \"71\",\n           \"thuyet_minh\": \"VI.10\",\n           \"so_tien\": [\"251\", \"373\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Năm nay",
+    "Năm trước"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "1.",
+    "nhan": "Doanh thu bán hàng và cung cấp dịch vụ",
+    "ma_so": "01",
+    "thuyet_minh": "VI.1",
+    "so_tien": [
+     "53.729.054.078",
+     "47.462.113.079"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Các khoản giảm trừ doanh thu",
+    "ma_so": "02",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Doanh thu thuần về bán hàng và cung cấp dịch vụ",
+    "ma_so": "10",
+    "thuyet_minh": null,
+    "so_tien": [
+     "53.729.054.078",
+     "47.462.113.079"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Giá vốn hàng bán",
+    "ma_so": "11",
+    "thuyet_minh": "VI.2",
+    "so_tien": [
+     "19.762.876.194",
+     "18.537.005.253"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Lợi nhuận gộp về bán hàng và cung cấp dịch vụ",
+    "ma_so": "20",
+    "thuyet_minh": null,
+    "so_tien": [
+     "33.966.177.884",
+     "28.925.107.826"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Lãi/lỗ của hoạt động bán, thanh lý bất động sản đầu tư",
+    "ma_so": "21",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "7.",
+    "nhan": "Doanh thu hoạt động tài chính",
+    "ma_so": "22",
+    "thuyet_minh": "VI.3",
+    "so_tien": [
+     "2.741.348.241",
+     "12.322.083.964"
+    ]
+   },
+   {
+    "muc": "8.",
+    "nhan": "Chi phí tài chính",
+    "ma_so": "23",
+    "thuyet_minh": "VI.4",
+    "so_tien": [
+     "305.100.000",
+     "1.118.700.000"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Trong đó: chi phí đi vay",
+    "ma_so": "24",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "9.",
+    "nhan": "Chi phí bán hàng",
+    "ma_so": "25",
+    "thuyet_minh": "VI.5",
+    "so_tien": [
+     "9.511.296.823",
+     "9.461.263.516"
+    ]
+   },
+   {
+    "muc": "10.",
+    "nhan": "Chi phí quản lý doanh nghiệp",
+    "ma_so": "26",
+    "thuyet_minh": "VI.6",
+    "so_tien": [
+     "29.910.740.968",
+     "27.940.784.262"
+    ]
+   },
+   {
+    "muc": "11.",
+    "nhan": "Phần lãi hoặc lỗ trong công ty liên doanh, liên kết",
+    "ma_so": "27",
+    "thuyet_minh": "V.2c",
+    "so_tien": [
+     "35.578.694.264",
+     "41.749.565.893"
+    ]
+   },
+   {
+    "muc": "12.",
+    "nhan": "Lợi nhuận thuần từ hoạt động kinh doanh",
+    "ma_so": "30",
+    "thuyet_minh": null,
+    "so_tien": [
+     "32.559.082.598",
+     "44.476.009.905"
+    ]
+   },
+   {
+    "muc": "13.",
+    "nhan": "Thu nhập khác",
+    "ma_so": "31",
+    "thuyet_minh": "VI.7",
+    "so_tien": [
+     "465.805.113",
+     "26.713.972"
+    ]
+   },
+   {
+    "muc": "14.",
+    "nhan": "Chi phí khác",
+    "ma_so": "32",
+    "thuyet_minh": "VI.8",
+    "so_tien": [
+     "341.792.843",
+     "495.656.789"
+    ]
+   },
+   {
+    "muc": "15.",
+    "nhan": "Lợi nhuận khác",
+    "ma_so": "40",
+    "thuyet_minh": null,
+    "so_tien": [
+     "124.012.270",
+     "(468.942.817)"
+    ]
+   },
+   {
+    "muc": "16.",
+    "nhan": "Tổng lợi nhuận kế toán trước thuế",
+    "ma_so": "50",
+    "thuyet_minh": null,
+    "so_tien": [
+     "32.683.094.868",
+     "44.007.067.088"
+    ]
+   },
+   {
+    "muc": "17.",
+    "nhan": "Chi phí thuế thu nhập doanh nghiệp hiện hành",
+    "ma_so": "51",
+    "thuyet_minh": "VI.16",
+    "so_tien": [
+     "3.069.566.270",
+     "3.093.696.573"
+    ]
+   },
+   {
+    "muc": "18.",
+    "nhan": "Chi phí thuế thu nhập doanh nghiệp hoãn lại",
+    "ma_so": "52",
+    "thuyet_minh": "VI.9",
+    "so_tien": [
+     "479.469.524",
+     "498.747.540"
+    ]
+   },
+   {
+    "muc": "19.",
+    "nhan": "Lợi nhuận sau thuế thu nhập doanh nghiệp",
+    "ma_so": "60",
+    "thuyet_minh": null,
+    "so_tien": [
+     "29.134.059.074",
+     "40.414.622.975"
+    ]
+   },
+   {
+    "muc": "20.",
+    "nhan": "Lợi nhuận sau thuế của công ty mẹ",
+    "ma_so": "61",
+    "thuyet_minh": null,
+    "so_tien": [
+     "29.134.059.074",
+     "40.414.622.975"
+    ]
+   },
+   {
+    "muc": "21.",
+    "nhan": "Lợi nhuận sau thuế của cổ đông không kiểm soát",
+    "ma_so": "62",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "22.",
+    "nhan": "Lãi cơ bản trên cổ phiếu",
+    "ma_so": "70",
+    "thuyet_minh": "VI.10",
+    "so_tien": [
+     "251",
+     "373"
+    ]
+   },
+   {
+    "muc": "23.",
+    "nhan": "Lãi suy giảm trên cổ phiếu",
+    "ma_so": "71",
+    "thuyet_minh": "VI.10",
+    "so_tien": [
+     "251",
+     "373"
+    ]
+   }
+  ]
+ }
+}
