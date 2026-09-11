@@ -2371,3 +2371,55 @@ Kết quả đầy đủ: `tools/calibrate_vlm_trigger_result.txt`. Bốn phép 
   cột toàn trang" còn nguyên, ghi thành test.
 - Trang thuyết minh (221/281 trang không có cột mã số) hoàn toàn ngoài phạm vi
   bậc 3 lượt này.
+
+### Lượt VLM thật đầu tiên — Q8, Q7, và chạy đầu-cuối (2026-09-11, cùng ngày)
+
+Chủ dự án quyết định **dùng chung 3 ví Gemini với chat** (`YOUDOO_VLM_API_KEY*`
+= `GOOGLE_API_KEY*`): cùng project × model nên không có cách tách hạn mức; chi
+phí đo được ~24 lượt/6 tài liệu, trần 200/tài liệu. Muốn tách sau: đổi 3 dòng
+`.env`. Mã không đổi.
+
+**Q8 — 20 lượt (10 trang đáp án × 2), `gemini-3.5-flash-lite`, prompt v1:**
+- **0 ô sai được lưu `vision_verified`** (số cứng của spec). Hơn thế: **0 ô sai
+  nào cả** — VLM đọc đúng **136/136 hàng có số × 2 cột** trên cả 10 trang, kể
+  cả DVT tr7 nơi Tesseract đọc 0/23. Hai lượt giống nhau từng ô.
+- Phủ 131/136 hàng `verified`, **đúng trần của đáp án** (5 hàng còn lại không
+  có ràng buộc hoặc xuyên trang, đã ghi ở lát 0). 0 hàng đúng bị loại.
+- Một hàng bị loại trên tr9: dòng chữ cái cột `A | B | C | D | 1 | 2` của mẫu
+  TT 107 (VLM chép cả nó) → `bad_ma_so` — loại đúng.
+- Fixture thô: `tests/fixtures/ocr_bang_that/vlm_raw/*_lan{1,2}.json` (20 tệp);
+  `test_vision_replay.py` chạy lại offline mọi lần bộ kiểm đổi.
+
+**Q7 — giải ngược, 3 lượt trên SCID tr12, bôi đen một ô:**
+- che thành phần 112 (54.180.578.081) → VLM trả `"-"`; che tổng 110 → `null`;
+  che ô "-" → `"-"`. **Không giải ngược**: nó không tính ra số bị che.
+- Nhưng `"-"` giả là một lỗi đọc thật: bộ kiểm cho `110 = 111 + 112` FAIL → loại
+  cụm 3 hàng (2 hàng đúng đi theo — chi phí phạm vi, đúng chiều).
+- `null` ở ô tổng lộ một lỗ của quy tắc hàng: cột kia đúng nên hàng 110 lẽ ra
+  `verified` trong khi trên giấy CÓ số. **Sửa**: ô `null` ở cột giá trị của
+  hàng có mã số → `unverified` (mẫu BCTC in "-" cho ô không nghiệp vụ, nên
+  null là "đọc không ra"). Replay lại 20 fixture Q8: không đổi kết quả.
+
+**Chạy đầu-cuối `parse_pdf("DVT_2022.pdf")` với VLM thật:** 23 giây, 539 block
+(476 `ocr`, 28 `vision_verified`, 35 `vision_unverified`), **4 lượt VLM**: tr7/8/9
+đúng như Q8; tr4 (văn xuôi nhắc "kết quả hoạt động") → VLM trả JSON không khai
+`cot_gia_tri` → giữ Tesseract, cảnh báo có tên — đúng đường thiết kế, chi phí
+một lượt. tr10 (B03) số học vouch cho Tesseract → không gọi. Block đích:
+
+    vision_verified | Chỉ tiêu: TỔNG CỘNG TÀI SẢN (50=01+05+10+20+25+30+40+45)
+    | Mã số: 50 | Số cuối năm: 79.611.117.804 | Số đầu năm: 69.862.687.223
+
+đúng đáp án tay viết trước khi nhìn output VLM.
+
+**Chưa chạy, nói thẳng:** nửa Open WebUI (đính tệp → hỏi "tổng tài sản đầu
+năm") cần backend chạy mã mới; backend lên cần cả cụm MCP Odoo (:8003…) của
+`start-dev.ps1` đang tắt, và tôi không tự khởi động hạ tầng ngoài worktree.
+Đường socket `PUT /v1/documents/process` không đổi từ lát 1 endpoint (đã nghiệm
+thu qua client thật của Open WebUI); phần đổi nằm trọn trong `parse_pdf`, đã
+chạy thật ở trên.
+
+Hai lỗi tự gây trong ngày, cùng một nguồn: heredoc bash biến `\n`/`\t` trong
+script vá thành ký tự thật → một comment vỡ thành dòng mã (`SyntaxError`, lộ
+khi khởi động backend, KHÔNG lộ ở 8 test đi qua chính hàm đó vì import thành
+công trước khi tôi vá), một đường dẫn `tmp-docs` thành `<tab>mp-docs` (không
+lộ vì có đường dự phòng). Từ giờ script vá đi qua tệp, không qua heredoc.
