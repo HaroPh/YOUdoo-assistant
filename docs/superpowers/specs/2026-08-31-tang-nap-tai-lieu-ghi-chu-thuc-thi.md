@@ -2457,3 +2457,45 @@ Việt. Hai đường: giữ *Bypass* (đơn giản, nhưng mọi tệp đính k
 prompt — tệp 60 trang là ~60k token mỗi câu hỏi), hoặc đổi embedding sang
 `bge-m3` qua Ollama (đã có trong stack) + bật hybrid search + nâng `top_k`.
 Cần đo trước khi chọn; là cấu hình, không phải mã.
+
+### Sau merge: đường sản xuất `:8002` với NTC_2025, và cấu hình truy hồi Open WebUI CHỐT (2026-09-11)
+
+`NTC_2025.pdf` (61 trang, 33 trang ảnh) qua backend `:8002` mã mới: 182.670 ký
+tự, **9 lượt VLM** (nhiều hơn 3 dự đoán từ corpus đo — trang thuyết minh ngang
+sau khi xoay OSD đọc ra tiêu đề "lưu chuyển tiền"/"kết quả hoạt động" trong
+phần thuyết minh; chi phí, không sai). Trang lưu chuyển tiền tệ ra 26 hàng VLM.
+Hàng mã 253 "Đầu tư góp vốn vào đơn vị khác" ở bảng cân đối đi đường Tesseract
+có số học bảo lãnh — ca "không gọi VLM" trả lời được: **10.296.000.000**.
+
+**Bypass Embedding and Retrieval là thuốc sai cho tệp lớn**, đúng như đã cảnh
+báo: với NTC mỗi câu hỏi gửi ~65k token; hai câu liên tiếp đẩy AI Studio lên
+**219,65K / 250K TPM**, `gemini-3.1-flash-lite` báo quá tải, Router tụt xuống
+3.5-flash-lite (đúng thiết kế, không mất câu trả lời — nhưng là dấu hiệu cấu
+hình sai).
+
+**Cấu hình chốt (Admin → Documents), đo trên cả DVT lẫn NTC, hai câu đều đúng:**
+
+| mục | giá trị | vì sao |
+|---|---|---|
+| Bypass Embedding and Retrieval | TẮT | tránh gửi trọn tệp |
+| Chế độ ngữ cảnh đầy đủ | TẮT | cùng bệnh |
+| Embedding engine / model | Ollama `host.docker.internal:11434` / **`bge-m3:latest`** | MiniLM là model tiếng Anh; bge-m3 là model backend ta đang dùng, có sẵn trong `youdoo-ollama` |
+| Kích thước lô embedding | 8 | 1 quá chậm cho 60 trang |
+| Tìm kiếm Hybrid | **BẬT** | BM25 bắt "mã số 253", "TỔNG CỘNG TÀI SẢN" theo từ |
+| Top K | **10** | một trang bảng thành 5–8 khối 1000 ký tự; 3 là quá ít |
+| chunk 1000 / overlap 100 / splitter mặc định | giữ | mỗi hàng chỉ tiêu ~120–200 ký tự |
+
+Tệp đính kèm trong chat phải upload lại sau khi đổi embedding. Với cấu hình
+này DVT trả **69.862.687.223**, NTC trả **10.296.000.000** kèm hai hàng dự phòng
+kề bên — đúng bảng. Đây là cấu hình của Open WebUI, nằm trong `webui.db` của
+họ, không có trong repo; ghi ở đây để ai dựng lại môi trường không phải đo lại.
+
+**Quan sát để soi sau (không ảnh hưởng câu trả lời):** trên trang lưu chuyển
+tiền của NTC, hai hàng VLM mang đuôi lạ (`… Chỉ tiêu: Lưu chuyển tiền`,
+`137.503.957.987 r`) — nhìn như VLM chép lẫn mảnh chữ ký/chân trang vào ô. Số
+vẫn qua cổng số học nên không sai; cần đọc fixture thô xem có phải siết
+`so_tien` (chỉ nhận chuỗi khớp `MONEY`/`-`) ở `rows_from_vision` không.
+Và một ô Tesseract trên trang được bảo lãnh đọc `10.298.000.000` thay
+`10.296.000.000` ở hàng KHÔNG có ràng buộc phủ — quy tắc vouch là theo TRANG
+(≥1 PASS, 0 FAIL), nên hàng không được phủ vẫn mang bậc `ocr` như trước đây;
+không phải hồi quy, nhưng là chỗ có thể hạ bậc theo hàng sau.
