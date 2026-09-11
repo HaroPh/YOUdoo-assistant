@@ -4,9 +4,13 @@ Module LÁ: nhận một ảnh PIL, trả về TỪ kèm toạ độ và độ t
 PDF, trang, DB, chunk, hay ai đang gọi mình. Tầng 1 (`document.py`) lo việc
 rasterise và đệm; tầng 2 (`rag/parse.py`) lo việc dùng chữ để làm gì.
 """
+import logging
 import os
+import re
 import shutil
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 TESSERACT_ENV = "TESSERACT_PATH"
 TESSDATA_ENV = "TESSDATA_PREFIX"
@@ -187,3 +191,24 @@ def ocr_image(img, *, lang: str | None = None, psm: int | None = None) -> OcrRes
     mean = sum(w.conf for w in words) / len(words) if words else 0.0
     return OcrResult(words=words, text="\n".join(words_to_lines(words)),
                      mean_conf=mean)
+
+
+def osd_rotation(img) -> int:
+    """Góc cần xoay (0/90/180/270, theo chiều kim đồng hồ như Tesseract báo
+    `Rotate:`) để trang đứng thẳng — `image_to_osd`, tất định, không tốn hạn mức.
+
+    Trả 0 khi OSD thất bại (thiếu `osd.traineddata`, ảnh quá ít chữ) — không
+    làm vỡ lượt đọc; tầng tài liệu ghi góc vào artifact nên "0 vì thất bại" và
+    "0 vì đứng thẳng" phân biệt được qua log, không qua dữ liệu. Đo 2026-09-11
+    trên 281 trang scan: 27 trang OSD báo xoay; 20 xoay thật (conf 43→86, số
+    tiền đọc được 0→20..57), 7 báo sai với độ tin OSD 0–3 — nên tầng tài liệu
+    KHÔNG tin OSD một chiều mà đọc cả hai hướng và giữ hướng tốt hơn."""
+    import pytesseract
+    _dam_bao_moi_truong()
+    try:
+        out = pytesseract.image_to_osd(img, config="--psm 0")
+    except Exception as e:                                  # noqa: BLE001
+        logger.warning("OSD thất bại, coi như không xoay: %s: %s", type(e).__name__, e)
+        return 0
+    m = re.search(r"Rotate:\s*(\d+)", out)
+    return int(m.group(1)) % 360 if m else 0
