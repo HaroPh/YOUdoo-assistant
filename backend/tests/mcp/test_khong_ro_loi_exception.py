@@ -66,7 +66,13 @@ MIEN_TRU = {
               "biết vì sao trang scan mất cấu trúc cột — mất chi tiết này thì "
               "cảnh báo trống rỗng, không nói gì hơn tên loại exception."),
     "backend/src/rag/parse.py": (
-        2, 2, "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
+        6, 6, "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
+              "task 4 spec 2026-09-04-tang-ocr §12) + BỐN chỗ trong "
+              "`_khoi_tu_vlm` (bậc 3, 2026-09-11: hết khoá/trần, phản hồi VLM "
+              "hỏng, gọi VLM thất bại, JSON không theo hợp đồng) — cùng một "
+              "đường `(where, reason)` → `IngestReport.warnings`; ba trong bốn "
+              "là thông điệp CỦA TA (độ dài phản hồi, số khoá), không phải nội "
+              "dung upstream. Lý lẽ gốc bên dưới áp cho cả sáu: "
               "task 4 spec 2026-09-04-tang-ocr §12): cảnh báo mang nguyên văn "
               "lỗi đọc-bằng-ảnh (thiếu binary tesseract, PDF/ảnh rasterise "
               "hỏng) được gói vào `(where, reason)` rồi cộng vào "

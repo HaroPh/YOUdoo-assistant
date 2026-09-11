@@ -7,14 +7,16 @@ from src.ocr import document
 from src.ocr.engine import OcrResult, OcrWord
 
 
-def test_artifact_version_da_len_3_va_region_mang_grid():
-    """Hình dạng vùng đổi (thêm `grid`) thì ARTIFACT_VERSION PHẢI tăng, nếu
-    không đệm cũ sẽ được đọc lại dưới hình dạng mới và sai âm thầm."""
-    assert document.ARTIFACT_VERSION == 3
+def test_artifact_version_da_len_4_va_page_mang_rotation():
+    """Hình dạng đổi (3: vùng thêm `grid`; 4: trang thêm `rotation` + đọc ở hướng
+    OSD) thì ARTIFACT_VERSION PHẢI tăng, nếu không đệm cũ sẽ được đọc lại dưới
+    hình dạng mới và sai âm thầm."""
+    assert document.ARTIFACT_VERSION == 4
     r = document.Region(kind="text", text="x", mean_conf=90.0,
                         bbox=(0, 0, 10, 10))
     assert r.grid == []
     assert r.grid_error is None
+    assert document.PageRead(page=1, regions=[r], mean_conf=90.0, tu_dem=False).rotation == 0
 
 
 def test_van_tay_doi_khi_DPI_doi(monkeypatch):
@@ -85,6 +87,7 @@ def _kq_gia(text="XIN CHAO", conf=91.5):
 def kho_tam(monkeypatch, tmp_path):
     monkeypatch.setenv(document.OCR_CACHE_ENV, str(tmp_path))
     monkeypatch.setattr(document.engine, "tesseract_version", lambda: "5.4.0")
+    monkeypatch.setattr(document.engine, "osd_rotation", lambda img: 0)
     return tmp_path
 
 
@@ -212,3 +215,59 @@ def test_read_page_tren_pdf_that(tmp_path, monkeypatch):
     # Đệm phải ghi ra tệp THẬT, không chỉ nằm trong bộ nhớ.
     assert len(os.listdir(tmp_path)) == 1
     assert document.read_page(os.path.join(KHO_LUAT, "luat-thuegtgt.pdf"), 1).tu_dem
+
+
+# --- xoay theo OSD (bậc 3 lát 1, đo 2026-09-11: 20/27 trang OSD báo xoay là thật) ----
+
+class _AnhGia:
+    def __init__(self, xoay=False):
+        self.xoay = xoay
+        self.size = (100, 200)
+
+    def rotate(self, goc, expand=False):
+        assert goc == -90 and expand
+        return _AnhGia(xoay=True)
+
+
+def _ocr_theo_huong(conf_thang: float, conf_xoay: float):
+    def _fake(img, **kw):
+        return _kq_gia(conf=conf_xoay if img.xoay else conf_thang)
+    return _fake
+
+
+def test_osd_bao_xoay_va_huong_xoay_doc_tot_hon_thi_giu_huong_xoay(kho_tam, monkeypatch, tmp_path):
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"%PDF-gia")
+    monkeypatch.setattr(document, "_anh_cua_trang", lambda p, n, dpi: _AnhGia())
+    monkeypatch.setattr(document.engine, "osd_rotation", lambda img: 90)
+    monkeypatch.setattr(document.engine, "ocr_image", _ocr_theo_huong(43.4, 86.5))   # DVT tr12 thật
+    a = document.read_page(str(pdf), 1)
+    assert a.rotation == 90 and a.mean_conf == 86.5
+    b = document.read_page(str(pdf), 1)
+    assert b.tu_dem and b.rotation == 90, "góc xoay phải nằm trong artifact đệm"
+
+
+def test_osd_bao_xoay_nhung_huong_xoay_doc_TE_hon_thi_giu_huong_goc(kho_tam, monkeypatch, tmp_path):
+    """7/27 trang OSD báo sai (độ tin 0–3): TDC tr25 conf 91,9 -> 46,9 sau khi xoay.
+    Không tin OSD một chiều — hướng xoay phải TỰ chứng minh bằng lượt đọc."""
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"%PDF-gia")
+    monkeypatch.setattr(document, "_anh_cua_trang", lambda p, n, dpi: _AnhGia())
+    monkeypatch.setattr(document.engine, "osd_rotation", lambda img: 90)
+    monkeypatch.setattr(document.engine, "ocr_image", _ocr_theo_huong(91.9, 46.9))
+    a = document.read_page(str(pdf), 1)
+    assert a.rotation == 0 and a.mean_conf == 91.9
+
+
+def test_osd_khong_xoay_thi_chi_doc_mot_lan(kho_tam, monkeypatch, tmp_path):
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"%PDF-gia")
+    dem = {"n": 0}
+
+    def _fake(img, **kw):
+        dem["n"] += 1
+        return _kq_gia()
+    monkeypatch.setattr(document, "_anh_cua_trang", lambda p, n, dpi: _AnhGia())
+    monkeypatch.setattr(document.engine, "ocr_image", _fake)
+    assert document.read_page(str(pdf), 1).rotation == 0
+    assert dem["n"] == 1, "không xoay thì không được tốn lượt Tesseract thứ hai"

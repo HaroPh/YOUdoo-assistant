@@ -1,0 +1,331 @@
+{
+ "o_boi_den": "thanh_phan_112",
+ "ma_so": "112",
+ "gia_tri_that": "54.180.578.081",
+ "vlm_tra": "-",
+ "giai_nguoc": false,
+ "ngay": "2026-09-11T10:19:14.014967+00:00",
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Số cuối kỳ\", \"Số đầu năm\"]},\n \"hang\": [{\"muc\": \"A -\",\n           \"nhan\": \"TÀI SẢN NGẮN HẠN\",\n           \"ma_so\": \"100\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"566.695.646.268\", \"534.044.474.982\"]},\n          {\"muc\": \"I.\",\n           \"nhan\": \"Tiền và các khoản tương đương tiền\",\n           \"ma_so\": \"110\",\n           \"thuyet_minh\": \"V.1\",\n           \"so_tien\": [\"148.058.124.948\", \"195.964.135.271\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Tiền\",\n           \"ma_so\": \"111\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"93.877.546.867\", \"70.395.375.193\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Các khoản tương đương tiền\",\n           \"ma_so\": \"112\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"125.568.760.078\"]},\n          {\"muc\": \"II.\",\n           \"nhan\": \"Đầu tư tài chính ngắn hạn\",\n           \"ma_so\": \"120\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"58.414.895.341\", \"26.139.361.644\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Chứng khoán kinh doanh\",\n           \"ma_so\": \"121\",\n           \"thuyet_minh\": \"V.2a\",\n           \"so_tien\": [\"13.859.293.545\", \"13.859.293.545\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Dự phòng giảm giá chứng khoán kinh doanh\",\n           \"ma_so\": \"122\",\n           \"thuyet_minh\": \"V.2a\",\n           \"so_tien\": [\"(6.638.593.545)\", \"(6.333.493.545)\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Đầu tư nắm giữ đến ngày đáo hạn ngắn hạn\",\n           \"ma_so\": \"123\",\n           \"thuyet_minh\": \"V.2b\",\n           \"so_tien\": [\"51.194.195.341\", \"18.613.561.644\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Dự phòng đầu tư nắm giữ đến ngày đáo hạn ngắn hạn\",\n           \"ma_so\": \"124\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Đầu tư ngắn hạn khác\",\n           \"ma_so\": \"125\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Dự phòng tổn thất các khoản đầu tư ngắn hạn khác\",\n           \"ma_so\": \"126\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"III.\",\n           \"nhan\": \"Các khoản phải thu ngắn hạn\",\n           \"ma_so\": \"130\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"341.024.047.877\", \"294.494.935.594\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Phải thu ngắn hạn của khách hàng\",\n           \"ma_so\": \"131\",\n           \"thuyet_minh\": \"V.3a\",\n           \"so_tien\": [\"29.105.730.373\", \"28.727.577.790\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Trả trước cho người bán ngắn hạn\",\n           \"ma_so\": \"132\",\n           \"thuyet_minh\": \"V.4\",\n           \"so_tien\": [\"85.049.513.953\", \"36.010.399.635\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Phải thu theo tiến độ hợp đồng xây dựng\",\n           \"ma_so\": \"134\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Phải thu ngắn hạn khác\",\n           \"ma_so\": \"135\",\n           \"thuyet_minh\": \"V.5a\",\n           \"so_tien\": [\"242.504.606.612\", \"245.392.761.230\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Dự phòng phải thu ngắn hạn khó đòi\",\n           \"ma_so\": \"136\",\n           \"thuyet_minh\": \"V.6\",\n           \"so_tien\": [\"(15.635.803.061)\", \"(15.635.803.061)\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Tài sản thiếu chờ xử lý\",\n           \"ma_so\": \"137\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"IV.\",\n           \"nhan\": \"Hàng tồn kho\",\n           \"ma_so\": \"140\",\n           \"thuyet_minh\": \"V.7\",\n           \"so_tien\": [\"1.149.465.347\", \"1.827.881.705\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Hàng tồn kho\",\n           \"ma_so\": \"141\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"1.149.465.347\", \"1.827.881.705\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Dự phòng giảm giá hàng tồn kho\",\n           \"ma_so\": \"142\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"V.\",\n           \"nhan\": \"Tài sản sinh học ngắn hạn\",\n           \"ma_so\": \"150\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Súc vật nuôi lấy sản phẩm một lần ngắn hạn\",\n           \"ma_so\": \"151\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Cây trồng theo mùa vụ hoặc lấy sản phẩm một lần ngắn hạn\",\n           \"ma_so\": \"152\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Dự phòng tổn thất tài sản sinh học ngắn hạn\",\n           \"ma_so\": \"153\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"VI.\",\n           \"nhan\": \"Tài sản ngắn hạn khác\",\n           \"ma_so\": \"160\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"18.049.112.755\", \"15.618.160.768\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Chi phí chờ phân bổ ngắn hạn\",\n           \"ma_so\": \"161\",\n           \"thuyet_minh\": \"V.8a\",\n           \"so_tien\": [\"1.488.008.392\", \"2.569.659.042\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Thuế giá trị gia tăng được khấu trừ\",\n           \"ma_so\": \"162\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"13.421.868.563\", \"9.505.902.598\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Thuế và các khoản khác phải thu Nhà nước\",\n           \"ma_so\": \"163\",\n           \"thuyet_minh\": \"V.16\",\n           \"so_tien\": [\"3.139.235.800\", \"3.542.599.128\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Giao dịch mua bán lại trái phiếu Chính phủ\",\n           \"ma_so\": \"164\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Tài sản ngắn hạn khác\",\n           \"ma_so\": \"165\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Số cuối kỳ",
+    "Số đầu năm"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "A -",
+    "nhan": "TÀI SẢN NGẮN HẠN",
+    "ma_so": "100",
+    "thuyet_minh": null,
+    "so_tien": [
+     "566.695.646.268",
+     "534.044.474.982"
+    ]
+   },
+   {
+    "muc": "I.",
+    "nhan": "Tiền và các khoản tương đương tiền",
+    "ma_so": "110",
+    "thuyet_minh": "V.1",
+    "so_tien": [
+     "148.058.124.948",
+     "195.964.135.271"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Tiền",
+    "ma_so": "111",
+    "thuyet_minh": null,
+    "so_tien": [
+     "93.877.546.867",
+     "70.395.375.193"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Các khoản tương đương tiền",
+    "ma_so": "112",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "125.568.760.078"
+    ]
+   },
+   {
+    "muc": "II.",
+    "nhan": "Đầu tư tài chính ngắn hạn",
+    "ma_so": "120",
+    "thuyet_minh": null,
+    "so_tien": [
+     "58.414.895.341",
+     "26.139.361.644"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Chứng khoán kinh doanh",
+    "ma_so": "121",
+    "thuyet_minh": "V.2a",
+    "so_tien": [
+     "13.859.293.545",
+     "13.859.293.545"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Dự phòng giảm giá chứng khoán kinh doanh",
+    "ma_so": "122",
+    "thuyet_minh": "V.2a",
+    "so_tien": [
+     "(6.638.593.545)",
+     "(6.333.493.545)"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Đầu tư nắm giữ đến ngày đáo hạn ngắn hạn",
+    "ma_so": "123",
+    "thuyet_minh": "V.2b",
+    "so_tien": [
+     "51.194.195.341",
+     "18.613.561.644"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Dự phòng đầu tư nắm giữ đến ngày đáo hạn ngắn hạn",
+    "ma_so": "124",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Đầu tư ngắn hạn khác",
+    "ma_so": "125",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Dự phòng tổn thất các khoản đầu tư ngắn hạn khác",
+    "ma_so": "126",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "III.",
+    "nhan": "Các khoản phải thu ngắn hạn",
+    "ma_so": "130",
+    "thuyet_minh": null,
+    "so_tien": [
+     "341.024.047.877",
+     "294.494.935.594"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Phải thu ngắn hạn của khách hàng",
+    "ma_so": "131",
+    "thuyet_minh": "V.3a",
+    "so_tien": [
+     "29.105.730.373",
+     "28.727.577.790"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Trả trước cho người bán ngắn hạn",
+    "ma_so": "132",
+    "thuyet_minh": "V.4",
+    "so_tien": [
+     "85.049.513.953",
+     "36.010.399.635"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Phải thu theo tiến độ hợp đồng xây dựng",
+    "ma_so": "134",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Phải thu ngắn hạn khác",
+    "ma_so": "135",
+    "thuyet_minh": "V.5a",
+    "so_tien": [
+     "242.504.606.612",
+     "245.392.761.230"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Dự phòng phải thu ngắn hạn khó đòi",
+    "ma_so": "136",
+    "thuyet_minh": "V.6",
+    "so_tien": [
+     "(15.635.803.061)",
+     "(15.635.803.061)"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Tài sản thiếu chờ xử lý",
+    "ma_so": "137",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "IV.",
+    "nhan": "Hàng tồn kho",
+    "ma_so": "140",
+    "thuyet_minh": "V.7",
+    "so_tien": [
+     "1.149.465.347",
+     "1.827.881.705"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Hàng tồn kho",
+    "ma_so": "141",
+    "thuyet_minh": null,
+    "so_tien": [
+     "1.149.465.347",
+     "1.827.881.705"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Dự phòng giảm giá hàng tồn kho",
+    "ma_so": "142",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "V.",
+    "nhan": "Tài sản sinh học ngắn hạn",
+    "ma_so": "150",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Súc vật nuôi lấy sản phẩm một lần ngắn hạn",
+    "ma_so": "151",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Cây trồng theo mùa vụ hoặc lấy sản phẩm một lần ngắn hạn",
+    "ma_so": "152",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Dự phòng tổn thất tài sản sinh học ngắn hạn",
+    "ma_so": "153",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "VI.",
+    "nhan": "Tài sản ngắn hạn khác",
+    "ma_so": "160",
+    "thuyet_minh": null,
+    "so_tien": [
+     "18.049.112.755",
+     "15.618.160.768"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Chi phí chờ phân bổ ngắn hạn",
+    "ma_so": "161",
+    "thuyet_minh": "V.8a",
+    "so_tien": [
+     "1.488.008.392",
+     "2.569.659.042"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Thuế giá trị gia tăng được khấu trừ",
+    "ma_so": "162",
+    "thuyet_minh": null,
+    "so_tien": [
+     "13.421.868.563",
+     "9.505.902.598"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Thuế và các khoản khác phải thu Nhà nước",
+    "ma_so": "163",
+    "thuyet_minh": "V.16",
+    "so_tien": [
+     "3.139.235.800",
+     "3.542.599.128"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Giao dịch mua bán lại trái phiếu Chính phủ",
+    "ma_so": "164",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Tài sản ngắn hạn khác",
+    "ma_so": "165",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   }
+  ]
+ }
+}

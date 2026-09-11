@@ -1,0 +1,182 @@
+{
+ "dap_an": "DVT_2022_tr8.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:14:43.344530+00:00",
+ "tokens": [
+  1549,
+  1140,
+  2689
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": \"B01/BCTC\",\n           \"thong_tu\": \"107/2017/TT-BTC\",\n           \"cot_gia_tri\": [\"Số cuối năm\", \"Số đầu năm\"]},\n \"hang\": [{\"muc\": null,\n           \"nhan\": \"NGUỒN VỐN\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": []},\n          {\"muc\": \"I\",\n           \"nhan\": \"Nợ phải trả\",\n           \"ma_so\": \"60\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"12.069.821.170\", \"24.517.272\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Phải trả nhà cung cấp\",\n           \"ma_so\": \"61\",\n           \"thuyet_minh\": \"III.7\",\n           \"so_tien\": [\"2.409.506.727\", \"-\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Các khoản nhận trước của khách hàng\",\n           \"ma_so\": \"62\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Phải trả nội bộ\",\n           \"ma_so\": \"63\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4\",\n           \"nhan\": \"Phải trả nợ vay\",\n           \"ma_so\": \"64\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5\",\n           \"nhan\": \"Tạm thu\",\n           \"ma_so\": \"65\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6\",\n           \"nhan\": \"Các quỹ đặc thù\",\n           \"ma_so\": \"66\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"7\",\n           \"nhan\": \"Các khoản nhận trước chưa ghi thu\",\n           \"ma_so\": \"67\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"8\",\n           \"nhan\": \"Nợ phải trả khác\",\n           \"ma_so\": \"68\",\n           \"thuyet_minh\": \"III.8\",\n           \"so_tien\": [\"9.660.314.443\", \"24.517.272\"]},\n          {\"muc\": \"II\",\n           \"nhan\": \"Vốn chủ sở hữu\",\n           \"ma_so\": \"70\",\n           \"thuyet_minh\": \"III.9\",\n           \"so_tien\": [\"67.541.296.634\", \"69.838.169.951\"]},\n          {\"muc\": \"1\",\n           \"nhan\": \"Nguồn vốn kinh doanh\",\n           \"ma_so\": \"71\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2\",\n           \"nhan\": \"Thặng dư / thâm hụt lũy kế\",\n           \"ma_so\": \"72\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(2.920.489.798)\", \"-\"]},\n          {\"muc\": \"3\",\n           \"nhan\": \"Các quỹ\",\n           \"ma_so\": \"73\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"70.461.786.432\", \"69.838.169.951\"]},\n          {\"muc\": \"4\",\n           \"nhan\": \"Tài sản thuần khác\",\n           \"ma_so\": \"74\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": null,\n           \"nhan\": \"TỔNG CỘNG NGUỒN VỐN\\n(80=60+70)\",\n           \"ma_so\": \"80\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"79.611.117.804\", \"69.862.687.223\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": "B01/BCTC",
+   "thong_tu": "107/2017/TT-BTC",
+   "cot_gia_tri": [
+    "Số cuối năm",
+    "Số đầu năm"
+   ]
+  },
+  "hang": [
+   {
+    "muc": null,
+    "nhan": "NGUỒN VỐN",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": []
+   },
+   {
+    "muc": "I",
+    "nhan": "Nợ phải trả",
+    "ma_so": "60",
+    "thuyet_minh": null,
+    "so_tien": [
+     "12.069.821.170",
+     "24.517.272"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Phải trả nhà cung cấp",
+    "ma_so": "61",
+    "thuyet_minh": "III.7",
+    "so_tien": [
+     "2.409.506.727",
+     "-"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Các khoản nhận trước của khách hàng",
+    "ma_so": "62",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Phải trả nội bộ",
+    "ma_so": "63",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4",
+    "nhan": "Phải trả nợ vay",
+    "ma_so": "64",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5",
+    "nhan": "Tạm thu",
+    "ma_so": "65",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6",
+    "nhan": "Các quỹ đặc thù",
+    "ma_so": "66",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "7",
+    "nhan": "Các khoản nhận trước chưa ghi thu",
+    "ma_so": "67",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "8",
+    "nhan": "Nợ phải trả khác",
+    "ma_so": "68",
+    "thuyet_minh": "III.8",
+    "so_tien": [
+     "9.660.314.443",
+     "24.517.272"
+    ]
+   },
+   {
+    "muc": "II",
+    "nhan": "Vốn chủ sở hữu",
+    "ma_so": "70",
+    "thuyet_minh": "III.9",
+    "so_tien": [
+     "67.541.296.634",
+     "69.838.169.951"
+    ]
+   },
+   {
+    "muc": "1",
+    "nhan": "Nguồn vốn kinh doanh",
+    "ma_so": "71",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2",
+    "nhan": "Thặng dư / thâm hụt lũy kế",
+    "ma_so": "72",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(2.920.489.798)",
+     "-"
+    ]
+   },
+   {
+    "muc": "3",
+    "nhan": "Các quỹ",
+    "ma_so": "73",
+    "thuyet_minh": null,
+    "so_tien": [
+     "70.461.786.432",
+     "69.838.169.951"
+    ]
+   },
+   {
+    "muc": "4",
+    "nhan": "Tài sản thuần khác",
+    "ma_so": "74",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "TỔNG CỘNG NGUỒN VỐN\n(80=60+70)",
+    "ma_so": "80",
+    "thuyet_minh": null,
+    "so_tien": [
+     "79.611.117.804",
+     "69.862.687.223"
+    ]
+   }
+  ]
+ }
+}

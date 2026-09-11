@@ -12,9 +12,9 @@ from .pdf_table import (bat_dong_so_cot, checksum_gap, column_names,
                         hang_khong_gia_tri, merge_table_rows, row_to_text,
                         split_header_body)
 from .xlsx_header import compose_two_tier, find_header
-from src.ocr import table
-from src.ocr.document import read_page
-from src.ocr.engine import TesseractMissing
+from src.ocr import so_hoc, table, trigger, vision
+from src.ocr.document import _anh_cua_trang, read_page
+from src.ocr.engine import OCR_DPI, TesseractMissing
 
 # Nhánh số CHỈ nhận numbering đa cấp ("1.1", "3.2.1"), sub-level 1-2 chữ số:
 # numbering 1 cấp ("1. ...") là KHOẢN (nội dung) trong luật VN chứ không phải
@@ -478,10 +478,11 @@ def _khoi_bang(plumber_page, bang, pageno: int
 
 def _doc_trang_bang_anh(path: str, pageno: int
                         ) -> tuple[list[str], float | None,
-                                   tuple[str, str] | None, list[list[str]]]:
+                                   tuple[str, str] | None, list[list[str]], object]:
     """Đọc MỘT trang không có lớp text bằng ảnh.
 
-    Trả `(dòng, mean_conf, cảnh_báo, grid)`. Hỏng thì to tiếng NHƯNG không làm
+    Trả `(dòng, mean_conf, cảnh_báo, grid, PageRead|None)` — phần tử cuối là
+    lượt đọc thô, cho bậc 3 quyết định kích hoạt VLM (`trigger.decide`). Hỏng thì to tiếng NHƯNG không làm
     vỡ cả lượt nạp: cảnh báo mang tên trang đi tiếp qua `IngestReport`, và nếu
     cuối cùng cả tệp không sinh được block nào thì `_ingest_known` đã sẵn ném
     `IngestError` — tệp bị TỪ CHỐI CÓ TÊN, đúng hạ tầng Kế hoạch 1 dựng
@@ -495,17 +496,17 @@ def _doc_trang_bang_anh(path: str, pageno: int
         kq = read_page(path, pageno)
     except TesseractMissing as e:
         return [], None, (f"trang {pageno}",
-                          f"trang không có lớp text và không đọc được bằng ảnh: {e}"), []
+                          f"trang không có lớp text và không đọc được bằng ảnh: {e}"), [], None
     except Exception as e:                      # noqa: BLE001
         # Một trang hỏng (PDF vỡ, ảnh không rasterise được) không được kéo
         # theo cả tài liệu — nhưng phải GỌI TÊN, không nuốt.
         return [], None, (f"trang {pageno}",
-                          f"đọc trang bằng ảnh thất bại: {type(e).__name__}: {e}"), []
+                          f"đọc trang bằng ảnh thất bại: {type(e).__name__}: {e}"), [], None
     lines = _lines_tu_text(kq.text)
     if not lines:
         return [], None, (f"trang {pageno}",
                           "đọc bằng ảnh ra text RỖNG — trang có thể là ảnh trắng "
-                          "hoặc bản scan hỏng; KHÔNG nạp gì cho trang này"), []
+                          "hoặc bản scan hỏng; KHÔNG nạp gì cho trang này"), [], kq
     grid_error = next((r.grid_error for r in kq.regions if r.grid_error), None)
     if grid_error:
         # Bậc 2 hỏng: nội dung vẫn về đủ (dòng phẳng), chỉ mất cấu trúc cột.
@@ -513,9 +514,77 @@ def _doc_trang_bang_anh(path: str, pageno: int
         # (trả `[]` cho dòng): ở đây `lines` vẫn KHÔNG rỗng, có chủ ý.
         return lines, kq.mean_conf, (
             f"trang {pageno}",
-            f"đọc được chữ nhưng KHÔNG dựng được cấu trúc bảng: {grid_error}"), []
+            f"đọc được chữ nhưng KHÔNG dựng được cấu trúc bảng: {grid_error}"), [], kq
     grid = next((r.grid for r in kq.regions if len(r.grid) > 1), [])
-    return lines, kq.mean_conf, None, grid
+    return lines, kq.mean_conf, None, grid, kq
+
+
+# Bậc 3: nhà máy dựng bộ đọc VLM cho MỘT lượt `parse_pdf`. Tiêm được — test
+# thay bằng bộ đọc có client giả (cùng khuôn `Router(client_factory=…)`).
+# Mặc định: khoá riêng `YOUDOO_VLM_API_KEY*`, không có thì bộ đọc tự tắt.
+VISION_READER_FACTORY = lambda: vision.VisionReader()   # noqa: E731
+
+_VLM_LABEL_COLUMNS = ("STT", "Chỉ tiêu", "Mã số", "Thuyết minh")
+
+
+def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[str, str] | None, bool]:
+    """Đọc MỘT trang bằng VLM, kiểm bằng số học, dựng block theo trạng thái hàng.
+
+    Trả `(blocks, cảnh_báo, dừng_vlm)`. `blocks` rỗng = trang này không nhận gì
+    từ VLM (người gọi giữ đường Tesseract). `dừng_vlm` = hết khoá / chạm trần /
+    không cấu hình: phần còn lại lượt nạp không gọi nữa, đi Tesseract.
+
+    Mỗi hàng một block `atomic` (như `_khoi_tu_luoi_anh`) để quy tắc gộp bậc
+    xấu-nhất của chunking không kéo một hàng `verified` xuống vì hàng
+    `unverified` kề bên. Hàng REJECTED KHÔNG lưu — cảnh báo nêu mã số + lý do.
+    Tesseract đồng ý không nâng bậc (F1). Một xuất xứ mỗi trang: trang đi VLM
+    thì KHÔNG trộn hàng Tesseract.
+    """
+    try:
+        img = _anh_cua_trang(path, pageno, OCR_DPI)
+        if kq.rotation:
+            img = img.rotate(-kq.rotation, expand=True)
+        t = reader.read_table(vision.page_png(img))
+    except vision.VisionUnavailable:
+        return [], None, True                       # trạng thái cấu hình, đã log một lần
+    except (vision.VisionQuotaExhausted, vision.VisionCapReached) as e:
+        return [], (f"trang {pageno} (VLM)", f"dừng VLM cho phần còn lại: {e}"), True
+    except vision.VisionBadResponse as e:
+        return [], (f"trang {pageno} (VLM)", f"phản hồi không dùng được, giữ Tesseract: {e}"), False
+    except Exception as e:                          # noqa: BLE001 — timeout, mạng
+        return [], (f"trang {pageno} (VLM)",
+                    f"gọi VLM thất bại, giữ Tesseract: {type(e).__name__}: {e}"), False
+    try:
+        rows, cols, issues = so_hoc.rows_from_vision(t.payload)
+    except ValueError as e:
+        return [], (f"trang {pageno} (VLM)", f"JSON không theo hợp đồng, giữ Tesseract: {e}"), False
+    a = so_hoc.assess_page(rows, cols, strict_absent=False, extra_issues=issues)
+    columns = [*_VLM_LABEL_COLUMNS, *cols]
+    blocks: list[dict] = []
+    loai: list[str] = []
+    for rv in a.report.rows:
+        r = rows[rv.index]
+        if rv.status == so_hoc.RowStatus.REJECTED:
+            loai.append(f"{rv.ma_so or '?'}: {rv.reason}")
+            continue
+        if rv.status == so_hoc.RowStatus.LABEL:
+            text = (r.get("chi_tieu") or "").strip()
+            if not text:
+                continue
+            blocks.append({"text": text, "heading_level": heading_level(text), "page": pageno,
+                           "source_kind": so_hoc.RowStatus.UNVERIFIED, "ocr_conf": None})
+            continue
+        # VLM chép nhãn xuống dòng như trên giấy ("TỔNG CỘNG TÀI SẢN" rồi
+        # "(50=01+...)" ở dòng dưới); một block là một dòng, nên gộp khoảng trắng.
+        row = [r.get("muc") or "", " ".join((r.get("chi_tieu") or "").split()), r.get("ma_so") or "",
+               r.get("thuyet_minh") or "", *(r.get(c) or "" for c in cols)]
+        blocks.append({"text": row_to_text(row, columns, compact=True), "heading_level": None,
+                       "page": pageno, "atomic": True, "source_kind": rv.status, "ocr_conf": None})
+    mau = a.form.mau if a.form else "-"
+    canh_bao = (f"trang {pageno} (VLM)",
+                f"model {t.model}/{t.prompt_version}, bảng {mau} · {a.report.summary}"
+                + (f" · loại: {'; '.join(loai[:6])}{' …' if len(loai) > 6 else ''}" if loai else ""))
+    return blocks, canh_bao, False
 
 
 def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
@@ -615,6 +684,9 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
         page_bangs: list[list] = []
         ocr_pages: dict[int, float | None] = {}
         grid_by_page: dict[int, list[list[str]]] = {}
+        vlm_by_page: dict[int, list[dict]] = {}
+        vlm_reader = None
+        vlm_con_chay = True
         for pageno, page in enumerate(reader.pages, start=1):
             text_toan_trang = _lines_tu_text(page.extract_text() or "")
             # "Rỗng" nghĩa là KHÔNG CÒN DÒNG NÀO sau bước strip — không phải
@@ -624,7 +696,7 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
             # hiệu chỉnh N, và hằng số rút từ không khí là thứ dự án này cấm
             # (spec 2026-09-04-tang-ocr §11).
             if not text_toan_trang:
-                text_toan_trang, conf, canh_bao, ocr_grid = \
+                text_toan_trang, conf, canh_bao, ocr_grid, kq_anh = \
                     _doc_trang_bang_anh(path, pageno)
                 if canh_bao:
                     all_warnings.append(canh_bao)
@@ -632,6 +704,24 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                     ocr_pages[pageno] = conf
                     if ocr_grid and max(len(h) for h in ocr_grid) > 1:
                         grid_by_page[pageno] = ocr_grid
+                # Bậc 3: trang báo cáo chính mà số học không vouch được cho
+                # Tesseract -> VLM đọc, số qua cổng số học mới được lưu.
+                if kq_anh is not None and text_toan_trang and vlm_con_chay:
+                    qd = trigger.decide(kq_anh.text, ocr_grid)
+                    if qd.call_vlm:
+                        if vlm_reader is None:
+                            vlm_reader = VISION_READER_FACTORY()
+                        vlm_blocks, vlm_canh_bao, dung = _khoi_tu_vlm(vlm_reader, path, pageno, kq_anh)
+                        if vlm_canh_bao:
+                            all_warnings.append(vlm_canh_bao)
+                        if dung:
+                            vlm_con_chay = False
+                        if vlm_blocks:
+                            vlm_by_page[pageno] = vlm_blocks
+                    elif qd.kind is not None:
+                        # Trang báo cáo chính đi Tesseract có số học bảo lãnh:
+                        # nói ra để lượt "không gọi VLM" khác lượt "không xét".
+                        all_warnings.append((f"trang {pageno}", qd.reason))
             pages_cho_furniture.append(text_toan_trang)
             plumber_page = pdf.pages[pageno - 1]
             bangs = sorted(plumber_page.find_tables(), key=lambda b: b.bbox[1])
@@ -688,6 +778,9 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
         for pageno, lines in enumerate(pages, start=1):
             plumber_page = pdf.pages[pageno - 1]
             bangs = page_bangs[pageno - 1]
+            if pageno in vlm_by_page:
+                blocks.extend(vlm_by_page[pageno])      # một xuất xứ mỗi trang
+                continue
             if pageno in grid_by_page:
                 blocks.extend(_khoi_tu_luoi_anh(grid_by_page[pageno], pageno,
                                                 furniture,

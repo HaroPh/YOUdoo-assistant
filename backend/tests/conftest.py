@@ -53,6 +53,19 @@ def friction_log_path(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def vlm_keys_off_unless_live(request, monkeypatch):
+    """Khoá VLM (`YOUDOO_VLM_API_KEY*`) chỉ tồn tại trong test đánh dấu `live`.
+    Không có fixture này, một test đơn vị đi qua `parse_pdf` với trang có tiêu
+    đề báo cáo chính sẽ gọi Gemini THẬT khi .env có khoá — đúng lớp sự cố
+    "pytest trần chạm API thật" đã xảy ra một lần trong repo. Test không-live
+    muốn VLM phải tiêm client giả qua `parse.VISION_READER_FACTORY`."""
+    if request.node.get_closest_marker("live") is None:
+        monkeypatch.delenv("YOUDOO_VLM_API_KEY", raising=False)
+        for i in range(2, 10):
+            monkeypatch.delenv(f"YOUDOO_VLM_API_KEY_{i}", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def semantic_resolve_off(monkeypatch):
     """resolve_entity đi đường legacy từng bit trong test — không PG/Ollama,
     không bao giờ chạm reranker 2.3GB (spec 2026-07-13 §11). Test nào bật

@@ -24,7 +24,10 @@ OCR_CACHE_ENV = "YOUDOO_OCR_CACHE"
 # 3 (2026-09-06, bậc 2): vùng mang thêm trường "grid" (lưới bảng dựng từ toạ
 # độ). Hình dạng artifact đã đổi, phải bump — đệm cũ tự lạc khoá qua dấu vân
 # tay, không cần xoá tay.
-ARTIFACT_VERSION = 3
+# 4 (2026-09-11, bậc 3 lát 1): trang được dò xoay bằng OSD và đọc ở hướng tốt
+# hơn; artifact mang thêm trường "rotation" (góc đã xoay, 0 nếu không). Hình
+# dạng đổi VÀ nội dung đọc có thể đổi trên trang xoay -> bump.
+ARTIFACT_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,7 @@ class PageRead:
     regions: list[Region]
     mean_conf: float
     tu_dem: bool
+    rotation: int = 0       # góc đã xoay ảnh trước khi đọc (0/90/180/270), theo OSD
 
     @property
     def text(self) -> str:
@@ -113,7 +117,8 @@ def _tu_json(data: dict) -> PageRead:
                       grid=r.get("grid", []), grid_error=r.get("grid_error"))
                for r in data["regions"]]
     return PageRead(page=data["page"], regions=regions,
-                    mean_conf=data["mean_conf"], tu_dem=True)
+                    mean_conf=data["mean_conf"], tu_dem=True,
+                    rotation=data.get("rotation", 0))
 
 
 def _ghi_nguyen_tu(duong: str, data: dict) -> None:
@@ -152,6 +157,18 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
 
     img = _anh_cua_trang(path, pageno, dpi)
     kq = engine.ocr_image(img)
+    rotation = 0
+    goc = engine.osd_rotation(img)
+    if goc:
+        # OSD nói trang xoay. KHÔNG tin một chiều: đo 2026-09-11 trên 281 trang
+        # scan, 20/27 báo đúng (conf 43→86, số tiền đọc được 0→20..57), 7 báo sai
+        # (conf 92→47). Đọc cả hướng đã xoay và giữ hướng có conf cao hơn —
+        # đây là so sánh HAI LƯỢT ĐỌC CÙNG TRANG chênh ≥ 30 điểm, không phải
+        # dùng conf làm thước chất lượng đọc (đã bị bác ở lượt PSM).
+        xoay = img.rotate(-goc, expand=True)        # PIL xoay ngược chiều kim đồng hồ
+        kq2 = engine.ocr_image(xoay)
+        if kq2.mean_conf > kq.mean_conf:
+            img, kq, rotation = xoay, kq2, goc
     rong, cao = getattr(img, "size", (0, 0))
     # Bậc 2: dựng lưới từ toạ độ. Hỏng thì KHÔNG làm vỡ lượt đọc — mất cấu
     # trúc còn hơn mất nội dung (spec §9). Nhưng KHÔNG được nuốt im lặng: ghi
@@ -170,7 +187,7 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
                             "w": w.width, "h": w.height,
                             "g": list(w.line_id)} for w in kq.words],
                     grid=grid, grid_error=grid_error)
-    data = {"artifact_version": ARTIFACT_VERSION, "page": pageno,
+    data = {"artifact_version": ARTIFACT_VERSION, "page": pageno, "rotation": rotation,
             "config": {"dpi": dpi, "psm": engine.OCR_PSM,
                        "lang": engine.OCR_LANG,
                        "tesseract": engine.tesseract_version()},
@@ -181,4 +198,4 @@ def read_page(path: str, pageno: int, *, dpi: int = engine.OCR_DPI) -> PageRead:
                          "grid": region.grid, "grid_error": region.grid_error}]}
     _ghi_nguyen_tu(duong, data)
     return PageRead(page=pageno, regions=[region], mean_conf=kq.mean_conf,
-                    tu_dem=False)
+                    tu_dem=False, rotation=rotation)

@@ -1,0 +1,195 @@
+{
+ "dap_an": "SCID_2026H1_tr15.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:16:51.723358+00:00",
+ "tokens": [
+  1549,
+  1319,
+  2868
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Số cuối kỳ\", \"Số đầu năm\"]},\n \"hang\": [{\"muc\": \"D -\",\n           \"nhan\": \"VỐN CHỦ SỞ HỮU\",\n           \"ma_so\": \"400\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"2.467.238.477.750\", \"2.444.332.669.092\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Vốn góp của chủ sở hữu\",\n           \"ma_so\": \"411\",\n           \"thuyet_minh\": \"V.21\",\n           \"so_tien\": [\"1.000.000.000.000\", \"1.000.000.000.000\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Cổ phiếu phổ thông có quyền biểu quyết\",\n           \"ma_so\": \"411a\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"1.000.000.000.000\", \"1.000.000.000.000\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Cổ phiếu ưu đãi\",\n           \"ma_so\": \"411b\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Thặng dư vốn\",\n           \"ma_so\": \"412\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Quyền chọn chuyển đổi trái phiếu\",\n           \"ma_so\": \"413\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Vốn khác của chủ sở hữu\",\n           \"ma_so\": \"414\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Cổ phiếu mua lại của chính mình\",\n           \"ma_so\": \"415\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Chênh lệch đánh giá lại tài sản\",\n           \"ma_so\": \"416\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"7.\",\n           \"nhan\": \"Chênh lệch tỷ giá hối đoái\",\n           \"ma_so\": \"417\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"8.\",\n           \"nhan\": \"Quỹ đầu tư phát triển\",\n           \"ma_so\": \"418\",\n           \"thuyet_minh\": \"V.21\",\n           \"so_tien\": [\"947.826.614.327\", \"895.924.527.529\"]},\n          {\"muc\": \"9.\",\n           \"nhan\": \"Quỹ khác thuộc vốn chủ sở hữu\",\n           \"ma_so\": \"419\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"10.\",\n           \"nhan\": \"Lợi nhuận sau thuế chưa phân phối\",\n           \"ma_so\": \"420\",\n           \"thuyet_minh\": \"V.21\",\n           \"so_tien\": [\"519.411.863.423\", \"548.408.141.563\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Lợi nhuận sau thuế chưa phân phối\\nlũy kế đến cuối kỳ trước\",\n           \"ma_so\": \"420a\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"490.277.804.349\", \"548.408.141.563\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Lợi nhuận sau thuế chưa phân phối kỳ này\",\n           \"ma_so\": \"420b\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"29.134.059.074\", \"-\"]},\n          {\"muc\": \"11.\",\n           \"nhan\": \"Lợi ích cổ đông không kiểm soát\",\n           \"ma_so\": \"429\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": null,\n           \"nhan\": \"TỔNG CỘNG NGUỒN VỐN\",\n           \"ma_so\": \"440\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"2.650.517.727.926\", \"2.612.157.923.416\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Số cuối kỳ",
+    "Số đầu năm"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "D -",
+    "nhan": "VỐN CHỦ SỞ HỮU",
+    "ma_so": "400",
+    "thuyet_minh": null,
+    "so_tien": [
+     "2.467.238.477.750",
+     "2.444.332.669.092"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Vốn góp của chủ sở hữu",
+    "ma_so": "411",
+    "thuyet_minh": "V.21",
+    "so_tien": [
+     "1.000.000.000.000",
+     "1.000.000.000.000"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Cổ phiếu phổ thông có quyền biểu quyết",
+    "ma_so": "411a",
+    "thuyet_minh": null,
+    "so_tien": [
+     "1.000.000.000.000",
+     "1.000.000.000.000"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Cổ phiếu ưu đãi",
+    "ma_so": "411b",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Thặng dư vốn",
+    "ma_so": "412",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Quyền chọn chuyển đổi trái phiếu",
+    "ma_so": "413",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Vốn khác của chủ sở hữu",
+    "ma_so": "414",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Cổ phiếu mua lại của chính mình",
+    "ma_so": "415",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Chênh lệch đánh giá lại tài sản",
+    "ma_so": "416",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "7.",
+    "nhan": "Chênh lệch tỷ giá hối đoái",
+    "ma_so": "417",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "8.",
+    "nhan": "Quỹ đầu tư phát triển",
+    "ma_so": "418",
+    "thuyet_minh": "V.21",
+    "so_tien": [
+     "947.826.614.327",
+     "895.924.527.529"
+    ]
+   },
+   {
+    "muc": "9.",
+    "nhan": "Quỹ khác thuộc vốn chủ sở hữu",
+    "ma_so": "419",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "10.",
+    "nhan": "Lợi nhuận sau thuế chưa phân phối",
+    "ma_so": "420",
+    "thuyet_minh": "V.21",
+    "so_tien": [
+     "519.411.863.423",
+     "548.408.141.563"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Lợi nhuận sau thuế chưa phân phối\nlũy kế đến cuối kỳ trước",
+    "ma_so": "420a",
+    "thuyet_minh": null,
+    "so_tien": [
+     "490.277.804.349",
+     "548.408.141.563"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Lợi nhuận sau thuế chưa phân phối kỳ này",
+    "ma_so": "420b",
+    "thuyet_minh": null,
+    "so_tien": [
+     "29.134.059.074",
+     "-"
+    ]
+   },
+   {
+    "muc": "11.",
+    "nhan": "Lợi ích cổ đông không kiểm soát",
+    "ma_so": "429",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "TỔNG CỘNG NGUỒN VỐN",
+    "ma_so": "440",
+    "thuyet_minh": null,
+    "so_tien": [
+     "2.650.517.727.926",
+     "2.612.157.923.416"
+    ]
+   }
+  ]
+ }
+}

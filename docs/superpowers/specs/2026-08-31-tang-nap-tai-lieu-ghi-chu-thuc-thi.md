@@ -2196,3 +2196,264 @@ Không phải thay đổi hành vi, có giá trị độc lập với PSM:
   nào gọi**, nên chưa bao giờ chặn được gì. Đã nối vào suite (85/85, 0,04s,
   không cần tesseract nên THỰC SỰ chạy ở CI). Đã thử phá: đổi một chữ số ở chỉ
   tiêu 100 làm cổng đỏ.
+
+## OCR bậc 3 — lát 0: bộ kiểm số học ĐI TRƯỚC ống dẫn VLM (2026-09-11)
+
+Spec: `2026-09-11-ocr-bac-3-vlm-kiem-so-hoc-design.md`. Lát 0 không gọi API nào.
+Nó dựng cái thước để lượt gọi VLM đầu tiên (lát 2) đã có thứ bác được nó. Mọi số
+dưới đây đo trên **10 trang đáp án tay** (`tests/fixtures/ocr_bang_that/*.json`:
+7 trang SCID TT 99/2025, 3 trang DVT TT 107/2017 viết mới từ ảnh 200 DPI trước
+khi nhìn output VLM nào), chạy trong CI vì không cần tesseract.
+
+### Cái ship: `src/ocr/so_hoc.py`, module lá
+
+| tầng | hàm | đo trên đáp án |
+|---|---|---|
+| ô tiền | `parse_money` | `"(58.099.826.029)"` → âm; `"19078257365"` (không phân cách) → BAD; chữ O → BAD |
+| (e1) công thức in | `parse_printed_formula` — đếm ngoặc, dấu âm, ngoặc lồng | 0 FAIL trên 10 trang; phủ 15/15 ràng buộc nội trang của DVT (TT 107 in công thức ở MỌI hàng tổng) |
+| (e2) cấu trúc | `check_structure` — width / bad_money / dup_ma_so / bad_ma_so / non_monotonic | 0 vi phạm trên 10 trang đáp án |
+| (b) phân cấp | `derive_hierarchy` — 5 mức `A-` > `I.` > `1.` > `a)` > `-`/không | B01: suy lại 32/35 ràng buộc tay, **0 sai**; B02/B03: sai 5 lần → lý do giới hạn vào B01, ghi thành test "phải đỏ" |
+| (c) bảng thông tư | `form_table("99/2025/TT-BTC", "B01-DN")` đọc `src/ocr/ma_so/tt99.json` | riêng (c) trên SCID: 33/40, 0 FAIL |
+| gộp | `merge_constraints` — (e1) > (c) > (b) theo tổng; cùng tầng giữ cả hai | (e1)∪(c)∪(b): **48/55** ràng buộc tay nội trang |
+| hàng | `classify_rows` → `PageReport` | chế độ VLM (`strict_absent=False`): **131/136 hàng có số `vision_verified`, 0 hàng đúng bị loại** |
+
+5 hàng có số không xác minh được: 52 (DVT tr9, phân phối kết quả — không có
+ràng buộc nào), 70/71 (SCID tr16, lãi trên cổ phiếu), 280/440/B03:50 (tổng xuyên
+trang — thành phần ở trang trước). Tất cả ở `vision_unverified`, không mất.
+
+### Bảng (c) suy từ mẫu chính thức, và chỗ phải gõ tay
+
+`tools/derive_form_table.py` đọc `tmp-docs/b01-dn.docx`, `b03-dn-truc-tiep.docx`,
+`b03-dn-pp-gian-tiep.docx` (sha256 ghi vào JSON), chạy CHÍNH `derive_hierarchy`
+production lên mẫu sạch cho B01 (28 ràng buộc, 2 in sẵn), quy tắc thành-phần-
+trước-tổng cho B03 (gián tiếp có tổng phụ chạy `08 = 01 + 02..07`,
+`20 = 08 + 09..17`). **B02-DN gõ tay**: tmp-docs không có mẫu KQKD (`b02-dn.docx`
+là B01 dán nhầm — sha256 trùng; `B02a-DN.docx` là B01-DNKLT), và quan hệ có dấu
+`10 = 01 − 02` không nằm trong bố cục mẫu mà trong văn bản hướng dẫn. JSON ghi
+`"nguon": "tay — ..."` để không ai tưởng nó suy từ mẫu. TT 107 **không có bảng**:
+(e1) đã phủ 15/15 trên DVT, bảng sẽ không đo được gì — thêm khi có trang TT 107
+kích hoạt mà (e1) không phủ.
+
+Hai lỗi của chính bộ suy lộ ra **khi sinh bảng từ mẫu**, không phải khi chạy
+trên đáp án: (1) mẫu B01 có mức `a)`/`b)` (231 = 232 + 233, 233 = 234 + 235) mà
+bộ suy 4 mức bỏ qua → dashes gắn nhầm lên `1.`; (2) hàng "TỔNG CỘNG NGUỒN VỐN
+(440 = 300 + 400)" không STT gắn làm con của `10.` (420) → `420 = 420a + 420b +
+440`. Sửa: hàng mang công thức in của chính nó không là con của ai. Cả hai lỗi
+**không đỏ** trên 10 trang đáp án vì các hàng liên quan đều "-" — một lần nữa
+đáp án chỉ bắt được sai ở chỗ có số.
+
+### Q4 — áp bảng SAI: 0 PASS khác 0 trên 6 cặp
+
+TT 99 B01 lên DVT tr7/tr8 (TT 107): toàn NA (mã số khác hệ). TT 99 B02 lên DVT
+tr9, B03 lên SCID tr16, B02 lên SCID tr17, B03 lên SCID tr12: **FAIL 6–8, PASS
+0**. Chọn sai thông tư **không** sinh `vision_verified` giả; nó loại hàng đúng —
+chi phí phạm vi, không phải chi phí đúng-sai. Vì thế cổng chọn thông tư ở lát 3
+không cần "cứng": sai thì mất phủ và cảnh báo nói ra, không có gì lọt.
+
+### Q5 — 11 ca phá, đỏ đúng chỗ, và hai điểm mù ghi thành test
+
+Đổi một chữ số ở 11 → loại đúng cụm `10 = 11 + 12 + 13 + 14` (5 hàng), nêu công
+thức và độ lệch −1 ở đúng cột, **và 50 vẫn xác minh** vì ô của 10 không đổi (tôi
+viết test kỳ vọng 01 bị loại — sai, bộ kiểm chính xác hơn tôi). Đổi tổng 31 →
+cụm 31 và cụm 30 (vì 31 là thành phần của 30) đi. Đảo cột một hàng → FAIL cả hai
+cột. Ô rác → loại riêng hàng, ràng buộc chứa nó thành NA (không kết luận sai về
+hàng khác). Hàng lặp → loại bản lặp, giữ bản gốc, **không** trần trang (lúc đầu
+"14 sau 14" kích `non_monotonic` — sửa). Hai điểm mù:
+
+- **Đảo cột MỌI hàng → số học QUA.** Không phải việc của số học; lát 2 dùng
+  x-toạ-độ token Tesseract. Test tồn tại để không ai kỳ vọng nhầm.
+- **(b) mù với hàng bị rơi**: suy từ hàng có mặt, nên rơi hàng 14 thì ràng buộc
+  thành `10 = 11 + 12 + 13`, FAIL vì lệch nhưng `absent` rỗng. Chỉ (e1)/(c) —
+  tham chiếu cố định — mới báo được vắng cái gì.
+
+### Một quyết định lệch spec, có số đo: lệch + vắng → NA, không FAIL
+
+Spec viết: thành phần vắng tính 0, tổng lệch → FAIL. Đo ở chế độ VLM trên SCID:
+`280 = 100 + 200` (100 ở tr12), `440 = 300 + 400` (300 ở tr14), B03 `50 = 20 + 30
++ 40` (20/30 ở tr17) → **6 hàng tổng ĐÚNG bị loại**, và đó là chính hàng người
+dùng hỏi ("tổng tài sản"). Không phân biệt được "VLM rơi một hàng khác 0" với
+"hàng ở trang trước" bằng số học nội trang. Đổi: lệch mà có hàng vắng → **NA**,
+lý do nêu cả độ lệch lẫn mã số vắng. Hậu quả với hàng rơi thật: cụm mất phủ →
+`unverified` (không kết luận), tổng vẫn xác minh được qua ràng buộc cha nếu ô
+nó đúng. **Không cách nào xác minh sai hơn cách nào**; khác nhau ở chi phí phạm
+vi, và cách mới trả chi phí đó cho đúng hàng.
+
+### Điều chưa chắc sau lát 0
+
+- SCID là báo cáo **hợp nhất**, có hàng ngoài mẫu DN (279, 429). Trên trang này
+  chúng "-" nên (c) B01-DN không FAIL; một báo cáo hợp nhất có 279 ≠ 0 sẽ làm
+  (c) loại đúng cụm 270. `tmp-docs/bieumau_bctc_hopnhat.pdf` có thể cho bảng
+  B01-DN/HN — chưa đọc.
+- Xung đột (c) vs (b) trên SCID = 6, đều do SCID **bỏ hàng "-"** (mẫu ghi chú
+  (1): chỉ tiêu không có số liệu được miễn trình bày). Lenient coi vắng = 0 nên
+  (c) vẫn PASS. Đúng cho hàng "-"; chưa có ca hàng vắng ≠ 0 thật để đo.
+- `rows_from_vision` chưa gặp output VLM thật nào — hình dạng theo hợp đồng spec,
+  lát 2 sẽ là lần đầu nó chạm dữ liệu sống.
+
+## OCR bậc 3 — lát 1–4: kích hoạt, xoay, ống dẫn VLM, xuất xứ (2026-09-11)
+
+Tất cả đo/kiểm KHÔNG gọi API nào. Lượt VLM thật đầu tiên (Q7/Q8, fixture
+`vlm_raw/`) và nghiệm thu sống qua Open WebUI **chưa chạy**: cần
+`YOUDOO_VLM_API_KEY` trong `.env` — khoá riêng, chủ dự án cấp.
+
+### Lát 1 — `tools/calibrate_vlm_trigger.py` trên 281 trang ảnh, 6 báo cáo
+
+Kết quả đầy đủ: `tools/calibrate_vlm_trigger_result.txt`. Bốn phép đo, hai bác bỏ:
+
+- **Q9 — tỉ lệ dấu tiếng Việt BỊ BÁC.** Trang Tesseract được số học bảo lãnh
+  p50 = 0,78; trang không được bảo lãnh p50 = 0,78; đối chứng vector rasterise
+  0,84. Hai phân bố chồng nhau ngay chỗ trang cờ nằm — spec đề xuất tín hiệu
+  này làm lọc thô, và nó không lọc được gì. Không có ngưỡng nào để chốt.
+- **Q2 — số học vouch cho Tesseract có răng, nhưng hẹp.** 52/281 trang dựng
+  được cột mã số; 21 trong đó ≥ 1 PASS và 0 FAIL (giữ hàng Tesseract, không gọi
+  VLM); 30 trang có cột mã số nhưng 0 ràng buộc đánh giá được (mã số đọc sai
+  làm mất khoá). Đúng lo ngại của spec — vì thế quy tắc kích hoạt KHÔNG dựa
+  vào "không vouch" một mình (260/281 trang không vouch, đa số là thuyết minh
+  và văn xuôi).
+- **Tín hiệu TIÊU ĐỀ báo cáo chính** (không có trong spec, tìm ra khi đọc text
+  Tesseract của DVT tr7: dòng "Báo cáo tình hình tài chính" đọc ĐÚNG dù thân
+  trang 1/8 số đúng): 1/3 đầu trang, bỏ dấu, khớp "bảng cân đối kế toán / báo
+  cáo tình hình tài chính / kết quả hoạt động / lưu chuyển tiền", loại "bản
+  thuyết minh". Bắt 50/281 trang, **đúng mọi trang báo cáo chính của cả 6 tài
+  liệu**; 8 trang khớp ≥ 2 loại là mục lục/ý kiến kiểm toán → loại. Quy tắc
+  chốt: **gọi VLM ⇔ tiêu đề đúng một loại VÀ số học không vouch**. Trên corpus:
+  43 trang tiêu đề một loại − 19 vouched = **24 lượt VLM / 6 tài liệu** (DVT 4,
+  NTC 3, PGI 5, RBC 6, TDC 3, SCID 3), gồm DVT tr7/8/9. Hai trang tốt không có
+  tiêu đề (PGI tr9, SCID tr56) không sao — chúng đi Tesseract như cũ.
+- **Q3 — Tesseract làm oracle: bác dứt điểm.** Ô tiền đáp án có mặt nguyên văn
+  trong token Tesseract: tr7 **0/23**, tr8 3/12, tr9 13/17; mã số 2/19, 2/15,
+  5/23. (a) không bao giờ được phủ quyết — con số này biến khẳng định thành số.
+- **Q6 — xoay.** OSD báo 27 trang; đọc thêm hướng xoay và giữ hướng conf cao
+  hơn: **20 xoay thật** (conf 43→86, số tiền đọc được 0→20..57 mỗi trang), 7
+  báo sai (độ tin OSD 0–3, conf 92→47 nếu tin) không bị xoay. Cả 20 là trang
+  thuyết minh ngang — VLM không kích hoạt trên chúng, nhưng Tesseract đọc
+  được chữ thay vì rác: cải thiện bậc 1 độc lập với VLM. `ARTIFACT_VERSION` 3
+  → 4, đệm cũ tự lạc khoá (không xoá).
+
+### Lát 2–4 — cái ship
+
+- `providers.KeyRing` + `keys_for_env` tách từ `Router._xoay_khoa`; Router uỷ
+  quyền, 50 test cũ không đổi. `vision.py`: khoá riêng `YOUDOO_VLM_API_KEY*`
+  (không có → tắt, log một lần), xoay chỉ khi 429, trần 200/lượt nạp (SUY
+  LUẬN, ghi rõ), ghi sổ `vlm-ocr`, prompt v1 "chép, không diễn giải", JSON hỏng
+  → lỗi mang độ dài không mang nội dung.
+- `trigger.decide` + `parse._khoi_tu_vlm`: mỗi hàng một block atomic mang
+  `source_kind` theo trạng thái; REJECTED không lưu, cảnh báo nêu mã số; một
+  xuất xứ mỗi trang; hết khoá → dừng phần còn lại lượt nạp.
+- `_XUAT_XU_RANK` 6 bậc; `extract.py` gộp bậc xấu nhất (trước đó trang toàn
+  VLM chưa kiểm mang nhãn "text"); `Chunk.source_kind` từ `rag_chunks` tới
+  `_format_context` với tag "CHƯA kiểm được bằng số học — không trích như số
+  chính xác". `conftest` xoá khoá VLM trong mọi test không `live`.
+
+### Ba ruling lệch/ngoài spec
+
+1. **(b) chỉ khi không có bảng (c).** Trên lưới Tesseract thật, đánh dấu STT đọc
+   sai ("L", "2;") làm (b) sinh `238 = 240 + 241 + 242` → FAIL giả → gọi VLM
+   thừa; trên hàng VLM cũng có thể loại oan. (c) riêng đã phủ 33/40 trên TT 99.
+2. **Chọn bảng bằng số học**, không đọc header: thử mọi bảng, giữ bảng (PASS
+   nhiều, FAIL ít, NA ít). Q4 bảo đảm bảng sai không PASS khác 0 nên không cần
+   ngưỡng. Hoà không phân được (B03 trang 2 giống nhau ở hai phương pháp) → chỉ
+   đòi đúng họ mẫu.
+3. **Trần VLM tính theo lượt `parse_pdf`** (một tài liệu), không theo lượt nạp
+   corpus — vì `parse_pdf` không biết nó nằm trong lượt nạp nào. 100 tài liệu ×
+   ~4 trang = 400 > 500 rpd một khoá → 429 → xoay → hết vòng thì dừng có tên.
+
+### Chưa làm, nói thẳng
+
+- **Chưa một lượt VLM thật nào.** Prompt v1, `rows_from_vision`, và giả định
+  "VLM đọc đánh dấu STT tốt hơn Tesseract" đều chưa chạm dữ liệu sống. Q7 (giải
+  ngược) và Q8 (0 ô sai vào `vision_verified`) chạy bằng `test_vision_live.py`
+  khi có khoá; phản hồi thô lưu làm fixture cho `test_vision_replay.py`.
+- Nghiệm thu sống (đính `DVT_2022.pdf`, hỏi "tổng tài sản đầu năm") chưa chạy;
+  đáp án chờ sẵn: **69.862.687.223** (mã 50, Số đầu năm, tr7), phải là block
+  `vision_verified`.
+- Tesseract đồng ý ((a) kiểm hướng cột bằng x-toạ-độ) CHƯA nối — điểm mù "đảo
+  cột toàn trang" còn nguyên, ghi thành test.
+- Trang thuyết minh (221/281 trang không có cột mã số) hoàn toàn ngoài phạm vi
+  bậc 3 lượt này.
+
+### Lượt VLM thật đầu tiên — Q8, Q7, và chạy đầu-cuối (2026-09-11, cùng ngày)
+
+Chủ dự án quyết định **dùng chung 3 ví Gemini với chat** (`YOUDOO_VLM_API_KEY*`
+= `GOOGLE_API_KEY*`): cùng project × model nên không có cách tách hạn mức; chi
+phí đo được ~24 lượt/6 tài liệu, trần 200/tài liệu. Muốn tách sau: đổi 3 dòng
+`.env`. Mã không đổi.
+
+**Q8 — 20 lượt (10 trang đáp án × 2), `gemini-3.5-flash-lite`, prompt v1:**
+- **0 ô sai được lưu `vision_verified`** (số cứng của spec). Hơn thế: **0 ô sai
+  nào cả** — VLM đọc đúng **136/136 hàng có số × 2 cột** trên cả 10 trang, kể
+  cả DVT tr7 nơi Tesseract đọc 0/23. Hai lượt giống nhau từng ô.
+- Phủ 131/136 hàng `verified`, **đúng trần của đáp án** (5 hàng còn lại không
+  có ràng buộc hoặc xuyên trang, đã ghi ở lát 0). 0 hàng đúng bị loại.
+- Một hàng bị loại trên tr9: dòng chữ cái cột `A | B | C | D | 1 | 2` của mẫu
+  TT 107 (VLM chép cả nó) → `bad_ma_so` — loại đúng.
+- Fixture thô: `tests/fixtures/ocr_bang_that/vlm_raw/*_lan{1,2}.json` (20 tệp);
+  `test_vision_replay.py` chạy lại offline mọi lần bộ kiểm đổi.
+
+**Q7 — giải ngược, 3 lượt trên SCID tr12, bôi đen một ô:**
+- che thành phần 112 (54.180.578.081) → VLM trả `"-"`; che tổng 110 → `null`;
+  che ô "-" → `"-"`. **Không giải ngược**: nó không tính ra số bị che.
+- Nhưng `"-"` giả là một lỗi đọc thật: bộ kiểm cho `110 = 111 + 112` FAIL → loại
+  cụm 3 hàng (2 hàng đúng đi theo — chi phí phạm vi, đúng chiều).
+- `null` ở ô tổng lộ một lỗ của quy tắc hàng: cột kia đúng nên hàng 110 lẽ ra
+  `verified` trong khi trên giấy CÓ số. **Sửa**: ô `null` ở cột giá trị của
+  hàng có mã số → `unverified` (mẫu BCTC in "-" cho ô không nghiệp vụ, nên
+  null là "đọc không ra"). Replay lại 20 fixture Q8: không đổi kết quả.
+
+**Chạy đầu-cuối `parse_pdf("DVT_2022.pdf")` với VLM thật:** 23 giây, 539 block
+(476 `ocr`, 28 `vision_verified`, 35 `vision_unverified`), **4 lượt VLM**: tr7/8/9
+đúng như Q8; tr4 (văn xuôi nhắc "kết quả hoạt động") → VLM trả JSON không khai
+`cot_gia_tri` → giữ Tesseract, cảnh báo có tên — đúng đường thiết kế, chi phí
+một lượt. tr10 (B03) số học vouch cho Tesseract → không gọi. Block đích:
+
+    vision_verified | Chỉ tiêu: TỔNG CỘNG TÀI SẢN (50=01+05+10+20+25+30+40+45)
+    | Mã số: 50 | Số cuối năm: 79.611.117.804 | Số đầu năm: 69.862.687.223
+
+đúng đáp án tay viết trước khi nhìn output VLM.
+
+**Chưa chạy, nói thẳng:** nửa Open WebUI (đính tệp → hỏi "tổng tài sản đầu
+năm") cần backend chạy mã mới; backend lên cần cả cụm MCP Odoo (:8003…) của
+`start-dev.ps1` đang tắt, và tôi không tự khởi động hạ tầng ngoài worktree.
+Đường socket `PUT /v1/documents/process` không đổi từ lát 1 endpoint (đã nghiệm
+thu qua client thật của Open WebUI); phần đổi nằm trọn trong `parse_pdf`, đã
+chạy thật ở trên.
+
+Hai lỗi tự gây trong ngày, cùng một nguồn: heredoc bash biến `\n`/`\t` trong
+script vá thành ký tự thật → một comment vỡ thành dòng mã (`SyntaxError`, lộ
+khi khởi động backend, KHÔNG lộ ở 8 test đi qua chính hàm đó vì import thành
+công trước khi tôi vá), một đường dẫn `tmp-docs` thành `<tab>mp-docs` (không
+lộ vì có đường dự phòng). Từ giờ script vá đi qua tệp, không qua heredoc.
+
+### Nghiệm thu sống qua Open WebUI THẬT — ĐẠT, sau một lượt lộ thêm một lỗi KHÁC (2026-09-11)
+
+Backend phụ `:8012` từ worktree (cụm MCP `:8003–8006` do chủ dự án bật bằng
+`start-dev.ps1`; backend `:8002` của cây chính để nguyên). Chủ dự án trỏ
+External Document Loader sang `host.docker.internal:8012`, tải lại
+`DVT_2022.pdf`, hỏi đúng câu hỏi gốc.
+
+**Lượt 1 — SAI, và sai ở tầng khác.** Trả lời "không được đề cập", nguồn
+`DVT_2022.pdf` (đúng tài liệu — defect B "dẫn nguồn tài liệu khác" đã đóng).
+Đọc `webui.db` chế độ chỉ-đọc: hai lượt upload mới nhất đã gọi `:8012` (log
+backend: 2 × PUT, mỗi lượt 4 lượt VLM), nội dung 40.269 ký tự — trang 7 mang
+dòng mã 50 `vision_verified`. Cấu hình RAG của Open WebUI:
+`embedding_model = sentence-transformers/all-MiniLM-L6-v2` (model tiếng Anh),
+`top_k = 3`, `hybrid_search = false`, không reranker → 3 chunk lấy ra đều là
+thuyết minh chung, dòng bảng không vào tập ứng viên. Lỗi này TRƯỚC ĐÓ bị lỗi
+trích xuất che khuất: khi trang 7 còn là rác thì không có gì để chọn sai.
+
+**Lượt 2 — ĐẠT.** Chủ dự án bật *Bypass Embedding and Retrieval* (gửi trọn nội
+dung tệp đính kèm vào prompt, ~15k token), hỏi lại trong cùng chat:
+
+> Theo Báo cáo tình hình tài chính tại ngày 31 tháng 12 năm 2022, tổng tài
+> sản đầu năm … là **69.862.687.223 VND** — nguồn DVT_2022.pdf
+
+Đúng đáp án tay (`DVT_2022_tr7.json`, mã 50, Số đầu năm, viết từ ảnh trước khi
+nhìn output VLM). Chuỗi hoàn chỉnh đã chạy thật một lần: scan rác → tiêu đề
+kích hoạt → VLM → 10 ràng buộc PASS → block `vision_verified` → Open WebUI →
+câu trả lời.
+
+**Việc mở, KHÔNG thuộc mã này:** truy hồi của Open WebUI cho tệp đính kèm tiếng
+Việt. Hai đường: giữ *Bypass* (đơn giản, nhưng mọi tệp đính kèm đi trọn vào
+prompt — tệp 60 trang là ~60k token mỗi câu hỏi), hoặc đổi embedding sang
+`bge-m3` qua Ollama (đã có trong stack) + bật hybrid search + nâng `top_k`.
+Cần đo trước khi chọn; là cấu hình, không phải mã.

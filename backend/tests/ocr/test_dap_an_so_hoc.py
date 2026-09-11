@@ -13,6 +13,7 @@ nhất để lát 1 xanh, và cám dỗ đó lớn nhất đúng lúc đang có 
 `kiem_so_hoc.py` chạy được như CLI từ 2026-09-06 nhưng chưa test nào gọi nó, nên
 nó chưa bao giờ chặn được gì. Commit này nối nó vào suite.
 """
+import glob
 import importlib.util
 import json
 import os
@@ -21,14 +22,19 @@ import pytest
 
 _THU_MUC = os.path.join(os.path.dirname(__file__), "..", "fixtures",
                         "ocr_bang_that")
+# MOI tep dap an trong thu muc, khong liet ke tay: mot tep moi them vao ma
+# quen khai bao o day la mot tep khong duoc canh — dung lop loi "danh sach
+# khai bao hut" da tai phat nhieu lan trong repo.
 DAP_AN = sorted(
-    os.path.join(_THU_MUC, f"SCID_2026H1_tr{n}.json") for n in range(12, 19))
+    p for p in glob.glob(os.path.join(_THU_MUC, "*.json"))
+    if os.path.basename(p) != "README.json")
 
-# Số ràng buộc đo được 2026-09-06: 41 ràng buộc số học × 2 cột giá trị + 3 liên
-# báo cáo = 85. Assert sàn này theo lệ `assert total >= 100` / `assert tong >=
-# 1000` của các cổng khác: một cổng đo ÍT ĐI thì phải đỏ, không được âm thầm
-# xanh vì fixture bị xoá bớt ràng buộc.
-TOI_THIEU_RANG_BUOC = 85
+# Sàn số ràng buộc, cộng dồn theo ngày duyệt/đọc — một cổng đo ÍT ĐI thì phải
+# đỏ, không được âm thầm xanh vì fixture bị xoá bớt ràng buộc (lệ `assert total
+# >= 100` của các cổng khác):
+#   2026-09-06 SCID tr12-18: 41 × 2 cột + 3 liên báo cáo = 85
+#   2026-09-11 DVT  tr7-9  : (5 + 4 + 7) × 2 cột + 1 liên báo cáo = 33
+TOI_THIEU_RANG_BUOC = 85 + 33
 
 
 def _nap_kiem_so_hoc():

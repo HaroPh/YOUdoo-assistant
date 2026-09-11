@@ -129,3 +129,20 @@ def test_pptx_groups_by_slide_number(monkeypatch):
     assert [d["metadata"]["page"] for d in docs] == [1, 2]
     assert docs[0]["page_content"] == "slide 1 text"
     assert docs[1]["page_content"] == "slide 2 text"
+
+
+def test_source_kind_cua_trang_la_bac_XAU_NHAT_khong_phai_ocr_hay_text(monkeypatch):
+    """Trước 2026-09-11: `"ocr" if any(...=="ocr") else "text"` — một trang toàn
+    hàng VLM chưa kiểm mang nhãn "text", bậc tin cậy CAO NHẤT. Nay gộp theo
+    bậc xấu nhất, cùng quy tắc với chunking."""
+    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+        {"text": "TAI SAN", "heading_level": 1, "page": 1, "source_kind": "vision_unverified", "ocr_conf": None},
+        {"text": "Mã số: 50 | Số đầu năm: 69.862.687.223", "heading_level": None, "page": 1,
+         "source_kind": "vision_verified", "ocr_conf": None},
+        {"text": "dong ocr", "heading_level": None, "page": 2, "source_kind": "ocr", "ocr_conf": 0.7},
+        {"text": "dong ocr 2", "heading_level": None, "page": 2, "source_kind": "ocr", "ocr_conf": 0.9},
+        {"text": "dong text", "heading_level": None, "page": 3},
+    ], []))
+    docs = extract.extract_documents("/x.pdf", "x.pdf")
+    kinds = [(d["metadata"]["page"], d["metadata"]["source_kind"], d["metadata"]["ocr_conf"]) for d in docs]
+    assert kinds == [(1, "vision_unverified", None), (2, "ocr", 0.7), (3, "text", None)]

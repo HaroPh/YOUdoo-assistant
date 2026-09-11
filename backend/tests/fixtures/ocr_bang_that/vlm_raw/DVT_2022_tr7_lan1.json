@@ -1,0 +1,222 @@
+{
+ "dap_an": "DVT_2022_tr7.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:14:26.890407+00:00",
+ "tokens": [
+  1549,
+  1527,
+  3076
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": \"B01/BCTC\",\n           \"thong_tu\": \"107/2017/TT-BTC\",\n           \"cot_gia_tri\": [\"Số cuối năm\", \"Số đầu năm\"]},\n \"hang\": [{\"muc\": \"A\",\n           \"nhan\": \"TÀI SẢN\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": []},\n          {\"muc\": \"I.\",\n           \"nhan\": \"Tiền\",\n           \"ma_so\": \"01\",\n           \"thuyet_minh\": \"III.1\",\n           \"so_tien\": [\"750.005.854\", \"40.565.652.481\"]},\n          {\"muc\": \"II.\",\n           \"nhan\": \"Đầu tư tài chính ngắn hạn\",\n           \"ma_so\": \"05\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"III.\",\n           \"nhan\": \"Các khoản phải thu\",\n           \"ma_so\": \"10\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"19.078.257.265\", \"8.331.692.341\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Phải thu khách hàng\",\n           \"ma_so\": \"11\",\n           \"thuyet_minh\": \"III.2\",\n           \"so_tien\": [\"8.812.478.000\", \"4.773.193.000\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Trả trước cho người bán\",\n           \"ma_so\": \"12\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Phải thu nội bộ\",\n           \"ma_so\": \"13\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Các khoản phải thu khác\",\n           \"ma_so\": \"14\",\n           \"thuyet_minh\": \"III.3\",\n           \"so_tien\": [\"10.265.779.265\", \"3.558.499.341\"]},\n          {\"muc\": \"IV.\",\n           \"nhan\": \"Hàng tồn kho\",\n           \"ma_so\": \"20\",\n           \"thuyet_minh\": \"III.4\",\n           \"so_tien\": [\"120.870.554\", \"76.383.313\"]},\n          {\"muc\": \"V.\",\n           \"nhan\": \"Đầu tư tài chính dài hạn\",\n           \"ma_so\": \"25\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"VI.\",\n           \"nhan\": \"Tài sản cố định\",\n           \"ma_so\": \"30\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"56.715.984.131\", \"17.097.932.256\"]},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Tài sản cố định hữu hình\",\n           \"ma_so\": \"31\",\n           \"thuyet_minh\": \"III.5\",\n           \"so_tien\": [\"56.715.984.131\", \"17.097.932.256\"]},\n          {\"muc\": null,\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"32\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"114.815.810.160\", \"71.585.395.488\"]},\n          {\"muc\": null,\n           \"nhan\": \"Khấu hao lũy kế\",\n           \"ma_so\": \"33\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(58.099.826.029)\", \"(54.487.463.232)\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Tài sản cố định vô hình\",\n           \"ma_so\": \"35\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": null,\n           \"nhan\": \"Nguyên giá\",\n           \"ma_so\": \"36\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": null,\n           \"nhan\": \"Khấu hao lũy kế\",\n           \"ma_so\": \"37\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"VII\",\n           \"nhan\": \"Xây dựng cơ bản dở dang\",\n           \"ma_so\": \"40\",\n           \"thuyet_minh\": \"III.6\",\n           \"so_tien\": [\"2.946.000.000\", \"3.555.344.000\"]},\n          {\"muc\": \"VIII\",\n           \"nhan\": \"Tài sản khác\",\n           \"ma_so\": \"45\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"235.682.832\"]},\n          {\"muc\": null,\n           \"nhan\": \"TỔNG CỘNG TÀI SẢN\\n(50=01+05+10+20+25+30+40+45)\",\n           \"ma_so\": \"50\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"79.611.117.804\", \"69.862.687.223\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": "B01/BCTC",
+   "thong_tu": "107/2017/TT-BTC",
+   "cot_gia_tri": [
+    "Số cuối năm",
+    "Số đầu năm"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "A",
+    "nhan": "TÀI SẢN",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": []
+   },
+   {
+    "muc": "I.",
+    "nhan": "Tiền",
+    "ma_so": "01",
+    "thuyet_minh": "III.1",
+    "so_tien": [
+     "750.005.854",
+     "40.565.652.481"
+    ]
+   },
+   {
+    "muc": "II.",
+    "nhan": "Đầu tư tài chính ngắn hạn",
+    "ma_so": "05",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "III.",
+    "nhan": "Các khoản phải thu",
+    "ma_so": "10",
+    "thuyet_minh": null,
+    "so_tien": [
+     "19.078.257.265",
+     "8.331.692.341"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Phải thu khách hàng",
+    "ma_so": "11",
+    "thuyet_minh": "III.2",
+    "so_tien": [
+     "8.812.478.000",
+     "4.773.193.000"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Trả trước cho người bán",
+    "ma_so": "12",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Phải thu nội bộ",
+    "ma_so": "13",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Các khoản phải thu khác",
+    "ma_so": "14",
+    "thuyet_minh": "III.3",
+    "so_tien": [
+     "10.265.779.265",
+     "3.558.499.341"
+    ]
+   },
+   {
+    "muc": "IV.",
+    "nhan": "Hàng tồn kho",
+    "ma_so": "20",
+    "thuyet_minh": "III.4",
+    "so_tien": [
+     "120.870.554",
+     "76.383.313"
+    ]
+   },
+   {
+    "muc": "V.",
+    "nhan": "Đầu tư tài chính dài hạn",
+    "ma_so": "25",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "VI.",
+    "nhan": "Tài sản cố định",
+    "ma_so": "30",
+    "thuyet_minh": null,
+    "so_tien": [
+     "56.715.984.131",
+     "17.097.932.256"
+    ]
+   },
+   {
+    "muc": "1.",
+    "nhan": "Tài sản cố định hữu hình",
+    "ma_so": "31",
+    "thuyet_minh": "III.5",
+    "so_tien": [
+     "56.715.984.131",
+     "17.097.932.256"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Nguyên giá",
+    "ma_so": "32",
+    "thuyet_minh": null,
+    "so_tien": [
+     "114.815.810.160",
+     "71.585.395.488"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Khấu hao lũy kế",
+    "ma_so": "33",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(58.099.826.029)",
+     "(54.487.463.232)"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Tài sản cố định vô hình",
+    "ma_so": "35",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Nguyên giá",
+    "ma_so": "36",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Khấu hao lũy kế",
+    "ma_so": "37",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "VII",
+    "nhan": "Xây dựng cơ bản dở dang",
+    "ma_so": "40",
+    "thuyet_minh": "III.6",
+    "so_tien": [
+     "2.946.000.000",
+     "3.555.344.000"
+    ]
+   },
+   {
+    "muc": "VIII",
+    "nhan": "Tài sản khác",
+    "ma_so": "45",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "235.682.832"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "TỔNG CỘNG TÀI SẢN\n(50=01+05+10+20+25+30+40+45)",
+    "ma_so": "50",
+    "thuyet_minh": null,
+    "so_tien": [
+     "79.611.117.804",
+     "69.862.687.223"
+    ]
+   }
+  ]
+ }
+}

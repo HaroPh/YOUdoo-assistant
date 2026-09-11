@@ -1,0 +1,306 @@
+{
+ "dap_an": "SCID_2026H1_tr17.json",
+ "model": "gemini-3.5-flash-lite",
+ "prompt_version": "v1",
+ "rotation": 0,
+ "ngay": "2026-09-11T10:17:24.595791+00:00",
+ "tokens": [
+  1549,
+  2359,
+  3908
+ ],
+ "raw": "```json\n{\"trang\": {\"mau\": null,\n           \"thong_tu\": null,\n           \"cot_gia_tri\": [\"Năm nay\", \"Năm trước\"]},\n \"hang\": [{\"muc\": \"I.\",\n           \"nhan\": \"Lưu chuyển tiền từ hoạt động kinh doanh\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": []},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Lợi nhuận trước thuế\",\n           \"ma_so\": \"01\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"32.683.094.868\", \"44.007.067.088\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Điều chỉnh cho các khoản:\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": []},\n          {\"muc\": \"-\",\n           \"nhan\": \"Khấu hao tài sản cố định và bất động sản đầu tư\",\n           \"ma_so\": \"02\",\n           \"thuyet_minh\": \"V.9, 10, 11\",\n           \"so_tien\": [\"5.200.611.880\", \"5.234.771.718\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Các khoản dự phòng\",\n           \"ma_so\": \"03\",\n           \"thuyet_minh\": \"V.2a\",\n           \"so_tien\": [\"305.100.000\", \"1.118.700.000\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Lãi, lỗ chênh lệch tỷ giá hối đoái do đánh giá lại\\ncác khoản mục tiền tệ có gốc ngoại tệ\",\n           \"ma_so\": \"04\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Lãi, lỗ từ hoạt động đầu tư, tài chính\",\n           \"ma_so\": \"05\",\n           \"thuyet_minh\": \"V.2c; VI.3\",\n           \"so_tien\": [\"(38.320.042.505)\", \"(54.071.649.857)\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Chi phí đi vay\",\n           \"ma_so\": \"06\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Các khoản điều chỉnh khác\",\n           \"ma_so\": \"07\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Lợi nhuận từ hoạt động kinh doanh\\ntrước thay đổi vốn lưu động\",\n           \"ma_so\": \"08\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(131.235.757)\", \"(3.711.111.051)\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tăng, giảm các khoản phải thu\",\n           \"ma_so\": \"09\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(2.428.531.621)\", \"(20.959.728.700)\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tăng, giảm hàng tồn kho\",\n           \"ma_so\": \"10\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"678.416.358\", \"(11.175.601)\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tăng, giảm các khoản phải trả\\n(không kể lãi vay phải trả, thuế TNDN phải nộp)\",\n           \"ma_so\": \"11\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"3.668.222.222\", \"15.075.686.535\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tăng, giảm chi phí chờ phân bổ\",\n           \"ma_so\": \"12\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"1.724.257.210\", \"1.277.781.271\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tăng, giảm chứng khoán kinh doanh\",\n           \"ma_so\": \"13\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Chi phí đi vay đã trả\",\n           \"ma_so\": \"14\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Thuế thu nhập doanh nghiệp đã nộp\",\n           \"ma_so\": \"15\",\n           \"thuyet_minh\": \"V.16\",\n           \"so_tien\": [\"(2.724.727.102)\", \"(2.172.133.964)\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tiền thu khác từ hoạt động kinh doanh\",\n           \"ma_so\": \"16\",\n           \"thuyet_minh\": \"V.19\",\n           \"so_tien\": [\"2.840.000\", \"-\"]},\n          {\"muc\": \"-\",\n           \"nhan\": \"Tiền chi khác cho hoạt động kinh doanh\",\n           \"ma_so\": \"17\",\n           \"thuyet_minh\": \"V.19\",\n           \"so_tien\": [\"(2.308.737.879)\", \"(514.560.000)\"]},\n          {\"muc\": null,\n           \"nhan\": \"Lưu chuyển tiền thuần từ hoạt động kinh doanh\",\n           \"ma_so\": \"20\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(1.519.496.569)\", \"(11.015.241.510)\"]},\n          {\"muc\": \"II.\",\n           \"nhan\": \"Lưu chuyển tiền từ hoạt động đầu tư\",\n           \"ma_so\": null,\n           \"thuyet_minh\": null,\n           \"so_tien\": []},\n          {\"muc\": \"1.\",\n           \"nhan\": \"Tiền chi để mua sắm, xây dựng tài sản cố định và\\ncác tài sản dài hạn khác\",\n           \"ma_so\": \"21\",\n           \"thuyet_minh\": \"V.4, 9, 12, 14\",\n           \"so_tien\": [\"(99.876.739.359)\", \"(40.586.421.956)\"]},\n          {\"muc\": \"2.\",\n           \"nhan\": \"Tiền thu từ thanh lý, nhượng bán tài sản cố định và\\ncác tài sản dài hạn khác\",\n           \"ma_so\": \"22\",\n           \"thuyet_minh\": \"V.3a\",\n           \"so_tien\": [\"185.185.185\", \"243.000.000\"]},\n          {\"muc\": \"3.\",\n           \"nhan\": \"Tiền chi cho vay, mua các công cụ nợ của\\nđơn vị khác\",\n           \"ma_so\": \"23\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(34.580.633.697)\", \"(178.889.838.418)\"]},\n          {\"muc\": \"4.\",\n           \"nhan\": \"Tiền thu hồi cho vay, bán lại các công cụ nợ của\\nđơn vị khác\",\n           \"ma_so\": \"24\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"2.000.000.000\", \"303.130.137.810\"]},\n          {\"muc\": \"5.\",\n           \"nhan\": \"Tiền chi đầu tư góp vốn vào đơn vị khác\",\n           \"ma_so\": \"25\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"6.\",\n           \"nhan\": \"Tiền thu hồi đầu tư góp vốn vào đơn vị khác\",\n           \"ma_so\": \"26\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"-\", \"-\"]},\n          {\"muc\": \"7.\",\n           \"nhan\": \"Tiền thu lãi cho vay, cổ tức và lợi nhuận được chia\",\n           \"ma_so\": \"27\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"85.888.448.517\", \"72.104.211.638\"]},\n          {\"muc\": null,\n           \"nhan\": \"Lưu chuyển tiền thuần từ hoạt động đầu tư\",\n           \"ma_so\": \"30\",\n           \"thuyet_minh\": null,\n           \"so_tien\": [\"(46.383.739.354)\", \"156.001.089.074\"]}]}\n```",
+ "payload": {
+  "trang": {
+   "mau": null,
+   "thong_tu": null,
+   "cot_gia_tri": [
+    "Năm nay",
+    "Năm trước"
+   ]
+  },
+  "hang": [
+   {
+    "muc": "I.",
+    "nhan": "Lưu chuyển tiền từ hoạt động kinh doanh",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": []
+   },
+   {
+    "muc": "1.",
+    "nhan": "Lợi nhuận trước thuế",
+    "ma_so": "01",
+    "thuyet_minh": null,
+    "so_tien": [
+     "32.683.094.868",
+     "44.007.067.088"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Điều chỉnh cho các khoản:",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": []
+   },
+   {
+    "muc": "-",
+    "nhan": "Khấu hao tài sản cố định và bất động sản đầu tư",
+    "ma_so": "02",
+    "thuyet_minh": "V.9, 10, 11",
+    "so_tien": [
+     "5.200.611.880",
+     "5.234.771.718"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Các khoản dự phòng",
+    "ma_so": "03",
+    "thuyet_minh": "V.2a",
+    "so_tien": [
+     "305.100.000",
+     "1.118.700.000"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Lãi, lỗ chênh lệch tỷ giá hối đoái do đánh giá lại\ncác khoản mục tiền tệ có gốc ngoại tệ",
+    "ma_so": "04",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Lãi, lỗ từ hoạt động đầu tư, tài chính",
+    "ma_so": "05",
+    "thuyet_minh": "V.2c; VI.3",
+    "so_tien": [
+     "(38.320.042.505)",
+     "(54.071.649.857)"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Chi phí đi vay",
+    "ma_so": "06",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Các khoản điều chỉnh khác",
+    "ma_so": "07",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Lợi nhuận từ hoạt động kinh doanh\ntrước thay đổi vốn lưu động",
+    "ma_so": "08",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(131.235.757)",
+     "(3.711.111.051)"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tăng, giảm các khoản phải thu",
+    "ma_so": "09",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(2.428.531.621)",
+     "(20.959.728.700)"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tăng, giảm hàng tồn kho",
+    "ma_so": "10",
+    "thuyet_minh": null,
+    "so_tien": [
+     "678.416.358",
+     "(11.175.601)"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tăng, giảm các khoản phải trả\n(không kể lãi vay phải trả, thuế TNDN phải nộp)",
+    "ma_so": "11",
+    "thuyet_minh": null,
+    "so_tien": [
+     "3.668.222.222",
+     "15.075.686.535"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tăng, giảm chi phí chờ phân bổ",
+    "ma_so": "12",
+    "thuyet_minh": null,
+    "so_tien": [
+     "1.724.257.210",
+     "1.277.781.271"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tăng, giảm chứng khoán kinh doanh",
+    "ma_so": "13",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Chi phí đi vay đã trả",
+    "ma_so": "14",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Thuế thu nhập doanh nghiệp đã nộp",
+    "ma_so": "15",
+    "thuyet_minh": "V.16",
+    "so_tien": [
+     "(2.724.727.102)",
+     "(2.172.133.964)"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tiền thu khác từ hoạt động kinh doanh",
+    "ma_so": "16",
+    "thuyet_minh": "V.19",
+    "so_tien": [
+     "2.840.000",
+     "-"
+    ]
+   },
+   {
+    "muc": "-",
+    "nhan": "Tiền chi khác cho hoạt động kinh doanh",
+    "ma_so": "17",
+    "thuyet_minh": "V.19",
+    "so_tien": [
+     "(2.308.737.879)",
+     "(514.560.000)"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Lưu chuyển tiền thuần từ hoạt động kinh doanh",
+    "ma_so": "20",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(1.519.496.569)",
+     "(11.015.241.510)"
+    ]
+   },
+   {
+    "muc": "II.",
+    "nhan": "Lưu chuyển tiền từ hoạt động đầu tư",
+    "ma_so": null,
+    "thuyet_minh": null,
+    "so_tien": []
+   },
+   {
+    "muc": "1.",
+    "nhan": "Tiền chi để mua sắm, xây dựng tài sản cố định và\ncác tài sản dài hạn khác",
+    "ma_so": "21",
+    "thuyet_minh": "V.4, 9, 12, 14",
+    "so_tien": [
+     "(99.876.739.359)",
+     "(40.586.421.956)"
+    ]
+   },
+   {
+    "muc": "2.",
+    "nhan": "Tiền thu từ thanh lý, nhượng bán tài sản cố định và\ncác tài sản dài hạn khác",
+    "ma_so": "22",
+    "thuyet_minh": "V.3a",
+    "so_tien": [
+     "185.185.185",
+     "243.000.000"
+    ]
+   },
+   {
+    "muc": "3.",
+    "nhan": "Tiền chi cho vay, mua các công cụ nợ của\nđơn vị khác",
+    "ma_so": "23",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(34.580.633.697)",
+     "(178.889.838.418)"
+    ]
+   },
+   {
+    "muc": "4.",
+    "nhan": "Tiền thu hồi cho vay, bán lại các công cụ nợ của\nđơn vị khác",
+    "ma_so": "24",
+    "thuyet_minh": null,
+    "so_tien": [
+     "2.000.000.000",
+     "303.130.137.810"
+    ]
+   },
+   {
+    "muc": "5.",
+    "nhan": "Tiền chi đầu tư góp vốn vào đơn vị khác",
+    "ma_so": "25",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "6.",
+    "nhan": "Tiền thu hồi đầu tư góp vốn vào đơn vị khác",
+    "ma_so": "26",
+    "thuyet_minh": null,
+    "so_tien": [
+     "-",
+     "-"
+    ]
+   },
+   {
+    "muc": "7.",
+    "nhan": "Tiền thu lãi cho vay, cổ tức và lợi nhuận được chia",
+    "ma_so": "27",
+    "thuyet_minh": null,
+    "so_tien": [
+     "85.888.448.517",
+     "72.104.211.638"
+    ]
+   },
+   {
+    "muc": null,
+    "nhan": "Lưu chuyển tiền thuần từ hoạt động đầu tư",
+    "ma_so": "30",
+    "thuyet_minh": null,
+    "so_tien": [
+     "(46.383.739.354)",
+     "156.001.089.074"
+    ]
+   }
+  ]
+ }
+}

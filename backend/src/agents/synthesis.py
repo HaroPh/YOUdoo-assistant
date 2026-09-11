@@ -221,12 +221,29 @@ async def cite_and_verify(body: str, chunks: list, llm) -> str:
     return clean + footer
 
 
+# Tag xuất xứ đưa vào prompt tổng hợp cho chunk KHÔNG phải text vector (spec OCR
+# bậc 3 §"Xuất xứ", kênh 3). Không nhét vào `chunk_text` (bẩn BM25/embedding);
+# render lúc dựng prompt. Bậc `text` không tag — đó là mặc định.
+_SOURCE_KIND_TAGS = {
+    "ocr": "đọc bằng OCR từ bản scan, có thể sai ký tự",
+    "ocr_repaired": "đọc bằng OCR từ bản scan, đã sửa theo từ điển",
+    "vision_verified": "số liệu do mô hình đọc ảnh, ĐÃ kiểm bằng số học",
+    "vision_unverified": "số liệu do mô hình đọc ảnh, CHƯA kiểm được bằng số học — không trích như số chính xác",
+    "vision_description": "mô tả hình ảnh do mô hình sinh, không phải chữ trên tài liệu",
+}
+
+
 def _format_context(chunks, start: int = 1) -> str:
-    """Numbered chunk texts, each tagged with its source label, for the prompt."""
+    """Numbered chunk texts, each tagged with its source label, for the prompt.
+    Chunk có `source_kind` khác "text" mang thêm tag xuất xứ — không có tag này
+    thì mọi cổng số học ở tầng OCR chỉ to tiếng với người vận hành, còn người
+    dùng vẫn nhận một con số VLM chưa kiểm như số chính xác."""
     parts = []
     for i, c in enumerate(chunks, start=start):
         label = c.section_path or c.sheet or os.path.basename(c.source_file)
-        parts.append(f"[{i}] ({label}) {c.text}")
+        tag = _SOURCE_KIND_TAGS.get(getattr(c, "source_kind", "text"))
+        xuat_xu = f" [xuất xứ: {tag}]" if tag else ""
+        parts.append(f"[{i}] ({label}){xuat_xu} {c.text}")
     return "\n".join(parts)
 
 
