@@ -12,7 +12,14 @@ Chay:  python kiem_so_hoc.py <tep_dap_an.json> [...]
 Thoat khac 0 neu co rang buoc nao khong thoa.
 """
 import json
+import os
 import sys
+
+# Cho CLI chay duoc tu thu muc fixture: backend/ nam ba cap tren.
+_BACKEND = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
+from src.ocr import so_hoc                                   # noqa: E402
 
 # Cot khong mang gia tri so — moi cot con lai trong `cot` la cot gia tri.
 COT_NHAN = ("muc", "chi_tieu", "ma_so", "thuyet_minh")
@@ -27,7 +34,8 @@ def cot_gia_tri(d: dict) -> list[str]:
 
 
 def gia_tri(o, ma: str, cot: str) -> tuple[int | None, str | None]:
-    """O -> (so de cong, loi neu co).
+    """O -> (so de cong, loi neu co). UY QUYEN cho `so_hoc.parse_money` — mot
+    bo doc o duy nhat cho ca dap an lan trang VLM.
 
     Quy uoc o:
       so    -> gia tri that
@@ -36,13 +44,14 @@ def gia_tri(o, ma: str, cot: str) -> tuple[int | None, str | None]:
                DU LIEU, khong duoc lang le coi la 0 — do dung la cach mot dong bi
                doc sot ma cong van xanh.
     """
-    if o == "-":
-        return 0, None
-    if isinstance(o, int):
-        return o, None
     if o is None:
         return None, f"ma so {ma} [{cot}]: rang buoc tro toi o null (khong ap dung)"
-    return None, f"ma so {ma} [{cot}]: kieu o khong hieu duoc: {o!r}"
+    v = so_hoc.parse_money(o)
+    if v is so_hoc.DASH:
+        return 0, None
+    if v is so_hoc.BAD:
+        return None, f"ma so {ma} [{cot}]: kieu o khong hieu duoc: {o!r}"
+    return v, None
 
 
 def tach_thanh_phan(x) -> tuple[str, int]:
@@ -73,49 +82,33 @@ def tra_cuu(ma: str, nhom_minh: str | None, toan_cuc: dict) -> tuple[dict | None
 
 
 def kiem(duong: str, toan_cuc: dict) -> list[str]:
+    """Moi rang buoc `rang_buoc_so_hoc` cua tep -> `so_hoc.Constraint`, danh gia
+    bang `so_hoc.evaluate` o che do STRICT (dap an phai du hang), roi dich
+    verdict ve chuoi loi. Day la cho hai thuoc gap nhau: cong 118/118 tren dap an
+    da duyet canh chinh bo danh gia production."""
     d = json.load(open(duong, encoding="utf-8"))
     nhom = d.get("nhom")
-    loi = []
     cots = cot_gia_tri(d)
     if not cots:
         return [f"{duong}: khong tim thay cot gia tri nao trong {d['cot']}"]
 
+    def lookup(ma: str):
+        hang, _ = tra_cuu(ma, nhom, toan_cuc)
+        return hang
+
+    loi = []
     for rb in d["rang_buoc_so_hoc"]:
-        hang_tong, _ = tra_cuu(rb["tong"], nhom, toan_cuc)
-        if hang_tong is None:
-            loi.append(f"{duong}: rang buoc tro toi ma so {rb['tong']} khong tim thay")
-            continue
+        c = so_hoc.Constraint(rb["tong"], [tach_thanh_phan(tp) for tp in rb["cong"]], "dap_an")
         for cot in cots:
-            phan, loi_o = 0, []
-            for tp in rb["cong"]:
-                ma, he_so = tach_thanh_phan(tp)
-                hang, nhan = tra_cuu(ma, nhom, toan_cuc)
-                if hang is None:
-                    loi_o.append(f"ma so {nhan} khong tim thay")
-                    continue
-                if cot not in hang:
-                    loi_o.append(f"ma so {nhan} khong co cot [{cot}]")
-                    continue
-                v, e = gia_tri(hang[cot], nhan, cot)
-                if e:
-                    loi_o.append(e)
-                else:
-                    phan += he_so * v
-            if loi_o:
-                loi += [f"{duong}: {e}" for e in loi_o]
+            e = so_hoc.evaluate(c, lookup, cot, strict_absent=True)
+            if e.verdict == so_hoc.Verdict.PASS:
                 continue
-            if cot not in hang_tong:
-                loi.append(f"{duong}: ma so {rb['tong']} khong co cot [{cot}]")
-                continue
-            tong_ghi, e = gia_tri(hang_tong[cot], rb["tong"], cot)
-            if e:
-                loi.append(f"{duong}: {e}")
-            elif phan != tong_ghi:
-                cong_thuc = " ".join(
-                    ("-" if h < 0 else "+") + m for m, h in map(tach_thanh_phan, rb["cong"]))
-                loi.append(f"{duong}: [{cot}] ma so {rb['tong']}: ghi {tong_ghi:,} "
-                           f"nhung {cong_thuc.lstrip('+')} = {phan:,} "
-                           f"(lech {tong_ghi - phan:,})")
+            if e.verdict == so_hoc.Verdict.NA:
+                loi.append(f"{duong}: [{cot}] {e.reason}")
+            else:
+                loi.append(f"{duong}: [{cot}] ma so {c.total}: ghi {e.total_value:,} "
+                           f"nhung {e.reason.split(' = ', 1)[1]} = {e.computed:,} "
+                           f"(lech {e.delta:,})")
     return loi
 
 
