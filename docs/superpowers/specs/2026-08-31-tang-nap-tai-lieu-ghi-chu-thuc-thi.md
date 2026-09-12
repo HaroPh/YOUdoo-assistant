@@ -2613,3 +2613,35 @@ chạy lại offline trên chính các phản hồi này.
 
 **Chưa chạy**: chân Open WebUI (model có nghe dấu không) — cần `start-dev.ps1`
 của chủ dự án bật MCP `:8003` để backend lên được.
+
+### Dấu ngắn thì model KHÔNG NGHE — đo, và đổi cách diễn đạt (2026-09-12)
+
+Nghiệm thu chân Open WebUI phát hiện hai chuyện, một tốt một bác bỏ:
+
+**Tốt**: bản Open WebUI vừa nhận (34.617 ký tự qua `:8012`) mang **đúng 1 dấu**,
+trên hàng mã 52 — cơ chế bước 1 chạy thông tới đầu bên kia.
+
+**Bác bỏ**: câu hỏi *"phân phối cho các quỹ năm trước là bao nhiêu"* trả về
+"không có thông tin" — **truy hồi của họ không lấy chunk đó**, dù text có cả
+nhãn lẫn con số ở nhiều chỗ. Lần thứ ba tầng truy hồi của họ là mắt gãy (sau
+"mục 29" và lượt MiniLM). Nên câu hỏi "model có nghe dấu không" phải đo TÁCH
+khỏi truy hồi: đưa thẳng hàng đó vào prompt bằng **đúng `rag.template` của họ**.
+
+| cách diễn đạt dấu | model có nói ra là số chưa kiểm? |
+|---|---|
+| `[CHƯA KIỂM BẰNG SỐ HỌC] ` (bản đầu) | **KHÔNG** — 0/2 lượt, trả lời y như không có dấu |
+| tiền tố nêu luôn NGHĨA VỤ ("khi trích PHẢI nói rõ…") | **CÓ** — 4/4 lượt, ba cách hỏi khác nhau, số vẫn đúng |
+| câu riêng dưới hàng | CÓ, nhưng chunker của họ có thể cắt rời câu đó khỏi con số |
+
+Vì sao bản đầu trơ: `[...]` ngắn trông như rác OCR (text của ta đầy ngoặc vuông
+thật) và giống khuôn `[1]` mà template của họ dặn là markup. Bài học chung: một
+cái dấu không tự mang nghĩa vụ thì LLM coi là trang trí. Đã chốt tiền tố nêu
+nghĩa vụ, ghi thẳng trong mã rằng **chuỗi đó là số đo, không phải văn phong**.
+
+**Dư số chưa xử lý**: 1/4 lượt model diễn giải "chưa kiểm" thành **"chưa kiểm
+toán"** — nghĩa khác và nặng hơn (unaudited). Không sửa chay vì sửa chữ là mất
+cơ sở đo; muốn chính xác hơn phải đo lại cách diễn đạt mới.
+
+**Hệ quả cho bước 2**: bằng chứng đã đủ nói tầng truy hồi của Open WebUI là mắt
+gãy chính, không phải trích xuất. Bước 2 (đo retriever của ta vs của họ trên
+cùng hai tệp) không còn là "cho chắc" mà là việc kế tiếp bắt buộc.

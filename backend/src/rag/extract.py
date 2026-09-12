@@ -26,9 +26,21 @@ from .parse import parse_docx, parse_pdf, parse_pptx, parse_xlsx
 # `parse._khoi_tu_vlm` đặt). Đo trước khi chọn: DVT tr7 có 0 hàng như vậy
 # (12/12 đã kiểm), tr9 có 1 — nhiễu gần bằng không. KHÔNG gắn cho bậc `ocr`:
 # gần như mọi trang scan đều là `ocr`, gắn hết thành tiếng ồn và model dễ phủ
-# nhận cả số đúng. Tiền tố tự nói nghĩa nên không cần dòng chú giải đầu trang —
-# dòng đó chết ở khối thứ hai khi Open WebUI cắt chunk 1000 ký tự.
-UNVERIFIED_PREFIX = "[CHƯA KIỂM BẰNG SỐ HỌC] "
+# nhận cả số đúng. Không có dòng chú giải đầu trang: nó chết ở khối thứ hai khi
+# Open WebUI cắt chunk 1000 ký tự, còn tiền tố thì hàn liền với con số.
+#
+# CHUỖI NÀY LÀ SỐ ĐO, KHÔNG PHẢI VĂN PHONG — đừng "gọn lại" mà không đo lại.
+# Đo 2026-09-12 qua ĐÚNG `rag.template` của Open WebUI, model
+# `gemini-3.5-flash-lite`, cùng một hàng mã 52 của DVT tr9:
+#   "[CHƯA KIỂM BẰNG SỐ HỌC] "  -> model TRƠ, trả lời y như không có dấu (0/2)
+#   chuỗi dưới đây (nêu luôn nghĩa vụ) -> 4/4 lượt vừa trả đúng số vừa nói rõ
+#   câu riêng dưới hàng            -> cũng được nghe, nhưng chunker của họ có
+#                                     thể cắt rời câu đó khỏi con số
+# Dư số đã thấy: 1/4 lượt model diễn giải "chưa kiểm" thành "chưa kiểm toán" —
+# nghĩa khác và nặng hơn. Chưa sửa vì sửa chữ là mất cơ sở đo; nếu cần chính xác
+# hơn thì đo lại cách diễn đạt mới, đừng đổi chay.
+UNVERIFIED_PREFIX = ("[CHƯA KIỂM — số do máy đọc từ ảnh scan, chưa đối chiếu được "
+                     "bằng số học; khi trích PHẢI nói rõ là số chưa kiểm] ")
 
 
 class UnsupportedFormat(ValueError):
