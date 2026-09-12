@@ -16,6 +16,21 @@ from .chunking import _gop_bi_quan
 from .parse import parse_docx, parse_pdf, parse_pptx, parse_xlsx
 
 
+# Dấu xuất xứ đặt TRONG body, không phải metadata: xác minh trong container
+# 2026-09-12 rằng Open WebUI `get_source_context` (utils/middleware.py:807) dựng
+# prompt CHỈ từ `doc` body + id/name/resource-*, BỎ mọi metadata khác — nên
+# `metadata.source_kind` (kênh 3 của spec OCR bậc 3) không bao giờ tới model
+# trên đường tệp đính kèm, và body là kênh duy nhất còn sống.
+#
+# Chỉ gắn cho hàng CHƯA KIỂM MÀ CÓ SỐ (cờ `unverified_money` do
+# `parse._khoi_tu_vlm` đặt). Đo trước khi chọn: DVT tr7 có 0 hàng như vậy
+# (12/12 đã kiểm), tr9 có 1 — nhiễu gần bằng không. KHÔNG gắn cho bậc `ocr`:
+# gần như mọi trang scan đều là `ocr`, gắn hết thành tiếng ồn và model dễ phủ
+# nhận cả số đúng. Tiền tố tự nói nghĩa nên không cần dòng chú giải đầu trang —
+# dòng đó chết ở khối thứ hai khi Open WebUI cắt chunk 1000 ký tự.
+UNVERIFIED_PREFIX = "[CHƯA KIỂM BẰNG SỐ HỌC] "
+
+
 class UnsupportedFormat(ValueError):
     """Đuôi tệp không nạp thẳng được."""
 
@@ -41,6 +56,14 @@ def _warning_lines(warnings) -> list[str]:
     return [f"{a}: {b}" for a, b in warnings]
 
 
+def _block_text(b) -> str:
+    """Text của block, kèm dấu xuất xứ nếu cần. Không cộng dồn khi đã có dấu."""
+    text = b["text"]
+    if b.get("unverified_money") and not text.startswith(UNVERIFIED_PREFIX):
+        return UNVERIFIED_PREFIX + text
+    return text
+
+
 def _documents_from_blocks(blocks, filename, warnings, *, group_by_page):
     """Block -> list Document. Bỏ block rỗng SAU `strip()`.
 
@@ -53,7 +76,7 @@ def _documents_from_blocks(blocks, filename, warnings, *, group_by_page):
         return []
     lines = _warning_lines(warnings)
     if not group_by_page:
-        return [{"page_content": "\n".join(b["text"] for b in kept),
+        return [{"page_content": "\n".join(_block_text(b) for b in kept),
                  "metadata": {"source": filename, "warnings": lines}}]
 
     by_page: dict = {}
@@ -76,7 +99,7 @@ def _documents_from_blocks(blocks, filename, warnings, *, group_by_page):
                 "warnings": lines}
         if page is not None:
             meta["page"] = page
-        docs.append({"page_content": "\n".join(b["text"] for b in group),
+        docs.append({"page_content": "\n".join(_block_text(b) for b in group),
                      "metadata": meta})
     return docs
 

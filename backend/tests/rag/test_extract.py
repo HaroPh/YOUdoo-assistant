@@ -146,3 +146,41 @@ def test_source_kind_cua_trang_la_bac_XAU_NHAT_khong_phai_ocr_hay_text(monkeypat
     docs = extract.extract_documents("/x.pdf", "x.pdf")
     kinds = [(d["metadata"]["page"], d["metadata"]["source_kind"], d["metadata"]["ocr_conf"]) for d in docs]
     assert kinds == [(1, "vision_unverified", None), (2, "ocr", 0.7), (3, "text", None)]
+
+
+# ─── dấu xuất xứ trong TEXT (2026-09-12) ──────────────────────────────────────
+# Đã xác minh trong container: Open WebUI `get_source_context`
+# (utils/middleware.py:807) dựng prompt CHỈ từ `doc` body + id/name/resource-*,
+# BỎ mọi metadata khác. Nên `metadata.source_kind` không bao giờ tới model trên
+# đường tệp đính kèm, và body là kênh xuất xứ duy nhất còn sống.
+def test_hang_chua_kiem_co_so_mang_tien_to_trong_page_content(monkeypatch):
+    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+        {"text": "TAI SAN", "heading_level": 1, "page": 7,
+         "source_kind": "vision_unverified"},
+        {"text": "Mã số: 52 | Năm trước: 358.487.382", "heading_level": None, "page": 7,
+         "source_kind": "vision_unverified", "unverified_money": True},
+        {"text": "Mã số: 50 | Năm nay: 79.611.117.804", "heading_level": None, "page": 7,
+         "source_kind": "vision_verified"},
+        {"text": "dong ocr", "heading_level": None, "page": 8, "source_kind": "ocr"},
+    ], []))
+    docs = extract.extract_documents("/x.pdf", "x.pdf")
+    tr7 = docs[0]["page_content"].split("\n")
+    assert tr7[0] == "TAI SAN", "hàng nhãn không có số -> không gắn dấu"
+    assert tr7[1] == f"{extract.UNVERIFIED_PREFIX}Mã số: 52 | Năm trước: 358.487.382"
+    assert tr7[2] == "Mã số: 50 | Năm nay: 79.611.117.804", "hàng đã kiểm -> không gắn"
+    assert docs[1]["page_content"] == "dong ocr", "bậc ocr KHÔNG gắn dấu — xem bảng lý do"
+    # Dấu chỉ vào body; metadata vẫn giữ nguyên cho người gọi nào đọc được nó.
+    assert docs[0]["metadata"]["source_kind"] == "vision_unverified"
+
+
+def test_tien_to_tu_giai_thich_va_khong_lap_khi_da_co(monkeypatch):
+    """Dấu phải tự nói nghĩa (không có dòng chú giải đầu trang — nó chết ở khối
+    thứ hai khi Open WebUI cắt 1000 ký tự), và không cộng dồn nếu block đã mang."""
+    assert "CHƯA KIỂM" in extract.UNVERIFIED_PREFIX
+    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+        {"text": f"{extract.UNVERIFIED_PREFIX}Mã số: 52 | Năm trước: 358.487.382",
+         "heading_level": None, "page": 7, "source_kind": "vision_unverified",
+         "unverified_money": True},
+    ], []))
+    docs = extract.extract_documents("/x.pdf", "x.pdf")
+    assert docs[0]["page_content"].count("CHƯA KIỂM") == 1
