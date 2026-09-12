@@ -2676,3 +2676,19 @@ tệp) thì truy hồi của họ LẤY ĐƯỢC hàng mã 52 trong khi lượt 
 biệt duy nhất là chuỗi dấu dài hơn đã đổi cả BM25 lẫn vector của chunk đó. Tức
 xếp hạng của họ ở ranh giới rất mỏng quanh câu hỏi này; đừng coi "lần này ra
 đúng" là bằng chứng truy hồi đã ổn.
+
+**Nghiệm thu đầu-cuối qua Open WebUI THẬT — ĐẠT** (2026-09-12, sau khi chủ dự án
+thêm dòng vào `rag.template`): cùng câu hỏi, cùng tệp đã nạp qua `:8012`:
+
+> chỉ tiêu Phân phối cho các quỹ (mã số 52) năm trước có giá trị là 358.487.382.
+> Ngoài ra, có một dòng liên quan đến chỉ tiêu này ghi chú là [CHƯA KIỂM BẰNG SỐ HỌC]
+
+Số đúng, và cảnh báo TỚI ĐƯỢC người dùng — lần đầu tiên trong chuỗi này. Đối
+chứng: cùng câu hỏi trước khi thêm dòng template trả lời dứt khoát không kèm gì.
+
+**Vết xước còn lại**: model TRÍCH LẠI nhãn thô thay vì diễn giải ("ghi chú là
+[CHƯA KIỂM BẰNG SỐ HỌC]"), nên người dùng thấy một token ngoặc vuông. Probe của
+tôi với cùng template cho câu mượt hơn ("số liệu do máy đọc từ ảnh scan và chưa
+được đối chiếu"), nên đây là phương sai diễn đạt chứ không phải sai. Phương án
+nếu muốn gọn: thêm vào dòng template "hãy giải thích bằng lời, đừng trích lại
+nhãn" — nhưng mỗi lần đổi chữ là phải ĐO LẠI, đừng đổi chay.
