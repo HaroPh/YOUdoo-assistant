@@ -29,18 +29,29 @@ from .parse import parse_docx, parse_pdf, parse_pptx, parse_xlsx
 # nhận cả số đúng. Không có dòng chú giải đầu trang: nó chết ở khối thứ hai khi
 # Open WebUI cắt chunk 1000 ký tự, còn tiền tố thì hàn liền với con số.
 #
-# CHUỖI NÀY LÀ SỐ ĐO, KHÔNG PHẢI VĂN PHONG — đừng "gọn lại" mà không đo lại.
-# Đo 2026-09-12 qua ĐÚNG `rag.template` của Open WebUI, model
-# `gemini-3.5-flash-lite`, cùng một hàng mã 52 của DVT tr9:
-#   "[CHƯA KIỂM BẰNG SỐ HỌC] "  -> model TRƠ, trả lời y như không có dấu (0/2)
-#   chuỗi dưới đây (nêu luôn nghĩa vụ) -> 4/4 lượt vừa trả đúng số vừa nói rõ
-#   câu riêng dưới hàng            -> cũng được nghe, nhưng chunker của họ có
-#                                     thể cắt rời câu đó khỏi con số
-# Dư số đã thấy: 1/4 lượt model diễn giải "chưa kiểm" thành "chưa kiểm toán" —
-# nghĩa khác và nặng hơn. Chưa sửa vì sửa chữ là mất cơ sở đo; nếu cần chính xác
-# hơn thì đo lại cách diễn đạt mới, đừng đổi chay.
-UNVERIFIED_PREFIX = ("[CHƯA KIỂM — số do máy đọc từ ảnh scan, chưa đối chiếu được "
-                     "bằng số học; khi trích PHẢI nói rõ là số chưa kiểm] ")
+# CHUỖI NÀY LÀ SỐ ĐO, KHÔNG PHẢI VĂN PHONG — đừng đổi mà không đo lại. Đo
+# 2026-09-12 qua ĐÚNG `rag.template` của Open WebUI, `gemini-3.5-flash-lite`,
+# câu hỏi trúng hàng mã 52 của DVT tr9:
+#
+#   | cấu hình                                          | model nói rõ "chưa kiểm" |
+#   | dấu ngắn, MỘT hàng làm ngữ cảnh                   | 0/2                      |
+#   | dấu dài (tự nêu nghĩa vụ), MỘT hàng               | 4/4                      |
+#   | dấu dài, chunk THẬT ~1000 ký tự 8 dòng            | 0/3                      |
+#   | dấu ngắn + MỘT DÒNG thêm vào `rag.template`       | 3/3                      |
+#
+# Bài học: nghĩa vụ phải nằm trong PROMPT, không nằm trong text. Một dòng hướng
+# dẫn trong ngữ cảnh dày bị pha loãng tới mức vô hiệu, và probe một-hàng (4/4)
+# đo một thứ HẸP HƠN production — nó suýt làm tôi chốt sai.
+#
+# Nên dấu này chỉ là CÁI MÓC, nghĩa do template mang. Dòng phải có trong
+# Open WebUI (Admin → Documents → RAG template, ghi trong ghi chú thi hành):
+#   - Nếu dòng nào trong ngữ cảnh mở đầu bằng [CHƯA KIỂM, con số ở dòng đó do
+#     máy đọc từ ảnh scan và CHƯA được kiểm; khi dùng nó bạn PHẢI nói rõ đó là
+#     số chưa kiểm.
+# Dòng đó viết theo THÂN "[CHƯA KIỂM" nên đổi phần đuôi của dấu không làm nó
+# gãy. Không có dòng đó thì dấu vô hiệu (0/3) — đây là phụ thuộc cấu hình phía
+# họ, và là một lý lẽ nữa cho việc lấy lại tầng truy hồi (hướng B bước 2/3).
+UNVERIFIED_PREFIX = "[CHƯA KIỂM BẰNG SỐ HỌC] "
 
 
 class UnsupportedFormat(ValueError):

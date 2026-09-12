@@ -2642,6 +2642,37 @@ nghĩa vụ, ghi thẳng trong mã rằng **chuỗi đó là số đo, không ph
 toán"** — nghĩa khác và nặng hơn (unaudited). Không sửa chay vì sửa chữ là mất
 cơ sở đo; muốn chính xác hơn phải đo lại cách diễn đạt mới.
 
+**Nhưng probe một-hàng đo HẸP HƠN production, và nó suýt làm tôi chốt sai.**
+Bảng đầy đủ, cùng model, cùng `rag.template`, câu hỏi trúng hàng mã 52:
+
+| cấu hình | model nói rõ "chưa kiểm" |
+|---|---|
+| dấu ngắn, MỘT hàng làm ngữ cảnh | 0/2 |
+| dấu dài (tự nêu nghĩa vụ), MỘT hàng | 4/4 |
+| dấu dài, **chunk THẬT** ~1000 ký tự / 8 dòng | **0/3** |
+| dấu ngắn + **một dòng thêm vào `rag.template`** | **3/3** |
+
+Kết luận: **nghĩa vụ phải nằm trong prompt, không nằm trong text.** Một dòng
+hướng dẫn chìm trong ngữ cảnh dày bị pha loãng tới vô hiệu, dù cùng chuỗi đó
+hoạt động hoàn hảo khi ngữ cảnh chỉ có một hàng. Nên dấu giữ bản NGẮN
+(`[CHƯA KIỂM BẰNG SỐ HỌC] `, 24 ký tự) làm CÁI MÓC, và nghĩa do template mang.
+
+**Dòng phải thêm vào Open WebUI** (Admin → Documents → RAG template, ngay dưới
+`### Guidelines:`) — không có nó thì dấu vô hiệu:
+
+    - Nếu dòng nào trong ngữ cảnh mở đầu bằng [CHƯA KIỂM, con số ở dòng đó do máy
+      đọc từ ảnh scan và CHƯA được kiểm; khi dùng nó bạn PHẢI nói rõ đó là số chưa kiểm.
+
+Dòng đó viết theo THÂN `[CHƯA KIỂM` nên đổi đuôi của dấu không làm nó gãy.
+
 **Hệ quả cho bước 2**: bằng chứng đã đủ nói tầng truy hồi của Open WebUI là mắt
-gãy chính, không phải trích xuất. Bước 2 (đo retriever của ta vs của họ trên
-cùng hai tệp) không còn là "cho chắc" mà là việc kế tiếp bắt buộc.
+gãy chính, không phải trích xuất — ba lần trong hai ngày. Và giờ thêm một phụ
+thuộc cấu hình nữa phía họ (`rag.template`), vô hình với mọi test của ta. Bước 2
+(đo retriever của ta vs của họ trên cùng hai tệp) không còn là "cho chắc" mà là
+việc kế tiếp bắt buộc.
+
+**Một quan sát tình cờ, chưa giải thích**: lượt upload thứ hai (cùng mã, cùng
+tệp) thì truy hồi của họ LẤY ĐƯỢC hàng mã 52 trong khi lượt đầu không — khác
+biệt duy nhất là chuỗi dấu dài hơn đã đổi cả BM25 lẫn vector của chunk đó. Tức
+xếp hạng của họ ở ranh giới rất mỏng quanh câu hỏi này; đừng coi "lần này ra
+đúng" là bằng chứng truy hồi đã ổn.
