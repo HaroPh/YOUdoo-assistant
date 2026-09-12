@@ -469,3 +469,71 @@ def test_dau_cuoi_PDF_chi_co_anh_van_ra_chunk_mang_co_ocr(tmp_path, monkeypatch)
     chunks = chunk_text_blocks(blocks, doc_id="scan", source_file=str(pdf_path))
     assert chunks and all(c["source_kind"] == "ocr" for c in chunks)
     assert all(c["ocr_conf"] is not None and c["ocr_conf"] > 0 for c in chunks)
+
+
+# ─── trang thuyết minh (không cột mã số): không xé văn xuôi có chữ số (2026-09-11) ──
+# Hình trang 61 NTC_2025 đọc từ lưới đệm sẵn: letterhead, tiêu đề mục "29." có 4 ô,
+# văn xuôi 5–6 ô không chữ số, bảng con có tiền, tiêu đề con "29.2", mục "30.".
+_LUOI_TR61 = [
+    ["", "CÔNG TY CỔ PHẦN NHIÊN LIỆU", "SÀI GÒN", "", "", "", ""],
+    ["r", "BẢN THUYẾT MINH", "BÁO CÁO TÀI CHÍNH", "(tiếp theo)", "", "", ""],
+    ["r", "cho năm tài chính kết thúc", "ngày 30 tháng", "9 năm 2025", "", "", ""],
+    ["r", "29.", "", "CAM KET", "THUÊ VA CHO THUÊ HOAT ĐỘNG", "", ""],
+    ["r", "291", "", "Cam kết", "cho thuê hoạt động", "", ""],
+    ["Côn hiện", "đang cho thuê Tòa nhà văn phòng SFC và", "các bắt động", "sản", "đầu tư khác theo", "", ""],
+    ["r", "thiểu trong", "tương lai theo hợp đồng cho thuê hoạt động", "được trình bày", "như", "sau:", ""],
+    ["", "", "", "", "Số cuối năm", "", "Số đầu năm"],
+    ["r", "Đến 1 năm", "", "", "4.941.448.061", "", "15.611.296.360"],
+    ["r", "Từ 1 đến 5 năm", "", "", "686.060.606", "", "44.066.767.985"],
+    ["r", "Trên 5 năm", "", "", "-", "", "94.841.935.650"],
+    ["c", "29.2", "", "Cam kết", "thuê hoạt động", "", ""],
+    ["[", "30.", "", "SỰ KIEN", "SAU NGÀY KET THÚC KY KE TOÁN NAM", "", ""],
+]
+
+
+def _texts(blocks):
+    return [b["text"] for b in blocks]
+
+
+def test_trang_thuyet_minh_KHONG_xe_tieu_de_muc_co_chu_so_va_bo_cot_rac_gay(monkeypatch):
+    from src.rag import parse
+    blocks = parse._khoi_tu_luoi_anh(_LUOI_TR61, 61, set(), 0.9, strict_numeric=True)
+    texts = _texts(blocks)
+    tieu_de = next(b for b in blocks if b["text"].startswith("29. CAM KET"))
+    assert tieu_de["heading_level"] == 2 and not tieu_de.get("atomic")
+    assert tieu_de["text"] == "29. CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG", "cột rác gáy 'r' phải bị bỏ"
+    assert next(b for b in blocks if b["text"].startswith("29.2 Cam kết"))["heading_level"] == 5
+    assert next(b for b in blocks if b["text"].startswith("30. SỰ KIEN"))["heading_level"] == 2
+    # Bảng con vẫn là hàng atomic mang tên cột, kể cả hàng có một ô "-" và một ô tiền.
+    tien = [b for b in blocks if b.get("atomic")]
+    assert len(tien) == 3
+    assert all("Số cuối năm" in b["text"] and "Số đầu năm" in b["text"] for b in tien)
+    assert any("4.941.448.061" in b["text"] for b in tien)
+    assert not any("Cột 1:" in t or "vào ngày 29." in t or "29.:" in t for t in texts)
+    # Văn xuôi không chữ số vẫn đi phẳng như trước.
+    assert any(t.startswith("Côn hiện đang cho thuê") for t in texts)
+
+
+def test_duong_trang_bao_cao_chinh_giu_hanh_vi_cu_xe_hang_co_chu_so(monkeypatch):
+    """`strict_numeric=False` là đường trang CÓ cột mã số: quy tắc 'có chữ số bất
+    kỳ' giữ nguyên byte — test tồn tại để ai đổi mặc định sau phải đỏ."""
+    from src.rag import parse
+    blocks = parse._khoi_tu_luoi_anh(_LUOI_TR61, 61, set(), 0.9, strict_numeric=False)
+    xe = [b for b in blocks if b.get("atomic") and "CAM KET" in b["text"]]
+    assert xe, "đường cũ xé hàng '29. CAM KET' thành cột — đúng hành vi cũ"
+    assert not any(b["text"] == "29. CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG" for b in blocks)
+
+
+def test_parse_pdf_bat_strict_cho_trang_khong_cot_ma_so_va_tat_cho_trang_bao_cao_chinh(monkeypatch):
+    from src.rag import parse
+    from tests.ocr.test_grid_rows_assess import _tr7_grid
+    p = _luoi_mot_trang(monkeypatch, _LUOI_TR61)
+    blocks, _ = p.parse_pdf("ntc.pdf")
+    assert any(b["text"] == "29. CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG" and b["heading_level"] == 2 for b in blocks)
+
+    grid = _tr7_grid()                                       # có cột mã số -> strict tắt
+    p = _luoi_mot_trang(monkeypatch, grid)
+    blocks, _ = p.parse_pdf("dvt.pdf")
+    truoc = parse._khoi_tu_luoi_anh(grid, 1, set(), 90.0, strict_numeric=False)
+    sau = [b for b in blocks if b.get("page") == 1]
+    assert [b["text"] for b in sau] == [b["text"] for b in truoc], "trang báo cáo chính phải giống hệt đường cũ"

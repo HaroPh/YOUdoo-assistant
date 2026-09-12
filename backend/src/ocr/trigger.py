@@ -64,6 +64,26 @@ def statement_kind(text: str) -> str | None:
     return kinds[0] if len(kinds) == 1 else None
 
 
+# Trang báo cáo chính mà Tesseract KHÔNG đọc ra tiêu đề (PGI tr9, SCID tr56, DVT
+# tr15) vẫn nhận ra được bằng số hàng có mã số. Đo 2026-09-11 trên 281 trang
+# (`tools/calibrate_vlm_trigger_result.txt`): trang không tiêu đề có coded ∈
+# {0, 2, 3, 4} — số mục thuyết minh "29.", "30." — trừ đúng ba trang trên
+# (9, 12, 19); trang có tiêu đề: 0 hoặc ≥ 9. Khe 4 < x < 9 sạch trên cả corpus;
+# 6 nằm giữa khe.
+STATEMENT_MIN_CODED_ROWS = 6
+
+
+def is_statement_page(text: str, grid: list[list[str]]) -> bool:
+    """Trang là báo cáo chính (bảng chỉ tiêu có cột mã số) — khác trang thuyết
+    minh/văn xuôi. Tiêu đề đúng một loại, HOẶC cột mã số đủ dày. Dùng cho hai
+    quyết định: có gọi VLM không (ở đây) và có xé hàng có chữ số thành cột
+    không (`parse._khoi_tu_luoi_anh(strict_numeric=…)`)."""
+    if statement_kind(text) is not None:
+        return True
+    gr = grid_rows.rows_from_grid(grid) if grid else None
+    return gr is not None and gr.coded_rows >= STATEMENT_MIN_CODED_ROWS
+
+
 @dataclass(frozen=True)
 class Decision:
     kind: str | None                 # B01/B02/B03 hoặc None

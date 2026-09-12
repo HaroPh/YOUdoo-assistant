@@ -588,8 +588,15 @@ def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[
 
 
 def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
-                      conf: float | None) -> list[dict]:
+                      conf: float | None, *, strict_numeric: bool = False) -> list[dict]:
     """Blocks của MỘT trang đọc-từ-ảnh có lưới, GIỮ NGUYÊN thứ tự hàng.
+
+    `strict_numeric` (2026-09-11) — trang KHÔNG có cột mã số (thuyết minh, văn
+    xuôi): hàng thân chỉ là dữ liệu bảng khi `table.has_money_data` (có ô tiền
+    hoặc ô gạch ngang); "có chữ số bất kỳ" (`has_numeric_data`) xé sai 887/1.782
+    hàng trên 229 trang như vậy — số mục "29.", ngày tháng. Trang có cột mã số
+    giữ quy tắc cũ nguyên byte. Cột rác gáy sách (`table.margin_junk_columns`)
+    bị bỏ khỏi dòng phẳng để `heading_level` nhận được "29. CAM KẾT…".
 
     Bậc 1 nhả ĐÚNG MỘT vùng phủ CẢ TRANG, nên lưới bậc 2 phủ cả letterhead,
     tiêu đề và chân trang chứ không riêng thân bảng. Đưa TRỌN lưới đó vào
@@ -609,6 +616,8 @@ def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
     """
     blocks: list[dict] = []
     runs = dict(table.table_row_runs(grid))
+    drop_cols = table.margin_junk_columns(grid) if strict_numeric else set()
+    la_du_lieu = table.has_money_data if strict_numeric else table.has_numeric_data
     i = 0
     while i < len(grid):
         if i in runs:
@@ -622,36 +631,82 @@ def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
             # 6 tài liệu scan. Xem bảng cạnh `table.MAX_RUN_GAP_ROWS`.
             hr2 = table.find_header_rows(grid, i + len(header_rows))
             columns = column_names(hr2 or header_rows)
-            for row in body_rows:
+            body_start = i + len(header_rows)
+            # Strict: header CỤC BỘ cho từng bảng con. Bảng con trên trang thuyết
+            # minh nằm GIỮA văn xuôi, header của nó là đúng MỘT dòng ngay trên
+            # hàng tiền đầu tiên và thường chỉ hai ô ("Số cuối năm | Số đầu
+            # năm") — dưới `MIN_HEADER_CELLS`; còn `split_header_body` đã cắt
+            # dải ở chữ số đầu tiên (số mục "291") nên header DẢI là letterhead.
+            # `local_header[k]` = tên cột cho hàng tiền ở chỉ số lưới k; các
+            # hàng đã dùng làm header (`header_idx`) không phát ra dòng phẳng.
+            local_header: dict[int, list[str]] = {}
+            header_idx: set[int] = set()
+            if strict_numeric:
+                for k, row in enumerate(body_rows, start=body_start):
+                    if la_du_lieu(row):
+                        hr = table.find_header_rows(grid, k, window=1, min_cells=2)
+                        if hr:
+                            local_header[k] = column_names(hr)
+                            header_idx.add(k - 1)
+                # "Header" của dải theo `split_header_body` là MỌI hàng trước
+                # hàng số đầu tiên — letterhead, và cả dòng tiêu đề mục
+                # "29. CAM KẾT THUÊ…" đứng trên bảng con. Nuốt chúng làm tên cột
+                # là mất hẳn tiêu đề khỏi văn bản (đo trên NTC tr61: block "29."
+                # không tồn tại). Phát chúng ra như dòng phẳng, trừ hàng đã
+                # dùng làm header cục bộ.
+                for j, row in enumerate(header_rows, start=i):
+                    if j not in header_idx:
+                        blocks.extend(_flat_line_block(row, pageno, conf, furniture, drop_cols=drop_cols))
+            cot_con = None                      # tên cột của bảng con đang mở (strict)
+            for k, row in enumerate(body_rows, start=body_start):
+                if k in header_idx:
+                    continue                    # đã thành tên cột của bảng con
+                if strict_numeric and drop_cols:
+                    # Bỏ ô rác gáy TRƯỚC khi xét: một "-"/"—" ở rìa là bóng gáy,
+                    # cộng với một gạch thật ở giữa thành "≥ 2 gạch" giả (đo:
+                    # 2 hàng văn xuôi/chữ ký lọt đường bảng trên 368 hàng mẫu).
+                    row = ["" if (j in drop_cols and table.is_margin_junk(c)) else c
+                           for j, c in enumerate(row)]
                 # Hàng thân KHÔNG mang dữ liệu số là văn xuôi lọt vào dải
                 # (tiêu đề mục, câu chú thích, mảnh letterhead, khối chữ ký).
                 # Xé nó thành cột làm hỏng chunk, nên đưa về ĐÚNG đường
                 # dòng-phẳng như hàng ngoài dải — qua `heading_level()` và
                 # qua bộ lọc furniture. Xem `table.has_numeric_data`.
-                if not table.has_numeric_data(row):
+                if not la_du_lieu(row):
                     blocks.extend(_flat_line_block(row, pageno, conf,
-                                                   furniture))
+                                                   furniture, drop_cols=drop_cols))
                     continue
-                blocks.append({"text": row_to_text(row, columns,
+                cot = columns
+                if strict_numeric:
+                    # Hàng tiền kề sau không có header riêng dùng lại của bảng
+                    # con đang mở; không có gì thì tên cột của dải.
+                    cot_con = local_header.get(k, cot_con)
+                    cot = cot_con or columns
+                blocks.append({"text": row_to_text(row, cot,
                                                    compact=True),
                                "heading_level": None, "page": pageno,
                                "atomic": True, "source_kind": "ocr",
                                "ocr_conf": conf})
             i = end
             continue
-        blocks.extend(_flat_line_block(grid[i], pageno, conf, furniture))
+        blocks.extend(_flat_line_block(grid[i], pageno, conf, furniture, drop_cols=drop_cols))
         i += 1
     return blocks
 
 
-def _flat_line_block(row: list[str], pageno: int, conf, furniture) -> list[dict]:
+def _flat_line_block(row: list[str], pageno: int, conf, furniture,
+                     *, drop_cols: set[int] = frozenset()) -> list[dict]:
     """Một hàng lưới -> ĐÚNG đường dòng-phẳng cũ: nối ô bằng dấu cách, chấm
     `heading_level()`, lọc furniture. Trả [] khi hàng rỗng hoặc là rác đầu/
     chân trang.
 
     Tách thành hàm riêng 2026-09-08 vì nay có HAI chỗ gọi: hàng nằm ngoài dải
-    bảng, và hàng THÂN không mang dữ liệu số."""
-    text = " ".join(c.strip() for c in row if c.strip()).strip()
+    bảng, và hàng THÂN không mang dữ liệu số. `drop_cols`: cột rác gáy sách của
+    trang, bỏ trước khi nối (xem `table.margin_junk_columns`)."""
+    # Cột rác gáy: chỉ bỏ ô THỰC SỰ là rác (≤ 2 ký tự, không phải chữ số) — cột
+    # đó vẫn chứa chữ thật ở vài hàng ("Công ty hiện", "Côn hiện" trên NTC tr61).
+    text = " ".join(c.strip() for j, c in enumerate(row)
+                    if c.strip() and not (j in drop_cols and table.is_margin_junk(c))).strip()
     if not text or _normalize_digits(text) in furniture:
         return []
     return [{"text": text, "heading_level": heading_level(text),
@@ -684,6 +739,7 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
         page_bangs: list[list] = []
         ocr_pages: dict[int, float | None] = {}
         grid_by_page: dict[int, list[list[str]]] = {}
+        strict_by_page: dict[int, bool] = {}
         vlm_by_page: dict[int, list[dict]] = {}
         vlm_reader = None
         vlm_con_chay = True
@@ -704,6 +760,10 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                     ocr_pages[pageno] = conf
                     if ocr_grid and max(len(h) for h in ocr_grid) > 1:
                         grid_by_page[pageno] = ocr_grid
+                        # Trang thuyết minh/văn xuôi -> quy tắc dữ-liệu-bảng
+                        # chặt ở lượt hai; trang báo cáo chính giữ đường cũ.
+                        strict_by_page[pageno] = not trigger.is_statement_page(
+                            kq_anh.text if kq_anh is not None else "", ocr_grid)
                 # Bậc 3: trang báo cáo chính mà số học không vouch được cho
                 # Tesseract -> VLM đọc, số qua cổng số học mới được lưu.
                 if kq_anh is not None and text_toan_trang and vlm_con_chay:
@@ -782,9 +842,9 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                 blocks.extend(vlm_by_page[pageno])      # một xuất xứ mỗi trang
                 continue
             if pageno in grid_by_page:
-                blocks.extend(_khoi_tu_luoi_anh(grid_by_page[pageno], pageno,
-                                                furniture,
-                                                ocr_pages.get(pageno)))
+                blocks.extend(_khoi_tu_luoi_anh(
+                    grid_by_page[pageno], pageno, furniture, ocr_pages.get(pageno),
+                    strict_numeric=strict_by_page.get(pageno, False)))
                 continue
             for text in lines:
                 if _normalize_digits(text) in furniture:
