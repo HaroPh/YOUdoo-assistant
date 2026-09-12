@@ -2557,3 +2557,59 @@ minh "số mục → trang/đoạn" dựng lúc trích), không phải tìm tư�
 
 Lỗi tự gây trong ngày: `sed` với `\d` trong regex mất hết dấu gạch chéo → cổng đo
 lat5 báo 354 hàng "không tiền" giả; nhìn ra ngay vì ví dụ in kèm đều có tiền.
+
+## Hướng B bước 1 — dấu xuất xứ đi vào TEXT, vì kênh metadata đã chết (2026-09-12)
+
+**Dữ kiện buộc phải làm**: đọc mã trong container, `get_source_context`
+(`open_webui/utils/middleware.py:807`) dựng prompt CHỈ từ `doc` body cộng
+`id/name/resource-type/resource-id`, **bỏ mọi metadata khác**. Nên
+`metadata.source_kind` — kênh 3 của spec OCR bậc 3, thứ lát 4 vừa dựng —
+**không bao giờ tới model** trên đường tệp đính kèm. Cổng số học to tiếng với
+người vận hành qua `IngestReport`, còn người dùng nhận số VLM chưa kiểm y như
+số chính xác. Câu trả lời DVT/NTC đúng là nhờ số học đã LỌC từ trước, không
+nhờ cảnh báo tới được model.
+
+**Sửa (commit `3d4841b`)**: `parse._khoi_tu_vlm` gắn cờ `unverified_money` lấy
+từ `RowVerdict.status` + `.numeric` — chỗ BIẾT sự thật; `extract.py` thêm tiền
+tố `[CHƯA KIỂM BẰNG SỐ HỌC] ` cho đúng những hàng đó. Ba lựa chọn bị loại và
+lý do: dò lại bằng regex ở `extract.py` (gắn oan hàng toàn gạch ngang — `"Mã
+số: 05"` cũng có chữ số); một dòng cảnh báo đầu trang (chết ở khối thứ hai khi
+Open WebUI cắt 1000 ký tự); gắn cho mọi bậc kể cả `ocr` (gần như mọi trang scan
+là `ocr` → tiếng ồn, model dễ phủ nhận cả số đúng).
+
+`extract.py` chỉ được `main.py` import; corpus đi `ingest → chunking`. Nên dấu
+**không** chạm `chunk_text`/vector/BM25 của ta — có cổng test khẳng định
+`chunk_text_blocks` cho `chunk_text` y hệt khi block mang cờ.
+
+**Đo qua đường thật** (`extract_documents`, VLM sống): DVT **1 dấu** (tr9 mã 52
+— "Phân phối cho các quỹ", không ràng buộc nào phủ, đúng dự đoán trước khi
+chạy); NTC **8 dấu**, tất cả trên tr38.
+
+### Phát hiện ngoài kế hoạch: VLM đọc KHÁC NHAU giữa các lượt trên trang khó
+
+Cộng tay tại chỗ thì số học tr38 khớp tuyệt đối cả hai cột
+(`08 = 01+02+03+05+06`, `20 = 08+09..17`), nên 8 dấu trông như gắn oan. Đo 4
+lượt VLM trên **cùng một ảnh, cùng một mã** (`temperature=0`):
+
+| lượt | hàng có số verified | ghi chú |
+|---|---|---|
+| 1 | 24/24 | form B03-DN-GT, PASS 8 / FAIL 0 / NA 4 (50, 70 là tổng xuyên trang) |
+| 2 | 24/24 | mã số giống lượt 1 từng hàng |
+| 3 | **15/23** | 27 hàng nhưng chỉ 23 hàng CÓ SỐ (một ô mất số) → `20 = 08+09..17` lệch, mà hàng 13 vắng nên → **NA**, không FAIL → 8 hàng mất phủ |
+| lượt trong `extract_documents` | 15/23 | đúng cùng 8 mã: 09, 10, 12, 14, 15, 16, 17, 20 |
+
+Tức **2/4 lượt** trang này không xác minh được, và dấu đang theo dõi đúng cái
+đó — không phải nhiễu. Cơ chế: **một ô đọc sai làm cả cụm mất phủ**, vì cổng
+không biết ô nào sai nên không dám kết luận (đúng chiều an toàn). Trang này là
+ca khó nhất đã gặp: lưu chuyển tiền gián tiếp, 27 hàng, dấu âm trong ngoặc,
+nhiều ô gạch ngang. Q8 trên 10 trang đáp án đo 2 lượt **giống nhau từng ô**, nên
+phương sai là **theo trang**, không phải đặc tính chung.
+
+**Ý tưởng vào hàng chờ (chưa làm, cần đo)**: khi cổng không xác minh được một
+cụm, hỏi VLM **lượt thứ hai** và chỉ nhận khi hai lượt khớp từng ô. Chi phí:
+gấp đôi lượt gọi CHỈ trên trang trượt (tr38 là 1/61 trang của NTC). Đây cũng là
+lập luận cho việc giữ `VisionTable.raw` làm fixture: mọi thay đổi bộ kiểm sau
+chạy lại offline trên chính các phản hồi này.
+
+**Chưa chạy**: chân Open WebUI (model có nghe dấu không) — cần `start-dev.ps1`
+của chủ dự án bật MCP `:8003` để backend lên được.
