@@ -2557,3 +2557,138 @@ minh "số mục → trang/đoạn" dựng lúc trích), không phải tìm tư�
 
 Lỗi tự gây trong ngày: `sed` với `\d` trong regex mất hết dấu gạch chéo → cổng đo
 lat5 báo 354 hàng "không tiền" giả; nhìn ra ngay vì ví dụ in kèm đều có tiền.
+
+## Hướng B bước 1 — dấu xuất xứ đi vào TEXT, vì kênh metadata đã chết (2026-09-12)
+
+**Dữ kiện buộc phải làm**: đọc mã trong container, `get_source_context`
+(`open_webui/utils/middleware.py:807`) dựng prompt CHỈ từ `doc` body cộng
+`id/name/resource-type/resource-id`, **bỏ mọi metadata khác**. Nên
+`metadata.source_kind` — kênh 3 của spec OCR bậc 3, thứ lát 4 vừa dựng —
+**không bao giờ tới model** trên đường tệp đính kèm. Cổng số học to tiếng với
+người vận hành qua `IngestReport`, còn người dùng nhận số VLM chưa kiểm y như
+số chính xác. Câu trả lời DVT/NTC đúng là nhờ số học đã LỌC từ trước, không
+nhờ cảnh báo tới được model.
+
+**Sửa (commit `3d4841b`)**: `parse._khoi_tu_vlm` gắn cờ `unverified_money` lấy
+từ `RowVerdict.status` + `.numeric` — chỗ BIẾT sự thật; `extract.py` thêm tiền
+tố `[CHƯA KIỂM BẰNG SỐ HỌC] ` cho đúng những hàng đó. Ba lựa chọn bị loại và
+lý do: dò lại bằng regex ở `extract.py` (gắn oan hàng toàn gạch ngang — `"Mã
+số: 05"` cũng có chữ số); một dòng cảnh báo đầu trang (chết ở khối thứ hai khi
+Open WebUI cắt 1000 ký tự); gắn cho mọi bậc kể cả `ocr` (gần như mọi trang scan
+là `ocr` → tiếng ồn, model dễ phủ nhận cả số đúng).
+
+`extract.py` chỉ được `main.py` import; corpus đi `ingest → chunking`. Nên dấu
+**không** chạm `chunk_text`/vector/BM25 của ta — có cổng test khẳng định
+`chunk_text_blocks` cho `chunk_text` y hệt khi block mang cờ.
+
+**Đo qua đường thật** (`extract_documents`, VLM sống): DVT **1 dấu** (tr9 mã 52
+— "Phân phối cho các quỹ", không ràng buộc nào phủ, đúng dự đoán trước khi
+chạy); NTC **8 dấu**, tất cả trên tr38.
+
+### Phát hiện ngoài kế hoạch: VLM đọc KHÁC NHAU giữa các lượt trên trang khó
+
+Cộng tay tại chỗ thì số học tr38 khớp tuyệt đối cả hai cột
+(`08 = 01+02+03+05+06`, `20 = 08+09..17`), nên 8 dấu trông như gắn oan. Đo 4
+lượt VLM trên **cùng một ảnh, cùng một mã** (`temperature=0`):
+
+| lượt | hàng có số verified | ghi chú |
+|---|---|---|
+| 1 | 24/24 | form B03-DN-GT, PASS 8 / FAIL 0 / NA 4 (50, 70 là tổng xuyên trang) |
+| 2 | 24/24 | mã số giống lượt 1 từng hàng |
+| 3 | **15/23** | 27 hàng nhưng chỉ 23 hàng CÓ SỐ (một ô mất số) → `20 = 08+09..17` lệch, mà hàng 13 vắng nên → **NA**, không FAIL → 8 hàng mất phủ |
+| lượt trong `extract_documents` | 15/23 | đúng cùng 8 mã: 09, 10, 12, 14, 15, 16, 17, 20 |
+
+Tức **2/4 lượt** trang này không xác minh được, và dấu đang theo dõi đúng cái
+đó — không phải nhiễu. Cơ chế: **một ô đọc sai làm cả cụm mất phủ**, vì cổng
+không biết ô nào sai nên không dám kết luận (đúng chiều an toàn). Trang này là
+ca khó nhất đã gặp: lưu chuyển tiền gián tiếp, 27 hàng, dấu âm trong ngoặc,
+nhiều ô gạch ngang. Q8 trên 10 trang đáp án đo 2 lượt **giống nhau từng ô**, nên
+phương sai là **theo trang**, không phải đặc tính chung.
+
+**Ý tưởng vào hàng chờ (chưa làm, cần đo)**: khi cổng không xác minh được một
+cụm, hỏi VLM **lượt thứ hai** và chỉ nhận khi hai lượt khớp từng ô. Chi phí:
+gấp đôi lượt gọi CHỈ trên trang trượt (tr38 là 1/61 trang của NTC). Đây cũng là
+lập luận cho việc giữ `VisionTable.raw` làm fixture: mọi thay đổi bộ kiểm sau
+chạy lại offline trên chính các phản hồi này.
+
+**Chưa chạy**: chân Open WebUI (model có nghe dấu không) — cần `start-dev.ps1`
+của chủ dự án bật MCP `:8003` để backend lên được.
+
+### Dấu ngắn thì model KHÔNG NGHE — đo, và đổi cách diễn đạt (2026-09-12)
+
+Nghiệm thu chân Open WebUI phát hiện hai chuyện, một tốt một bác bỏ:
+
+**Tốt**: bản Open WebUI vừa nhận (34.617 ký tự qua `:8012`) mang **đúng 1 dấu**,
+trên hàng mã 52 — cơ chế bước 1 chạy thông tới đầu bên kia.
+
+**Bác bỏ**: câu hỏi *"phân phối cho các quỹ năm trước là bao nhiêu"* trả về
+"không có thông tin" — **truy hồi của họ không lấy chunk đó**, dù text có cả
+nhãn lẫn con số ở nhiều chỗ. Lần thứ ba tầng truy hồi của họ là mắt gãy (sau
+"mục 29" và lượt MiniLM). Nên câu hỏi "model có nghe dấu không" phải đo TÁCH
+khỏi truy hồi: đưa thẳng hàng đó vào prompt bằng **đúng `rag.template` của họ**.
+
+| cách diễn đạt dấu | model có nói ra là số chưa kiểm? |
+|---|---|
+| `[CHƯA KIỂM BẰNG SỐ HỌC] ` (bản đầu) | **KHÔNG** — 0/2 lượt, trả lời y như không có dấu |
+| tiền tố nêu luôn NGHĨA VỤ ("khi trích PHẢI nói rõ…") | **CÓ** — 4/4 lượt, ba cách hỏi khác nhau, số vẫn đúng |
+| câu riêng dưới hàng | CÓ, nhưng chunker của họ có thể cắt rời câu đó khỏi con số |
+
+Vì sao bản đầu trơ: `[...]` ngắn trông như rác OCR (text của ta đầy ngoặc vuông
+thật) và giống khuôn `[1]` mà template của họ dặn là markup. Bài học chung: một
+cái dấu không tự mang nghĩa vụ thì LLM coi là trang trí. Đã chốt tiền tố nêu
+nghĩa vụ, ghi thẳng trong mã rằng **chuỗi đó là số đo, không phải văn phong**.
+
+**Dư số chưa xử lý**: 1/4 lượt model diễn giải "chưa kiểm" thành **"chưa kiểm
+toán"** — nghĩa khác và nặng hơn (unaudited). Không sửa chay vì sửa chữ là mất
+cơ sở đo; muốn chính xác hơn phải đo lại cách diễn đạt mới.
+
+**Nhưng probe một-hàng đo HẸP HƠN production, và nó suýt làm tôi chốt sai.**
+Bảng đầy đủ, cùng model, cùng `rag.template`, câu hỏi trúng hàng mã 52:
+
+| cấu hình | model nói rõ "chưa kiểm" |
+|---|---|
+| dấu ngắn, MỘT hàng làm ngữ cảnh | 0/2 |
+| dấu dài (tự nêu nghĩa vụ), MỘT hàng | 4/4 |
+| dấu dài, **chunk THẬT** ~1000 ký tự / 8 dòng | **0/3** |
+| dấu ngắn + **một dòng thêm vào `rag.template`** | **3/3** |
+
+Kết luận: **nghĩa vụ phải nằm trong prompt, không nằm trong text.** Một dòng
+hướng dẫn chìm trong ngữ cảnh dày bị pha loãng tới vô hiệu, dù cùng chuỗi đó
+hoạt động hoàn hảo khi ngữ cảnh chỉ có một hàng. Nên dấu giữ bản NGẮN
+(`[CHƯA KIỂM BẰNG SỐ HỌC] `, 24 ký tự) làm CÁI MÓC, và nghĩa do template mang.
+
+**Dòng phải thêm vào Open WebUI** (Admin → Documents → RAG template, ngay dưới
+`### Guidelines:`) — không có nó thì dấu vô hiệu:
+
+    - Nếu dòng nào trong ngữ cảnh mở đầu bằng [CHƯA KIỂM, con số ở dòng đó do máy
+      đọc từ ảnh scan và CHƯA được kiểm; khi dùng nó bạn PHẢI nói rõ đó là số chưa kiểm.
+
+Dòng đó viết theo THÂN `[CHƯA KIỂM` nên đổi đuôi của dấu không làm nó gãy.
+
+**Hệ quả cho bước 2**: bằng chứng đã đủ nói tầng truy hồi của Open WebUI là mắt
+gãy chính, không phải trích xuất — ba lần trong hai ngày. Và giờ thêm một phụ
+thuộc cấu hình nữa phía họ (`rag.template`), vô hình với mọi test của ta. Bước 2
+(đo retriever của ta vs của họ trên cùng hai tệp) không còn là "cho chắc" mà là
+việc kế tiếp bắt buộc.
+
+**Một quan sát tình cờ, chưa giải thích**: lượt upload thứ hai (cùng mã, cùng
+tệp) thì truy hồi của họ LẤY ĐƯỢC hàng mã 52 trong khi lượt đầu không — khác
+biệt duy nhất là chuỗi dấu dài hơn đã đổi cả BM25 lẫn vector của chunk đó. Tức
+xếp hạng của họ ở ranh giới rất mỏng quanh câu hỏi này; đừng coi "lần này ra
+đúng" là bằng chứng truy hồi đã ổn.
+
+**Nghiệm thu đầu-cuối qua Open WebUI THẬT — ĐẠT** (2026-09-12, sau khi chủ dự án
+thêm dòng vào `rag.template`): cùng câu hỏi, cùng tệp đã nạp qua `:8012`:
+
+> chỉ tiêu Phân phối cho các quỹ (mã số 52) năm trước có giá trị là 358.487.382.
+> Ngoài ra, có một dòng liên quan đến chỉ tiêu này ghi chú là [CHƯA KIỂM BẰNG SỐ HỌC]
+
+Số đúng, và cảnh báo TỚI ĐƯỢC người dùng — lần đầu tiên trong chuỗi này. Đối
+chứng: cùng câu hỏi trước khi thêm dòng template trả lời dứt khoát không kèm gì.
+
+**Vết xước còn lại**: model TRÍCH LẠI nhãn thô thay vì diễn giải ("ghi chú là
+[CHƯA KIỂM BẰNG SỐ HỌC]"), nên người dùng thấy một token ngoặc vuông. Probe của
+tôi với cùng template cho câu mượt hơn ("số liệu do máy đọc từ ảnh scan và chưa
+được đối chiếu"), nên đây là phương sai diễn đạt chứ không phải sai. Phương án
+nếu muốn gọn: thêm vào dòng template "hãy giải thích bằng lời, đừng trích lại
+nhãn" — nhưng mỗi lần đổi chữ là phải ĐO LẠI, đừng đổi chay.

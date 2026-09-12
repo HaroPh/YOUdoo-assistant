@@ -182,3 +182,18 @@ def test_INSERT_co_hai_cot_moi_va_chiu_duoc_chunk_thieu_khoa(tmp_path, monkeypat
     sql1, params1 = insert_chunk_calls[1]
     assert _cot_va_gia_tri(sql1, params1, "source_kind") == "text"
     assert _cot_va_gia_tri(sql1, params1, "ocr_conf") is None
+
+
+def test_co_unverified_money_KHONG_lot_vao_chunk_text_cua_corpus():
+    """Cờ chỉ phục vụ đường endpoint (Open WebUI). Corpus của ta gắn xuất xứ
+    bằng CỘT `source_kind` và tag ở prompt tổng hợp, nên `chunk_text` phải sạch
+    — nhét dấu vào đó là bẩn vector + BM25, đúng thứ spec OCR bậc 3 cấm."""
+    from src.rag.chunking import chunk_text_blocks
+    khong_co = [{"text": "Mã số: 52 | Năm trước: 358.487.382", "heading_level": None,
+                 "page": 9, "source_kind": "vision_unverified"}]
+    co = [{**khong_co[0], "unverified_money": True}]
+    a = chunk_text_blocks(khong_co, doc_id="d", source_file="x.pdf")
+    b = chunk_text_blocks(co, doc_id="d", source_file="x.pdf")
+    assert [c["chunk_text"] for c in a] == [c["chunk_text"] for c in b]
+    assert all("CHƯA KIỂM" not in c["chunk_text"] for c in b)
+    assert all(c["source_kind"] == "vision_unverified" for c in b)

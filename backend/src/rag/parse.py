@@ -579,7 +579,14 @@ def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[
         row = [r.get("muc") or "", " ".join((r.get("chi_tieu") or "").split()), r.get("ma_so") or "",
                r.get("thuyet_minh") or "", *(r.get(c) or "" for c in cols)]
         blocks.append({"text": row_to_text(row, columns, compact=True), "heading_level": None,
-                       "page": pageno, "atomic": True, "source_kind": rv.status, "ocr_conf": None})
+                       "page": pageno, "atomic": True, "source_kind": rv.status, "ocr_conf": None,
+                       # Cờ cho `extract.py` gắn dấu xuất xứ vào TEXT trên đường
+                       # Open WebUI (metadata của ta bị họ bỏ — xem
+                       # `extract.UNVERIFIED_PREFIX`). Đặt ở đây vì đây là chỗ
+                       # BIẾT sự thật: `RowVerdict` đã phân xử trạng thái và có
+                       # `numeric`. Dò lại bằng regex ở tầng trên sẽ gắn oan hàng
+                       # toàn gạch ngang — "Mã số: 05" cũng có chữ số.
+                       "unverified_money": rv.status == so_hoc.RowStatus.UNVERIFIED and rv.numeric})
     mau = a.form.mau if a.form else "-"
     canh_bao = (f"trang {pageno} (VLM)",
                 f"model {t.model}/{t.prompt_version}, bảng {mau} · {a.report.summary}"

@@ -166,3 +166,29 @@ def test_trang_bao_cao_chinh_ma_Tesseract_duoc_so_hoc_bao_lanh_thi_khong_goi_VLM
     blocks, warnings = p.parse_pdf("dvt.pdf")
     assert any(b["source_kind"] == "ocr" for b in blocks)
     assert any("số học vouch cho Tesseract" in w[1] for w in warnings)
+
+
+def test_co_unverified_money_dat_dung_hang_chua_kiem_co_so_tren_fixture_that(monkeypatch):
+    """Cờ `unverified_money` là thứ `extract.py` đọc để gắn dấu xuất xứ. Nó phải
+    do chỗ BIẾT sự thật đặt (`RowVerdict.status` + `.numeric`), không phải dò lại
+    bằng regex ở tầng trên — hàng toàn gạch ngang cũng có chữ số trong "Mã số: 05".
+
+    Fixture: phản hồi VLM THẬT trên DVT tr9 (bắt 2026-09-11). Đúng một hàng là
+    chưa-kiểm-mà-có-số: mã 52 (Phân phối cho các quỹ, Năm trước 358.487.382 —
+    không ràng buộc nào phủ cột đó)."""
+    from types import SimpleNamespace
+    raw = json.load(open(os.path.join(_THU_MUC, "vlm_raw", "DVT_2022_tr9_lan1.json"),
+                         encoding="utf-8"))
+    from PIL import Image
+    monkeypatch.setattr(parse, "_anh_cua_trang",
+                        lambda path, pageno, dpi: Image.new("RGB", (8, 8), "white"))
+    blocks, canh_bao, dung = parse._khoi_tu_vlm(
+        _FakeVision(raw["payload"]), "dvt.pdf", 9, SimpleNamespace(rotation=0))
+    assert not dung and canh_bao is not None
+    co = [b for b in blocks if b.get("unverified_money")]
+    assert [b["text"].split("Mã số: ")[1].split(" |")[0] for b in co] == ["52"]
+    assert all(b["source_kind"] == "vision_unverified" for b in co)
+    # Hàng toàn gạch ngang là `unverified` nhưng KHÔNG có số -> không mang cờ.
+    gach = [b for b in blocks
+            if b.get("source_kind") == "vision_unverified" and not b.get("unverified_money")]
+    assert gach, "trang này có hàng '-' -> phải có block unverified KHÔNG mang cờ"
