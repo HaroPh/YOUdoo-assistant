@@ -489,3 +489,77 @@ def test_khoi_bang_khop_so_cot_thi_van_gop_hai_che_do():
     assert [w for w in warnings if "bất đồng số cột" in w[1]] == []
     assert any("10-15" in b["text"] for b in blocks), (
         f"hàng chỉ chế độ text thấy đã bị mất: {[b['text'] for b in blocks]}")
+
+
+# ─── nhánh IN HOA đòi ≥ 2 TỪ (2026-09-17) ─────────────────────────────────────
+# Vì sao siết: nhánh `text.isupper()` cho cấp 2, tức NÔNG HƠN numbering (cấp 5),
+# nên mỗi dòng IN HOA một-từ HẤT tiêu đề mục thật ra khỏi `path_stack` của
+# `chunk_text_blocks`. Trên trang scan, dòng như vậy là nhãn đơn vị hoặc rác OCR.
+#
+# Đo trên TOÀN BỘ lá breadcrumb do nhánh này sinh, hai schema (eval_attach 1.040
+# chunk tệp đính kèm + public 4.870 chunk corpus sản xuất), không chọn tay:
+#
+#   số từ | #lá | #chunk | bản chất
+#      1  |  77 |   940  | RÁC 77/77 — 'VND' 133, 'IB' 133, 'Z' 114, 'AEN' 39,
+#         |     |        | 'M =', '3 EIỆ', '⁄Z39063722A'… KHÔNG một cái nào là
+#         |     |        | tiêu đề thật
+#      2  |  36 |   426  | LẪN — thật 'CÁ NHÂN' 83, 'NGUỒN VỐN' 44, 'MỤC LỤC' 32,
+#         |     |        | 'TÀI SẢN' 30…; rác 'HRT HE.' 52, '39 BIẾT KP'…
+#     3+  | 203 |  4.387 | gần như toàn tiêu đề luật thật
+#
+# Nên ngưỡng nằm ở 2 từ: cắt 1 từ thì bỏ 940 chunk rác mà KHÔNG mất một tiêu đề
+# thật nào; cắt ở 2 từ sẽ giết 'TÀI SẢN'/'NGUỒN VỐN'. Hàng rào an toàn mà
+# docstring `heading_level` bảo vệ (dòng IN HOA mang từ phân biệt của chương,
+# "BẢO HIỂM XÃ HỘI TỰ NGUYỆN") có 6 từ nên không bị chạm.
+def test_in_hoa_MOT_tu_khong_phai_tieu_de():
+    from src.rag.parse import heading_level
+    for rac in ("VND", "Z", "IB", "AEN", "TT", "FY", "LUẬT", "TP.", "⁄Z39063722A"):
+        assert heading_level(rac) is None, f"{rac!r} là nhãn/rác, không phải tiêu đề"
+
+
+def test_in_hoa_NHIEU_tu_van_la_cap_2():
+    """Hàng rào của corpus luật phải còn nguyên — đây là lý do nhánh này tồn tại."""
+    from src.rag.parse import heading_level
+    assert heading_level("BẢO HIỂM XÃ HỘI TỰ NGUYỆN") == 2
+    assert heading_level("TÀI SẢN") == 2          # 2 từ: giữ, đo được là thật
+    assert heading_level("NGUỒN VỐN") == 2
+    assert heading_level("CONG TY CO PHAN ABC") == 2
+    assert heading_level("29. | CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG") == 2
+
+
+def test_nhan_don_vi_VND_khong_con_hat_tieu_de_muc_khoi_breadcrumb():
+    """Ca hỏng thật đã đo: NTC_2025.pdf tr61. Hàng mang đáp án
+    (5.753.213.767) là chunk atomic 68 ký tự, KHÔNG chứa từ nào của câu hỏi
+    "cam kết thuê hoạt động đến 1 năm" — cầu nối duy nhất của nó tới câu hỏi là
+    `section_path`, vì `index_text()` nối breadcrumb vào chuỗi đem đi
+    embed/ts_vector. Trước bản vá breadcrumb là 'VND', nên chunk đó không vào
+    nổi chân NÀO (dense/fold/sparse đều không có nó) và reranker không hề thấy.
+
+    Hình lưới theo đúng trang thật: mục 29 IN HOA, bảng con 29.1 có dòng đơn vị
+    'VND', rồi tiêu đề 29.2, rồi bảng con 29.2 CÓ DÒNG 'VND' THỨ HAI — chính
+    dòng này hất 29.2 ra."""
+    from src.rag.chunking import chunk_text_blocks
+    from src.rag.parse import heading_level
+
+    def b(text, atomic=False):
+        return {"text": text, "heading_level": heading_level(text),
+                "page": 61, "atomic": atomic, "source_kind": "ocr"}
+
+    blocks = [
+        b("29. | CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG"),
+        b("291 Cam kết cho thuê hoạt động Công ty hiện đang cho thuê Tòa nhà"),
+        b("VND"),
+        b("Đến 1 năm | Số cuối năm: 4.941.448.061", atomic=True),
+        b("29.2 Cam kết thuê hoạt động"),
+        b("Công ty hiện đang thuê mặt bằng và thuê đất cho các địa điểm"),
+        b("VND"),
+        b("Đến 1 năm | Số cuối năm: 5.753.213.767 | Số đầu năm: 5.999.543.767",
+          atomic=True),
+    ]
+    chunks = chunk_text_blocks(blocks, doc_id="d", source_file="NTC_2025.pdf")
+    dich = [c for c in chunks if "5.753.213.767" in c["chunk_text"]]
+    assert len(dich) == 1, "hàng đáp án phải là đúng một chunk atomic"
+    sp = dich[0]["section_path"]
+    assert "29.2 Cam kết thuê hoạt động" in sp, (
+        f"hàng đáp án mất tiêu đề mục 29.2 — breadcrumb thực tế: {sp!r}")
+    assert "VND" not in sp, f"'VND' là nhãn đơn vị, không được vào breadcrumb: {sp!r}"

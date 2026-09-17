@@ -42,6 +42,15 @@ _MUC_RE = re.compile(r"^\s*Mục\b")
 _DIEU_RE = re.compile(r"^\s*Điều\s+\d+\s*[\.\-–]\s*\S")
 
 
+_TU_CHU_RE = re.compile(r"[A-Za-zÀ-ỹ]")
+
+
+def _so_tu_chu(text: str) -> int:
+    """Số token CÓ CHỮ của dòng. Token thuần số/ký hiệu không tính, nên
+    "VND %", "M =", "3 EIỆ", "| : THẾ" đều ra 1 — đúng thứ cần loại."""
+    return sum(1 for t in text.split() if _TU_CHU_RE.search(t))
+
+
 def heading_level(text: str) -> int | None:
     """Cấp của một dòng tiêu đề, hoặc None nếu không phải tiêu đề.
 
@@ -76,6 +85,36 @@ def heading_level(text: str) -> int | None:
     Dòng IN HOA ở cấp 2 còn là hàng rào an toàn: một dòng IN HOA lạc giữa
     chương (vd "ĐIỀU KHOẢN THI HÀNH" in giữa văn bản) chỉ hất được các Mục,
     KHÔNG hất được Chương — nên chương vẫn sống sót cho mọi điều phía sau.
+
+    VÌ SAO NHÁNH IN HOA ĐÒI >= 2 TỪ (siết 2026-09-17)
+
+    Cấp 2 NÔNG HƠN numbering (cấp 5), nên một dòng IN HOA hất mọi tiêu đề mục
+    đánh số ra khỏi `path_stack` của `chunk_text_blocks`. Trên trang scan, dòng
+    IN HOA một-từ là nhãn đơn vị tiền ("VND") hoặc rác OCR — và nhãn đơn vị lặp
+    MỘT LẦN MỖI BẢNG CON, nên nó xoá breadcrumb của mọi hàng số phía sau.
+
+    Ca hỏng đã đo: NTC_2025.pdf tr61, hàng "Đến 1 năm | 5.753.213.767" thuộc
+    mục "29.2 Cam kết thuê hoạt động" nhưng `section_path` ra 'VND'. Hàng đó là
+    chunk atomic 68 ký tự không chứa từ nào của câu hỏi, và `index_text()` nối
+    breadcrumb vào chuỗi đem đi embed/`ts_vector` — nên mất breadcrumb là mất
+    CẦU NỐI DUY NHẤT. Đo: chunk đó không vào nổi chân nào (dense/fold/sparse
+    đều không có), reranker không hề thấy nó.
+
+    Ngưỡng 2 lấy từ TOÀN BỘ lá breadcrumb do nhánh này sinh trên hai schema
+    (eval_attach 1.040 chunk tệp đính kèm + public 4.870 chunk corpus), không
+    chọn tay:
+
+        số từ | #lá | #chunk | bản chất
+           1  |  77 |   940  | RÁC 77/77 — 'VND' 133, 'IB' 133, 'Z' 114,
+              |     |        | 'AEN' 39, 'M =', '3 EIỆ' — KHÔNG cái nào là
+              |     |        | tiêu đề thật
+           2  |  36 |   426  | LẪN — thật 'CÁ NHÂN' 83, 'NGUỒN VỐN' 44,
+              |     |        | 'MỤC LỤC' 32, 'TÀI SẢN' 30; rác 'HRT HE.' 52
+          3+  | 203 | 4.387  | gần như toàn tiêu đề luật thật
+
+    Nên cắt ở 1 từ bỏ 940 chunk rác mà KHÔNG mất một tiêu đề thật nào; cắt ở 2
+    từ sẽ giết 'TÀI SẢN'/'NGUỒN VỐN'. Hàng rào ở đoạn trên
+    ("BẢO HIỂM XÃ HỘI TỰ NGUYỆN", 6 từ) không bị chạm.
     """
     if _CHUONG_RE.match(text):
         return 1
@@ -85,7 +124,8 @@ def heading_level(text: str) -> int | None:
         return 4
     if _HEADING_RE.match(text):
         return 5      # numbering đa cấp "1.1", "3.2.1"
-    if text.isupper() and len(text) <= 80:
+    # `_so_tu_chu >= 2`: xem khối "Vì sao nhánh IN HOA đòi >= 2 TỪ" ở dưới.
+    if text.isupper() and len(text) <= 80 and _so_tu_chu(text) >= 2:
         return 2
     return None
 
