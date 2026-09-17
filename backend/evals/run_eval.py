@@ -1173,6 +1173,7 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
             "chunk_span": round(span, 2),
             "by_difficulty": by_difficulty,
             "lat_p50": p50, "lat_p95": p95,
+            "per_case": per_case,
             "fails": fails, "errors": errors}
 
 
