@@ -134,3 +134,49 @@ không đổi, nên hai việc không giẫm nhau — miễn là không merge th
   Đọc `method` trong kết quả của MỌI chân trước khi tin số.
 - **Ollama thứ hai** vẫn có GPU passthrough dù D:\Project đã dừng. Trước khi đo, xác nhận
   `docker exec ollama ollama ps` rỗng.
+
+## 8. Ghi chép thực thi
+
+### Task 1
+
+- **Khó khăn**: không có gì bất ngờ khi cài; tên tham số `dtype=` (không phải
+  `torch_dtype=`) của `from_pretrained` được kiểm là đúng ở transformers 5.15.0
+  (`modeling_utils.py:185`).
+- **Hướng chọn**: hai đường chấm điểm tách riêng `_score_seq_cls`/`_score_qwen3`, chọn theo
+  tên model; hai lỗi im lặng (mất suffix khi cắt ngắn, right padding) được gác bằng test với
+  model giả.
+- **Giới hạn còn lại**: nhánh `device_map` của `_instantiate` chưa có test ở Task 1; hai
+  điểm nhỏ để lại: khối chuyển thiết bị lặp ở hai hàm chấm, prefix/suffix mã hoá lại mỗi
+  lượt gọi.
+
+### Task 2
+
+- **Khó khăn**: venv của worktree là venv DÙNG CHUNG với cây chính và mang
+  `torch==2.11.0+cu128`; một lần pip giải phụ thuộc chạm torch sẽ thay nó bằng bản CPU và
+  làm reranker GPU chết lặng. Worktree ban đầu thiếu `.env` ở gốc nên suite nền ra 21 failed
+  / 65 errors (conftest.py:26 nạp `.env` gốc repo); chép `.env` vào (bị gitignore) thì về
+  đúng 2707 passed.
+- **Hướng chọn**: cài `accelerate==1.15.0` kèm tệp ràng buộc ghim torch/transformers;
+  dry-run trước chỉ thêm accelerate + psutil; kiểm lại in ra `2.11.0+cu128 5.15.0 1.15.0
+  True`.
+- **Giới hạn còn lại**: test device_map không kiểm `dtype=float16` hay `max_memory["cpu"]`.
+
+### Task 3
+
+- **Khó khăn**: bảng khói ba model — `bge-reranker-v2-m3` thứ tự `[2, 1, 3]` (18,1 ms/lượt,
+  VRAM đỉnh 1097 MiB), `Qwen3-Reranker-0.6B` thứ tự `[1, 2, 3]` (106,1 ms/lượt, VRAM đỉnh
+  1314 MiB), `Qwen3-Reranker-4B` thứ tự `[1, 2, 3]` (1782,5 ms/lượt, VRAM đỉnh 3050 MiB).
+  `bge` xếp bẫy Điều 309 trên đáp án đúng Điều 428 ngay trên ca ví dụ của §1. 4B ở ngân sách
+  mặc định `RERANK_GPU_BUDGET=5GiB` SEGFAULT (exit 139) khi VRAM trống lúc đó chỉ ~3040 MiB;
+  segfault đi vòng qua fail-open `except Exception` của `score_pairs` — không có traceback
+  Python, tiến trình chết thẳng. VRAM trống dao động 3040–6301 MiB trong suốt lượt đo do các
+  ứng dụng desktop (trình duyệt, VS Code, Docker Desktop, một game) không liên quan tới tác
+  vụ này.
+- **Hướng chọn**: chạy lại 4B với `RERANK_GPU_BUDGET=3GiB` — thành công, không sửa code
+  (đây là ca hết bộ nhớ đã có sẵn đường lùi trong brief, không phải lỗi trong
+  `reranker.py`).
+- **Giới hạn còn lại**: số đo của 4B là `device_map=auto` + offload một phần sang CPU nên
+  KHÔNG so ngang VRAM/ms được với bge/0.6B (chạy toàn GPU); "nạp + lượt 1" gồm cả thời gian
+  tải trọng số lần đầu (0.6B 179082 ms ≈ 97% là tải, không phải chi phí suy luận); đây là
+  phép thử định tính 3 cặp, không phải số đo chất lượng — bảng chỉ số quyết định thật
+  (`hard mrr`, `recall@6`, `trap mrr`) còn chờ Task 4.
