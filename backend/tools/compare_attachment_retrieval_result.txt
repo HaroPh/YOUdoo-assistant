@@ -1,0 +1,37 @@
+Truy hồi TA vs OPEN WEBUI trên tệp đính kèm — k=10, thước: đáp án có trong ngữ cảnh lấy về
+
+tệp           câu hỏi                                              TA   HỌ  HỌ+kr  ghi chú
+DVT_2022.pdf  tổng tài sản đầu năm là bao nhiêu                    #1   #2     #2  fixture DVT_2022_tr7.json mã 50 / so_dau_nam
+DVT_2022.pdf  tổng cộng tài sản cuối năm là bao nhiêu              #1   #1     #1  fixture tr7 mã 50 / so_cuoi_nam
+DVT_2022.pdf  phân phối cho các quỹ năm trước là bao nhiêu         #1   #2     #2  fixture tr9 mã 52 / nam_truoc — câu đã trượt lượt đầu trên Open WebUI
+DVT_2022.pdf  chi phí thuế thu nhập doanh nghiệp năm nay là bao    #5   #1     #1  fixture tr9 mã 40 / nam_nay
+DVT_2022.pdf  các khoản phải thu cuối năm là bao nhiêu             #4    —     #6  fixture tr7 mã 10 / so_cuoi_nam
+DVT_2022.pdf  khấu hao luỹ kế tài sản cố định hữu hình cuối năm    #2   #1     #1  fixture tr7 mã 33 / so_cuoi_nam (âm, in trong ngoặc)
+NTC_2025.pdf  đầu tư góp vốn vào đơn vị khác là bao nhiêu          #3   #1     #1  lượt hỏi thật 2026-09-11, hàng mã 253
+NTC_2025.pdf  gửi cho tôi text thô của mục 29                       —    —      —  tr61 — câu đã trượt hai lần trên Open WebUI
+NTC_2025.pdf  cam kết thuê hoạt động đến 1 năm là bao nhiêu         —   #2     #2  tr61 mục 29.2, đã đọc tay trong ghi chú thi hành
+NTC_2025.pdf  tiền và tương đương tiền cuối năm là bao nhiêu       #1   #1     #1  tr38 mã 70 / năm nay
+NTC_2025.pdf  lưu chuyển tiền thuần từ hoạt động kinh doanh năm    #1    —     #4  tr38 mã 20 / năm nay
+
+TỔNG: TA 9/11 · HỌ như-cấu-hình 8/11 · HỌ bỏ trần k_reranker 10/11
+Số chunk giao mỗi lượt: TA 10 · HỌ 3 · HỌ+kr 10
+
+`RerankCompressor` của Open WebUI LUÔN cắt xuống top_n = k_reranker, kể cả
+khi không có reranking model — khi đó nó TỰ chấm lại bằng cosine embedding.
+Nên top_k=10 + top_k_reranker=3 = lấy 10, giao 3, xếp thuần dense: phần đóng
+góp của BM25 cho hạng 4-10 bị bỏ. Đó là cấu hình, không phải pipeline.
+
+Chân TA với reranker TẮT (RAG_RERANK_ENABLED=0), cùng bộ câu hỏi:
+  vẫn 9/11, nhưng hạng tụt rõ: #2 #2 #2 #9 #9 #6 #2 — #  #1 #1
+  (so với reranker BẬT: #1 #1 #1 #5 #4 #2 #3 — #  #1 #1)
+  => trên nội dung bảng tài chính scan, lá phiếu rerank của ta GIÚP. Trái với
+  số đo cũ trên corpus luật (nhóm `hard` tệ đi) — đừng suy rộng chiều nào.
+
+GIỚI HẠN của phép đo này, nói thẳng:
+- N = 11 câu, MỘT miền (báo cáo tài chính scan), MỘT giá trị k. Không đủ để
+  kết luận về corpus luật hay tài liệu nghiệp vụ.
+- Chân TA quét schema nháp chứa CẢ HAI tệp (1.040 chunk) nên phải phân biệt
+  giữa hai tài liệu; chân HỌ quét collection RIÊNG của từng tệp. Bất lợi nhẹ
+  cho ta — nhưng không lượt nào trúng chunk của tệp khác, nên không nhiễu.
+- Chân TA ingest lại bằng mã HÔM NAY; bản của họ là bản trích đã lưu từ
+  2026-09-12. Cùng nguồn, cùng đường trích, nhưng không phải cùng một byte.

@@ -2692,3 +2692,59 @@ tôi với cùng template cho câu mượt hơn ("số liệu do máy đọc t�
 được đối chiếu"), nên đây là phương sai diễn đạt chứ không phải sai. Phương án
 nếu muốn gọn: thêm vào dòng template "hãy giải thích bằng lời, đừng trích lại
 nhãn" — nhưng mỗi lần đổi chữ là phải ĐO LẠI, đừng đổi chay.
+
+## Hướng B bước 2 — ĐO XONG, và nó BÁC BỎ tiền đề của bước 3 (2026-09-17)
+
+Câu hỏi: retriever của ta có thật hơn của Open WebUI trên tệp đính kèm không —
+trước khi bỏ công lấy lại tầng truy hồi (bước 3: nạp vào corpus ta + trả biên
+nhận). Công cụ: `backend/tools/compare_attachment_retrieval.py`, kết quả đầy đủ
+ở `_result.txt` cạnh nó.
+
+**Thước dùng chung**: *đáp án có trong ngữ cảnh lấy về @k=10*. Mỗi hệ chạy
+pipeline THẬT của nó; ta chỉ hỏi chuỗi đáp án có nằm trong túi chunk không.
+Không LLM, không hạn mức. 11 câu trên DVT_2022/NTC_2025, đáp án lấy từ **fixture
+đáp án tay** và từ các lượt hỏi thật đã ghi — không câu nào tôi suy ra lúc viết.
+Chân HỌ gọi **chính mã của họ** trong container (`query_doc_with_hybrid_search` +
+`get_embedding_function`, cấu hình sống đọc từ `webui.db`), không chép lại logic.
+Chân TA ingest hai PDF vào **schema nháp** `eval_attach` (không đụng corpus sản
+xuất) rồi gọi đúng `retrieve.retrieve()`.
+
+| | trúng |
+|---|---|
+| TA (hybrid + fold + rerank, giao 10 chunk) | **9/11** |
+| HỌ, **như đang cấu hình** (giao 3 chunk) | 8/11 |
+| HỌ, **bỏ trần `k_reranker`** (giao 10 chunk) | **10/11** |
+
+**Phát hiện then chốt, đọc từ mã của họ**: `RerankCompressor`
+(`retrieval/utils.py:1743`) **LUÔN** cắt xuống `top_n = k_reranker`, kể cả khi
+không có reranking model — khi đó nó tự chấm lại bằng cosine embedding rồi cắt.
+Nên cấu hình `top_k = 10` + `top_k_reranker = 3` nghĩa là **lấy 10, giao 3, xếp
+thuần dense** — phần đóng góp của BM25 cho hạng 4–10 bị bỏ sạch. Đây là thứ đã
+làm "mục 29" và hàng mã 52 trượt, chứ không phải kiến trúc của họ.
+
+**Hệ quả: bước 3 mất lý do CHẤT LƯỢNG.** Khi bỏ trần, họ **hơn ta** trên bộ này
+(10/11 so với 9/11). Lý lẽ còn lại để lấy lại tầng dữ liệu chỉ là xuất xứ
+metadata, kiểm soát TPM và khả năng test — đều yếu hơn "chất lượng" rất nhiều.
+Khuyến nghị: **không làm bước 3 vì chất lượng**; hướng B dừng ở bước 1 cộng một
+giá trị cấu hình.
+
+**Việc cần làm ngay, không sửa một dòng mã**: đặt `top_k_reranker` ≥ `top_k`
+(= 10) trong Admin → Documents. Đo được: 8/11 → 10/11.
+
+**Lỗ của CHÍNH TA, cần soi**: câu *"cam kết thuê hoạt động đến 1 năm là bao
+nhiêu"* (5.753.213.767, NTC tr61 mục 29.2) — họ trúng #2, **ta trượt hẳn**. Đây
+là lỗ của retriever ta trên nội dung bảng nhỏ trong trang thuyết minh, và nó
+cũng áp cho đường corpus, không riêng tệp đính kèm.
+
+**Câu "mục 29" cả hai đều trượt** — xác nhận kết luận trước: truy vấn theo SỐ
+MỤC cần TRA CỨU CẤU TRÚC (bảng mục lục thuyết minh), không phải xếp hạng tốt hơn.
+
+**Reranker của ta GIÚP trên nội dung này**: cùng 9/11 nhưng hạng tốt hơn rõ
+(#1 #1 #1 #5 #4 #2 so với #2 #2 #2 #9 #9 #6 khi tắt). Trái với số đo cũ trên
+corpus luật nơi nhóm `hard` tệ đi — đừng suy rộng chiều nào.
+
+Giới hạn: N = 11, một miền, một giá trị k; chân TA quét cả hai tệp trong một
+schema (bất lợi nhẹ, nhưng không lượt nào trúng chunk tệp khác); bản của ta
+ingest bằng mã hôm nay, bản của họ là bản trích đã lưu 2026-09-12. Schema nháp
+`eval_attach` (1.040 chunk) giữ lại để đo lại sau mỗi thay đổi; xoá bằng
+`DROP SCHEMA eval_attach CASCADE`.
