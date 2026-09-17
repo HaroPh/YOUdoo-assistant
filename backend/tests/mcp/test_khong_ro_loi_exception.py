@@ -49,6 +49,15 @@ BO_QUA_THU_MUC = {
 # dùng chat. File thứ sáu (helpers.py) là Ruling K — xem lý do riêng ở đó.
 # Đo 2026-08-15.
 MIEN_TRU = {
+    "backend/tools/compare_attachment_retrieval.py": (
+        1, 0, "AST đếm 0, regex đếm 1: chỗ khớp nằm TRONG `_THEIR_SCRIPT` — "
+              "chuỗi Python chạy bằng `docker exec` bên trong container Open "
+              "WebUI, không phải mã runtime của ta (vì thế AST không thấy). "
+              "Công cụ ĐO, không có đường nào tới hội thoại: nó in JSON ra "
+              "stdout cho người chạy đọc, và nguyên văn lỗi CHÍNH LÀ chẩn "
+              "đoán cần đọc khi pipeline của họ đổi (đã trả giá một lần: "
+              "`TypeError: the JSON object must be str... not int` là thứ chỉ "
+              "ra bảng `config` của họ lưu giá trị số KHÔNG bọc JSON)."),
     "backend/src/agents/skill_manifest.py": (
         2, 2, "raise SkillManifestError lúc nạp SKILL.md — fail-loud cho lập "
               "trình viên, app không lên chứ không lên sai"),
