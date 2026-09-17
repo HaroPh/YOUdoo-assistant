@@ -2769,3 +2769,62 @@ không phụ thuộc gì vào Open WebUI):
    minh, áp cả đường corpus.
 2. **Truy vấn theo SỐ MỤC ("mục 29") cả hai hệ đều trượt** — cần tra cứu cấu
    trúc (mục lục thuyết minh dựng lúc trích), không phải xếp hạng tốt hơn.
+
+## Lỗ retriever "cam kết thuê hoạt động" — TRUY XONG, VÁ XONG, nghiệm thu corpus luật CÒN MỘT BƯỚC (2026-09-17)
+
+**Không phải lỗi xếp hạng — lỗi breadcrumb.** `heading_level()` (`parse.py`) cho
+dòng IN HOA cấp 2, NÔNG HƠN numbering (cấp 5), nên mỗi dòng IN HOA một-từ hất
+tiêu đề mục đánh số ra khỏi `path_stack`. Trên trang scan dòng đó là nhãn đơn vị
+`VND`, lặp một lần mỗi bảng con → xoá breadcrumb của mọi hàng số phía sau. Hàng
+đáp án (NTC tr61, `Đến 1 năm | 5.753.213.767`) là chunk atomic 68 ký tự không
+chứa từ nào của câu hỏi; `index_text()` nối breadcrumb vào chuỗi embed/`ts_vector`
+nên breadcrumb là **cầu nối duy nhất**. Đo: chunk đó không vào chân nào
+(dense/fold/sparse), reranker không hề thấy. Open WebUI trúng #2 vì chunker
+cỡ-cố-định dán tiêu đề + hàng vào cùng một chunk — không phải xếp hạng tốt hơn.
+
+**Bản vá (commit `467f33a`)**: nhánh IN HOA đòi ≥ 2 từ có chữ. Ngưỡng từ TOÀN BỘ
+lá breadcrumb hai schema (không chọn tay): 1 từ = 77 lá / 940 chunk, rác 77/77;
+2 từ = 36 lá / 426 chunk, LẪN (`TÀI SẢN`, `NGUỒN VỐN`, `CÁ NHÂN` là thật). Bảng
+đầy đủ trong docstring `heading_level` và test `test_in_hoa_*` / 
+`test_nhan_don_vi_VND_*` (`tests/rag/test_parse_pdf.py`).
+
+**Nghiệm thu ĐÃ CÓ**
+- Tệp đính kèm (schema `eval_attach2`, nạp lại cả hai PDF): breadcrumb hàng đáp
+  án thành `29. | CAM KET THUÊ VA CHO THUÊ HOAT ĐỘNG › 29.2 Cam kết thuê hoạt động`;
+  bộ 11 câu **9/11 → 10/11** (bằng Open WebUI); câu trượt hẳn → **#1**. Chín câu
+  giữ hạng; một câu #5 → #7 (`chi phí thuế TNDN năm nay`) — hàng đáp án của nó
+  GIỐNG HỆT hai schema (text + breadcrumb `NGUỒN VỐN`), tụt vì hai chunk khác vừa
+  có breadcrumb đúng chen lên. Chunk 1.040 → 999.
+- Suite đầy đủ 2.706 xanh.
+- Corpus luật (schema `eval_head`, nạp lại 17 tệp seed → 3.901 chunk, lá rác
+  544 → 0), bộ đo truy xuất 64 ca, ba dạng gõ, so mốc `baseline-bge-m3-retrieval*`:
+
+  | dạng gõ | recall@20 | recall@6 | MRR | ca trượt |
+  |---|---|---|---|---|
+  | có dấu | 0,9766 → **0,9766** | 0,9688 → **0,9688** | 0,8091 → 0,8065 | 1 → 1 (cùng ca) |
+  | nửa dấu | 0,8359 → **0,8672** | 0,8203 → 0,8203 | 0,6473 → **0,6769** | 9 → 7 (hết trượt 2, không trượt mới) |
+  | không dấu | 0,6042 → **0,6042** | 0,5260 → 0,5104 | 0,3569 → 0,3647 | 25 → 25 (cùng tập) |
+
+  Không hồi quy recall@20 ở dạng nào. Cấu trúc corpus luật gần như không đổi
+  (chỉ `luat-quanlythue.pdf` lệch 1 chunk); 134 chunk `luat-dautu.pdf` đổi
+  breadcrumb từ `Chương VII › IB` (rác) về đúng.
+
+**Nghiệm thu CÒN THIẾU — nhiễu đã nhận ra, chưa loại**: mốc được đo 2026-09-08
+trên `public` **4.870** chunk (docstring `_or_tsquery` ghi số này), tức CÓ tệp
+BCTC scan `SID_…_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026.pdf` (968 chunk,
+`D:/downloads/`) làm chunk cạnh tranh; `eval_head` KHÔNG có nó. Nên mức tăng
+nửa-dấu có thể một phần do thiếu chunk nhiễu. Bước còn lại: nạp SID vào
+`eval_head` (OCR đã đệm, không tốn API) rồi chạy lại ba dạng gõ. Tạm dừng ở đây
+theo yêu cầu chủ dự án.
+
+**Cảnh báo vận hành**: `ingest._hash` chỉ băm byte tệp, không có dấu vân tay
+parser → corpus sản xuất **không tự nhận bản vá**; 544 chunk `public` (403 trong
+SID, 134 trong `luat-dautu.pdf`) giữ breadcrumb rác cho tới khi xoá
+`rag_documents` rồi nạp lại. Đường tệp đính kèm (`extract_documents`) trích lại
+mỗi lượt upload nên **có tác dụng ngay** sau khi khởi động lại backend `:8002`.
+
+**Lỗi có sẵn phát hiện tiện đường, chưa sửa**: `jobs/eval_gate.py::_gate` không
+có nhánh `retrieval` → `--baseline` với `--set retrieval` luôn sập
+`KeyError: 'false_confirm'` SAU khi in JSON. Bộ đo truy xuất chưa từng có cổng
+tự động, chỉ so bằng mắt. Ghi vào `trang-thai-chung.md`.
+
