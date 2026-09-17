@@ -2748,3 +2748,24 @@ schema (bất lợi nhẹ, nhưng không lượt nào trúng chunk tệp khác);
 ingest bằng mã hôm nay, bản của họ là bản trích đã lưu 2026-09-12. Schema nháp
 `eval_attach` (1.040 chunk) giữ lại để đo lại sau mỗi thay đổi; xoá bằng
 `DROP SCHEMA eval_attach CASCADE`.
+
+### Hướng B ĐÓNG (quyết định chủ dự án, 2026-09-17)
+
+"Dừng hướng B ở đây." Bước 3 **không làm**: số đo ở trên đã bác bỏ lý do chất
+lượng, và ba lý lẽ còn lại (xuất xứ metadata, kiểm soát TPM, khả năng test) không
+đủ cân một tầng dữ liệu mới. Hướng B kết thúc bằng **bước 1 đã merge** cộng **một
+giá trị cấu hình chủ dự án tự đặt** (`top_k_reranker` >= `top_k`).
+
+Mở lại chỉ khi có lý do **khác chất lượng** — vòng đời dữ liệu người dùng, quyền
+đọc theo vai trên tệp đính kèm, hoặc trần TPM. Khi đó **đo lại**: số 10/11 ở trên
+gắn với cấu hình Open WebUI ngày hôm đó, và cấu hình của họ là phụ thuộc vô hình
+với test của ta.
+
+Hai việc **tách ra khỏi hướng B, vẫn còn nợ** (ghi ở đây để không mất, chúng
+không phụ thuộc gì vào Open WebUI):
+
+1. **Retriever của ta trượt "cam kết thuê hoạt động đến 1 năm"** (NTC tr61 mục
+   29.2, 5.753.213.767) trong khi họ trúng #2. Lỗ trên bảng nhỏ giữa trang thuyết
+   minh, áp cả đường corpus.
+2. **Truy vấn theo SỐ MỤC ("mục 29") cả hai hệ đều trượt** — cần tra cứu cấu
+   trúc (mục lục thuyết minh dựng lúc trích), không phải xếp hạng tốt hơn.

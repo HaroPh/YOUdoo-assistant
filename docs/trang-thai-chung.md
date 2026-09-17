@@ -1,6 +1,6 @@
 # Trạng thái chung — hai phiên làm việc song song
 
-Cập nhật lần cuối: **2026-09-04**.
+Cập nhật lần cuối: **2026-09-17**.
 
 ## Cách dùng tệp này
 
@@ -34,6 +34,8 @@ Quy ước:
 | 19 | RAG: **không có Query Transformation** | chưa ai | recall@20 = 1,0 ⇒ truy xuất không phải nút thắt |
 | 19b | **RBAC tầng RAG — HOÃN CÓ ĐIỀU KIỆN.** Chỉ mở lại khi corpus có **nhiều tài liệu nội bộ**. Hôm nay: 8 tài liệu / 44 chunk nội bộ (98,6% corpus là PDF luật công khai) ⇒ chưa cần | hoãn 2026-08-22 | điều kiện mở lại, không phải "đã xong" — lỗ hổng vẫn còn, xem mục "đã đo" |
 | 25 | **Cổng eval của Youdoo không có lịch nào gọi.** `eval-gate` khai `schedulable=True` nhưng máy chỉ có đúng một lịch (`ERP-AI-EvalGate`) và nó trỏ vào `D:\Project`. Youdoo không có script chạy định kỳ ⇒ cổng chỉ chạy khi có người gõ lệnh | chưa ai | cần quyết: chạy đêm thì tốn hạn mức API mỗi ngày |
+| 26 | **Open WebUI: `top_k_reranker` còn = 3 trong khi `top_k` = 10.** Việc của chủ dự án, không sửa mã: Admin → Documents, đặt `top_k_reranker` ≥ `top_k`. Đo được 8/11 → 10/11 trên bộ 11 câu tệp đính kèm | chủ dự án | ghi chú thi hành `2026-08-31-tang-nap-tai-lieu-ghi-chu-thuc-thi.md`, mục hướng B bước 2 |
+| 27 | **Retriever của TA trượt câu bảng-nhỏ-trong-thuyết-minh** ("cam kết thuê hoạt động đến 1 năm", NTC tr61 mục 29.2) mà Open WebUI trúng #2. Áp cả đường corpus, không riêng tệp đính kèm | chưa ai | cùng ghi chú thi hành; đo lại bằng `backend/tools/compare_attachment_retrieval.py` |
 | 23 | ⚠️ **3 khoảng trống vai↔Odoo còn lại** (`update_quotation_lines` kho, `update_rfq_lines` kế toán, `find_my_activities`) — nên khai vào `KNOWN_ODOO_GAPS` kèm lý do đo được thay vì để script thoát mã 1 mãi. `create_vendor` ĐÃ ĐÓNG 2026-08-23 | chưa ai | spec `2026-08-23-canh-bao-rui-ro-va-chan-tao-ncc.md` §2 |
 
 ## Ai giữ vùng nào
@@ -51,6 +53,8 @@ báo trước.
 
 | kết luận | chứng cứ |
 |---|---|
+| **Open WebUI `RerankCompressor` LUÔN cắt xuống `top_n = k_reranker`**, kể cả khi không cấu hình reranking model (nó tự chấm lại bằng cosine rồi cắt) ⇒ `top_k=10` + `top_k_reranker=3` = lấy 10, giao 3, xếp thuần dense, BM25 hạng 4-10 bỏ sạch | `open_webui/retrieval/utils.py:1743` đọc trực tiếp trong container; `backend/tools/compare_attachment_retrieval.py` đo 8/11 → 10/11 khi bỏ trần |
+| **Truy hồi của Open WebUI KHÔNG tệ hơn của ta** trên tệp đính kèm khi cấu hình đúng: HỌ 10/11 vs TA 9/11 (thước "đáp án có trong ngữ cảnh @k=10", 11 câu DVT/NTC) ⇒ hướng B bước 3 (lấy lại tầng truy hồi) mất lý do chất lượng, ĐÓNG 2026-09-17 | commit `532c78f`; giới hạn N=11 một miền ghi trong ghi chú thi hành |
 | Xác nhận quá hạn nay BÁO cho người dùng, đặt ở ĐẦU câu trả lời | `erp_agent.QUA_HAN_MSG`; TTL giữ 300s có lý do — xem docstring `_them_bao_qua_han` |
 | `/v1/*` bắt buộc Bearer token, fail-closed khi thiếu biến; `YOUDOO_FALLBACK_ROLE` đã GỠ | spec `2026-08-22-muc-9-12-13.md` + commit `e285c94`; nghiệm thu sống qua Open WebUI thật |
 | CI chạy bộ mặc định trên `windows-latest`, cài ĐÚNG requirements production | spec `2026-08-22-ci.md`; KHÔNG phủ integration/live/eval — xem §3 |
