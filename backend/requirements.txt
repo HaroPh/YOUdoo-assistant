@@ -42,6 +42,9 @@ pgvector==0.4.1
 --extra-index-url https://download.pytorch.org/whl/cu128
 torch==2.11.0+cu128
 transformers==5.15.0
+# accelerate: chỉ để `device_map="auto"` nạp Qwen3-Reranker-4B tràn sang CPU
+# RAM cho lượt ĐO (spec 2026-09-17 §3). Thuần Python, không kernel CUDA.
+accelerate==1.15.0
 pypdf==5.1.0
 pdfplumber==0.11.10
 pytesseract==0.3.13
