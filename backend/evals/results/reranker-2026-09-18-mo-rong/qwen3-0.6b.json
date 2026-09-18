@@ -3,34 +3,34 @@
   "n": 109,
   "rerank": true,
   "dang_go": "co_dau",
-  "rerank_model": "BAAI/bge-reranker-v2-m3",
+  "rerank_model": "Qwen/Qwen3-Reranker-0.6B",
   "rerank_mode": "blend",
   "methods_seen": [
     "dense+fold-rrf+rerank"
   ],
   "recall_at_20": 0.9771,
-  "recall_at_6": 0.9633,
-  "mrr": 0.8058,
+  "recall_at_6": 0.9419,
+  "mrr": 0.8066,
   "chunk_span": 1.94,
   "by_difficulty": {
     "easy": {
       "n": 31,
       "recall_at_20": 0.9839,
-      "mrr": 0.8968
+      "mrr": 0.8807
     },
     "hard": {
       "n": 62,
       "recall_at_20": 0.9677,
-      "mrr": 0.7392
+      "mrr": 0.7647
     },
     "trap": {
       "n": 16,
       "recall_at_20": 1.0,
-      "mrr": 0.8875
+      "mrr": 0.825
     }
   },
-  "lat_p50": 556,
-  "lat_p95": 585,
+  "lat_p50": 1182,
+  "lat_p95": 1494,
   "fails": [
     {
       "question": "ai là người được ký hợp đồng thay mặt cho công ty?",
@@ -52,19 +52,19 @@
         ],
         [
           "luat-doanhnghiep.pdf",
+          "Chương VI › CÔNG TY HỢP DANH › Điều 181. Quyền và nghĩa vụ của thành viên hợp danh"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương III › HỢP ĐỒNG LAO ĐỘNG › Mục 1. GIAO KẾT HỢP ĐỒNG LAO ĐỘNG › Điều 18. Thẩm quyền giao kết hợp đồng lao động"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
           "Chương II › THÀNH LẬP DOANH NGHIỆP › Điều 24. Điều lệ công ty"
         ],
         [
           "luat-doanhnghiep.pdf",
-          "Chương II › THÀNH LẬP DOANH NGHIỆP › Điều 18. Hợp đồng trước đăng ký doanh nghiệp"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
           "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 67. Hợp đồng, giao dịch phải được Hội đồng thành viên chấp thuận"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -93,15 +93,15 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 58. Quyền của người giám hộ"
-        ],
-        [
-          "boluat-danssu.pdf",
           "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 57. Nghĩa vụ của người giám hộ đối với người được giám hộ mất năng lực hành vi dân sự, người có khó khăn trong nhận thức, làm chủ"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 47. Người được giám hộ"
+          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 58. Quyền của người giám hộ"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương II › XÁC LẬP, THỰC HIỆN VÀ BẢO VỆ QUYỀN DÂN SỰ › Điều 14. Bảo vệ quyền dân sự thông qua cơ quan có thẩm quyền"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -119,7 +119,7 @@
       "hit_ranks": [
         1,
         4,
-        5
+        6
       ]
     },
     {
@@ -149,12 +149,12 @@
       "difficulty": "easy",
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
-      "recall_at_final": 1.0,
+      "recall_at_final": 0.6666666666666666,
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
         2,
-        6
+        7
       ]
     },
     {
@@ -177,7 +177,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        3
+        2
       ]
     },
     {
@@ -186,9 +186,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 0.5,
       "recall_at_final": 0.0,
-      "reciprocal_rank": 0.1,
+      "reciprocal_rank": 0.125,
       "hit_ranks": [
-        10
+        8
       ]
     },
     {
@@ -208,10 +208,10 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
-        4
+        2,
+        3
       ]
     },
     {
@@ -220,9 +220,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        4
+        2
       ]
     },
     {
@@ -253,9 +253,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.16666666666666666,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        6
+        2
       ]
     },
     {
@@ -264,9 +264,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 0.16666666666666666,
       "hit_ranks": [
-        4
+        6
       ]
     },
     {
@@ -279,9 +279,9 @@
       "hit_ranks": [
         1,
         2,
-        4,
-        9,
-        11
+        3,
+        6,
+        8
       ]
     },
     {
@@ -293,7 +293,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        3,
+        2,
         4
       ]
     },
@@ -318,7 +318,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        5
+        3
       ]
     },
     {
@@ -330,7 +330,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        4
+        3
       ]
     },
     {
@@ -350,9 +350,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.3333333333333333,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        3
+        2
       ]
     },
     {
@@ -378,8 +378,8 @@
         3,
         4,
         5,
+        6,
         7,
-        8,
         9,
         10
       ]
@@ -401,9 +401,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        2
+        3
       ]
     },
     {
@@ -467,10 +467,10 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        4,
-        7
+        3,
+        6
       ]
     },
     {
@@ -483,10 +483,10 @@
       "hit_ranks": [
         1,
         2,
-        3,
+        4,
         5,
-        7,
-        14
+        6,
+        7
       ]
     },
     {
@@ -498,9 +498,9 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        2,
-        4,
-        6
+        3,
+        7,
+        9
       ]
     },
     {
@@ -533,7 +533,7 @@
       "hit_ranks": [
         1,
         2,
-        5,
+        4,
         6
       ]
     },
@@ -548,7 +548,7 @@
         1,
         2,
         3,
-        9
+        12
       ]
     },
     {
@@ -557,13 +557,13 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
+        1,
         2,
-        3,
         4,
-        7,
-        19
+        6,
+        12
       ]
     },
     {
@@ -572,11 +572,11 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2,
-        5,
-        14
+        1,
+        7,
+        11
       ]
     },
     {
@@ -590,12 +590,12 @@
         1,
         2,
         3,
-        8,
-        11,
-        12,
+        6,
+        7,
+        9,
+        13,
         14,
-        17,
-        18
+        15
       ]
     },
     {
@@ -610,9 +610,9 @@
         2,
         3,
         4,
-        7,
-        10,
-        15
+        6,
+        11,
+        14
       ]
     },
     {
@@ -635,10 +635,10 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        2,
         3,
+        4,
         7,
-        8,
+        11,
         12,
         14,
         15,
@@ -679,7 +679,7 @@
       "hit_ranks": [
         1,
         2,
-        6
+        5
       ]
     },
     {
@@ -687,15 +687,15 @@
       "difficulty": "easy",
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
-      "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.14285714285714285,
       "hit_ranks": [
-        1,
-        8,
+        7,
         10,
+        11,
         12,
-        13,
-        15
+        16,
+        18
       ]
     },
     {
@@ -720,7 +720,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        3,
+        2,
         4
       ]
     },
@@ -733,7 +733,7 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        11
+        7
       ]
     },
     {
@@ -745,7 +745,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        4
+        3
       ]
     },
     {
@@ -779,7 +779,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        15
+        11
       ]
     },
     {
@@ -821,11 +821,11 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
-        4,
-        9
+        2,
+        9,
+        11
       ]
     },
     {
@@ -849,7 +849,7 @@
       "hit_ranks": [
         1,
         2,
-        16
+        11
       ]
     },
     {
@@ -861,7 +861,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        4
+        5
       ]
     },
     {
@@ -874,7 +874,7 @@
       "hit_ranks": [
         1,
         2,
-        15
+        12
       ]
     },
     {
@@ -886,8 +886,8 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        3,
-        10
+        10,
+        11
       ]
     },
     {
@@ -896,9 +896,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
+        2,
         4,
         14
       ]
@@ -995,9 +995,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        1
+        3
       ]
     },
     {
@@ -1031,7 +1031,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        4
+        2
       ]
     },
     {
@@ -1061,10 +1061,10 @@
       "difficulty": "hard",
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
-      "recall_at_final": 1.0,
-      "reciprocal_rank": 0.2,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.14285714285714285,
       "hit_ranks": [
-        5
+        7
       ]
     },
     {
@@ -1073,9 +1073,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        4
+        2
       ]
     },
     {
@@ -1095,9 +1095,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.3333333333333333,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        3
+        1
       ]
     },
     {
@@ -1109,7 +1109,7 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        4
+        3
       ]
     },
     {
@@ -1140,9 +1140,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.2,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        5
+        3
       ]
     },
     {
@@ -1162,9 +1162,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 0.0,
-      "reciprocal_rank": 0.0625,
+      "reciprocal_rank": 0.07142857142857142,
       "hit_ranks": [
-        16
+        14
       ]
     },
     {
@@ -1173,9 +1173,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -1195,9 +1195,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1
+        2
       ]
     },
     {
@@ -1284,9 +1284,9 @@
       "method": "dense+fold-rrf+rerank",
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -1298,7 +1298,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        3
+        2
       ]
     },
     {
@@ -1345,8 +1345,8 @@
         1,
         2,
         3,
-        5,
-        15
+        4,
+        12
       ]
     },
     {
@@ -1369,7 +1369,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        7
+        9
       ]
     },
     {
@@ -1382,8 +1382,8 @@
       "hit_ranks": [
         1,
         7,
-        12,
-        17
+        10,
+        19
       ]
     },
     {
