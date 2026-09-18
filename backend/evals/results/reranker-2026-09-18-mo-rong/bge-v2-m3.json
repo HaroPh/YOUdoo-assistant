@@ -29,8 +29,8 @@
       "mrr": 0.8875
     }
   },
-  "lat_p50": 556,
-  "lat_p95": 585,
+  "lat_p50": 712,
+  "lat_p95": 772,
   "fails": [
     {
       "question": "ai là người được ký hợp đồng thay mặt cho công ty?",

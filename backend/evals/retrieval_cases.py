@@ -52,7 +52,7 @@ _DAUTU = "luat-dautu.pdf"
 _XNK = "luat-thuexuatnhapkhau.pdf"
 _GTGT = "luat-thuegtgt.pdf"
 
-RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = [
+_CORE: list[tuple[str, frozenset, str]] = [
 
     # ══ TÀI LIỆU NGHIỆP VỤ ═══════════════════════════════════════════════
     # Câu có chú thích "(cases.py)" là CHÉP NGUYÊN VĂN từ bộ eval sẵn có —
@@ -275,3 +275,12 @@ RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = [
      frozenset({(_DOANHNGHIEP, "Điều 68. Tăng, giảm vốn điều lệ")}),
      "trap"),
 ]
+
+# ── Bộ mở rộng 2026-09-18 ─────────────────────────────────────────────────
+# 45 ca `hard` lấy mẫu TẤT ĐỊNH (evals/sample_hard_sections.py, seed 20260918)
+# và viết bởi agent MÙ — xem evals/hard_expansion_cases.py. Danh sách riêng có
+# chủ đích: cổng overlap ≤ 0,40 chỉ áp lên bộ này; 64 ca cũ (_CORE) là đối
+# chứng hạ tầng cho mọi lần đo lại, có test băm gác.
+from evals.hard_expansion_cases import HARD_EXPANSION_CASES  # noqa: E402
+
+RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = _CORE + HARD_EXPANSION_CASES

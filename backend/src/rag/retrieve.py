@@ -219,11 +219,19 @@ def rerank(query: str, chunks: list[Chunk]) -> tuple[list[Chunk], bool]:
     # Cùng công thức và cùng hằng RRF_K với _rrf() — hoà thứ hạng ở đây là
     # thêm một chân vào đúng phép hợp nhất đang dùng cho dense/sparse, không
     # phải một cơ chế chấm điểm thứ hai.
-    fused = sorted(range(len(chunks)),
-                   key=lambda i: -(1.0 / (RRF_K + i + 1)
-                                   + 1.0 / (RRF_K + ce_rank[i] + 1)))
+    #
+    # Công tắc ĐO, mặc định giữ hoà 1:1 (đổi 2026-08-20). "override" = xếp
+    # thuần theo cross-encoder — cách đã bị bác với reranker CŨ vì nó chấm
+    # theo mặt chữ; câu hỏi mở là với reranker MẠNH hơn thì hoà 1:1 có còn
+    # đúng không (spec 2026-09-17 §5). Giá trị lạ → blend, không ném.
+    if os.environ.get("RAG_RERANK_MODE", "blend").strip().lower() == "override":
+        order = by_score
+    else:
+        order = sorted(range(len(chunks)),
+                       key=lambda i: -(1.0 / (RRF_K + i + 1)
+                                       + 1.0 / (RRF_K + ce_rank[i] + 1)))
     reordered = [dataclasses.replace(chunks[i], rerank_score=scores[i], rank=pos)
-                 for pos, i in enumerate(fused)]
+                 for pos, i in enumerate(order)]
     return reordered, True
 
 
