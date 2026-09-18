@@ -180,3 +180,67 @@ không đổi, nên hai việc không giẫm nhau — miễn là không merge th
   tải trọng số lần đầu (0.6B 179082 ms ≈ 97% là tải, không phải chi phí suy luận); đây là
   phép thử định tính 3 cặp, không phải số đo chất lượng — bảng chỉ số quyết định thật
   (`hard mrr`, `recall@6`, `trap mrr`) còn chờ Task 4.
+
+### Task 4
+
+**Bảng bốn chân (bộ `retrieval`, 64 ca, cùng corpus):**
+
+| chân       |    r@6 |    mrr |   easy |   hard |   trap | p50ms |
+|------------|-------:|-------:|-------:|-------:|-------:|------:|
+| no-rerank  | 0.8958 | 0.7072 | 0.7673 | 0.5403 | 0.7682 |   593 |
+| bge-v2-m3  | 0.9688 | 0.8091 | 0.8968 | 0.5755 | 0.8875 |   954 |
+| qwen3-0.6b | 0.9479 | 0.7974 | 0.8807 | 0.6196 | 0.8250 |  2088 |
+| qwen3-4b   | 0.9688 | 0.8317 | 0.8836 | 0.6814 | 0.8906 |  4590 |
+
+**Đối đầu từng ca trên nhóm `hard` (n=17), reciprocal_rank:**
+
+| câu hỏi | bge | 0.6B | 4B |
+|---|---:|---:|---:|
+| nhà cung cấp giao trễ thì bị xử lý ra sao? | 0.500 | 0.500 | 0.500 |
+| khách nợ quá hạn mức thì làm gì? | 1.000 | 0.500 | 0.500 |
+| mua nhiều thì có được giảm thêm không? | 0.250 | 0.500 | 0.500 |
+| kho báo thiếu hàng khi soạn đơn thì xử lý thế nào? | 1.000 | 1.000 | 1.000 |
+| khách đổi ý sau khi đã chốt đơn thì sao? | 1.000 | 1.000 | 1.000 |
+| hàng về kho có khớp với đơn đặt mua không thì ai kiểm? | 0.167 | 0.500 | 0.500 |
+| bên bán phải đóng gói hàng ra sao trước khi chuyển đi? | 0.250 | 0.167 | 0.333 |
+| công ty muốn cho nhân viên nghỉ việc thì cần căn cứ gì? | 0.333 | 0.500 | 0.500 |
+| làm ca đêm thì được trả thêm bao nhiêu phần trăm? | 1.000 | 1.000 | 1.000 |
+| bảo hiểm xã hội bắt buộc thì người lao động đóng bao nhiêu? | 0.333 | 0.333 | 1.000 |
+| bên mua chưa trả tiền đúng hẹn thì luật thương mại nói gì? | 0.200 | 0.200 | 0.250 |
+| hai bên ký hợp đồng giả để che giấu giao dịch khác thì hợp đồng có hiệu lực không? | 1.000 | 1.000 | 1.000 |
+| một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là gì? | 0.250 | 0.333 | 0.500 |
+| ai là người được ký hợp đồng thay mặt cho công ty? | 0.000 | 0.000 | 0.000 |
+| nộp thuế trễ thì bị tính tiền phạt ra sao? | 0.500 | 1.000 | 1.000 |
+| khi nào thì xác định được thời điểm tính thuế GTGT? | 1.000 | 1.000 | 1.000 |
+| nhà đầu tư nước ngoài muốn góp vốn mua cổ phần thì theo hình thức nào? | 1.000 | 1.000 | 1.000 |
+
+- 0.6B thắng bge trên 5 ca: "mua nhiều thì có được giảm thêm không?", "hàng về kho có khớp
+  với đơn đặt mua không thì ai kiểm?", "công ty muốn cho nhân viên nghỉ việc thì cần căn cứ
+  gì?", "một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là gì?", "nộp thuế trễ thì bị
+  tính tiền phạt ra sao?". 0.6B thua bge trên 2 ca: "khách nợ quá hạn mức thì làm gì?", "bên
+  bán phải đóng gói hàng ra sao trước khi chuyển đi?".
+- 4B thắng bge trên 8 ca (5 ca trên của 0.6B, cộng "bên bán phải đóng gói hàng ra sao trước
+  khi chuyển đi?", "bảo hiểm xã hội bắt buộc thì người lao động đóng bao nhiêu?", "bên mua
+  chưa trả tiền đúng hẹn thì luật thương mại nói gì?"). 4B thua bge trên 1 ca duy nhất:
+  "khách nợ quá hạn mức thì làm gì?".
+- **Văng khỏi top-6 (`recall_at_final = 0`) trên `hard`**: cả ba chân có rerank (bge, 0.6B,
+  4B) đều văng ĐÚNG MỘT ca giống nhau — "ai là người được ký hợp đồng thay mặt cho công
+  ty?" — không chân Qwen nào văng thêm ca nào mà bge còn giữ được. `no-rerank` văng tới 3 ca
+  (thêm "hàng về kho có khớp với đơn đặt mua không thì ai kiểm?" và "bên mua chưa trả tiền
+  đúng hẹn thì luật thương mại nói gì?").
+- **Văng khỏi top-6 trên `trap` (n=16)**: cả ba chân có rerank đều KHÔNG văng ca nào
+  (0/16). Chỉ `no-rerank` văng 1 ca ("hàng hoá nhập khẩu có thuộc đối tượng chịu thuế giá
+  trị gia tăng không?").
+- **Khó khăn**: lượt đo này bị tạm dừng và tiếp tục hai lần để trả GPU cho chủ dự án — chân
+  1–2 (no-rerank, bge) chạy trước, dừng giữa chân 3 (0.6B); tiếp tục xong chân 3, dừng giữa
+  chân 4 (4B, dừng agent kéo theo tắt luôn tiến trình nền không để lại traceback); tiếp tục
+  lần hai chạy trọn chân 4. Cả bốn chân cùng corpus, chân 1–3 đo ngày 2026-09-17, chân 4 đo
+  ngày 2026-09-18 — không có ingest hay thay đổi corpus xen giữa các lần dừng.
+- **Hướng chọn**: chân 4 dùng `RERANK_GPU_BUDGET=3GiB` ngay từ lần thử đầu của lượt tiếp tục
+  này và THÀNH CÔNG không cần lùi xuống 2GiB/1GiB — khớp với quan sát Task 3 rằng 3GiB là
+  ngân sách ổn định cho 4B trên GPU 8GB này.
+- **Giới hạn còn lại**: `p50ms` của `qwen3-4b` (4590 ms) đi qua đường `device_map=auto` với
+  một phần lớp offload sang CPU — đây KHÔNG phải độ trễ đại diện cho triển khai thật (một
+  4B chạy trọn GPU hoặc lượng tử hoá sẽ nhanh hơn nhiều); con số này chỉ dùng để so chất
+  lượng (r@6/mrr/hard/trap), không dùng để so tốc độ triển khai. Việc chọn chân nào để dùng
+  thật (adopt/keep) là quyết định của một mục việc sau, không phải mục này.
