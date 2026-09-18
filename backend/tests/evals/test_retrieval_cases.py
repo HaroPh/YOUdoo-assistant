@@ -8,8 +8,12 @@ làm recall tụt mà không ai hiểu vì sao, và trông y hệt "model kém �
 Đây đúng lớp lỗi GATHER_CASES từng dính: fixture trôi khỏi dữ liệu thật mà
 không ai biết, phải thêm test hợp đồng sau. Lần này viết cùng lúc.
 """
+import hashlib
+
 import pytest
 
+from evals.hard_expansion_cases import HARD_EXPANSION_CASES
+from evals.hard_gate import HARD_MAX_OVERLAP, overlap
 from evals.retrieval_cases import RETRIEVAL_CASES
 from evals.retrieval_score import label_matches, label_of
 from src.rag import db as _db
@@ -53,6 +57,41 @@ def test_da_so_ca_cham_pdf_luat():
 def test_khong_co_cau_hoi_trung_lap():
     questions = [q for q, _e, _d in RETRIEVAL_CASES]
     assert len(questions) == len(set(questions))
+
+
+# Băm nội dung 64 ca cũ. Sinh MỘT LẦN khi nối bộ mở rộng (Task 5, 2026-09-18)
+# bằng lệnh ở docstring; đỏ = ai đó đã sửa/xoá/thêm ca cũ — không được phép,
+# vì old-64 là đối chứng hạ tầng (spec 2026-09-18 §7).
+_CORE_SHA256 = "845473c4d72d15ee7cdbccde4bb9262c168be97412bca466612b8700a00ea44e"
+
+
+def _core_digest() -> str:
+    from evals.retrieval_cases import _CORE
+    canon = repr([(q, sorted(exp), d) for q, exp, d in _CORE])
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+
+def test_64_ca_cu_khong_doi_mot_ky_tu():
+    from evals.retrieval_cases import _CORE
+    assert len(_CORE) == 64
+    assert _core_digest() == _CORE_SHA256, (
+        "64 ca cũ đã đổi. Nếu CỐ Ý, cập nhật _CORE_SHA256 bằng:\n"
+        "  python -c \"from tests.evals.test_retrieval_cases import _core_digest; print(_core_digest())\"")
+
+
+def test_du_so_ca_hard_cho_thong_ke():
+    # sd ≈ 0,395 trên chênh RR → se 0,05 cần ~62 ca (spec 2026-09-18 §1).
+    n_hard = sum(1 for _q, _e, d in RETRIEVAL_CASES if d == "hard")
+    assert n_hard >= 60, f"chỉ có {n_hard} ca hard"
+
+
+def test_moi_ca_mo_rong_qua_cong_overlap():
+    # Cổng CHỈ áp lên bộ mới — vài ca hard cũ gán theo ngữ nghĩa có overlap tới 0,83.
+    bad = [(q, round(overlap(q, [s for _f, s in exp]), 2))
+           for q, exp, _d in HARD_EXPANSION_CASES
+           if overlap(q, [s for _f, s in exp]) > HARD_MAX_OVERLAP]
+    assert not bad, f"vượt cổng {HARD_MAX_OVERLAP}: {bad}"
+    assert all(d == "hard" for _q, _e, d in HARD_EXPANSION_CASES)
 
 
 @pytest.mark.integration

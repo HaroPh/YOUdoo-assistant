@@ -135,6 +135,8 @@ bỏ**, không thay bằng nút tự chọn. Nhãn của ca = chính nút đã l
 nhận: một mục anh em trả lời được câu đó và xếp trên → RR bị phạt oan; bộ cũ cũng có rủi ro
 này, ghi ở giới hạn.
 
+**Kết quả (Task 5, 2026-09-18):** 45 ca viết thành công (0 bỏ, xem `backend/evals/hard_expansion_cases.py`); toàn bộ 45 qua cổng overlap ≤ 0,40. Final: **`n_hard = 62`** (17 cũ + 45 mới).
+
 ## 6. Cấu trúc mã
 
 | tệp | trách nhiệm |
