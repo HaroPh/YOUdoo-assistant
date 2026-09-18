@@ -16,9 +16,9 @@ reranker nao) - chi doc dung 3 file duoc phep: `hard_expansion_sample.json`,
 - **overlap:** 0,00 — **viết lại:** 0 lần
 
 ## 3. sla.docx › Thỏa thuận mức dịch vụ nhà cung cấp › Điều 6 — Thanh toán
-- **Câu hỏi:** Nhà cung cấp được giảm bao nhiêu phần trăm nếu trả tiền cho công ty trong vòng 10 ngày kể từ khi nhận hóa đơn?
+- **Câu hỏi:** Nếu một hóa đơn được trả trong vòng 10 ngày kể từ ngày nhận, thì được giảm giá bao nhiêu phần trăm?
 - **Trích dẫn (nguyên văn trong chunk):** "Chiết khấu 2% áp dụng nếu thanh toán trong vòng 10 ngày."
-- **overlap:** 0,00 — **viết lại:** 0 lần
+- **overlap:** 0,00 — **viết lại:** 1 lần (fix round 1: câu cũ đảo vai chủ thể — chunk là SLA nhà cung cấp, công ty nhận hóa đơn và trả tiền, không phải chiều ngược lại; câu mới không nêu chủ thể, khớp đúng chunk vốn cũng không nêu ai trả ai)
 
 ## 4. sop.docx › Quy trình nhập kho › Bước 4 — Cập nhật hệ thống
 - **Câu hỏi:** Sau khi kiểm tra hàng nhập kho xong, nhân viên phải nhập số liệu tồn kho vào đâu?
@@ -26,9 +26,9 @@ reranker nao) - chi doc dung 3 file duoc phep: `hard_expansion_sample.json`,
 - **overlap:** 0,00 — **viết lại:** 0 lần
 
 ## 5. sales_process.docx › Quy trình bán hàng › Mục 4 — Giao hàng và đối chiếu
-- **Câu hỏi:** Khi phát hiện hàng thực nhận không khớp với đơn đặt, nhân viên bán hàng phải báo lại trong thời gian bao lâu?
+- **Câu hỏi:** Khi phát hiện hàng thực giao không khớp với đơn đặt, người giao hàng phải báo cho bộ phận nào, trong thời gian bao lâu kể từ lúc phát hiện?
 - **Trích dẫn (nguyên văn trong chunk):** "Sai lệch giữa hàng giao và đơn hàng phải được ghi nhận và báo lại cho nhân viên bán hàng trong ngày."
-- **overlap:** 0,17 — **viết lại:** 0 lần
+- **overlap:** 0,33 — **viết lại:** 1 lần (fix round 1: câu cũ gán nhầm "nhân viên bán hàng" làm người báo cáo, nhưng chunk cho thấy nhân viên bán hàng là người NHẬN báo cáo, nhân viên giao hàng mới là người đối chiếu/báo; câu mới hỏi đúng ai báo cho ai)
 
 ## 6. warehouse_outbound.docx › Quy trình xuất kho › Mục 2 — Kiểm tra tồn kho và soạn hàng
 - **Câu hỏi:** Với những mặt hàng có hạn sử dụng, kho phải ưu tiên lấy lô nào ra trước?
@@ -81,9 +81,9 @@ reranker nao) - chi doc dung 3 file duoc phep: `hard_expansion_sample.json`,
 - **overlap:** 0,00 — **viết lại:** 1 lần
 
 ## 16. boluat-danssu.pdf › Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 10. HỢP ĐỒNG VẬN CHUYỂN › Điều 524. Nghĩa vụ của bên vận chuyển
-- **Câu hỏi:** Công ty xe khách có bắt buộc phải mua bảo hiểm trách nhiệm dân sự cho hành khách không?
-- **Trích dẫn (nguyên văn trong chunk):** "Mua bảo hiểm trách nhiệm dân sự đối với hành khách theo quy định của pháp luật."
-- **overlap:** 0,00 — **viết lại:** 0 lần
+- **Câu hỏi:** Nhà xe có được phép nhồi nhét khách vượt quá số chỗ cho phép trên xe không?
+- **Trích dẫn (nguyên văn trong chunk):** "bảo đảm đủ chỗ cho hành khách và không chuyên chở vượt quá trọng tải."
+- **overlap:** 0,00 — **viết lại:** 1 lần (fix round 1: câu cũ chỉ là vỏ có/không bọc quanh gần như nguyên văn cụm "bảo hiểm trách nhiệm dân sự"; câu mới hỏi một nghĩa vụ khác trong cùng Điều — không chở vượt trọng tải — bằng lời thường, không lặp cụm gốc)
 
 ## 17. boluat-danssu.pdf › Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 2. HỢP ĐỒNG TRAO ĐỔI TÀI SẢN › Điều 456. Thanh toán giá trị chênh lệch
 - **Câu hỏi:** Khi hai bên đổi tài sản cho nhau mà giá trị hai món không bằng nhau, phần thiếu phải xử lý thế nào?
@@ -156,9 +156,9 @@ reranker nao) - chi doc dung 3 file duoc phep: `hard_expansion_sample.json`,
 - **overlap:** 0,36 — **viết lại:** 0 lần
 
 ## 31. boluat-laodong.pdf › Chương XI › NHỮNG QUY ĐỊNH RIÊNG ĐỐI VỚI LAO ĐỘNG CHƯA THÀNH NIÊN VÀ MỘT SỐ LAO ĐỘNG KHÁC › Mục 5. LAO ĐỘNG LÀ NGƯỜI GIÚP VIỆC GIA ĐÌNH › Điều 161. Lao động là người giúp việc gia đình
-- **Câu hỏi:** Nếu một ai đó được một hộ dân thuê thường xuyên để nấu ăn, dọn dẹp, chăm trẻ nhỏ hoặc chăm sóc các cụ già trong nhà, sự thuê mướn này có được pháp luật xem là một dạng cần bảo vệ riêng không?
-- **Trích dẫn (nguyên văn trong chunk):** "Các công việc trong gia đình bao gồm công việc nội trợ, quản gia, chăm sóc trẻ em, chăm sóc người bệnh, chăm sóc người già, lái xe, làm vườn và các công việc khác cho hộ gia đình nhưng không liên quan đến hoạt động thương mại."
-- **overlap:** 0,20 — **viết lại:** 1 lần
+- **Câu hỏi:** Nếu ai đó vừa dọn dẹp, nấu ăn cho một hộ dân, vừa phụ bán hàng cho hộ đó, phần bán hàng ấy có được tính vào diện lao động trong nhà không?
+- **Trích dẫn (nguyên văn trong chunk):** "và các công việc khác cho hộ gia đình nhưng không liên quan đến hoạt động thương mại."
+- **overlap:** 0,20 — **viết lại:** 2 lần (fix round 1: câu round-0 khẳng định chunk coi đây là "một dạng cần bảo vệ riêng" — ý đó đến từ tiêu đề chương, chunk không nói vậy; câu mới hỏi đúng ranh giới chunk tự nêu: việc buôn bán/thương mại không tính vào công việc gia đình)
 
 ## 32. boluat-laodong.pdf › Chương XVI › THANH TRA LAO ĐỘNG, XỬ LÝ VI PHẠM PHÁP LUẬT VỀ LAO ĐỘNG › Điều 216. Quyền của thanh tra lao động
 - **Câu hỏi:** Đoàn kiểm tra an toàn lao động có phải báo trước cho công ty khi đến kiểm tra đột xuất vì lý do khẩn cấp đe dọa tính mạng công nhân không?
