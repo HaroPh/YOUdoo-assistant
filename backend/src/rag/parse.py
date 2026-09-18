@@ -559,10 +559,43 @@ def _doc_trang_bang_anh(path: str, pageno: int
     return lines, kq.mean_conf, None, grid, kq
 
 
+class _SoVlm:
+    """Sổ `llm_usage` cho bộ đọc VLM — mở kết nối MUỘN, MỘT LẦN mỗi tiến trình.
+
+    Vì sao cần: trước 2026-09-18 nhà máy dưới đây dựng `VisionReader()` KHÔNG
+    tiêm `store`, nên `_record` thoát ở dòng đầu và alias `vlm-ocr` chưa từng
+    có một dòng nào trong `llm_usage` — trong khi bậc 3 gọi tới
+    `VLM_MAX_CALLS_PER_INGEST` lượt Gemini mỗi lượt nạp, vào hồ hạn mức DÙNG
+    CHUNG với chatbot. Sổ ngân sách mù đúng chỗ tốn nhiều nhất.
+
+    Vì sao MUỘN chứ không dựng thẳng `PostgresUsageStore()` trong nhà máy: nhà
+    máy chạy mỗi `parse_pdf` và constructor đó MỞ ConnectionPool, nên dựng sớm
+    sẽ (a) mở một pool mỗi tài liệu, (b) khiến mọi test đơn vị đi qua
+    `parse_pdf` chạm Postgres dù không có lượt VLM nào — bộ đọc tự tắt khi
+    thiếu khoá. Mở ở `record()` nên chỉ trả giá khi thật sự có lượt để ghi.
+
+    KHÔNG bắt exception: `VisionReader._record` đã bọc và chỉ log cảnh báo, nên
+    sổ hỏng không giết lượt nạp — fail-open miễn phí qua cơ chế đã có. `_da_thu`
+    để một Postgres sập không thành mấy chục lần thử lại (timeout 2s mỗi lần)
+    trong cùng một tài liệu: ném MỘT lần cho có cảnh báo, rồi im.
+    """
+
+    _store = None
+    _da_thu = False
+
+    def record(self, **kw) -> None:
+        if not _SoVlm._da_thu:
+            _SoVlm._da_thu = True
+            from src.llm.store import PostgresUsageStore
+            _SoVlm._store = PostgresUsageStore()
+        if _SoVlm._store is not None:
+            _SoVlm._store.record(**kw)
+
+
 # Bậc 3: nhà máy dựng bộ đọc VLM cho MỘT lượt `parse_pdf`. Tiêm được — test
 # thay bằng bộ đọc có client giả (cùng khuôn `Router(client_factory=…)`).
 # Mặc định: khoá riêng `YOUDOO_VLM_API_KEY*`, không có thì bộ đọc tự tắt.
-VISION_READER_FACTORY = lambda: vision.VisionReader()   # noqa: E731
+VISION_READER_FACTORY = lambda: vision.VisionReader(store=_SoVlm())   # noqa: E731
 
 _VLM_LABEL_COLUMNS = ("STT", "Chỉ tiêu", "Mã số", "Thuyết minh")
 

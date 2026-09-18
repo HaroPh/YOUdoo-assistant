@@ -192,3 +192,63 @@ def test_co_unverified_money_dat_dung_hang_chua_kiem_co_so_tren_fixture_that(mon
     gach = [b for b in blocks
             if b.get("source_kind") == "vision_unverified" and not b.get("unverified_money")]
     assert gach, "trang này có hàng '-' -> phải có block unverified KHÔNG mang cờ"
+
+
+# ─── #29: sổ `llm_usage` phải ĐẾM được lượt VLM (2026-09-18) ──────────────────
+# Đo được: alias `vlm-ocr` chưa từng có MỘT dòng nào trong `public.llm_usage`
+# (436 dòng, chỉ gemini-3.1/3.5-flash-lite và groq). Nguyên nhân: nhà máy dựng
+# `vision.VisionReader()` KHÔNG tiêm `store`, nên `_record` thoát ở dòng đầu.
+# Hệ quả: bậc 3 gọi tới `VLM_MAX_CALLS_PER_INGEST = 200` lượt Gemini mỗi lượt
+# nạp, vào hồ hạn mức DÙNG CHUNG với chatbot, mà sổ ngân sách không thấy gì.
+# Cùng lớp lỗi với reranker chết 6 tuần: dây có, chưa nối.
+def test_nha_may_VLM_co_tiem_so_llm_usage():
+    from src.rag import parse
+    reader = parse.VISION_READER_FACTORY()
+    assert reader._store is not None, (
+        "nhà máy phải tiêm sổ, nếu không `_record` thoát ngay và lượt VLM vô hình")
+
+
+def test_so_VLM_mo_ket_noi_MUON_chu_khong_phai_luc_dung_nha_may(monkeypatch):
+    """Nhà máy chạy MỖI `parse_pdf`, mà `PostgresUsageStore()` mở ConnectionPool
+    trong constructor. Dựng sớm thì (a) một pool mỗi tài liệu, (b) mọi test đơn
+    vị đi qua `parse_pdf` chạm Postgres dù KHÔNG có lượt VLM nào — bộ đọc tự tắt
+    khi thiếu khoá. Nên chỉ `record()` mới được mở."""
+    from src.rag import parse
+    parse._SoVlm._store = None
+    parse._SoVlm._da_thu = False
+    mo = []
+    monkeypatch.setattr("src.llm.store.PostgresUsageStore",
+                        lambda *a, **k: mo.append(1) or _SoGia())
+    reader = parse.VISION_READER_FACTORY()
+    assert mo == [], "dựng nhà máy KHÔNG được mở kết nối"
+    reader._store.record(ts=None, alias="vlm-ocr", provider="google", upstream="google",
+                         prompt_tokens=1, completion_tokens=2, total_tokens=3)
+    assert mo == [1], "record() đầu tiên mới mở kết nối"
+
+
+class _SoGia:
+    def __init__(self): self.rows = []
+    def record(self, **kw): self.rows.append(kw)
+
+
+def test_so_VLM_hong_chi_thu_MOT_lan_va_khong_giet_luot_nap(monkeypatch):
+    """Postgres sập không được thành 30 lần thử lại (timeout 2s mỗi lần) trong
+    một tài liệu. Lần đầu ném ra để `VisionReader._record` log cảnh báo (nó đã
+    bọc try/except, đã có test) — từ đó im lặng."""
+    from src.rag import parse
+    parse._SoVlm._store = None
+    parse._SoVlm._da_thu = False
+    thu = []
+
+    def no(*a, **k):
+        thu.append(1)
+        raise RuntimeError("postgres sap")
+    monkeypatch.setattr("src.llm.store.PostgresUsageStore", no)
+    so = parse._SoVlm()
+    kw = dict(ts=None, alias="vlm-ocr", provider="google", upstream="google",
+              prompt_tokens=1, completion_tokens=2, total_tokens=3)
+    with pytest.raises(RuntimeError):
+        so.record(**kw)
+    so.record(**kw)          # lượt sau: im, không thử lại
+    so.record(**kw)
+    assert thu == [1], f"chỉ được thử mở MỘT lần, thực tế {len(thu)}"
