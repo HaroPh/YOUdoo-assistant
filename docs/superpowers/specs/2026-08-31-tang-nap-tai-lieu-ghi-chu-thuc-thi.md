@@ -2814,7 +2814,9 @@ trên `public` **4.870** chunk (docstring `_or_tsquery` ghi số này), tức C�
 BCTC scan `SID_…_BaoCaoTaiChinhBanNien_HopNhat_SoatXet_2026.pdf` (968 chunk,
 `D:/downloads/`) làm chunk cạnh tranh; `eval_head` KHÔNG có nó. Nên mức tăng
 nửa-dấu có thể một phần do thiếu chunk nhiễu. Bước còn lại: nạp SID vào
-`eval_head` (OCR đã đệm, không tốn API) rồi chạy lại ba dạng gõ. Tạm dừng ở đây
+`eval_head` rồi chạy lại ba dạng gõ. (Bản đầu của đoạn này viết "OCR đã
+đệm, không tốn API" — SAI: chỉ Tesseract có đệm, `read_table` của VLM gọi thật
+mỗi lượt; xem mục 29 `trang-thai-chung.md`.) Tạm dừng ở đây
 theo yêu cầu chủ dự án.
 
 **Cảnh báo vận hành**: `ingest._hash` chỉ băm byte tệp, không có dấu vân tay
@@ -2827,4 +2829,46 @@ mỗi lượt upload nên **có tác dụng ngay** sau khi khởi động lại 
 có nhánh `retrieval` → `--baseline` với `--set retrieval` luôn sập
 `KeyError: 'false_confirm'` SAU khi in JSON. Bộ đo truy xuất chưa từng có cổng
 tự động, chỉ so bằng mắt. Ghi vào `trang-thai-chung.md`.
+
+### Nghiệm thu corpus luật — bản CÔNG BẰNG, có SID (2026-09-18)
+
+Nạp SID vào `eval_head` (968 → **709 chunk** sau vá, vì 403 mục rác gộp lại;
+3 lượt VLM: tr4, tr6 mục lục — trigger bắn nhầm nhưng cổng số học chặn đúng —
+và tr61). `eval_head` = 4.610 chunk, khác `public` 4.870 đúng bằng hiệu ứng của
+bản vá. `public` chạy lại hôm nay **bằng đúng** mốc 08/09 → mốc còn tươi.
+
+| dạng gõ | recall@20 | recall@6 | MRR | ca trượt @20 |
+|---|---|---|---|---|
+| có dấu | 0,9766 → **0,9766** | 0,9688 → 0,9635 (−1 nhãn) | 0,8091 → 0,8091 | 1 → 1, cùng ca |
+| nửa dấu | 0,8359 → **0,8359** | 0,8203 → 0,8203 | 0,6473 → 0,6478 | 9 → 9, cùng tập |
+| không dấu | 0,6042 → **0,6042** | 0,5260 → **0,4896** (−3 ca) | 0,3569 → 0,3619 | 25 → 25, cùng tập |
+
+Mức "tốt lên" nửa-dấu ở bảng trước (0,8359 → 0,8672) **là nhiễu SID**, đúng như
+nghi — có SID vào thì biến mất. Bài học cũ lặp lại: hai lượt đo phải khác nhau
+ĐÚNG MỘT THỨ.
+
+**recall@20 bằng mốc cả ba dạng, tập ca trượt y hệt** → pool nguyên vẹn, không
+chunk đúng nào rơi khỏi 20. Cái đổi là THỨ TỰ ở mép k=6, đối chiếu theo ca bằng
+`retrieve()` thật trên `public` vs `eval_head` (`label_of`/`score_one` của bộ đo):
+
+- Có dấu, 1 ca: *"SOP nhập kho gồm những bước nào?"* — top-5 giống hệt, #6 đảo
+  `Bước 3` (đúng) ↔ `Điều 30 Chuyển khẩu` (sai). Cả hai chunk KHÔNG bị vá chạm
+  (`sop.docx` đi `docx_heading_levels`; Điều 30 có đủ Chương/Mục). Lật tie-break:
+  chunk SID đổi hạng trong chân dense dịch RRF của chunk kề ranh giới một nấc.
+- Không dấu, 3 ca (*SOP nhập kho*, *khách đổi ý sau khi chốt đơn*, *chủ tịch
+  HĐTV nhiệm kỳ*) — **cùng một cơ chế**: trước vá, chunk SID mang breadcrumb rác
+  (`KI`, `IN`, `HE:`) nên VÔ HÌNH với chân bỏ dấu; sau vá chúng mang breadcrumb
+  thật `THONG TIN CHUNG`, `CONG TY CO PHAN`, `BAO CÁO TÀI CHÍNH HỢP NHAT` — toàn
+  từ phổ thông, truy vấn không dấu khớp mặt chữ rất mạnh → chen vào top-6, đẩy
+  nhãn đúng xuống 7–20.
+
+Đọc cho đúng: bản vá không làm hỏng chunk luật/SOP nào — nó làm SID **được
+index đúng**, và SID (BCTC scan giữa corpus luật + SOP) đúng là kẻ gây nhiễu khi
+gõ không dấu. Trước vá, 3 ca đó "tốt" chỉ vì 403 chunk SID tàng hình. Không-dấu
+vốn là dạng yếu nhất (0,526) và do chân bỏ dấu chi phối.
+
+**Quyết định push để chủ dự án**: theo tiêu chí tôi tự đặt ("không dạng nào tệ
+đi thì push"), không-dấu recall@6 tệ đi −0,036 nên tôi KHÔNG tự push. Lợi: tệp
+đính kèm 9/11 → 10/11, 940 chunk hết breadcrumb rác, recall@20 nguyên. Hại: 3
+ca không-dấu rơi từ top-6 xuống 7–20 vì SID lộ diện.
 

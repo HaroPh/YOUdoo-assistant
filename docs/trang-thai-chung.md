@@ -1,6 +1,6 @@
 # Trạng thái chung — hai phiên làm việc song song
 
-Cập nhật lần cuối: **2026-09-17**.
+Cập nhật lần cuối: **2026-09-18**.
 
 ## Cách dùng tệp này
 
@@ -35,8 +35,10 @@ Quy ước:
 | 19b | **RBAC tầng RAG — HOÃN CÓ ĐIỀU KIỆN.** Chỉ mở lại khi corpus có **nhiều tài liệu nội bộ**. Hôm nay: 8 tài liệu / 44 chunk nội bộ (98,6% corpus là PDF luật công khai) ⇒ chưa cần | hoãn 2026-08-22 | điều kiện mở lại, không phải "đã xong" — lỗ hổng vẫn còn, xem mục "đã đo" |
 | 25 | **Cổng eval của Youdoo không có lịch nào gọi.** `eval-gate` khai `schedulable=True` nhưng máy chỉ có đúng một lịch (`ERP-AI-EvalGate`) và nó trỏ vào `D:\Project`. Youdoo không có script chạy định kỳ ⇒ cổng chỉ chạy khi có người gõ lệnh | chưa ai | cần quyết: chạy đêm thì tốn hạn mức API mỗi ngày |
 | 26 | **Open WebUI: `top_k_reranker` còn = 3 trong khi `top_k` = 10.** Việc của chủ dự án, không sửa mã: Admin → Documents, đặt `top_k_reranker` ≥ `top_k`. Đo được 8/11 → 10/11 trên bộ 11 câu tệp đính kèm | chủ dự án | ghi chú thi hành `2026-08-31-tang-nap-tai-lieu-ghi-chu-thuc-thi.md`, mục hướng B bước 2 |
-| 27 | **Retriever ta trượt câu bảng-nhỏ-trong-thuyết-minh — ĐÃ VÁ trong mã** (`467f33a`, nhánh IN HOA của `heading_level` đòi ≥ 2 từ; 10/11 trên tệp đính kèm, corpus luật không hồi quy recall@20). CÒN: (a) nghiệm thu corpus luật thiếu tệp SID làm nhiễu — nạp SID vào `eval_head` rồi đo lại; (b) corpus sản xuất KHÔNG tự nhận vá (`_hash` chỉ băm byte tệp) — 544 chunk `public` giữ breadcrumb rác tới khi xoá `rag_documents` + nạp lại | tạm dừng 2026-09-17 | ghi chú thi hành, mục "Lỗ retriever" |
+| 27 | **Retriever ta trượt câu bảng-nhỏ-trong-thuyết-minh — ĐÃ VÁ trong mã, CHƯA PUSH** (`467f33a`, nhánh IN HOA `heading_level` đòi ≥ 2 từ). Tệp đính kèm 10/11; corpus luật CÔNG BẰNG (có SID): recall@20 bằng mốc cả 3 dạng gõ, nhưng không-dấu recall@6 0,526 → 0,490 (3 ca) vì chunk SID hết tàng hình. **Chủ dự án quyết push.** Sau đó: corpus sản xuất KHÔNG tự nhận vá (`_hash` chỉ băm byte tệp) — xoá `rag_documents` + nạp lại | chờ chủ dự án 2026-09-18 | ghi chú thi hành, mục "Nghiệm thu corpus luật — bản CÔNG BẰNG" |
 | 28 | **`eval_gate._gate` không có nhánh `retrieval`** → `--baseline --set retrieval` luôn sập `KeyError: 'false_confirm'` sau khi in JSON; bộ đo truy xuất chưa từng có cổng tự động | chưa ai | `jobs/eval_gate.py:155`; phát hiện 2026-09-17 |
+| 29 | ⚠️ **Sổ `llm_usage` MÙ với VLM bậc 3.** `parse.VISION_READER_FACTORY = lambda: vision.VisionReader()` dựng KHÔNG tiêm `store` → `_record` thoát ngay; alias `vlm-ocr` chưa từng có dòng nào. Bậc 3 gọi tới 200 lượt Gemini/lượt nạp vào hồ hạn mức CHUNG với chatbot mà sổ ngân sách không đếm. Đo 2026-09-18: 16 lượt VLM (DVT 4 + NTC 9 + SID 3) không dòng nào. `read_table` cũng KHÔNG có đệm — mỗi lượt nạp lại scan là gọi thật (ghi chú cũ nói "đã đệm" là SAI) | chưa ai | `src/rag/parse.py:565`, `src/ocr/vision.py:219` |
+| 30 | **Sổ `llm_usage` không ghi gì từ 2026-09-12 07:08 UTC** dù chatbot chạy qua Open WebUI các ngày 12–17 (436 dòng, mới nhất `gemini-3.5-flash-lite`). Chưa chẩn đoán: backend `:8002` dùng env/DB khác, hay đường ghi sổ chat hỏng? Phải xem trước khi tin bất kỳ số hạn mức nào | chưa ai | `public.llm_usage`; phát hiện 2026-09-18 tiện đường |
 | 23 | ⚠️ **3 khoảng trống vai↔Odoo còn lại** (`update_quotation_lines` kho, `update_rfq_lines` kế toán, `find_my_activities`) — nên khai vào `KNOWN_ODOO_GAPS` kèm lý do đo được thay vì để script thoát mã 1 mãi. `create_vendor` ĐÃ ĐÓNG 2026-08-23 | chưa ai | spec `2026-08-23-canh-bao-rui-ro-va-chan-tao-ncc.md` §2 |
 
 ## Ai giữ vùng nào
