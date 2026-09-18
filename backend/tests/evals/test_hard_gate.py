@@ -22,6 +22,9 @@ def test_leaf_lay_phan_sau_dau_phan_cach_cuoi():
     assert leaf("Điều 428. Đơn phương chấm dứt") == "Điều 428. Đơn phương chấm dứt"
 
 
+# Lá ở đây cố ý không có tiền tố "Điều N." — với lá như "Điều 9. Thuế suất" thật,
+# leaf tokenizes {dieu, thue, suat} = 3; overlap với "thuế suất" = 2/3 ≠ 1,0. Đó là
+# tính chất của thước (hiệu chỉnh cùng định nghĩa này), không phải lỗi.
 def test_overlap_trung_het_la_1_khong_trung_la_0():
     assert overlap("thuế suất", ["Thuế suất"]) == 1.0
     assert overlap("giá bán lẻ", ["Thuế suất"]) == 0.0
@@ -39,6 +42,7 @@ def test_overlap_khong_phu_thuoc_dau():
     assert a == b
 
 
+# Cùng lý do: "Phạm vi" thay vì "Điều 1. Phạm vi" để overlap là max, không nhầm số.
 def test_overlap_nhieu_nhan_lay_max():
     got = overlap("thuế suất", ["Phạm vi", "Thuế suất"])
     assert got == 1.0
