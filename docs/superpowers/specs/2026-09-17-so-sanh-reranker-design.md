@@ -305,3 +305,83 @@ cổng lượng tử hoá riêng mới biết có triển khai được không, 
   còn nợ cổng lượng tử hoá (§3) trước khi so được tốc độ thật; công tắc `RAG_RERANK_MODE` mặc
   định vẫn là `blend`, chưa đổi production. Việc có chuyển default sang `override` hay không,
   và chọn model nào, là quyết định của một mục việc sau — mục này không kết luận adopt/keep.
+
+### Task 6 — Kết luận
+
+Áp thứ tự cổng của spec §4 (**`hard mrr`** trước, rồi `recall@6` không được tụt, rồi
+`trap mrr`) lên bảng sáu chân đầy đủ (Task 4 + Task 5, cùng bộ `retrieval` 64 ca, cùng
+corpus, `errors = 0` và `methods_seen` đúng trên cả sáu chân):
+
+| chân                          |    r@6 |    mrr |   easy |   hard |   trap | p50ms |
+|-------------------------------|-------:|-------:|-------:|-------:|-------:|------:|
+| no-rerank                     | 0.8958 | 0.7072 | 0.7673 | 0.5403 | 0.7682 |   593 |
+| bge-v2-m3 (production, blend) | 0.9688 | 0.8091 | 0.8968 | 0.5755 | 0.8875 |   954 |
+| qwen3-0.6b blend               | 0.9479 | 0.7974 | 0.8807 | 0.6196 | 0.8250 |  2088 |
+| qwen3-4b blend                 | 0.9688 | 0.8317 | 0.8836 | 0.6814 | 0.8906 |  4590 |
+| qwen3-0.6b override             | 0.9609 | 0.8421 | 0.9258 | 0.7173 | 0.8125 |  1026 |
+| qwen3-4b override               | 0.9766 | 0.8977 | 0.9382 | 0.8255 | 0.8958 |  4591 |
+
+**`qwen3-0.6b-override` — thắng `hard mrr` (0,5755 → 0,7173) nhưng RỚT ở cổng 2.** `recall@6`
+tụt 0,9688 → 0,9609 VÀ `trap mrr` tụt 0,8875 → 0,8125 — cả hai chỉ số "không được tụt" cùng
+tụt. Cụ thể hơn con số trung bình: chân này văng khỏi top-6 đúng một câu `hard` mà bge
+production còn giữ nguyên — *"bên bán phải đóng gói hàng ra sao trước khi chuyển đi?"*
+(`recall_at_final`: bge/blend = 1,0 → 0.6b-override = 0,0). Thắng `hard` không đủ khi cái giá
+là mất một câu đang trả lời đúng. **⇒ 0.6B override KHÔNG được nhận.**
+
+**`qwen3-4b-override` — qua cả ba cổng, không làm rớt câu nào production đang giữ.**
+`hard mrr` 0,5755 → 0,8255 (mức tăng lớn nhất bảng), `recall@6` 0,9688 → 0,9766 (tăng, không
+tụt), `trap mrr` 0,8875 → 0,8958 (tăng, không tụt). Soát từng câu (Task 5): 0 câu bị văng khỏi
+top-6 ở bất kỳ mức khó nào so với bge/blend — chân này chỉ CỨU thêm, không mất gì đo được trên
+64 ca. Đây là chân tốt nhất trên dữ liệu.
+
+**Nhưng con số của 4B không phải số triển khai được.** Chân `qwen3-4b` (cả blend lẫn
+override) chạy qua đường `device_map=auto` của `accelerate`, offload một phần lớp sang CPU
+RAM (§3, đường B) — vì trọng số fp16 ~8,0 GB không vừa card 8 151 MiB kể cả khi desktop sạch.
+`p50ms = 4591` là độ trễ CPU-offload, không phải độ trễ chạy trọn GPU hay chạy lượng tử hoá;
+so nó với `954 ms` của bge production là so sai đường.
+
+**⇒ Kết luận nêu tên: "4B đáng đi tiếp" (lựa chọn thứ ba trong ba lựa chọn của spec §4),
+CÓ ĐIỀU KIỆN qua một cổng thứ hai chưa chạy** — đo lại `qwen3-4b` ở dạng lượng tử hoá
+(`bitsandbytes` trên sm_120, hoặc GGUF Q4 qua `llama.cpp --reranking`, xem spec §3 đường A/C)
+để biết chất lượng và độ trễ SAU lượng tử hoá, trước khi nó được phép thay production. Cho
+tới khi cổng đó chạy và qua, **production giữ nguyên** `RERANK_MODEL=BAAI/bge-reranker-v2-m3`
+mặc định và `RAG_RERANK_MODE=blend` mặc định — không đổi gì trong nhánh này.
+
+**Phát hiện tách rời được: override thắng blend độc lập với việc chọn model, và là hiệu ứng
+đơn lẻ lớn nhất trong cả bảng.** Trên CÙNG một model, đổi `blend` → `override` một mình đã
+kéo `hard mrr` lên: 0.6B +0,0977 (0,6196→0,7173), 4B +0,1441 (0,6814→0,8255, mức tăng lớn nhất
+bảng) — lớn hơn cả khoảng cách giữa hai model ở cùng chế độ hoà. **Nhưng phát hiện này KHÔNG
+được đem ra dùng một mình trên `bge` hiện tại**: không chân `bge` + `override` nào từng được
+đo trong lượt này (Task 4/5 chỉ đo override trên hai model Qwen), và phép đo 2026-08-20 —
+chính phép đo đã chọn ra tỉ lệ hoà 1:1 đang chạy production — từng đo `override` trên `bge`
+**thua cả tắt-hẳn reranker** (docstring `retrieve.rerank()`; nguyên nhân: `bge` chấm theo
+trùng mặt chữ, thấy 2 điều luật có tên gần giống là chấm điểm dương sai hướng — xem spec §1).
+Đem override đi thẳng lên bge sản xuất mà không đo lại sẽ lặp lại chính xác sai lầm đó.
+
+**Ba khoản rủi ro/mất mát đo được, không được để thất lạc:**
+
+1. **Override tách rời khỏi việc chọn model, và KHÔNG được ship một mình trên bge chưa đo**
+   — chi tiết ở đoạn trên; đây là phát hiện độc lập, chờ một lượt đo `bge` + `override` riêng
+   trước khi cân nhắc bật `override` cho bất kỳ model nào production đang chạy.
+2. **`qwen3-0.6b` ở chế độ `blend` cũng văng một câu `easy` mà bge giữ được** —
+   *"dự án nào phải xin chấp thuận chủ trương đầu tư?"* — điều này KHÔNG có trong Task 4 vì
+   Task 4 chỉ soát văng-khỏi-top-6 ở `hard`/`trap`, chưa soát `easy`. Ghi lại ở đây để không
+   mất dấu: bất kỳ ai cân nhắc 0.6B (kể cả nếu 4B rớt cổng lượng tử hoá) phải biết cái giá này.
+3. **Chế độ hỏng của 4B không có đường lùi cấp tiến trình.** Ở `RERANK_GPU_BUDGET=5GiB`, việc
+   nạp 4B SEGFAULT (exit 139, Task 3) — một segfault đi vòng qua hẳn khối `except Exception`
+   mà `score_pairs` dùng để fail-open. Không có traceback Python, không có "chân đó hiện ra là
+   `dense-rrf`" như hợp đồng cũ hứa (spec §4.2) — tiến trình backend chết thẳng. Bất kỳ ai
+   triển khai 4B (kể cả sau khi lượng tử hoá) phải tính lại ngân sách VRAM này ở tầng giám sát
+   tiến trình, không thể trông chờ fail-open trong Python.
+
+- **Khó khăn**: mục này không đo gì — rủi ro chính là DIỄN GIẢI LẠI dữ liệu Task 4/5 thay vì
+  chép đúng phán quyết đã có (R21); đối chiếu từng con số trong bảng với chính văn bản Task 4/5
+  ở trên để không lệch số khi gõ lại.
+- **Hướng chọn**: chép nguyên phán quyết của controller, không tự suy luận lại; giữ đúng thứ
+  tự cổng của spec §4 khi trình bày lý do loại 0.6B override, thay vì chỉ nói "recall tụt" mà
+  không trỏ tới câu `hard` cụ thể bị văng.
+- **Giới hạn còn lại**: cổng lượng tử hoá cho 4B (§3 đường A/C) và lượt đo `bge` + `override`
+  đều CHƯA chạy trong nhánh này — cả hai chặn quyết định adopt/keep cuối cùng; 5 khoản vá nhỏ
+  hoãn lại từ review Task 1–5 (khối chuyển thiết bị lặp, prefix/suffix mã hoá lại mỗi lượt,
+  test `device_map` thiếu hai khẳng định, số 4B không so ngang được, thời gian "nạp + lượt 1"
+  lẫn thời gian tải) còn chờ soát trước khi merge — xem `docs/trang-thai-chung.md`.

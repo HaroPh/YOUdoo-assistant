@@ -1,6 +1,6 @@
 # Trạng thái chung — hai phiên làm việc song song
 
-Cập nhật lần cuối: **2026-09-17**.
+Cập nhật lần cuối: **2026-09-18**.
 
 ## Cách dùng tệp này
 
@@ -37,6 +37,7 @@ Quy ước:
 | 26 | **Open WebUI: `top_k_reranker` còn = 3 trong khi `top_k` = 10.** Việc của chủ dự án, không sửa mã: Admin → Documents, đặt `top_k_reranker` ≥ `top_k`. Đo được 8/11 → 10/11 trên bộ 11 câu tệp đính kèm | chủ dự án | ghi chú thi hành `2026-08-31-tang-nap-tai-lieu-ghi-chu-thuc-thi.md`, mục hướng B bước 2 |
 | 27 | **Retriever ta trượt câu bảng-nhỏ-trong-thuyết-minh — ĐÃ VÁ trong mã** (`467f33a`, nhánh IN HOA của `heading_level` đòi ≥ 2 từ; 10/11 trên tệp đính kèm, corpus luật không hồi quy recall@20). CÒN: (a) nghiệm thu corpus luật thiếu tệp SID làm nhiễu — nạp SID vào `eval_head` rồi đo lại; (b) corpus sản xuất KHÔNG tự nhận vá (`_hash` chỉ băm byte tệp) — 544 chunk `public` giữ breadcrumb rác tới khi xoá `rag_documents` + nạp lại | tạm dừng 2026-09-17 | ghi chú thi hành, mục "Lỗ retriever" |
 | 28 | **`eval_gate._gate` không có nhánh `retrieval`** → `--baseline --set retrieval` luôn sập `KeyError: 'false_confirm'` sau khi in JSON; bộ đo truy xuất chưa từng có cổng tự động | chưa ai | `jobs/eval_gate.py:155`; phát hiện 2026-09-17 |
+| 29 | **So sánh 3 reranker: kết luận nêu tên là "4B đáng đi tiếp" (`qwen3-4b` + `RAG_RERANK_MODE=override` qua cả ba cổng của spec §4), NHƯNG có điều kiện — production GIỮ NGUYÊN `bge-reranker-v2-m3` + `blend` mặc định, chưa đổi gì.** Còn treo: (a) **cổng lượng tử hoá cho 4B chưa chạy** (`bitsandbytes` trên sm_120 hoặc GGUF/`llama.cpp`) — số hiện có là đường `device_map=auto` CPU-offload ở fp16 (p50 4591ms), không phải số triển khai thật; (b) **chân `bge` + `override` CHƯA từng được đo** — không được bật `override` cho bge sản xuất khi chưa đo lại, vì lượt 2026-08-20 (lượt chọn ra tỉ lệ hoà 1:1 đang chạy) từng đo override trên bge THUA cả tắt-hẳn reranker; (c) **5 khoản vá nhỏ hoãn từ review Task 1–5, chờ soát trước merge**: khối chuyển thiết bị lặp giữa `_score_seq_cls`/`_score_qwen3`, prefix/suffix Qwen3 mã hoá lại mỗi lượt gọi thay vì cache, `test_device_map_khong_goi_to_hay_half` chưa khẳng định `dtype=float16` hay `max_memory["cpu"]`, số VRAM/độ trễ của 4B là đường offload không so ngang được với bge/0.6B chạy trọn GPU, và thời gian "nạp + lượt 1" của spike gồm cả thời gian tải nguội | chưa ai | spec `2026-09-17-so-sanh-reranker-design.md` §8 Task 6 (kết luận R21); cổng lượng tử hoá 4B và chân bge+override chưa có lượt đo nào |
 | 23 | ⚠️ **3 khoảng trống vai↔Odoo còn lại** (`update_quotation_lines` kho, `update_rfq_lines` kế toán, `find_my_activities`) — nên khai vào `KNOWN_ODOO_GAPS` kèm lý do đo được thay vì để script thoát mã 1 mãi. `create_vendor` ĐÃ ĐÓNG 2026-08-23 | chưa ai | spec `2026-08-23-canh-bao-rui-ro-va-chan-tao-ncc.md` §2 |
 
 ## Ai giữ vùng nào
