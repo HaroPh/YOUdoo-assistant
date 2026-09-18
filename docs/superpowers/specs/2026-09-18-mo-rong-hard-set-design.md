@@ -68,7 +68,8 @@ Loại nút `(basename, section_path)` khi bất kỳ điều nào đúng:
 - `basename` là báo cáo tài chính `SID_…BaoCaoTaiChinh…pdf` (100 nút, breadcrumb dạng
   `"Chương trình › 39 BIẾT KP"`, không gán nhãn được);
 - lá sau chuẩn hoá (bỏ dấu câu, gộp khoảng trắng, lower, `fold_vi`) thuộc tập quốc hiệu/tiêu
-  ngữ/từ loại văn bản trần: `quoc hoi`, `cong hoa xa hoi chu nghia viet nam`, `doc lap tu do
+  ngữ/từ loại văn bản trần: `quoc hoi`, `cong hoa xa hoi chu nghia viet nam`, `quoc hoi cong
+  hoa xa hoi chu nghia viet nam` (hai cột tiêu đề bị parser đọc thành một dòng), `doc lap tu do
   hanh phuc`, `chu tich quoc hoi`, `luat`, `bo luat`, `nghi dinh`, `thong tu`;
 - lá có < 3 token độ dài > 1 (mảnh câu, số điều trống);
 - cặp `(basename, section_path)` đã là nhãn của một ca trong 64 ca hiện có.
@@ -252,7 +253,8 @@ vòng đo, kể cả khi hai chân 4B chạy với `RERANK_GPU_BUDGET` khác vò
 
 ### 10.4 Kiểm định ghép cặp — đầu ra nguyên văn (Task 7, 2026-09-18)
 
-`evals.retrieval_stats` chỉ đọc JSON (hoán vị chính xác + bootstrap 20 000 lượt, seed cố định);
+`evals.retrieval_stats` chỉ đọc JSON (hoán vị chính xác khi số chênh ≠ 0 ≤ 22, Monte Carlo
+20 000 lượt khi nhiều hơn — xem bảng ngay sau khối; bootstrap 20 000 lượt, seed cố định);
 `n`, `chenh_TB`, `p`, `thang/hoa/thua` tất định, biên CI có thể lệch ±0,005 giữa máy.
 `new-45-questions.json` sinh từ `HARD_EXPANSION_CASES` (45 câu, chỉ để lọc câu), commit cùng lượt.
 
@@ -282,6 +284,27 @@ n=62  chenh_TB=+0.1068  CI95=[+0.029,+0.189]  p=0.0101  thang/hoa/thua=18/38/6
   VANG (other mat, base giu): bên bán phải đóng gói hàng ra sao trước khi chuyển đi?
 ```
 
+**Hai giá trị `p` trong khối trên là ước lượng Monte Carlo, không phải hoán vị chính xác.**
+`retrieval_stats.permutation_p` chỉ liệt kê hết 2^k tổ hợp dấu khi số chênh ≠ 0 (= thắng + thua)
+là k ≤ `max_exact = 22`; quá đó nó rút 20 000 lượt đảo dấu với `seed = 0`, và CLI in hai kiểu
+giống hệt nhau. Đếm lại k cho từng phép so và tính lại p chính xác (liệt kê phân phối tổng theo
+quy hoạch động; ở ca k = 24 đối chiếu thêm bằng chính `permutation_p(d, max_exact=30)`, 23 s,
+cùng ra 0,01099; ở bốn ca chính xác, quy hoạch động tái tạo đúng số CLI):
+
+| phép so | chênh ≠ 0 | p CLI in | kiểu | p chính xác |
+|---|---:|---:|---|---:|
+| `hard-62`, 4B override (**CHÍNH**, §8) | 20 | 0,0007 | chính xác | 0,00066 |
+| `new-45`, 4B override | 11 | 0,0146 | chính xác | 0,01465 |
+| 109 ca, 4B override (cổng 3–4) | 29 | 0,0010 | **MC** (seed 1: 0,0008) | 0,00078 |
+| `hard-62`, 0.6B hoà | 16 | 0,3208 | chính xác | 0,32083 |
+| `hard-62`, 4B hoà | 15 | 0,4440 | chính xác | 0,44403 |
+| `hard-62`, 0.6B override | 24 | 0,0101 | **MC** (seed 1: 0,0112) | **0,01099** |
+
+Phép so chính và `new-45` là chính xác — §11 không bị chạm. Với `0.6B override`, 0,0101 in ra
+có sai số chuẩn ≈ 0,0007; giá trị chính xác **0,0110**, trên ngưỡng 0,01 của §8 khoảng 0,001.
+Phép so 109 ca chỉ phục vụ điều kiện 3–4 (`recall@6` và ca `VANG`), không dùng p, nên MC ở đó
+không chạm quyết định.
+
 Phép so "toàn bộ ca" của `qwen3-4b-override` **không in dòng `VANG` nào** (CLI in một dòng
 mỗi ca `other` mất top-6 mà `base` còn giữ — kiểm lại thẳng trên `per_case`: 0 ca; chiều
 ngược lại bge mất/4B giữ: 1 ca). Trường `recall_at_6` đọc từ JSON: `bge-v2-m3` 0,9633,
@@ -293,12 +316,14 @@ ngược lại bge mất/4B giữ: 1 ca). Trường `recall_at_6` đọc từ JS
 |---|---:|---:|---|---:|---|---:|
 | qwen3-0.6b (hoà) | 62 | +0,0256 | [−0,024; +0,075] | 0,3208 | 11/46/5 | 1 |
 | qwen3-4b (hoà) | 62 | +0,0172 | [−0,025; +0,059] | 0,4440 | 11/47/4 | 1 |
-| qwen3-0.6b-override | 62 | +0,1068 | [+0,029; +0,189] | 0,0101 | 18/38/6 | 1 |
+| qwen3-0.6b-override | 62 | +0,1068 | [+0,029; +0,189] | **0,0110** (chính xác; CLI in 0,0101 MC) | 18/38/6 | 1 |
 | **qwen3-4b-override** | **62** | **+0,1290** | **[+0,060; +0,202]** | **0,0007** | **18/42/2** | **0** |
 
 Đọc bảng: hai chân **hoà** (blend) của Qwen3 không khác bge trên `hard-62` (CI cắt 0, p > 0,3)
-— tín hiệu "+0,106 4B hoà" ở §1 tan hẳn. Hai chân **override** đều dương; `0.6B override` sát
-mép (p = 0,0101, hụt ngưỡng 0,01 của §8 một sợi tóc, và làm văng 1 ca `hard` bge còn giữ).
+— tín hiệu "+0,106 4B hoà" ở §1 không tái hiện: trên 62 ca chênh +0,0172, CI [−0,025; +0,059]
+cắt 0, tức là không phân biệt được với bge ở cỡ mẫu này. Hai chân **override** đều dương;
+`0.6B override` không qua ngưỡng: p chính xác = 0,0110 (CLI in 0,0101 là ước lượng Monte
+Carlo, xem 10.4), trên ngưỡng 0,01 của §8 khoảng 0,001, và làm văng 1 ca `hard` bge còn giữ.
 Chỉ `4B override` qua đủ cả bốn điều kiện.
 
 ### 10.6 `hard mrr` tách 17 ca cũ / 45 ca mới (đọc thẳng `per_case`)
@@ -320,12 +345,16 @@ Chênh `4B override − bge`: **+0,250** trên 17 cũ, **+0,083** trên 45 mới
 
 - **Nút bỏ: 0.** `DROPPED_NODES` trong `hard_expansion_cases.py` rỗng — 45/45 nút được viết
   câu qua cổng overlap ≤ 0,40 trong ≤ 3 lần. Review trước đóng băng sửa 4 câu (`e55b22c`,
-  16:08 — đảo vai chủ thể, tiền đề không có trong chunk); đóng băng `0398c04` lúc 16:22; JSON
-  đầu tiên 16:28. Không câu nào bị chạm sau khi đã thấy số.
+  16:08 — đảo vai chủ thể, tiền đề không có trong chunk); người sửa là **chính agent mù đã
+  viết 45 câu**, trên các phát hiện review không mang thông tin kết quả đo nào (phán quyết R9
+  của controller) — nhờ vậy hợp đồng mù §5 vẫn nguyên với 4 ca này; đóng băng `0398c04` lúc
+  16:22; JSON đầu tiên 16:28. Không câu nào bị chạm sau khi đã thấy số.
 - **Chân bị ngắt / chạy lại: 1 chân (`qwen3-4b` hoà)**; Task 6 chạy vắt qua một lần máy reset
   (cạn RAM) cùng một lần chạm giới hạn tốc độ API của phiên agent — controller tự hoàn tất phần
   còn lại của Task 6.
-- **Lượt `qwen3-4b` hoà đầu tiên (17:19, trước reset máy) qua MỌI kiểm tra cơ học** —
+- **Lượt `qwen3-4b` hoà đầu tiên (chạy ngay sau chân `0.6B override` xong 16:35, trước lần
+  máy reset; lượt chạy LẠI mới bắt đầu 17:19–17:20 theo mtime `qwen3-4b.stderr.log`, xong 18:10)
+  qua MỌI kiểm tra cơ học** —
   `errors = 0`, `methods_seen` đúng, `rerank_model`/`rerank_mode` khớp, và qua trọn cổng đối
   chứng `old-64` của §7 (0 ca khác) — **mà vẫn hỏng**: trên 45 câu mới `r@6 = 0,6444`, thấp
   hơn cả chân tắt rerank (0,8667). Nguyên nhân: `run_eval` chạy 64 ca cũ TRƯỚC, 45 ca mới SAU;
@@ -339,6 +368,13 @@ Chênh `4B override − bge`: **+0,250** trên 17 cũ, **+0,083** trên 45 mới
 - Hai chân 4B dùng `RERANK_GPU_BUDGET` khác nhau: hoà 4GiB (50 phút, GPU đầy 7,6/8,15 GB,
   p50 24 s — thrashing), override 3GiB (12,5 phút, p50 4,6 s). Chỗ đặt trọng số không đổi phép
   toán — bảng 10.2 chứng minh cả hai tái tạo số 2026-09-17 trên 64 ca cũ y hệt.
+- **Lỗi plan ở brief Task 1**: literal test `overlap("thuế suất", ["Điều 9. Thuế suất"]) == 1.0`
+  trong brief sai theo đúng thước §3 (token lá `{dieu, thue, suat}` → 2/3, không phải 1,0).
+  Người thi hành thay bằng lá không có tiền tố `Điều N.` (`cce069a`); sự thật này giờ chỉ còn
+  trong một comment test. Lỗi của người viết plan, không phải người thi hành.
+- **Lỗi plan ở brief Task 3**: pseudocode `allocate()` trong brief có thể đẩy một tầng xuống
+  dưới sàn khi `k < n·floor`; sửa ở `fc62fd9` (ném `ValueError` + vòng chia biết sàn). Mẫu đóng
+  băng không đổi vì k = 39 ≥ 9 tầng. Cũng là lỗi của người viết plan.
 
 ### Hướng chọn
 
@@ -360,12 +396,22 @@ Chênh `4B override − bge`: **+0,250** trên 17 cũ, **+0,083** trên 45 mới
   là recall: trên 109 ca `r@20 = 0,9771` ở mọi chân (trần pool 20 ứng viên), 4B override
   `r@6 = 0,9679` — hết chỗ để recall tăng, chỉ còn thứ hạng trong top-6.
 - **Cổng §7 mù với các ca chạy sau** (xem Khó khăn) — bài học thiết kế: cổng đối chứng hạ tầng
-  phải phủ cả đầu lẫn cuối lượt chạy, hoặc eval phải xáo thứ tự ca. Lượt này vá bằng R12; lượt
-  sau nên đưa vào `run_eval` hoặc test hợp đồng thay vì kiểm tay.
-- **`0.6B override` chưa được xử lý**: p = 0,0101 là "hụt ngưỡng" chứ không phải "không có
-  gì"; §8 chỉ đặt câu hỏi cho 4B override nên spec này không kết luận về 0.6B. Nếu cổng lượng
-  tử hoá 4B thất bại về độ trễ, 0.6B override (chạy trọn GPU, p50 1154 ms) là ứng viên tiếp
-  theo và cần quy tắc đăng ký trước riêng.
+  phải phủ cả đầu lẫn cuối lượt chạy, hoặc eval phải xáo thứ tự ca. Bài học quy trình (R16):
+  **một cổng liên tục phải phủ cả những ca chạy CUỐI** — hôm nay R12 vẫn là kiểm tay; chỗ của
+  nó là trong `run_eval` hoặc một test hợp đồng, lượt sau phải đưa vào.
+- **CLI `retrieval_stats` in p Monte Carlo và p chính xác cùng một kiểu** (xem bảng 10.4):
+  `permutation_p` liệt kê hết khi số chênh ≠ 0 ≤ `max_exact = 22`, quá đó rút 20 000 lượt (sai
+  số chuẩn ≈ 0,0007 quanh p = 0,01). Phép so quyết định (20 chênh ≠ 0) *tình cờ* là chính xác;
+  hai phép so 0.6B override (24) và 109 ca (29) là MC mà bản đầu của §10.4 in như nhau. Lần chạm
+  `retrieval_stats` tiếp theo: in `(exact)`/`(MC n=20000)` sau `p`, và nâng `max_exact` (hoặc
+  liệt kê phân phối tổng thay vì 2^k vector dấu) để phép so quyết định không bao giờ rơi vào MC.
+- **Lượt `qwen3-4b` hoà bị loại đã bị lượt chạy lại ghi đè** — không còn kiểm toán được, chỉ
+  còn số `r@6 = 0,6444` chép ở Khó khăn (R16). Lần sau: đổi tên lượt bị loại thành
+  `*.DISCARDED.json` trước khi chạy lại, không ghi đè.
+- **`0.6B override` chưa được xử lý**: p chính xác = 0,0110 (CLI in 0,0101 MC) là "hụt ngưỡng"
+  chứ không phải "không có gì"; §8 chỉ đặt câu hỏi cho 4B override nên spec này không kết luận
+  về 0.6B. Nếu cổng lượng tử hoá 4B thất bại về độ trễ, 0.6B override (chạy trọn GPU, p50
+  1154 ms) là ứng viên tiếp theo và cần quy tắc đăng ký trước riêng.
 - Các giới hạn §9 giữ nguyên: cổng overlap chỉ đo từ vựng với tiêu đề; một nhãn mỗi ca; 45 câu
   chung một "giọng"; corpus 18 tài liệu.
 

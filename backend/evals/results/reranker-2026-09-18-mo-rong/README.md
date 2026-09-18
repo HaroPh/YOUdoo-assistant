@@ -48,9 +48,11 @@ Hạ tầng truy xuất **không trôi** giữa hai vòng đo: kết quả trên
 ## (c) Cổng R12 — `recall@6` trên 45 câu MỚI không được dưới chân tắt rerank
 
 Vì sao cần cổng này: bộ eval chạy 64 ca cũ TRƯỚC rồi 45 ca mới SAU, nên cổng (b) chỉ soi phần
-chạy đầu. Lượt chạy `qwen3-4b` đầu tiên (17:19 trước reset máy) qua (a) và (b) hoàn hảo nhưng
-sụp trên 45 ca sau: `r@6 new45 = 0,6444` — **tệ hơn tắt reranker** (0,8667) — do máy cạn RAM
-giữa lượt (chân này tràn ~5 GB trọng số sang CPU). Lượt đó bị LOẠI và chạy lại.
+chạy đầu. Lượt chạy `qwen3-4b` đầu tiên (ngay sau chân `0.6B override` xong 16:35, trước lần
+máy reset) qua (a) và (b) hoàn hảo nhưng sụp trên 45 ca sau: `r@6 new45 = 0,6444` — **tệ hơn
+tắt reranker** (0,8667) — do máy cạn RAM giữa lượt (chân này tràn ~5 GB trọng số sang CPU).
+Lượt đó bị LOẠI và chạy lại; lượt chạy lại bắt đầu 17:19–17:20 (mtime `qwen3-4b.stderr.log`),
+xong 18:10, và **ghi đè** lên JSON của lượt bị loại — lượt đó không còn kiểm toán được.
 
 | chân | `r@6` new45 | `mrr` new45 | |
 |---|---:|---:|---|
