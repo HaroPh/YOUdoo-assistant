@@ -52,7 +52,7 @@ _DAUTU = "luat-dautu.pdf"
 _XNK = "luat-thuexuatnhapkhau.pdf"
 _GTGT = "luat-thuegtgt.pdf"
 
-RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = [
+_CORE: list[tuple[str, frozenset, str]] = [
 
     # ══ TÀI LIỆU NGHIỆP VỤ ═══════════════════════════════════════════════
     # Câu có chú thích "(cases.py)" là CHÉP NGUYÊN VĂN từ bộ eval sẵn có —
@@ -275,3 +275,7 @@ RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = [
      frozenset({(_DOANHNGHIEP, "Điều 68. Tăng, giảm vốn điều lệ")}),
      "trap"),
 ]
+
+# 64 ca gốc. Tên riêng có chủ đích: sample_hard_sections chỉ loại nút đã có nhãn
+# trong _CORE (tái lập được sau khi nối bộ mở rộng), và test băm gác nội dung.
+RETRIEVAL_CASES: list[tuple[str, frozenset, str]] = _CORE

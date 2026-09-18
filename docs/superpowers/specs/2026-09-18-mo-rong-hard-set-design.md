@@ -92,6 +92,31 @@ Trong mỗi tầng: sắp xếp nút theo `(basename, section_path)`; với N n�
 `floor(offset + i·N/k)`, `i = 0..k−1`, `offset = ((seed mod 1000)/1000)·(N/k)`.
 **`seed = 20260918`**, ghi ở đây và trong docstring của `HARD_EXPANSION_CASES`.
 
+**Bảng phân bổ thật** (chạy `python -m evals.sample_hard_sections` trên corpus 2026-09-18,
+in ra stderr; thay cho ước tính trước khi lọc ở trên):
+
+| basename | ca | pool sau lọc |
+|---|---:|---:|
+| policy.docx | 0 | 0 |
+| discount_policy.docx | 1 | 2 |
+| payment_policy.docx | 1 | 3 |
+| sla.docx | 1 | 3 |
+| sop.docx | 1 | 1 |
+| sales_process.docx | 1 | 4 |
+| warehouse_outbound.docx | 1 | 2 |
+| boluat-danssu.pdf | 15 | 700 |
+| boluat-thuongmai.pdf | 7 | 331 |
+| boluat-laodong.pdf | 4 | 221 |
+| luat-doanhnghiep.pdf | 4 | 218 |
+| luat-quanlythue.pdf | 3 | 153 |
+| luat-baohiemxahoi.pdf | 3 | 141 |
+| luat-dautu.pdf | 1 | 59 |
+| luat-thuexuatnhapkhau.pdf | 1 | 23 |
+| luat-thuegtgt.pdf | 1 | 18 |
+| **tổng** | **45** | |
+
+6 ca nghiệp vụ (đúng ước tính), 39 ca luật — khớp `45 − 6 = 39`.
+
 ## 5. Viết câu — agent mù
 
 Một agent MỚI nhận **đúng 45 nút** kèm toàn bộ `chunk_text` của mỗi nút, cùng hàm
