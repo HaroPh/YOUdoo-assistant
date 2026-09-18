@@ -244,3 +244,64 @@ không đổi, nên hai việc không giẫm nhau — miễn là không merge th
   4B chạy trọn GPU hoặc lượng tử hoá sẽ nhanh hơn nhiều); con số này chỉ dùng để so chất
   lượng (r@6/mrr/hard/trap), không dùng để so tốc độ triển khai. Việc chọn chân nào để dùng
   thật (adopt/keep) là quyết định của một mục việc sau, không phải mục này.
+
+### Task 5
+
+Công tắc `RAG_RERANK_MODE` ∈ {`blend` (mặc định, hoà 1:1 với RRF — hành vi cũ), `override`
+(xếp thuần theo điểm cross-encoder)}, đọc mỗi lượt gọi `rerank()`, giá trị lạ lùi về `blend`
+không ném. Đo `override` cho cả hai model Qwen3 (không chỉ model thắng — 4B còn phải qua một
+cổng lượng tử hoá riêng mới biết có triển khai được không, xem §3).
+
+**Bảng sáu chân (bộ `retrieval`, 64 ca, cùng corpus; bốn dòng đầu lặp lại Task 4):**
+
+| chân           |    r@6 |    mrr |   easy |   hard |   trap | p50ms |
+|----------------|-------:|-------:|-------:|-------:|-------:|------:|
+| no-rerank      | 0.8958 | 0.7072 | 0.7673 | 0.5403 | 0.7682 |   593 |
+| bge-v2-m3      | 0.9688 | 0.8091 | 0.8968 | 0.5755 | 0.8875 |   954 |
+| qwen3-0.6b     | 0.9479 | 0.7974 | 0.8807 | 0.6196 | 0.8250 |  2088 |
+| qwen3-4b       | 0.9688 | 0.8317 | 0.8836 | 0.6814 | 0.8906 |  4590 |
+| qwen3-0.6b-ov  | 0.9609 | 0.8421 | 0.9258 | 0.7173 | 0.8125 |  1026 |
+| qwen3-4b-ov    | 0.9766 | 0.8977 | 0.9382 | 0.8255 | 0.8958 |  4591 |
+
+(`-ov` = `RAG_RERANK_MODE=override`, cùng `RERANK_MODEL` với dòng blend tương ứng.)
+
+**Override so với blend của CHÍNH model đó:**
+
+- `qwen3-0.6b`: `hard mrr` 0,6196 → 0,7173 (+0,0977), `recall@6` 0,9479 → 0,9609 (+0,0130),
+  `trap mrr` 0,8250 → 0,8125 (−0,0125 — cái giá duy nhất đo được ở chân này).
+- `qwen3-4b`: `hard mrr` 0,6814 → 0,8255 (+0,1441 — mức tăng lớn nhất trong cả bảng),
+  `recall@6` 0,9688 → 0,9766 (+0,0078), `trap mrr` 0,8906 → 0,8958 (+0,0052 — không giảm).
+- Cả hai chân override đều THẮNG chân blend cùng model trên cả ba chỉ số quyết định
+  (`hard mrr`, `recall@6`, và không tệ đi ở `trap`) — ngược hẳn với bge cũ, nơi override thua
+  cả tắt-hẳn (xem docstring `rerank()`, đo 2026-08-20). `p50ms` gần như không đổi giữa blend
+  và override CÙNG model (0.6b: 2088→1026 — chênh lệch này là nhiễu đo giữa hai tiến trình
+  chứ không phải chi phí phép hoà, vì đổi `order` chỉ là sắp xếp lại chỉ số, không gọi thêm
+  cross-encoder; 4b: 4590→4591, đúng như dự kiến).
+
+**Câu hỏi văng khỏi top-6 (`recall_at_final = 0`) — soát CẢ BA mức khó, không chỉ hard/trap:**
+
+- `qwen3-0.6b`: override làm VĂNG 1 câu mà blend còn giữ — "bên bán phải đóng gói hàng ra sao
+  trước khi chuyển đi?" (`hard`, blend giữ được recall_at_final=1,0, override=0,0). Ngược lại,
+  override CỨU 2 câu mà blend đã văng, cả hai đều `easy`: "quy trình giao hàng gồm những bước
+  nào?" và "dự án nào phải xin chấp thuận chủ trương đầu tư?". Không có câu `trap` nào đổi ở
+  chân này theo hướng nào.
+- `qwen3-4b`: override KHÔNG làm văng câu nào mà blend còn giữ (0 câu, ở cả ba mức khó).
+  Override cứu 1 câu blend đã văng: "quy trình giao hàng gồm những bước nào?" (`easy`, cùng
+  câu mà 0.6b cũng cứu được).
+- Tức là ở `qwen3-4b`, đổi sang override không có mặt trái nào đo được trên tập 64 ca này;
+  ở `qwen3-0.6b` có đúng một câu `hard` bị đổi hướng xấu, bù lại bằng hai câu `easy` được cứu
+  — không phải một chiều thắng tuyệt đối.
+
+- **Khó khăn**: bảng Task 4 đã có sẵn nên chân 5–6 chỉ cần một biến môi trường thêm
+  (`RAG_RERANK_MODE=override`), không có bất ngờ hạ tầng; GPU rảnh đủ (6,6 GB free lúc dispatch)
+  nên không phải lặp lại kịch bản hạ `RERANK_GPU_BUDGET` của Task 3/4 cho chân 4B.
+- **Hướng chọn**: đo override cho CẢ HAI model Qwen thay vì chỉ "model thắng" (phán quyết
+  R19) — vì 4B còn một cổng lượng tử hoá riêng mới biết có triển khai được, nên 0.6B vẫn là
+  ứng viên sống nếu 4B rớt ở cổng đó; giữ nguyên default `RRF_K`, `TOP_N`, `TOP_K`, corpus,
+  không đổi gì khác ngoài đúng công tắc đang đo (spec §4).
+  Đi ĐÚNG bài học 2026-08-20: không dừng ở mrr trung bình, soát từng câu văng khỏi top-6 trên
+  CẢ BA mức khó (không chỉ hard/trap) trước khi kết luận override "tốt hơn".
+- **Giới hạn còn lại**: đây vẫn là đo CHẤT LƯỢNG, không phải quyết định triển khai — `qwen3-4b`
+  còn nợ cổng lượng tử hoá (§3) trước khi so được tốc độ thật; công tắc `RAG_RERANK_MODE` mặc
+  định vẫn là `blend`, chưa đổi production. Việc có chuyển default sang `override` hay không,
+  và chọn model nào, là quyết định của một mục việc sau — mục này không kết luận adopt/keep.
