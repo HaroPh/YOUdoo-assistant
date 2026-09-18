@@ -2872,3 +2872,55 @@ vốn là dạng yếu nhất (0,526) và do chân bỏ dấu chi phối.
 đính kèm 9/11 → 10/11, 940 chunk hết breadcrumb rác, recall@20 nguyên. Hại: 3
 ca không-dấu rơi từ top-6 xuống 7–20 vì SID lộ diện.
 
+### Cổng TỔNG CỘNG cho trang thuyết minh — ĐO THĂM DÒ, chưa xây (2026-09-18)
+
+Ý: trang thuyết minh không có cột mã số nên không dựng được ràng buộc từ
+`tt99.json`, nhưng bảng con của nó có hàng TỔNG CỘNG — tức tài liệu vẫn TỰ mang
+đáp án, chỉ ở dạng khác. Nếu đúng, ta có thước tất định để chấm VLM trên đúng
+loại trang chưa test, mà không cần tin ai.
+
+Kiểm tay NTC tr61 trước: 2 bảng con × 2 cột = **4 ràng buộc, PASS 4/4**, và số
+đó là của **Tesseract**. Ý tưởng đứng vững ở N=1.
+
+Script đo tạm trên 309 trang có lưới (5 PDF scan + SID, artifact đã đệm, không
+API). **Ba vòng đều phát hiện lỗi của BỘ DÒ, không phải của Tesseract**:
+
+1. `table.MONEY` neo `^...$` cả ô, mà ô thật có rác OCR dính đuôi
+   (`"154.519.999.995 :"`, `"88.775.114.909 Fy"`) ⇒ phải lấy TOKEN, không neo ô.
+2. Lọc "trang thuyết minh" bằng `grid_rows.rows_from_grid(...) is None` **nhận
+   nhầm NTC tr61 là trang có cột mã số** (vì `'29. |'`, `'29.2'`, `'30.'` ở cột 1
+   trông như mã số) ⇒ loại mất đúng trang cần đo. Bỏ lọc, chạy mọi trang.
+3. `nhan = ô đầu không rỗng` sai vì **cột gáy sách** chèn rác vào ô 0
+   (`['ˆ', '', 'TONG CONG', …]`) ⇒ phải dò nhãn trên MỌI ô.
+
+Số cuối (vẫn KHÔNG đáng tin, xem dưới): 44/309 trang dựng được ràng buộc
+(14,2%); 165 ràng buộc, PASS 53,3% / FAIL 35,8% / NA 10,9%.
+
+**Đừng đọc 35,8% là "Tesseract sai".** Tập FAIL còn đầy vân tay lỗi gom nhóm:
+NTC tr48 lệch đúng **gấp đôi**, tr55 hai cột lệch đúng **10.000 lần**, tr58 tổng
+lớn hơn tổng-con **88 lần**. Đó là walk thành phần dừng sai chỗ trên bảng nhiều
+tầng (có tổng-con lẫn tổng-chung) và hàng trắng xen giữa.
+
+**Số đáng tin duy nhất, và nó là số quyết định**: trần trên của cổng =
+**152/309 trang (49,2%)** có CẢ tiền lẫn nhãn tổng. Bộ dò của tôi với tới
+**44/152 = 29%** trong đó.
+
+**Kết luận thiết kế**: nút thắt là **lưới phẳng của Tesseract không mang thông
+tin GOM NHÓM** — ô nào thuộc bảng con nào, hàng nào là tổng của hàng nào. Dựng
+ràng buộc từ chính lưới đang cần kiểm còn có vòng lặp logic: lưới phân mảnh sai
+thì ràng buộc cũng sai. Vá thêm vòng nữa là lợi tức giảm dần.
+
+**Hệ quả cho câu hỏi "hybrid có work không"**: nó ỦNG HỘ việc thử VLM, nhưng đổi
+lý do. Trên trang thuyết minh, giá trị của VLM có lẽ **không nằm ở đọc chữ số
+giỏi hơn** — Tesseract đọc đúng cả 4 ràng buộc tr61 — mà ở chỗ nó trả JSON có
+**cấu trúc tường minh**: bảng con nào, hàng nào là TỔNG CỘNG. Đó đúng là thứ
+lưới phẳng đánh mất, và là thứ làm cho việc kiểm trở nên khả thi.
+
+Nên thí nghiệm đúng là: VLM đọc trang → JSON của nó ĐỊNH NGHĨA nhóm → kiểm số
+học trên nhóm đó → rồi chấm số của Tesseract trên CÙNG nhóm ấy. Cổng trở thành
+tất định, và ta so được hai bên bằng một thước.
+
+**Giới hạn phải nhớ**: kể cả cổng hoàn hảo cũng chỉ với tới ~49% trang. Nửa còn
+lại không có phép cộng tự kiểm — VLM đọc chúng sẽ là **chưa xác minh theo cấu
+trúc**, và đường xử lý đã có sẵn (`UNVERIFIED_PREFIX`).
+
