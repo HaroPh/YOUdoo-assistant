@@ -56,6 +56,10 @@ def is_junk(basename: str, section_path: str) -> bool:
 
 def allocate(counts: dict[str, int], k: int, floor: int = 1) -> dict[str, int]:
     """Chia k theo tỉ lệ counts, phần dư lớn nhất, mỗi tầng ≥ floor."""
+    if k < len(counts) * floor:
+        raise ValueError(
+            f"k={k} nhỏ hơn số tầng ({len(counts)}) nhân sàn ({floor}) — "
+            f"không có cách chia nào giữ được sàn ở mọi tầng.")
     total = sum(counts.values())
     quota = {d: counts[d] / total * k for d in counts}
     out = {d: max(floor, math.floor(quota[d])) for d in counts}
@@ -67,8 +71,10 @@ def allocate(counts: dict[str, int], k: int, floor: int = 1) -> dict[str, int]:
                 break
             if math.floor(quota[d]) >= floor:      # tầng đã nhận sàn thì không cộng thêm
                 out[d] += 1; rem -= 1
-    while rem < 0:                                   # sàn đẩy quá k: bớt ở tầng lớn nhất
-        d = max(out, key=lambda x: (out[x], quota[x]))
+    while rem < 0:
+        # Chỉ bớt ở tầng CÒN TRÊN sàn; nhờ điều kiện k >= len(counts)*floor ở
+        # đầu hàm, tầng như vậy luôn tồn tại khi rem < 0.
+        d = max((x for x in out if out[x] > floor), key=lambda x: (out[x], quota[x]))
         out[d] -= 1; rem += 1
     return out
 

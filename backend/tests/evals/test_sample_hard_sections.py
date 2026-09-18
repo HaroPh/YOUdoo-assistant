@@ -49,6 +49,20 @@ def test_allocate_tong_dung_k_va_khong_duoi_san():
     assert sum(got.values()) == 5 and min(got.values()) >= 1
 
 
+def test_allocate_nem_loi_khi_k_nho_hon_so_tang_nhan_san():
+    # 4 tầng, sàn 1 → cần ít nhất 4 suất; k=2 thì không cách chia nào giữ sàn.
+    with pytest.raises(ValueError):
+        shs.allocate({"a": 1, "b": 1, "c": 1, "d": 1}, 2)
+
+
+def test_allocate_rem_am_khong_keo_tang_nao_duoi_san():
+    # Sàn đẩy tổng lên 7 (2+2+1+1+1) trong khi k=6 → rem=-1, vòng lặp phải
+    # bớt ở tầng CÒN TRÊN sàn, không được kéo tầng nào xuống dưới 1.
+    got = shs.allocate({"a": 500, "b": 500, "c": 1, "d": 1, "e": 1}, 6)
+    assert sum(got.values()) == 6
+    assert min(got.values()) >= 1
+
+
 def test_stride_pick_tat_dinh_khong_trung_va_tang_dan():
     items = list(range(100))
     a = shs.stride_pick(items, 7, 20260918); b = shs.stride_pick(items, 7, 20260918)
