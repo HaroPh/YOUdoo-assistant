@@ -6,6 +6,8 @@ model mà accelerate đã đặt lớp là lỗi thiết bị, và fail-open s�
 """
 import types
 
+import torch
+
 from src.rag import reranker
 
 
@@ -40,6 +42,11 @@ def test_device_map_khong_goi_to_hay_half(monkeypatch):
     kw = _FakeCls.calls[0]
     assert kw["device_map"] == "auto"
     assert kw["max_memory"][0] == "5GiB"
+    assert kw["max_memory"]["cpu"] == "20GiB"
+    # dtype=float16 CHỊU TRÁCH NHIỆM chính: thiếu nó, đường device_map nạp 4B
+    # ở fp32 (~16 GB thay vì ~8 GB) — gần như toàn bộ lớp tràn sang CPU, biến
+    # phép đo fp16 thành phép đo fp32-trên-CPU mà không có lỗi nào báo hiệu.
+    assert kw["dtype"] is torch.float16
 
 
 def test_duong_cu_van_half_roi_to(monkeypatch):

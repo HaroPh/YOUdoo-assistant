@@ -83,8 +83,23 @@ def test_qwen3_cat_ngan_van_giu_suffix(monkeypatch):
     # cuối là body và điểm rơi xuống gần 0 — mà không ném lỗi nào.
     monkeypatch.setattr(reranker, "RERANK_MAX_LENGTH", 12)
     long_doc = " ".join(["từ"] * 500)
-    got = reranker._score_qwen3(_FakeQwenModel(), _FakeQwenTok(), "q", [long_doc])
+
+    class _RecordingModel(_FakeQwenModel):
+        """Ghi lại chiều dài chuỗi THẬT đã lắp ráp (prefix+body+suffix, sau
+        pad) — đây mới là chỗ `- len(prefix_ids) - len(suffix_ids)` trong
+        body_max phải giữ. Điểm số một mình không bắt được: một cách tính
+        body_max sai (ví dụ quên trừ) vẫn giữ suffix nguyên vẹn ở cuối, vẫn
+        cho điểm cao, nhưng CHUỖI TỔNG vượt ngân sách."""
+        last_shape = None
+
+        def __call__(self, input_ids, attention_mask):
+            _RecordingModel.last_shape = tuple(input_ids.shape)
+            return super().__call__(input_ids, attention_mask)
+
+    got = reranker._score_qwen3(_RecordingModel(), _FakeQwenTok(), "q", [long_doc])
     assert got[0] > 0.99, f"suffix bị cắt mất, điểm = {got[0]}"
+    assert _RecordingModel.last_shape[1] <= reranker.RERANK_MAX_LENGTH, (
+        "prefix+body+suffix vượt ngân sách — body_max không trừ đủ")
 
 
 def test_qwen3_tu_choi_right_padding():

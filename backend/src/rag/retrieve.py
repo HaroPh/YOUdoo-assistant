@@ -224,7 +224,7 @@ def rerank(query: str, chunks: list[Chunk]) -> tuple[list[Chunk], bool]:
     # thuần theo cross-encoder — cách đã bị bác với reranker CŨ vì nó chấm
     # theo mặt chữ; câu hỏi mở là với reranker MẠNH hơn thì hoà 1:1 có còn
     # đúng không (spec 2026-09-17 §5). Giá trị lạ → blend, không ném.
-    if os.environ.get("RAG_RERANK_MODE", "blend") == "override":
+    if os.environ.get("RAG_RERANK_MODE", "blend").strip().lower() == "override":
         order = by_score
     else:
         order = sorted(range(len(chunks)),

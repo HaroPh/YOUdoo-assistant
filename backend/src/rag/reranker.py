@@ -19,8 +19,15 @@ retrieve() thật trên corpus 3300 chunk trả method="hybrid-rrf", không có
 test model thật thì nằm sau biến môi trường RUN_RERANK_MODEL không ai đặt.
 
 Nay máy dev có RTX 5060 Ti (sm_120) cấp cho project này, torch cu128 và
-transformers đã ghim vào requirements.txt, và _resolve_device() là chỗ DUY
-NHẤT quyết định thiết bị — ép CPU bằng RERANK_DEVICE=cpu để đo đối chứng.
+transformers đã ghim vào requirements.txt. _resolve_device() quyết định thiết
+bị lúc NẠP model (và là chỗ ép CPU bằng RERANK_DEVICE=cpu để đo đối chứng);
+từ spec 2026-09-17 (đường `device_map` cho 4B), thiết bị đưa INPUT vào đi qua
+_input_device() — ưu tiên `model.device` khi model đã tự biết mình ở đâu
+(nạp bằng accelerate device_map), lùi về _resolve_device() khi model không
+có thuộc tính đó (nạp kiểu cũ, hoặc model giả trong test). Nhờ vậy input
+không còn thể LỆCH khỏi thiết bị thật của một model ĐÃ NẠP nếu RERANK_DEVICE
+đổi giữa tiến trình — trước đây input luôn đi theo _resolve_device() đọc lại
+mỗi lần gọi, bất kể model đang thực sự nằm ở đâu.
 """
 import logging
 import os
@@ -196,7 +203,10 @@ def _score_qwen3(model, tokenizer, query: str, texts: list[str]) -> list[float]:
         raise ValueError("Qwen3-Reranker cần tokenizer.padding_side == 'left'")
     prefix_ids = tokenizer.encode(_QWEN3_PREFIX, add_special_tokens=False)
     suffix_ids = tokenizer.encode(_QWEN3_SUFFIX, add_special_tokens=False)
-    body_max = RERANK_MAX_LENGTH - len(prefix_ids) - len(suffix_ids)
+    # max(1, ...): nếu RERANK_MAX_LENGTH nhỏ hơn cả prefix+suffix, body_max âm
+    # sẽ làm max_length âm truyền vào tokenizer — lỗi khó đọc thay vì cắt còn
+    # 1 token thân bài (vẫn tệ, nhưng không phải crash không rõ nguyên nhân).
+    body_max = max(1, RERANK_MAX_LENGTH - len(prefix_ids) - len(suffix_ids))
     bodies = [f"<Instruct>: {QWEN3_INSTRUCTION}\n<Query>: {query}\n<Document>: {t}"
               for t in texts]
     enc = tokenizer(bodies, padding=False, truncation=True, max_length=body_max,

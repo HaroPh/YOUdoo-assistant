@@ -36,7 +36,7 @@ from evals.write_suggest_oracle import oracle_proposes_write
 from evals.synthesis_live_score import score_answer
 from src.agents.synthesis import synthesize as _synthesize
 from src.rag.retrieve import retrieve as _retrieve
-from src.rag.config import TOP_N as _TOP_N, TOP_K as _TOP_K
+from src.rag.config import TOP_N as _TOP_N, TOP_K as _TOP_K, RERANK_MODEL
 from src.agents import roles
 from src.agents.prompts import CHITCHAT_PROMPT
 from src.agents.confirmation import _LLM_PROMPT
@@ -1165,7 +1165,14 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
     span = sum(len(r["hit_ranks"]) for r in per_case) / m
 
     p50, p95 = _percentiles(lat)
+    # rerank_model/rerank_mode: NGUỒN GỐC của số đo — JSON kết quả tự nó phải
+    # nói được nó đo model nào, chế độ hoà nào, không cần suy ra từ tên tệp
+    # hay nhớ lại lệnh env đã gõ (spec 2026-09-17, review "kết quả không tự
+    # nhận diện được cấu hình của chính nó"). Sáu JSON committed trước khi có
+    # hai khoá này KHÔNG có chúng — xem README.md cùng thư mục.
     return {"set": "retrieval", "n": n, "rerank": rerank, "dang_go": dang_go,
+            "rerank_model": RERANK_MODEL,
+            "rerank_mode": os.environ.get("RAG_RERANK_MODE", "blend"),
             "methods_seen": sorted({r["method"] for r in per_case}),
             "recall_at_20": round(_avg("recall_at_pool"), 4),
             "recall_at_6": round(_avg("recall_at_final"), 4),
@@ -1173,8 +1180,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
             "chunk_span": round(span, 2),
             "by_difficulty": by_difficulty,
             "lat_p50": p50, "lat_p95": p95,
-            "per_case": per_case,
-            "fails": fails, "errors": errors}
+            "fails": fails, "errors": errors,
+            "per_case": per_case}
 
 
 async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,

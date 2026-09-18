@@ -25,9 +25,12 @@ def test_blend_mac_dinh_giu_hanh_vi_hoa(monkeypatch):
     monkeypatch.delenv("RAG_RERANK_MODE", raising=False)
     monkeypatch.setattr(reranker, "score_pairs", lambda q, t: [0.1, 0.2, 0.3, 0.9])
     out, ok = retrieve.rerank("q", _chunks(4))
-    # Hoà 1:1: chunk 0 (RRF hạng 1, CE hạng 4) và chunk 3 (RRF hạng 4, CE
-    # hạng 1) BẰNG điểm; sorted ổn định giữ chunk 0 trước.
-    assert ok and [c.chunk_id for c in out][0] == 0
+    # Hoà 1:1: (chunk 0, chunk 3) BẰNG điểm nhau ((RRF hạng1,CE hạng4) vs
+    # (RRF hạng4,CE hạng1)), và (chunk 1, chunk 2) cũng BẰNG điểm nhau — sorted
+    # ổn định giữ đúng thứ tự ban đầu trong mỗi cặp hoà. Khẳng định TOÀN BỘ
+    # thứ tự, không chỉ phần tử đầu: đây là phép kiểm "byte-equivalent với
+    # thứ tự cũ", lấy mẫu một phần tử không chứng minh được điều đó.
+    assert ok and [c.chunk_id for c in out] == [0, 3, 1, 2]
 
 
 def test_gia_tri_la_thi_lui_ve_blend(monkeypatch):
@@ -35,3 +38,13 @@ def test_gia_tri_la_thi_lui_ve_blend(monkeypatch):
     monkeypatch.setattr(reranker, "score_pairs", lambda q, t: [0.1, 0.2, 0.3, 0.9])
     out, _ = retrieve.rerank("q", _chunks(4))
     assert [c.chunk_id for c in out][0] == 0
+
+
+def test_override_khong_phan_biet_hoa_thuong_hay_khoang_trang(monkeypatch):
+    # So sánh raw ("== \"override\"") sẽ lùi về blend im lặng ở đây — trước
+    # bản vá này, " OVERRIDE " không khớp và chọn nhầm blend không ném lỗi
+    # nào để lộ ra. .strip().lower() phải khớp, cùng cách RERANK_DEVICE xử lý.
+    monkeypatch.setenv("RAG_RERANK_MODE", " OVERRIDE ")
+    monkeypatch.setattr(reranker, "score_pairs", lambda q, t: [0.1, 0.2, 0.3, 0.9])
+    out, ok = retrieve.rerank("q", _chunks(4))
+    assert ok and [c.chunk_id for c in out] == [3, 2, 1, 0]

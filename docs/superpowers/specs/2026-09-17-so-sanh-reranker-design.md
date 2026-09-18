@@ -11,6 +11,17 @@ Quyết định của chủ dự án 2026-09-17: dừng dự án D:\Project (đa
 
 ## 1. Vì sao đáng đo — số đã có
 
+> **Cập nhật sau khi đo (review whole-branch)**: `recall@20 = 1,0` bên dưới là số CŨ, đo
+> trên corpus 2026-08-20. Corpus đã đổi từ đó (chân bỏ dấu 2026-09-10, ingest đa định dạng);
+> cả SÁU chân đo của lượt này (Task 4 + Task 5, không phân biệt model/chế độ hoà) đều đo ra
+> `recall@20 = 0,9766` trên corpus HIỆN TẠI — xem sáu JSON trong
+> `backend/evals/results/reranker-2026-09-17/`. Tức pool 20 ứng viên KHÔNG còn chứa chunk
+> đúng cho 100% câu hỏi; có một khoảng hụt `1,0 − 0,9766 = 0,0234` mà không reranker nào sửa
+> được — nó nằm ở TẦNG TRUY XUẤT (dense/pool), trước cả khi reranker được gọi. Luận điểm
+> "nút thắt duy nhất còn lại là chọn/xếp hạng" của phần dưới đây do đó không còn tuyệt đối,
+> nhưng vẫn đúng ĐỦ để đo: 0,9766 là trần của `recall@6` (xem §8 Task 6, R24) — dư địa còn
+> lại cho reranker vẫn là phần lớn nhất.
+
 - `recall@20 = 1,0` trên bộ `retrieval` 64 ca: chunk đúng **luôn** nằm trong pool. Nút thắt
   duy nhất còn lại là **chọn/xếp hạng** — đúng việc của reranker.
 - Reranker hiện tại chấm theo **trùng mặt chữ** (spec 2026-08-20, `retrieve.py:rerank`):
@@ -60,6 +71,15 @@ một cổng thứ hai: đo lại ở dạng lượng tử hoá (A hoặc C) tr�
 
 Giữ nguyên: corpus, `TOP_N = 20`, `TOP_K = 6`, `RERANK_MAX_LENGTH = 512`, phép hoà 1:1 trong
 `retrieve.rerank()`, bộ `retrieval` 64 ca, embedding `bge-m3`.
+
+**`RERANK_MAX_LENGTH = 512` KHÔNG phải một ngân sách nội dung NGANG NHAU giữa hai họ model**
+(ghi lại từ review whole-branch). `bge` (seq_cls) đưa `[query, doc]` thẳng vào tokenizer —
+gần như toàn bộ 512 token dành cho query+doc. Hai chân Qwen3 phải trừ vào cùng ngân sách đó:
+~55 token cho prefix/suffix cố định của model card (`_QWEN3_PREFIX`/`_QWEN3_SUFFIX`) cộng
+~20 token cho phần `<Instruct>: {instruction}` tiếng Anh — tức tài liệu của Qwen3 bị CẮT
+NGẮN sớm hơn khoảng 75 token so với bge, ở CÙNG một giới hạn 512. Đây là điều kiện đo BẤT
+LỢI cho Qwen3, không phải thuận lợi — nên khi Qwen3 (đặc biệt `qwen3-4b-override`, §8 Task 6)
+vẫn thắng dưới bất lợi này, kết luận "4B đáng đi tiếp" càng ĐƯỢC CỦNG CỐ chứ không bị suy yếu.
 
 Biến đổi duy nhất: `RERANK_MODEL`, hiện là **hằng** trong `config.py` → trở thành đọc từ
 env với mặc định cũ (cùng mẫu với `RERANK_DEVICE`). Mỗi model = một tiến trình eval riêng,
@@ -333,6 +353,16 @@ là mất một câu đang trả lời đúng. **⇒ 0.6B override KHÔNG đư�
 tụt), `trap mrr` 0,8875 → 0,8958 (tăng, không tụt). Soát từng câu (Task 5): 0 câu bị văng khỏi
 top-6 ở bất kỳ mức khó nào so với bge/blend — chân này chỉ CỨU thêm, không mất gì đo được trên
 64 ca. Đây là chân tốt nhất trên dữ liệu.
+
+**Ruling R24 (kiểm chứng độc lập, review whole-branch): `qwen3-4b-override` đạt `recall@6 =
+0,9766`, ĐÚNG BẰNG `recall@20 = 0,9766` của corpus này (§1, sáu chân đều đo ra cùng số).**
+Tức trên bộ 64 ca này, chân tốt nhất đã đóng HẾT khoảng cách chọn/xếp hạng: không reranker
+nào — dù mạnh đến đâu — có thể đẩy `recall@6` lên cao hơn `recall@6 = 0,9766` này, vì đó là
+TRẦN của chính pool 20 ứng viên (chunk đúng vắng mặt trong pool ở 0,0234 số ca còn lại, một
+vấn đề của tầng truy xuất trước reranker, không phải của xếp hạng). Hệ quả trực tiếp: cổng
+lượng tử hoá đang treo cho 4B (§3, §5 giới hạn còn lại) từ nay là một câu hỏi về ĐỘ TRỄ và về
+việc lượng tử hoá có làm hỏng `trap mrr`/`mrr` hay không — KHÔNG còn là câu hỏi về `recall@6`,
+vì recall đã chạm trần trên tập đo này.
 
 **Nhưng con số của 4B không phải số triển khai được.** Chân `qwen3-4b` (cả blend lẫn
 override) chạy qua đường `device_map=auto` của `accelerate`, offload một phần lớp sang CPU

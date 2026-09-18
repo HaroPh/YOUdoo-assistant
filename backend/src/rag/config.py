@@ -43,6 +43,10 @@ RERANK_MAX_LENGTH = 512
 # GPU tới ngân sách rồi tràn sang CPU RAM — CHỈ cho lượt đo 4B (fp16 8 GB
 # không vừa card 8,15 GB). Độ trễ trên đường này KHÔNG đại diện triển khai.
 RERANK_DEVICE_MAP = os.environ.get("RERANK_DEVICE_MAP", "")
+# Đo 2026-09-17: nạp 4B với ngân sách quá lớn cho VRAM trống lúc đó (5GiB khi
+# chỉ ~3040 MiB trống) làm tiến trình SEGFAULT (exit 139) — không phải
+# exception Python, nên KHÔNG bị `score_pairs`'s fail-open `except Exception`
+# bắt; tiến trình backend chết thẳng, không traceback, không sentinel hỏng.
 RERANK_GPU_BUDGET = os.environ.get("RERANK_GPU_BUDGET", "5GiB")
 # "auto" = cuda nếu dò được, không thì cpu. Đặt "cpu" để đo đối chứng.
 # Giá trị này chỉ là MẶC ĐỊNH — reranker._resolve_device() đọc env mỗi lần gọi.
