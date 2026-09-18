@@ -78,11 +78,15 @@ Luật này nằm trong `evals/sample_hard_sections.py`, không nằm trong đ�
 ### 4.2 Phân tầng và bước nhảy
 
 Sau lọc còn ≈ 1 900 nút ở 9 PDF luật và 36 nút ở 7 `.docx` nghiệp vụ. Phân bổ **45 ca**:
-- **7 ca nghiệp vụ**: đúng 1 mỗi tệp (`policy`, `discount_policy`, `payment_policy`, `sla`,
-  `sop`, `sales_process`, `warehouse_outbound`). Trần là 36 nút, phần lớn đã có ca cũ chạm.
-- **38 ca luật**: chia theo tỉ lệ số nút sau lọc, phần dư lớn nhất, sàn 1 mỗi luật. Ước tính
-  trước khi lọc: dân sự 14, thương mại 7, lao động 4, doanh nghiệp 4, quản lý thuế 3, BHXH 3,
-  đầu tư 1, XNK 1, GTGT 1. Script tính lại sau lọc; lệch ±1 là bình thường và **không sửa tay**.
+- **Nghiệp vụ: 1 ca mỗi tệp CÒN nút chưa gán nhãn.** Đo 2026-09-18: `policy.docx` đã bị 64 ca
+  cũ gán nhãn cả 5/5 mục → 0 nút; sáu tệp kia còn nút → **6 ca**. Trần là 36 nút, phần lớn đã có
+  ca cũ chạm.
+- **Luật: 45 − (số ca nghiệp vụ) = 39 ca**, chia theo tỉ lệ số nút sau lọc, phần dư lớn nhất,
+  sàn 1 mỗi luật. Script tính; lệch ±1 so với ước tính là bình thường và **không sửa tay**.
+- **Tái lập:** script loại nút "đã có nhãn" bằng cách đọc **`_CORE` (64 ca cũ)**, KHÔNG đọc
+  `RETRIEVAL_CASES` — nếu không, sau khi nối bộ mở rộng thì 45 nút mới cũng thành "đã có nhãn"
+  và chạy lại script ra bộ khác. Cổng nghiệm thu: chạy lại script sau đóng băng phải cho JSON
+  y hệt.
 
 Trong mỗi tầng: sắp xếp nút theo `(basename, section_path)`; với N nút chọn k nút tại chỉ số
 `floor(offset + i·N/k)`, `i = 0..k−1`, `offset = ((seed mod 1000)/1000)·(N/k)`.
