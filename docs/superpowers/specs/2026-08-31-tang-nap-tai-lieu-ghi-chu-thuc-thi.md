@@ -3080,3 +3080,41 @@ hai cấu hình phải chạy nhiều lượt hoặc dùng fixture đã lưu.
 `loai=hieu` model vẫn gắn nhầm `cong_don` — cần tầng kiểm phép trừ hoặc prompt
 mạnh hơn, đo bằng fixture.
 
+### NGHIỆM THU ĐẦU-CUỐI qua Open WebUI thật — ĐẠT (2026-09-19)
+
+Câu hỏi trượt từ 12/09, *"cam kết thuê hoạt động đến 1 năm là bao nhiêu"*, hỏi
+trên NTC_2025.pdf upload lại qua Open WebUI (`:8002` mới, corpus đã nạp lại):
+
+> Cam kết thuê hoạt động (Đến 1 năm): Số cuối năm **5.753.213.767**, Số đầu năm
+> 5.999.543.767. Cam kết CHO thuê hoạt động (Đến 1 năm): *[CHƯA KIỂM BẰNG SỐ HỌC]
+> (dữ liệu do máy đọc từ ảnh scan và chưa được kiểm chứng)*: 4.941.448.061 /
+> 15.611.296.360.
+
+Đúng số, đúng tài liệu, phân biệt được 29.2 (thuê) với 29.1 (cho thuê), và dấu
+xuất xứ **được model nói ra bằng lời** đúng như dòng `rag.template` yêu cầu.
+29.1 xuống chưa-kiểm vì lượt này VLM trả một ô `null` (lượt spike trả `"-"`) →
+cột đó NA → đúng chiều an toàn.
+
+Câu thứ hai *"chi phí trả trước ngắn hạn cuối năm"* → **1.299.253.023** (đầu năm
+1.046.686.892), không dấu — hàng cha của bảng HAI TẦNG tr48, lát 5 xác minh qua
+Σ bốn hàng con. Trước lát 5, hàng này là Tesseract `ocr` không có gì bảo lãnh.
+
+Chuỗi đã chứng minh sống: vá breadcrumb (`467f33a`) → lát 5 (`20d58d5`,
+`65420d9`) → dấu xuất xứ trong text (`10bfa2d`) + dòng template → cấu hình
+Open WebUI. Bốn mắt xích, thiếu một là câu này vẫn trượt.
+
+**Hai lỗi cấu hình phía Open WebUI lộ ra trên đường tới đây** (không phải mã):
+- `rag.external_document_loader_url` còn trỏ **`:8012`** — cổng backend phụ tôi
+  dựng hôm 12/09 để A/B dấu, quên trả về `:8002`. Upload đầu rỗng vì thế. Chủ
+  dự án tự sửa lúc 09:13 UTC. Lỗi của tôi.
+- Ollama host `:11434` (nơi Open WebUI nhúng) không chạy → tệp trích xong mà
+  `status: failed`, không có vector, "No sources found", và backend trả lời từ
+  corpus sản xuất bằng số của **SID** (65.635.434.603) — sai tài liệu dù trích
+  dẫn trông chuẩn. Khuyến nghị đã đưa: trỏ Open WebUI sang `youdoo-ollama:11434`
+  trong Docker (có `bge-m3`, cùng mạng, không phụ thuộc `host.docker.internal`).
+
+**Bài học vận hành đắt**: "No sources found" + câu trả lời có trích dẫn đẹp =
+backend đã **lặng lẽ đổi nguồn** sang corpus chung. Người dùng không có cách nào
+nhận ra từ giao diện. Đáng một mục riêng: khi tệp đính kèm không cho nguồn nào,
+trả lời phải nói rõ "không tìm thấy trong tệp đính kèm, sau đây là từ kho chung".
+
