@@ -53,3 +53,49 @@ def test_decide_goi_khi_co_cot_ma_so_nhung_so_hoc_khong_vouch():
             r[5] = "8.812.478.001"
     qd = trigger.decide(_DVT7, grid)
     assert qd.call_vlm and "FAIL 1" in qd.reason or "FAIL 2" in qd.reason
+
+
+# ─── trang THUYẾT MINH cũng được gọi VLM, ở chế độ riêng (2026-09-19) ─────────
+# Trước: `decide` trả call_vlm=False cho MỌI trang không có tiêu đề báo cáo
+# chính, nên 256/309 trang scan (trang thuyết minh) không bao giờ đi VLM. Đo
+# được 49,2% trang có CẢ token tiền LẪN nhãn tổng — tức có phép cộng tự kiểm,
+# nên gọi VLM ở đó là có thước chấm chứ không phải tin suông.
+def _luoi_tm():
+    return [["", "9. CHI PHÍ TRẢ TRƯỚC", "", ""],
+            ["", "Ngắn hạn", "1.299.253.023", "1.046.686.892"],
+            ["", "Chi phí thuê mặt bằng", "802.000.000", "691.000.000"],
+            ["", "Chi phí khác", "497.253.023", "355.686.892"],
+            ["", "TỔNG CỘNG", "1.299.253.023", "1.046.686.892"]]
+
+
+def test_trang_thuyet_minh_co_tien_va_nhan_tong_thi_GOI_VLM_che_do_tm():
+    from src.ocr import trigger
+    qd = trigger.decide("THUYET MINH BAO CAO TAI CHINH (tiep theo)", _luoi_tm())
+    assert qd.call_vlm is True
+    assert qd.che_do == "thuyet_minh"
+    assert qd.kind is None, "không phải báo cáo chính"
+
+
+def test_trang_van_xuoi_khong_co_nhan_tong_thi_KHONG_goi():
+    """Nửa số trang không có phép cộng tự kiểm — gọi VLM ở đó là tiêu hạn mức
+    để nhận về số KHÔNG kiểm được. Trần chi phí nằm đúng ở đây."""
+    from src.ocr import trigger
+    luoi = [["", "Công ty hiện đang thuê mặt bằng tại các địa điểm", "", ""],
+            ["", "kinh doanh xăng dầu theo hợp đồng thuê hoạt động", "", ""]]
+    qd = trigger.decide("THUYET MINH BAO CAO TAI CHINH", luoi)
+    assert qd.call_vlm is False and qd.che_do is None
+
+
+def test_co_nhan_tong_nhung_KHONG_co_tien_thi_khong_goi():
+    from src.ocr import trigger
+    luoi = [["", "TỔNG CỘNG", "", ""], ["", "Cộng", "", ""]]
+    assert trigger.decide("THUYET MINH", luoi).call_vlm is False
+
+
+def test_trang_bao_cao_chinh_van_di_duong_CU_che_do_bang_chi_tieu():
+    """Cổng chống hồi quy: trang có tiêu đề B01 không được rẽ sang đường thuyết
+    minh, kể cả khi nó cũng có nhãn TỔNG CỘNG."""
+    from src.ocr import trigger
+    qd = trigger.decide("BANG CAN DOI KE TOAN", _luoi_tm())
+    assert qd.kind is not None
+    assert qd.che_do == "bang_chi_tieu"

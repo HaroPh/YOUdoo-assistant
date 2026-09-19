@@ -169,3 +169,34 @@ def test_so_VLM_trong_test_la_ban_TRONG_BO_NHO_khong_cham_postgres():
     from src.llm.store import InMemoryUsageStore
     assert isinstance(vision._SoVlm._store, InMemoryUsageStore)
     assert vision._SoVlm._da_thu is True, "đã 'thử mở' rồi nên record() không dựng pool thật"
+
+
+def test_che_do_thuyet_minh_dung_prompt_tm_va_hop_dong_cot(khoa):
+    """Trang thuyết minh phải đi prompt tm-v1: hợp đồng khoá `cot` + `bang`/
+    `cap`/`loai`, không phải `trang.cot_gia_tri`/`ma_so` của trang báo cáo chính."""
+    pl = {"cot": ["Số cuối năm"], "hang": [
+        {"bang": "9. CHI PHÍ TRẢ TRƯỚC", "cap": 1, "nhan": "Ngắn hạn",
+         "gia_tri": ["1.299.253.023"], "loai": "cong_don"}]}
+    c = _Client([_Resp(json.dumps(pl, ensure_ascii=False))])
+    r = VisionReader(client_factory=_factory({"vlm-a": c}), store=None)
+    t = r.read_table(b"png", che_do="thuyet_minh")
+    assert t.payload == pl and t.prompt_version == vision.PROMPT_TM_VERSION
+    gui = c.seen[0][0].content[0]["text"] if hasattr(c, "seen") else vision.PROMPT_TM
+    assert "bang" in vision.PROMPT_TM and "cap" in vision.PROMPT_TM and "cong_don" in vision.PROMPT_TM
+
+
+def test_che_do_mac_dinh_van_la_prompt_GOC(khoa):
+    """Cổng chống hồi quy: không truyền `che_do` -> trang báo cáo chính, hợp
+    đồng cũ, `prompt_version` cũ."""
+    c = _Client([_Resp("```json\n" + json.dumps(_PAYLOAD, ensure_ascii=False) + "\n```")])
+    r = VisionReader(client_factory=_factory({"vlm-a": c}), store=None)
+    t = r.read_table(b"png")
+    assert t.prompt_version == vision.PROMPT_VERSION
+    assert t.payload == _PAYLOAD
+
+
+def test_hop_dong_tm_thieu_cot_thi_BAO_LOI_khong_im_lang(khoa):
+    c = _Client([_Resp(json.dumps({"hang": []}, ensure_ascii=False))])
+    r = VisionReader(client_factory=_factory({"vlm-a": c}), store=None)
+    with pytest.raises(vision.VisionBadResponse):
+        r.read_table(b"png", che_do="thuyet_minh")
