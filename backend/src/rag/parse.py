@@ -33,11 +33,17 @@ from src.ocr.engine import OCR_DPI, TesseractMissing
 # `Chương` và `Mục` GIỮ NGUYÊN: chúng sinh 190 mục trống, nhưng đó là việc của
 # P3b (phân cấp) — đụng vào đây là trộn thêm một biến vào cùng một lần re-index.
 _HEADING_RE = re.compile(
-    r"^\s*(Chương|Mục)\b"
+    r"^\s*(Chương\s+(?:[IVXLCDM]+|\d+)|Mục)\b"
     r"|^\s*Điều\s+\d+\s*[\.\-–]\s*\S"
     r"|^\s*\d+\.\d{1,2}(\.\d{1,2})*(?!\d)[\.\)]?\s+\S")
 
-_CHUONG_RE = re.compile(r"^\s*Chương\b")
+# Đòi SỐ hoặc La Mã ngay sau "Chương": `Chương\b` một mình khớp cả "Chương
+# TRÌNH phần mềm máy tính" (hàng tài sản vô hình trong BCTC) và cho nó CẤP 1 —
+# nông nhất thang — nên nó thành gốc breadcrumb của MỌI chunk phía sau trong
+# tài liệu (mọi trích dẫn SID từng ra "Chương trình phần mềm máy tính › …").
+# Đo corpus sản xuất 2026-09-19: 2 lá / 337 chunk bắt nhầm; 3.841 chunk có
+# chương thật đều mang số/La Mã. `_MUC_RE` đo được 0 nhầm nên giữ nguyên.
+_CHUONG_RE = re.compile(r"^\s*Chương\s+(?:[IVXLCDM]+|\d+)\b")
 _MUC_RE = re.compile(r"^\s*Mục\b")
 _DIEU_RE = re.compile(r"^\s*Điều\s+\d+\s*[\.\-–]\s*\S")
 
