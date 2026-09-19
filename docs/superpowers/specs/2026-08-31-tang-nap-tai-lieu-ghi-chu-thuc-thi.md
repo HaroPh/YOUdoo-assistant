@@ -2924,3 +2924,58 @@ tất định, và ta so được hai bên bằng một thước.
 lại không có phép cộng tự kiểm — VLM đọc chúng sẽ là **chưa xác minh theo cấu
 trúc**, và đường xử lý đã có sẵn (`UNVERIFIED_PREFIX`).
 
+### Spike VLM trên trang thuyết minh — TRẢ LỜI ĐƯỢC "hybrid có work" (2026-09-19)
+
+23 lượt Gemini thật trên NTC_2025 (23 trang ứng viên = có cả tiền lẫn nhãn
+tổng), prompt riêng `tm-v0` chỉ vá trong tiến trình spike, raw JSON lưu ở
+`%TEMP%/spike_tm/*.json` làm fixture chấm lại offline. 0 lỗi gọi.
+
+**Prompt `tm-v0` khác prompt bậc 3 ở chỗ bỏ `ma_so`/`thong_tu` và thêm `bang`
+(hàng này thuộc bảng con nào) + `la_tong`** — tức hỏi VLM đúng thứ lưới phẳng
+đánh mất.
+
+**Chấm vòng 1 (sai)**: VLM PASS 35 / FAIL 32. Hai lỗi chấm của tôi:
+- **46% hàng VLM trả `bang: null`** → gom hết vào một rổ rồi lấy hàng tổng đầu
+  tiên làm tổng của cả rổ.
+- **`la_tong` quá rộng**: VLM gắn cờ tổng cho `lợi nhuận gộp`, `doanh thu
+  thuần`, `số cuối năm`, `tổng lợi nhuận trước thuế` — đó là HIỆU, không phải
+  tổng cộng dồn. Ràng buộc "Σ thành phần = tổng" sai bản chất cho chúng.
+
+**Chấm vòng 2, tập NGHIÊM** (chỉ nhóm có `bang` thật + nhãn tổng đúng là
+`tổng cộng`/`cộng`), 19 nhóm / 38 ràng buộc: **VLM PASS 30 / FAIL 8**.
+
+**Tám FAIL còn lại cũng là lỗi chấm**: cả 4 nhóm đều là **bảng HAI TẦNG**
+(tr48 Ngắn hạn/Dài hạn, tr53 Ngắn hạn/Dài hạn, tr57 CPBH/CPQLDN, tr52 bên thứ
+ba/bên liên quan). Hàng cha vừa là tổng của các con, vừa là thành phần của
+TỔNG CỘNG; bộ chấm gộp phẳng nên đếm trùng (lệch đúng gấp đôi). Kiểm lại có
+phân tầng: **22 ràng buộc, PASS 22, FAIL 0**.
+
+⇒ **VLM: 38/38 đúng. Không phát hiện lỗi đọc nào.**
+
+**Chân Tesseract KHÔNG chấm được, và đó mới là phát hiện chính.** Bộ khớp nhãn
+của tôi báo FAIL 15 / KHÔNG KHỚP 14, nhưng soi ra: trên các hàng THÀNH PHẦN,
+Tesseract đọc **trùng từng chữ số với VLM** (`1.394.888.062`, `(36.675.200)`…).
+Cái sai là hàng TỔNG CỘNG — vì tr47 có **ba** bảng con, mỗi bảng một TỔNG CỘNG,
+mà lưới Tesseract chỉ nhả **một** hàng có nhãn tổng đọc được, nên bộ khớp dùng
+chung nó cho cả ba. Lưới phẳng **mất liên kết giữa hàng tổng và bảng con của
+nó**.
+
+**Kết luận cho câu hỏi của chủ dự án**: hybrid CÓ work trên trang thuyết minh,
+nhưng **giá trị của VLM ở đây là CẤU TRÚC, không phải độ chính xác OCR**.
+Tesseract đọc chữ số tốt ngang VLM trên mọi hàng so được; thứ nó không cho là
+"hàng nào thuộc bảng nào, hàng nào là tổng của hàng nào" — mà đó chính là thứ
+làm cổng số học khả thi. Không có cấu trúc thì không có ràng buộc, không có
+ràng buộc thì mọi con số đều là *chưa kiểm*.
+
+**Điều kiện để làm thật (lát 5)**
+1. Prompt phải bắt VLM trả **`cap` (tầng)** cho mỗi hàng, không chỉ `bang`:
+   4/19 nhóm là hai tầng, và phẳng hoá là sai.
+2. `bang` phải **bắt buộc** (46% null là quá nhiều) — hoặc suy từ `cap` + thứ tự.
+3. `la_tong` phải tách **tổng cộng dồn** khỏi **hiệu** (lợi nhuận gộp, doanh
+   thu thuần): chỉ loại đầu mới dùng được ràng buộc Σ.
+4. Chi phí đo được: ~2.500 token/trang, 23 trang/tài liệu 61 trang ≈ 57k token.
+
+**Giới hạn**: một tài liệu, một model, prompt chưa hiệu chỉnh. Tập nghiêm chỉ 19
+nhóm. Và trần trên của cổng vẫn là ~49% trang (đo ở mục trước) — nửa còn lại
+không có phép cộng tự kiểm, sẽ đi đường `UNVERIFIED_PREFIX`.
+
