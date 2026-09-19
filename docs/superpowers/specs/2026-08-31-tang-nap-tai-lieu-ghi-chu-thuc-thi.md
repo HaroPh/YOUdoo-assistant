@@ -2979,3 +2979,66 @@ ràng buộc thì mọi con số đều là *chưa kiểm*.
 nhóm. Và trần trên của cổng vẫn là ~49% trang (đo ở mục trước) — nửa còn lại
 không có phép cộng tự kiểm, sẽ đi đường `UNVERIFIED_PREFIX`.
 
+### Lát 5 — tầng tổng-ma-trận cho trang thuyết minh: THI HÀNH XONG (2026-09-19)
+
+Worktree `ocr-tm-lat5`, ba commit: `f572c84` (cổng), `b33f768` (kích hoạt +
+prompt), `9a5f163` (nối vào `parse_pdf`). Suite **2.785 xanh**.
+
+**Cái gì đã làm**
+- `so_hoc.rows_from_vision_tm` + `rang_buoc_tu_bang_con`: ràng buộc Σ suy từ
+  CẤU TRÚC bảng con. Khoá là **chỉ số hàng**, không phải mã số (trang không có
+  mã số; không bịa mã giả vì `_khoi_tu_vlm` in "Mã số:" vào text người dùng).
+- `classify_rows(key_by_index=True)`: tắt trần "ít hơn N hàng có mã số" và
+  kiểm đơn điệu. Mặc định `False` nên đường trang báo cáo chính **không đổi một
+  byte** — có test gác hai chiều.
+- `trigger.decide`: thêm nhánh `che_do="thuyet_minh"` khi trang có token tiền
+  VÀ nhãn tổng. Trước đó 256/309 trang scan không bao giờ đi VLM.
+- `vision.PROMPT_TM` (tm-v1) + `read_table(che_do=...)`.
+- `parse._khoi_tu_vlm_tm`: mỗi `bang` phát một block TIÊU ĐỀ cấp cố định.
+
+**Quy tắc quy thuộc — một luật, hai hình dạng.** Một hàng ở cấp *m* thuộc hàng
+cấp *m−1* **gần nhất, lùi trước rồi mới tiến**. Cần cả hai chiều vì bảng thật
+trộn kiểu: hàng cha "Ngắn hạn" đứng TRƯỚC các con, còn "TỔNG CỘNG" đứng SAU các
+hàng cha mà nó cộng (NTC tr48/53/57).
+
+**Nghiệm thu sống** — 5 trang NTC thật, 5 lượt Gemini: **35 ràng buộc PASS,
+0 FAIL, 1 NA; 63 hàng `verified`**. Bảng hai tầng tr48/tr57 xác minh trọn
+(14/14, 22/22) — đúng những trang spike báo FAIL vì bộ chấm gộp phẳng. Trước
+bản vá **mọi** trang này đều "trần cả trang ở chưa-kiểm: ít hơn 2 hàng có mã
+số". Sổ `llm_usage` đếm đúng 6 lượt / 16.577 token.
+
+**Cổng làm đúng việc ở ca xấu**: tr53, VLM trả 4 ô cho 2 cột ở hai hàng → cả
+hai bị LOẠI theo `width`, không lặng lẽ thành verified.
+
+### Khó khăn và giới hạn — lát 5
+
+**Năm vòng lỗi của BỘ CHẤM, không phải của bộ đọc.** Đây là bài học lớn nhất
+của phase này: mỗi lần số trông như "VLM/Tesseract sai", soi ra là thước của
+tôi sai.
+1. `table.MONEY` neo `^...$` cả ô, mà ô thật có rác OCR dính đuôi → dò token
+   trượt sạch (NTC ra 0 trang có hàng tổng). Sinh ra `table.MONEY_TOKEN`.
+2. Lọc "trang thuyết minh" bằng `rows_from_grid(...) is None` nhận NHẦM tr61 là
+   trang có cột mã số (vì `29. |`, `29.2` trông như mã số).
+3. `nhãn = ô đầu không rỗng` sai vì cột gáy sách chèn rác vào ô 0.
+4. `bang: null` 46% (tm-v0 để tuỳ ý) → gom cả trang vào một rổ.
+5. Bảng HAI TẦNG gộp phẳng → hàng cha đếm hai lần, lệch đúng gấp đôi. Cả 8
+   "VLM FAIL" của spike là lỗi này.
+
+**Rút lại một kết luận đã nói ra**: tôi từng báo "số học bênh VLM trên 5 nhóm".
+Sai. Soi ra Tesseract đọc các hàng THÀNH PHẦN **trùng từng chữ số với VLM**;
+chỉ hàng TỔNG CỘNG lệch, và vì bộ khớp nhãn của tôi dùng CHUNG một hàng tổng
+cho cả ba bảng con của tr47. Giá trị thật của VLM ở đây là **CẤU TRÚC**, không
+phải độ chính xác OCR.
+
+**Giới hạn còn lại**
+- Trần trên của tầng này là **~49% trang** (152/309 có cả tiền lẫn nhãn tổng).
+  Nửa còn lại không có phép cộng tự kiểm → vẫn đi `UNVERIFIED_PREFIX`.
+- Nghiệm thu mới trên **một tài liệu, 5 trang**. Chưa chạy 4 PDF scan còn lại
+  và SID. Chi phí ước: ~2.500 token/trang, ~23 trang/tài liệu.
+- Ràng buộc chỉ 1 thành phần bị bỏ (đồng nhất thức) — tr53 "Dài hạn" mất ràng
+  buộc vì lý do này, đúng chủ ý.
+- `loai="hieu"` chưa được kiểm bằng ràng buộc nào: doanh thu thuần = tổng − các
+  khoản giảm trừ là phép TRỪ, cần tầng riêng. Chưa làm.
+- Worktree KHÔNG có `.env` (tệp gitignore ở gốc repo chính) → suite báo 21 fail
+  + 65 error giả. Phải `set -a && . /d/Youdoo/.env && set +a` trước khi chạy.
+
