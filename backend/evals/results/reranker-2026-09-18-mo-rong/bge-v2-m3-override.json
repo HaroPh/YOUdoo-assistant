@@ -1,0 +1,1412 @@
+{
+  "set": "retrieval",
+  "n": 109,
+  "rerank": true,
+  "dang_go": "co_dau",
+  "rerank_model": "BAAI/bge-reranker-v2-m3",
+  "rerank_mode": "override",
+  "methods_seen": [
+    "dense+fold-rrf+rerank"
+  ],
+  "recall_at_20": 0.9771,
+  "recall_at_6": 0.9495,
+  "mrr": 0.8564,
+  "chunk_span": 1.94,
+  "by_difficulty": {
+    "easy": {
+      "n": 31,
+      "recall_at_20": 0.9839,
+      "mrr": 0.9597
+    },
+    "hard": {
+      "n": 62,
+      "recall_at_20": 0.9677,
+      "mrr": 0.792
+    },
+    "trap": {
+      "n": 16,
+      "recall_at_20": 1.0,
+      "mrr": 0.9062
+    }
+  },
+  "lat_p50": 582,
+  "lat_p95": 769,
+  "fails": [
+    {
+      "question": "ai là người được ký hợp đồng thay mặt cho công ty?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Điều 12. Người đại diện theo pháp luật của doanh nghiệp"
+        ]
+      ],
+      "got": [
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 167. Chấp thuận hợp đồng, giao dịch giữa công ty với người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 67. Hợp đồng, giao dịch phải được Hội đồng thành viên chấp thuận"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương III › HỢP ĐỒNG LAO ĐỘNG › Mục 1. GIAO KẾT HỢP ĐỒNG LAO ĐỘNG › Điều 18. Thẩm quyền giao kết hợp đồng lao động"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    },
+    {
+      "question": "Một tổ chức (không phải cá nhân) muốn đứng ra chăm sóc và bảo vệ quyền lợi thay cho người không đủ năng lực hành vi dân sự thì phải đáp ứng những gì?",
+      "difficulty": "hard",
+      "expected": [
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 50. Điều kiện của pháp nhân làm người giám hộ"
+        ]
+      ],
+      "got": [
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 46. Giám hộ"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 1. NĂNG LỰC PHÁP LUẬT DÂN SỰ, NĂNG LỰC HÀNH VI DÂN SỰ CỦA CÁ NHÂN › Điều 22. Mất năng lực hành vi dân sự"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 1. NĂNG LỰC PHÁP LUẬT DÂN SỰ, NĂNG LỰC HÀNH VI DÂN SỰ CỦA CÁ NHÂN › Điều 23. Người có khó khăn trong nhận thức, làm chủ hành vi"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 57. Nghĩa vụ của người giám hộ đối với người được giám hộ mất năng lực hành vi dân sự, người có khó khăn trong nhận thức, làm chủ"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 58. Quyền của người giám hộ"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương III › CÁ NHÂN › Mục 4. GIÁM HỘ › Điều 53. Người giám hộ đương nhiên của người mất năng lực hành vi dân sự"
+        ]
+      ],
+      "method": "dense+fold-rrf+rerank"
+    }
+  ],
+  "errors": [],
+  "per_case": [
+    {
+      "question": "chính sách đổi trả hàng như thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        5
+      ]
+    },
+    {
+      "question": "hàng giảm giá có được hoàn trả không?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "thời gian xử lý hoàn tiền là bao lâu?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "SOP nhập kho gồm những bước nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        4
+      ]
+    },
+    {
+      "question": "SLA giao hàng nội thành là bao lâu?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "chính sách chiết khấu theo cấp khách như thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "quy trình giao hàng gồm những bước nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 0.5,
+      "recall_at_final": 0.5,
+      "reciprocal_rank": 0.25,
+      "hit_ranks": [
+        4
+      ]
+    },
+    {
+      "question": "nhà cung cấp giao trễ thì bị xử lý ra sao?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "khách nợ quá hạn mức thì làm gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "mua nhiều thì có được giảm thêm không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.16666666666666666,
+      "hit_ranks": [
+        6
+      ]
+    },
+    {
+      "question": "kho báo thiếu hàng khi soạn đơn thì xử lý thế nào?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "khách đổi ý sau khi đã chốt đơn thì sao?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "hàng về kho có khớp với đơn đặt mua không thì ai kiểm?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.2,
+      "hit_ranks": [
+        5
+      ]
+    },
+    {
+      "question": "bên bán phải đóng gói hàng ra sao trước khi chuyển đi?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.3333333333333333,
+      "hit_ranks": [
+        3
+      ]
+    },
+    {
+      "question": "giá niêm yết của sản phẩm là bao nhiêu?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "question": "quy định về làm thêm giờ như thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        3,
+        4
+      ]
+    },
+    {
+      "question": "nghỉ hằng năm được bao nhiêu ngày?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "nghỉ lễ tết theo luật gồm những ngày nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        6
+      ]
+    },
+    {
+      "question": "trợ cấp thôi việc tính thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        3
+      ]
+    },
+    {
+      "question": "các hình thức xử lý kỷ luật lao động gồm những gì?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "công ty muốn cho nhân viên nghỉ việc thì cần căn cứ gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.14285714285714285,
+      "hit_ranks": [
+        7
+      ]
+    },
+    {
+      "question": "làm ca đêm thì được trả thêm bao nhiêu phần trăm?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "bảo hiểm xã hội bắt buộc thì người lao động đóng bao nhiêu?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        11,
+        13
+      ]
+    },
+    {
+      "question": "nghĩa vụ bảo hành hàng hoá của bên bán là gì?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "thời hạn giao hàng trong hợp đồng thương mại quy định ra sao?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "bồi thường thiệt hại trong thương mại được quy định thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "bên mua chưa trả tiền đúng hẹn thì luật thương mại nói gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.25,
+      "hit_ranks": [
+        4
+      ]
+    },
+    {
+      "question": "giao dịch dân sự có hiệu lực khi nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "giao dịch dân sự vô hiệu do giả tạo được hiểu thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "hai bên ký hợp đồng giả để che giấu giao dịch khác thì hợp đồng đó ra sao?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.14285714285714285,
+      "hit_ranks": [
+        7,
+        8
+      ]
+    },
+    {
+      "question": "người đại diện theo pháp luật của doanh nghiệp là ai?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        3,
+        4,
+        8,
+        9,
+        16
+      ]
+    },
+    {
+      "question": "điều lệ công ty phải có những nội dung gì?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "question": "công ty cổ phần được định nghĩa thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "ai là người được ký hợp đồng thay mặt cho công ty?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 0.0,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.0,
+      "hit_ranks": []
+    },
+    {
+      "question": "thời hạn nộp hồ sơ khai thuế là khi nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        4,
+        7
+      ]
+    },
+    {
+      "question": "trách nhiệm của người nộp thuế gồm những gì?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        5,
+        6
+      ]
+    },
+    {
+      "question": "nộp thuế trễ thì bị tính tiền phạt ra sao?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2,
+        3,
+        6,
+        10,
+        15
+      ]
+    },
+    {
+      "question": "thuế suất thuế giá trị gia tăng là bao nhiêu?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2,
+        5,
+        12
+      ]
+    },
+    {
+      "question": "đối tượng không chịu thuế giá trị gia tăng gồm những gì?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        5,
+        9,
+        12,
+        14,
+        15,
+        18
+      ]
+    },
+    {
+      "question": "khấu trừ thuế giá trị gia tăng đầu vào thế nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        9,
+        15
+      ]
+    },
+    {
+      "question": "khi nào thì xác định được thời điểm tính thuế GTGT?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "trường hợp nào được miễn thuế xuất nhập khẩu?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        7,
+        10,
+        12,
+        13,
+        15,
+        17,
+        18
+      ]
+    },
+    {
+      "question": "thuế chống bán phá giá được áp dụng khi nào?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "hạn ngạch thuế quan áp dụng cho hàng nhập khẩu ra sao?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "ngành nghề nào được ưu đãi đầu tư?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        6
+      ]
+    },
+    {
+      "question": "dự án nào phải xin chấp thuận chủ trương đầu tư?",
+      "difficulty": "easy",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        6,
+        7,
+        11
+      ]
+    },
+    {
+      "question": "nhà đầu tư nước ngoài muốn góp vốn mua cổ phần thì theo hình thức nào?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        8
+      ]
+    },
+    {
+      "question": "căn cứ tính thuế với hàng nhập khẩu theo tỷ lệ phần trăm là gì?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        4
+      ]
+    },
+    {
+      "question": "thời hạn nộp thuế đối với hàng hoá xuất khẩu, nhập khẩu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2,
+        11
+      ]
+    },
+    {
+      "question": "hoàn thuế xuất nhập khẩu áp dụng trong trường hợp nào?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "mức phạt vi phạm hợp đồng thương mại tối đa là bao nhiêu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "thời hiệu khởi kiện tranh chấp hợp đồng là bao lâu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "người lao động muốn nghỉ việc thì phải báo trước bao nhiêu ngày?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        14
+      ]
+    },
+    {
+      "question": "thoả thuận phạt vi phạm trong hợp đồng dân sự được quy định ở đâu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "hàng hoá nhập khẩu có thuộc đối tượng chịu thuế giá trị gia tăng không?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2
+      ]
+    },
+    {
+      "question": "bắt được gia súc thất lạc mà nó sinh con thì người nuôi giữ được hưởng bao nhiêu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "bảo hiểm xã hội tự nguyện thì mức hưởng một lần mỗi năm đóng bằng bao nhiêu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2,
+        3,
+        10
+      ]
+    },
+    {
+      "question": "người lao động nghỉ không lương bao nhiêu ngày trong tháng thì khỏi đóng bảo hiểm xã hội?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "lao động nữ mang thai hộ hưởng chế độ thai sản chưa đủ bao nhiêu ngày thì được hưởng tiếp?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        15
+      ]
+    },
+    {
+      "question": "nghỉ hưu trước tuổi dưới bao lâu thì không bị trừ tỷ lệ lương hưu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "kiểm soát viên doanh nghiệp nhà nước cần bao nhiêu năm kinh nghiệm?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        11
+      ]
+    },
+    {
+      "question": "chủ tịch hội đồng thành viên do hội đồng bầu thì nhiệm kỳ tối đa bao lâu?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        3,
+        7
+      ]
+    },
+    {
+      "question": "công ty tnhh hai thành viên trở lên đổi vốn điều lệ thì bao lâu được cập nhật?",
+      "difficulty": "trap",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        5,
+        12
+      ]
+    },
+    {
+      "question": "Nếu doanh số của khách hàng không đạt mức duy trì hạng trong hai quý liên tiếp thì chuyện gì sẽ xảy ra với hạng của họ?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu thấy khoản phải trả bị ghi sai, khách hàng có mấy ngày làm việc để lên tiếng trước khi số liệu được xem là đã được chấp nhận?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu một hóa đơn được trả trong vòng 10 ngày kể từ ngày nhận, thì được giảm giá bao nhiêu phần trăm?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Sau khi kiểm tra hàng nhập kho xong, nhân viên phải nhập số liệu tồn kho vào đâu?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Khi phát hiện hàng thực giao không khớp với đơn đặt, người giao hàng phải báo cho bộ phận nào, trong thời gian bao lâu kể từ lúc phát hiện?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Với những mặt hàng có hạn sử dụng, kho phải ưu tiên lấy lô nào ra trước?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Một tổ chức (không phải cá nhân) muốn đứng ra chăm sóc và bảo vệ quyền lợi thay cho người không đủ năng lực hành vi dân sự thì phải đáp ứng những gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 0.0,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.0,
+      "hit_ranks": []
+    },
+    {
+      "question": "Có phải khi nào cũng được nhờ người khác đứng ra thay mặt mình xác lập một giao dịch dân sự không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Được làm chủ một tài sản thì có những quyền cụ thể nào đối với nó?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu chỉ được giao đồ dùng để dùng tạm mà không được chuyển quyền sở hữu, người nhận có được cho người khác mượn lại đồ đó không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu phát hiện cá lạ bơi vào ao nhà mình, phải thông báo công khai bao lâu trước khi được xem là của mình luôn?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Khi ngân hàng phát mãi tài sản bảo đảm mà thu được nhiều tiền hơn khoản nợ, phần chênh lệch dư ra thuộc về ai?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2,
+        10
+      ]
+    },
+    {
+      "question": "Nếu một bên trễ hẹn không hoàn thành đúng hạn cam kết, họ có phải báo cho bên kia biết không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.2,
+      "hit_ranks": [
+        5
+      ]
+    },
+    {
+      "question": "Nếu hai bên ký hợp đồng mà không thỏa thuận trước nơi ký, thì hợp đồng được xem là ký ở đâu?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Ai đó không phải chủ nhưng đang được lâu dài khai thác, thu lợi từ một tài sản, có được cho bên khác thuê lại phần khai thác ấy không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nhà xe có được phép nhồi nhét khách vượt quá số chỗ cho phép trên xe không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2
+      ]
+    },
+    {
+      "question": "Khi hai bên đổi tài sản cho nhau mà giá trị hai món không bằng nhau, phần thiếu phải xử lý thế nào?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Khi mua bán, chuyển nhượng đất, giấy tờ giao dịch có bắt buộc phải làm bằng văn bản không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.3333333333333333,
+      "hit_ranks": [
+        3
+      ]
+    },
+    {
+      "question": "Một người 16 tuổi lỡ làm hỏng đồ hoặc gây tổn thất cho người khác thì ai phải đứng ra đền bù, người đó hay cha mẹ?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        3
+      ]
+    },
+    {
+      "question": "Nếu một văn bản để lại tài sản của người đã qua đời có chỗ viết mập mờ khiến những người thừa kế hiểu theo nhiều cách khác nhau, phải xử lý sao?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Khi luật và hợp đồng đều không quy định, có được dùng thói quen địa phương lâu đời để giải quyết tranh chấp dân sự không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu hợp đồng mua bán không nói rõ khi nào phải nộp giấy tờ đi kèm lô hàng, bên bán phải nộp trong thời gian nào?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.25,
+      "hit_ranks": [
+        4
+      ]
+    },
+    {
+      "question": "Việc một công ty đăng tin giới thiệu hàng hóa, dịch vụ của mình để thu hút khách mua gọi là loại hoạt động gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Có được tặng kèm, giảm giá để câu khách đối với những mặt hàng bị cấm kinh doanh không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 0.0,
+      "reciprocal_rank": 0.08333333333333333,
+      "hit_ranks": [
+        12
+      ]
+    },
+    {
+      "question": "Khi một xưởng nhận nguyên liệu của khách để làm ra sản phẩm theo yêu cầu rồi lấy tiền công, việc đó gọi là hoạt động gì trong kinh doanh?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Khi các đơn vị nộp đề xuất tham gia một gói mua sắm, bên tổ chức có quyền yêu cầu làm rõ những phần chưa rõ ràng trong đề xuất đó không? Nếu có thì cần lập bằng hình thức gì?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Người đang thuê một món đồ có được tự ý cải tạo hay làm khác đi so với lúc nhận không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2
+      ]
+    },
+    {
+      "question": "Doanh nghiệp có tối đa bao lâu để kiện đối tác ra tòa kể từ khi quyền lợi của mình trong một vụ tranh chấp mua bán bị xâm phạm?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu hợp đồng làm việc của một nhân viên bị tuyên là không có giá trị pháp lý ngay từ đầu, quyền lợi của người đó được giải quyết theo đâu?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nhân viên đi làm vào ngày nghỉ lễ, tết được trả thêm ít nhất bao nhiêu phần trăm so với lương ngày thường?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "Nếu ai đó vừa dọn dẹp, nấu ăn cho một hộ dân, vừa phụ bán hàng cho hộ đó, phần bán hàng ấy có được tính vào diện lao động trong nhà không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Đoàn kiểm tra an toàn lao động có phải báo trước cho công ty khi đến kiểm tra đột xuất vì lý do khẩn cấp đe dọa tính mạng công nhân không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu một thành viên công ty TNHH không đồng ý với quyết định tổ chức lại công ty, thành viên đó có quyền yêu cầu công ty hoàn lại khoản tiền đã đầu tư vào công ty không? Nếu có, phải gửi yêu cầu trong thời hạn bao lâu?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Sau khi một người trong ban lãnh đạo công ty nhà nước bị buộc thôi chức, công ty có bao lâu để chọn người thay thế?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.5,
+      "hit_ranks": [
+        2
+      ]
+    },
+    {
+      "question": "Công ty cổ phần phải gửi thông báo cho cổ đông về cuộc họp thường niên trước tối thiểu bao nhiêu ngày?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Vào cuối năm tài chính, tập đoàn có đơn vị trực thuộc phải lập thêm những loại tài liệu tổng hợp nào ngoài báo cáo thông thường?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "Nếu phát hiện tờ khai nộp thuế trước đây bị sai, doanh nghiệp có tối đa bao lâu để sửa lại trước khi bị thanh tra?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Người đóng thuế có bắt buộc phải chia sẻ đầy đủ và trung thực dữ liệu liên quan cho cơ quan thuế khi được yêu cầu không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu cơ quan thuế thu nhầm tiền phạt của doanh nghiệp, họ phải hoàn trả lại trong bao nhiêu ngày kể từ khi có quyết định xử lý?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Nếu người lao động không đồng ý với cách cơ quan BHXH xử lý lần đầu về một quyết định liên quan đến chế độ của mình, họ có những lựa chọn nào tiếp theo?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2,
+        3,
+        4,
+        11
+      ]
+    },
+    {
+      "question": "Nếu một người đã đóng bảo hiểm xã hội từ đủ 15 năm trở lên rồi qua đời, thân nhân của họ có được nhận khoản hỗ trợ định kỳ hằng tháng không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Chính quyền địa phương có phải chỉ đạo và kiểm tra việc thực hiện chính sách bảo hiểm xã hội tại tỉnh mình không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        2
+      ]
+    },
+    {
+      "question": "Kinh doanh dịch vụ bảo vệ có nằm trong nhóm ngành nghề phải đáp ứng điều kiện riêng mới được làm không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1,
+        4,
+        12,
+        16
+      ]
+    },
+    {
+      "question": "Một dự án đang được hưởng ưu đãi thuế nhập khẩu cao hơn mức mới quy định thì có bị áp mức thấp hơn khi luật thuế mới có hiệu lực không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    },
+    {
+      "question": "Thu nhập từ việc một cá nhân có giấy phép hành nghề tự do (như luật sư, kế toán viên) tự làm riêng thì có tính là thu nhập chịu thuế thu nhập cá nhân không?",
+      "difficulty": "hard",
+      "method": "dense+fold-rrf+rerank",
+      "recall_at_pool": 1.0,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 1.0,
+      "hit_ranks": [
+        1
+      ]
+    }
+  ]
+}

@@ -77,3 +77,28 @@ xong 18:10, và **ghi đè** lên JSON của lượt bị loại — lượt đ�
 Kiểm định ghép cặp và kết luận theo quy tắc đăng ký trước (spec §8): xem spec §10–§11 (Task 7).
 
 `baseline-bge-m3-retrieval.json` được sinh lại từ chân `bge-v2-m3` trên 109 ca (thay bản 64 ca).
+
+## Chân thứ 7 (thêm sau merge, 2026-09-19): `bge-v2-m3-override`
+
+Không nằm trong spec §7–§8 gốc (đóng băng 6 chân) — đo bổ sung để trả lời mục "còn treo" (d)
+của `trang-thai-chung.md` #31: `bge`+`override` chưa từng đo trên bộ 109 ca (lần 2026-08-20 dùng
+bộ cũ, corpus cũ). `RERANK_MODEL=BAAI/bge-reranker-v2-m3 RAG_RERANK_MODE=override`, cùng
+`TOP_N/TOP_K/RERANK_MAX_LENGTH` như các chân khác. 109/109, 0 lỗi.
+
+| chân | r@6 | r@20 | mrr | easy | hard62 | trap |
+|---|---:|---:|---:|---:|---:|---:|
+| bge-v2-m3-override | 0,9495 | 0,9771 | 0,8564 | 0,9597 | 0,7920 | 0,9062 |
+
+So *no-rerank*: Δ+0,2014, CI95 [+0,139;+0,265], p≈0 — kết luận 2026-08-20 ("override trên bge
+THUA cả tắt rerank") **không tái lập**; hạ tầng đã đổi (corpus, `section_path`, chân bỏ dấu, vá
+breadcrumb) từ lần đó. So *blend* (production hiện tại): Δ+0,0507 toàn 109 ca, **p chính xác
+(DP) = 0,01073** — CLI in 0,0097 (Monte Carlo, 28 chênh ≠ 0 vượt `max_exact=22`); trên ngưỡng
+0,01, không dưới. Hard-62 riêng: p=0,0638. Đổi mất 2 câu (`công ty muốn cho nhân viên nghỉ việc
+thì cần căn cứ gì?`, `một bên tự ý dừng hợp đồng giữa chừng thì hậu quả là gì?`) mà blend giữ
+được, chỉ được lại 1 câu (`quy trình giao hàng gồm những bước nào?`). **Không đủ số để bật
+override cho bge sản xuất.**
+
+Đây cũng là bằng chứng thứ hai (sau `0.6b-override`) của bài học "p Monte Carlo in giống p chính
+xác": lần này rơi đúng vào phép so đang dùng để quyết định, không phải phép so phụ. Script tính
+p chính xác bằng DP (không brute-force `itertools.product` — 2^28 quá chậm) chưa đưa vào
+`evals/retrieval_stats.py`, hiện là script rời.
