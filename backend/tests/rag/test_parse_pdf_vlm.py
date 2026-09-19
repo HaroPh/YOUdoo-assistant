@@ -254,3 +254,80 @@ def test_so_VLM_hong_chi_thu_MOT_lan_va_khong_giet_luot_nap(monkeypatch):
     so.record(**kw)          # lượt sau: im, không thử lại
     so.record(**kw)
     assert thu == [1], f"chỉ được thử mở MỘT lần, thực tế {len(thu)}"
+
+
+# ─── đường TRANG THUYẾT MINH (tm-v1) ─────────────────────────────────────────
+class _FakeVisionTM:
+    """Bộ đọc giả trả hợp đồng tm-v1. `che_do` phải tới được đây."""
+    def __init__(self, payload):
+        self._pl = payload
+        self.che_do_da_nhan = None
+
+    def read_table(self, png, *, che_do="bang_chi_tieu"):
+        from src.ocr import vision as _v
+        self.che_do_da_nhan = che_do
+        return _v.VisionTable(payload=self._pl, raw="{}", model="fake",
+                              prompt_version=_v.PROMPT_TM_VERSION,
+                              prompt_tokens=1, completion_tokens=1, total_tokens=2)
+
+
+_TM_PAYLOAD = {"cot": ["Số cuối năm", "Số đầu năm"], "hang": [
+    {"bang": "29.2 Cam kết thuê hoạt động", "cap": 1, "nhan": "Đến 1 năm",
+     "gia_tri": ["5.753.213.767", "5.999.543.767"], "loai": "thuong"},
+    {"bang": "29.2 Cam kết thuê hoạt động", "cap": 1, "nhan": "Từ 1 đến 5 năm",
+     "gia_tri": ["17.897.201.285", "18.310.928.759"], "loai": "thuong"},
+    {"bang": "29.2 Cam kết thuê hoạt động", "cap": 1, "nhan": "Trên 5 năm",
+     "gia_tri": ["61.153.500.007", "64.464.642.383"], "loai": "thuong"},
+    {"bang": "29.2 Cam kết thuê hoạt động", "cap": 0, "nhan": "TỔNG CỘNG",
+     "gia_tri": ["84.803.915.059", "88.775.114.909"], "loai": "cong_don"},
+]}
+
+
+def test_trang_thuyet_minh_phat_block_TIEU_DE_cho_moi_bang_con(monkeypatch):
+    """Không phải trang trí: `index_text()` nối `section_path` vào chuỗi đem đi
+    embed, mà hàng số trang thuyết minh là chunk atomic ngắn KHÔNG chứa từ nào
+    của câu hỏi — breadcrumb là cầu nối DUY NHẤT (bug `VND` 2026-09-17)."""
+    from types import SimpleNamespace
+    from PIL import Image
+    from src.rag import parse as p
+    monkeypatch.setattr(p, "_anh_cua_trang", lambda *a, **k: Image.new("RGB", (8, 8), "white"))
+    fake = _FakeVisionTM(_TM_PAYLOAD)
+    blocks, canh_bao, dung = p._khoi_tu_vlm_tm(fake, "x.pdf", 61, SimpleNamespace(rotation=0))
+
+    assert fake.che_do_da_nhan == "thuyet_minh", "chế độ phải tới bộ đọc"
+    assert not dung and canh_bao is not None
+    tieu_de = [b for b in blocks if b.get("heading_level")]
+    assert [b["text"] for b in tieu_de] == ["29.2 Cam kết thuê hoạt động"]
+    assert tieu_de[0]["heading_level"] == p._TM_BANG_LEVEL
+
+
+def test_trang_thuyet_minh_hang_qua_so_hoc_thi_VERIFIED(monkeypatch):
+    from types import SimpleNamespace
+    from PIL import Image
+    from src.ocr import so_hoc
+    from src.rag import parse as p
+    monkeypatch.setattr(p, "_anh_cua_trang", lambda *a, **k: Image.new("RGB", (8, 8), "white"))
+    blocks, canh_bao, _ = p._khoi_tu_vlm_tm(_FakeVisionTM(_TM_PAYLOAD), "x.pdf", 61,
+                                            SimpleNamespace(rotation=0))
+    hang = [b for b in blocks if b.get("atomic")]
+    assert len(hang) == 4
+    assert all(b["source_kind"] == so_hoc.RowStatus.VERIFIED for b in hang), (
+        [b["source_kind"] for b in hang])
+    assert not any(b.get("unverified_money") for b in hang)
+    assert "5.753.213.767" in " ".join(b["text"] for b in hang)
+    assert "Mã số" not in " ".join(b["text"] for b in hang), (
+        "trang thuyết minh KHÔNG có mã số — không được bịa cột đó vào text")
+
+
+def test_bang_con_KHONG_cong_dung_thi_hang_mang_co_chua_kiem(monkeypatch):
+    """Số sai -> ràng buộc FAIL -> hàng bị LOẠI, không lặng lẽ thành verified."""
+    from types import SimpleNamespace
+    from PIL import Image
+    from src.rag import parse as p
+    monkeypatch.setattr(p, "_anh_cua_trang", lambda *a, **k: Image.new("RGB", (8, 8), "white"))
+    xau = json.loads(json.dumps(_TM_PAYLOAD))
+    xau["hang"][3]["gia_tri"][0] = "99.999.999.999"          # tổng sai
+    blocks, canh_bao, _ = p._khoi_tu_vlm_tm(_FakeVisionTM(xau), "x.pdf", 61,
+                                            SimpleNamespace(rotation=0))
+    assert "FAIL 1" in canh_bao[1], canh_bao[1]
+    assert [b for b in blocks if b.get("atomic")] == [], "cả cụm FAIL phải bị loại"
