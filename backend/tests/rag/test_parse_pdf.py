@@ -563,3 +563,25 @@ def test_nhan_don_vi_VND_khong_con_hat_tieu_de_muc_khoi_breadcrumb():
     assert "29.2 Cam kết thuê hoạt động" in sp, (
         f"hàng đáp án mất tiêu đề mục 29.2 — breadcrumb thực tế: {sp!r}")
     assert "VND" not in sp, f"'VND' là nhãn đơn vị, không được vào breadcrumb: {sp!r}"
+
+
+# ─── "Chương TRÌNH" không phải "Chương I" (2026-09-19, mục #35) ───────────────
+# `_CHUONG_RE = ^\s*Chương\b` khớp cả "Chương trình phần mềm máy tính" (hàng
+# tài sản vô hình trong BCTC) và cho nó CẤP 1 — nông nhất thang — nên nó thành
+# gốc breadcrumb của MỌI chunk phía sau trong tài liệu: mọi trích dẫn SID ra
+# "Chương trình phần mềm máy tính › BÁO CÁO TÀI CHÍNH › …". Đo corpus sản xuất:
+# 2 lá / 337 chunk bắt nhầm; 3.841 chunk có chương THẬT đều mang số/La Mã.
+# `Mục\b` đo được 0 nhầm nên KHÔNG đụng.
+def test_chuong_TRINH_khong_phai_chuong():
+    from src.rag.parse import heading_level
+    assert heading_level("Chương trình phần mềm máy tính") is None
+    assert heading_level("Chương trình xúc tiến đầu tư quốc gia.") is None
+
+
+def test_chuong_co_so_van_cap_1():
+    from src.rag.parse import heading_level
+    # KHÔNG có "CHƯƠNG IV": regex phân biệt hoa/thường từ trước (IN HOA đi nhánh
+    # cấp 2) — hành vi sẵn có, ngoài phạm vi #35, không đổi khi chưa đo.
+    for t in ("Chương I", "Chương VII", "Chương II ĐĂNG KÝ DOANH NGHIỆP",
+              "Chương 3", "Chương XIV QUY ĐỊNH CHUNG"):
+        assert heading_level(t) == 1, t

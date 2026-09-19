@@ -156,6 +156,10 @@ def test_dem_hong_giua_chung_KHONG_lam_no_ca_luot_nap(monkeypatch, tmp_path):
     pdf.write_bytes(b"%PDF-gia")
     monkeypatch.setenv(document.OCR_CACHE_ENV, str(dem_dir))
     monkeypatch.setattr(document.engine, "tesseract_version", lambda: "5.4.0")
+    # `read_page` gọi `osd_rotation` (dò xoay, thêm 2026-09-11) TRƯỚC `ocr_image`;
+    # không mock thì chạm Tesseract thật -> CI (windows-latest, không có
+    # tesseract) đỏ từ 04/09 mà local xanh. Ba test khác trong tệp đã mock.
+    monkeypatch.setattr(document.engine, "osd_rotation", lambda img: 0)
 
     dem_goi = {"n": 0}
     def _fake_ocr(img, **kw):
