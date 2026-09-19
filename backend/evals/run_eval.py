@@ -1514,6 +1514,7 @@ async def main(argv=None):
         key = ("tool_acc" if args.set in ("planner", "read")
                else "grounded_acc" if args.set == "synthesis"
                else "both_source_coverage" if args.set == "multi_source"
+               else "recall_at_6" if args.set == "retrieval"
                else "acc")
         print(f"GATE {'PASS' if ok else 'FAIL'} — "
               f"model={result[key]:.3f} baseline={base[key]:.3f}")
