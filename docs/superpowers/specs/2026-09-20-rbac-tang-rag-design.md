@@ -190,9 +190,13 @@ evals/baseline-bge-m3-retrieval.json` → **GATE PASS**. Mốc trước 19b (202
 SID): r@20 0,9771 · r@6 0,9633 · mrr 0,8012 · 2 fails · lat_p50 573 ms. Sau khi gỡ SID kỳ vọng
 không giảm (bớt 660 chunk nhiễu).
 
-**Cổng âm** — cùng lệnh `--role warehouse`: **10 ca thương mại** phải có `recall_at_pool = 0`
-**sạch** (không phải "thấp"), **99 ca còn lại giống hệt** lượt admin (so `per_case` theo câu hỏi).
-Đây là tính chất bảo mật đo thành số, tất định, không LLM, không quota. Ghi cả hai lượt vào §10.
+**Cổng âm** — cùng lệnh `--role warehouse`, so với lượt admin bằng `evals/compare_visibility.py`:
+**10 ca thương mại** (đo 2026-09-20: 10/10 là *thuần* — mọi nhãn mong đợi thuộc 4 tệp, 0 ca lẫn)
+phải có `recall_at_pool = 0` **sạch** (không phải "thấp"); **99 ca còn lại** có
+`recall_at_pool` **không kém** lượt admin — bất biến đúng là `>=`, không phải "giống hệt": gỡ ứng
+viên không-đáp-án khỏi pool 20 không thể đẩy đáp án ra ngoài, chỉ có thể kéo nó vào; còn
+`recall_at_final` (top-6 sau rerank) chỉ báo cáo vì pool khác thì reranker thấy tập khác. Đây là
+tính chất bảo mật đo thành số, tất định, không LLM, không quota. Ghi cả hai lượt vào §10.
 
 **Probe sống** (worktree, **trước merge** — `feedback_test_before_merge`): backend thật + Open WebUI
 user id của 4 vai, cùng câu *"chính sách chiết khấu"*: `warehouse` → không có 5%/10%/15%, có lời từ
