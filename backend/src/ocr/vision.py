@@ -142,6 +142,41 @@ def _is_rate_limit(exc: Exception) -> bool:
     return getattr(exc, "status_code", None) == 429 or "429" in str(exc)
 
 
+class _SoVlm:
+    """Sổ `llm_usage` cho bộ đọc VLM — mở kết nối MUỘN, MỘT LẦN mỗi tiến trình.
+
+    Vì sao là MẶC ĐỊNH của `VisionReader` chứ không do người gọi tiêm: bản vá
+    đầu (2026-09-18) chỉ đặt sổ ở `parse.VISION_READER_FACTORY`, nên mọi chỗ
+    dựng `VisionReader()` trực tiếp vẫn vô hình với sổ — và chính tôi đi vòng
+    qua nó trong vòng một giờ (spike trang thuyết minh 19/09 gọi 23 lượt thật,
+    sổ ghi 0). Đếm hạn mức là bất biến của LỚP, không phải của một lối gọi.
+    `store=None` tường minh mới là tắt.
+
+    Vì sao MUỘN: `PostgresUsageStore()` MỞ ConnectionPool trong constructor, mà
+    `VisionReader` được dựng mỗi `parse_pdf` — dựng sớm là một pool mỗi tài liệu
+    VÀ mọi test đơn vị đi qua `parse_pdf` chạm Postgres dù bộ đọc tự tắt vì
+    thiếu khoá. Mở ở `record()` nên chỉ trả giá khi thật sự có lượt để ghi.
+
+    KHÔNG bắt exception: `_record` đã bọc và chỉ log cảnh báo → fail-open miễn
+    phí. `_da_thu` để một Postgres sập không thành mấy chục lần thử lại
+    (timeout 2s mỗi lần) trong cùng một tài liệu.
+    """
+
+    _store = None
+    _da_thu = False
+
+    def record(self, **kw) -> None:
+        if not _SoVlm._da_thu:
+            _SoVlm._da_thu = True
+            from src.llm.store import PostgresUsageStore
+            _SoVlm._store = PostgresUsageStore()
+        if _SoVlm._store is not None:
+            _SoVlm._store.record(**kw)
+
+
+_MAC_DINH = object()      # phân biệt "không truyền" với `store=None` (tắt sổ)
+
+
 class VisionReader:
     """Một bộ đọc cho MỘT lượt nạp: giữ bộ đếm trần và vòng khoá.
 
@@ -150,10 +185,10 @@ class VisionReader:
     `store` là `UsageStore` (Postgres hay InMemory) hoặc None.
     """
 
-    def __init__(self, *, client_factory=client_for, store=None,
+    def __init__(self, *, client_factory=client_for, store=_MAC_DINH,
                  max_calls: int = VLM_MAX_CALLS_PER_INGEST, ring: KeyRing | None = None) -> None:
         self._client_factory = client_factory
-        self._store = store
+        self._store = _SoVlm() if store is _MAC_DINH else store
         self._max_calls = max_calls
         self._ring = ring or KeyRing()
         self._clients: dict[int, object] = {}

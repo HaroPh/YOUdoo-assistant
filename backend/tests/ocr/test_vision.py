@@ -152,3 +152,20 @@ def test_page_png_tra_bytes_png():
     from PIL import Image
     b = vision.page_png(Image.new("RGB", (4, 4), "white"))
     assert b[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_VisionReader_mac_dinh_TU_CO_so_khong_can_ai_tiem():
+    """#29 vòng 2: bản vá đầu chỉ đặt sổ ở `parse.VISION_READER_FACTORY`, nên
+    MỌI chỗ dựng `VisionReader()` trực tiếp vẫn vô hình với sổ ngân sách — spike
+    trang thuyết minh 2026-09-19 gọi 23 lượt thật và sổ ghi 0. Mặc định phải TỰ
+    có sổ; `store=None` tường minh mới là tắt."""
+    assert VisionReader()._store is not None
+    assert VisionReader(store=None)._store is None, "tắt sổ phải tường minh"
+
+
+def test_so_VLM_trong_test_la_ban_TRONG_BO_NHO_khong_cham_postgres():
+    """Đối chứng cho rào `so_vlm_khong_cham_postgres` ở conftest: nếu rào chết,
+    test này đỏ TRƯỚC khi 18 dòng rác nữa lọt vào `public.llm_usage`."""
+    from src.llm.store import InMemoryUsageStore
+    assert isinstance(vision._SoVlm._store, InMemoryUsageStore)
+    assert vision._SoVlm._da_thu is True, "đã 'thử mở' rồi nên record() không dựng pool thật"

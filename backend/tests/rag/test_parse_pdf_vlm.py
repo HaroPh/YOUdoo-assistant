@@ -213,9 +213,10 @@ def test_so_VLM_mo_ket_noi_MUON_chu_khong_phai_luc_dung_nha_may(monkeypatch):
     trong constructor. Dựng sớm thì (a) một pool mỗi tài liệu, (b) mọi test đơn
     vị đi qua `parse_pdf` chạm Postgres dù KHÔNG có lượt VLM nào — bộ đọc tự tắt
     khi thiếu khoá. Nên chỉ `record()` mới được mở."""
+    from src.ocr import vision
     from src.rag import parse
-    parse._SoVlm._store = None
-    parse._SoVlm._da_thu = False
+    vision._SoVlm._store = None
+    vision._SoVlm._da_thu = False
     mo = []
     monkeypatch.setattr("src.llm.store.PostgresUsageStore",
                         lambda *a, **k: mo.append(1) or _SoGia())
@@ -235,16 +236,17 @@ def test_so_VLM_hong_chi_thu_MOT_lan_va_khong_giet_luot_nap(monkeypatch):
     """Postgres sập không được thành 30 lần thử lại (timeout 2s mỗi lần) trong
     một tài liệu. Lần đầu ném ra để `VisionReader._record` log cảnh báo (nó đã
     bọc try/except, đã có test) — từ đó im lặng."""
+    from src.ocr import vision
     from src.rag import parse
-    parse._SoVlm._store = None
-    parse._SoVlm._da_thu = False
+    vision._SoVlm._store = None
+    vision._SoVlm._da_thu = False
     thu = []
 
     def no(*a, **k):
         thu.append(1)
         raise RuntimeError("postgres sap")
     monkeypatch.setattr("src.llm.store.PostgresUsageStore", no)
-    so = parse._SoVlm()
+    so = vision._SoVlm()
     kw = dict(ts=None, alias="vlm-ocr", provider="google", upstream="google",
               prompt_tokens=1, completion_tokens=2, total_tokens=3)
     with pytest.raises(RuntimeError):

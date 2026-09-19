@@ -53,6 +53,30 @@ def friction_log_path(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def so_vlm_khong_cham_postgres(request):
+    """Sổ `llm_usage` của VLM phải là bản TRONG BỘ NHỚ trong test.
+
+    Từ 2026-09-19 `VisionReader` MẶC ĐỊNH tự có sổ (`vision._SoVlm`) thay vì
+    chờ người gọi tiêm — cần thiết, vì bản vá chỉ-đặt-ở-nhà-máy bị đi vòng qua
+    ngay trong ngày. Nhưng nó biến mọi test đọc-thành-công bằng client giả
+    thành một lượt GHI THẬT vào `public.llm_usage`: đo được 18 dòng rác
+    `p=1200 c=300 t=1500` (payload giả của `test_vision.py`) lọt vào sổ sản
+    xuất trong hai lượt chạy suite. Sổ ngân sách bị test bơm phồng thì mọi
+    quyết định hạn mức đọc từ nó đều sai — cùng lớp lỗi với "test làm bẩn bảng
+    kiểm toán" đã trả giá trước đây.
+
+    Test `live` giữ sổ thật: đó là lúc lượt gọi CÓ thật và đáng được đếm."""
+    from src.ocr import vision
+    if request.node.get_closest_marker("live") is not None:
+        return
+    from src.llm.store import InMemoryUsageStore
+    cu_store, cu_thu = vision._SoVlm._store, vision._SoVlm._da_thu
+    vision._SoVlm._store, vision._SoVlm._da_thu = InMemoryUsageStore(), True
+    yield
+    vision._SoVlm._store, vision._SoVlm._da_thu = cu_store, cu_thu
+
+
+@pytest.fixture(autouse=True)
 def vlm_keys_off_unless_live(request, monkeypatch):
     """Khoá VLM (`YOUDOO_VLM_API_KEY*`) chỉ tồn tại trong test đánh dấu `live`.
     Không có fixture này, một test đơn vị đi qua `parse_pdf` với trang có tiêu
