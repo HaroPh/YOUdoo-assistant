@@ -135,6 +135,20 @@ def build_citations(chunks) -> str:
     Ngày đặt SAU tên tệp và TRƯỚC số trang, nên chuỗi con "{file}" vẫn liền
     mạch — `citation_acc` của bộ synthesis_live kiểm `expect_source in footer`
     bằng basename.
+
+    VÌ SAO DÒNG TIÊU ĐỀ NÊU "kho tài liệu chung" (#34, 2026-09-19). Đo qua Open
+    WebUI thật: người dùng đính NTC_2025.pdf, Open WebUI tìm 0 nguồn trong tệp
+    (Ollama nhúng tắt) rồi gọi ta như không có tệp; ta trả lời từ kho chung
+    bằng số của SID — trích dẫn trông chuẩn, SAI TÀI LIỆU, giao diện không cho
+    cách nào nhận ra. Phía ta KHÔNG phát hiện được "có tệp đính kèm": Open WebUI
+    pop cả `files` (utils/middleware.py:2600) lẫn `metadata`
+    (routers/openai.py:1207) trước khi gọi, nên request có-tệp-0-nguồn và
+    không-tệp giống nhau từng byte. Thứ ta biết chắc: footer này CHỈ sinh trên
+    đường kho chung (câu trả lời từ ngữ cảnh Open WebUI chèn không đi qua đây).
+    Vậy nói thẳng LỚP nguồn ngay trên dòng tiêu đề — ai vừa đính tệp mà đọc
+    thấy "kho tài liệu chung" là có tín hiệu tức thì. Nhãn đứng SAU dấu hai
+    chấm, cùng dòng, để chuỗi con "📄 Nguồn:" (nhiều test) và basename
+    (`citation_acc`) còn nguyên.
     """
     if not chunks:
         return ""
@@ -154,7 +168,7 @@ def build_citations(chunks) -> str:
                 c, "effective_date", None) else ""
             tail += f", tr.{c.page}" if c.page is not None else ""
             lines.append(f"• {loc} ({base}{tail})")
-    return "\n\n📄 Nguồn:\n" + "\n".join(lines)
+    return "\n\n📄 Nguồn: kho tài liệu chung\n" + "\n".join(lines)
 
 
 def extract_used_citations(body: str, chunks: list) -> tuple[str, list]:
