@@ -152,6 +152,20 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
                 and result["truncated_answer"] == 0)
     if set_name == "intent":
         return result["acc"] >= base["acc"]
+    if set_name == "retrieval":
+        # Có 3 file baseline khác `dang_go` và cờ --no-rerank: so kết quả với
+        # baseline khác cấu hình là so táo với cam. DÙNG SAI, không phải hồi
+        # quy → ném, không trả FAIL.
+        for khoa in ("dang_go", "rerank"):
+            if result[khoa] != base[khoa]:
+                raise ValueError(f"baseline khác cấu hình {khoa}: "
+                                 f"đo={result[khoa]!r} baseline={base[khoa]!r}")
+        # r@20 là TRẦN POOL (reranker chỉ chọn trong 20 ứng viên) — tụt là có
+        # tài liệu bị lọc mất khỏi ứng viên, không dung sai. r@6 chịu 1/n như
+        # `confirm` vì rerank blend có thể lật một ca biên; mrr không gác —
+        # thứ hạng trong 6 chunk model đều đọc cả (rerank blend 2026-08-20).
+        return (result["recall_at_20"] >= base["recall_at_20"]
+                and result["recall_at_6"] >= base["recall_at_6"] - 1 / result["n"])
     return (result["false_confirm"] == 0
             and result["acc"] >= base["acc"] - 1 / result["n"])
 
