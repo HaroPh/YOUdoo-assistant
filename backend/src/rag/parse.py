@@ -676,7 +676,8 @@ def _khoi_tu_vlm_tm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tup
 
     rb = so_hoc.rang_buoc_tu_bang_con(rows)
     rep = so_hoc.classify_rows(rows, rb, cols, strict_absent=False,
-                               extra_issues=issues, key_by_index=True)
+                               extra_issues=issues, key_by_index=True,
+                               fail_rejects=False)   # xem chú thích trong classify_rows
     columns = ["Chỉ tiêu", *cols]
     blocks: list[dict] = []
     loai: list[str] = []

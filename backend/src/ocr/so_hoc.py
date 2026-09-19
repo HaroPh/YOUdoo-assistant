@@ -554,7 +554,8 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
                   value_columns: list[str], *, strict_absent: bool = False,
                   conflicts: list[tuple[Constraint, Constraint]] | None = None,
                   extra_issues: list[RowIssue] = (),
-                  key_by_index: bool = False) -> PageReport:
+                  key_by_index: bool = False,
+                  fail_rejects: bool = True) -> PageReport:
     """Quy tắc theo hàng của spec — tất định, khớp đầu tiên thắng:
 
     1. REJECTED: có ô BAD / sai độ rộng / trùng mã số; HOẶC được BẤT KỲ ràng
@@ -634,7 +635,18 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
             continue
         num = bool(so_cot)
         if ma_s is not None and ma_s in fail_reason:
-            out.append(RowVerdict(i, ma_s, RowStatus.REJECTED, fail_reason[ma_s], num))
+            # `fail_rejects=False` — đường TRANG THUYẾT MINH. Ở đường mã số,
+            # ràng buộc là `tt99.json` (chuẩn ngoài) nên FAIL ⇒ đọc sai ⇒ LOẠI.
+            # Ở đường thuyết minh, ràng buộc là LỜI KHAI CẤU TRÚC của chính
+            # model (`loai`/`cap`), nên FAIL không phân biệt được "cấu trúc sai"
+            # với "số sai" — đo lúc nạp lại corpus 2026-09-19: 14 FAIL trên SID
+            # đều kiểu "Doanh thu thuần"/"Số dư đầu năm" (HIỆU bị gắn cong_don),
+            # loại cả cụm làm mất ~70 hàng từng có trong corpus. Hạ xuống
+            # `unverified` + giữ `numeric` để extract gắn dấu — người dùng vẫn
+            # thấy số kèm "chưa kiểm". Rác cấu trúc (width/bad_money) vẫn loại
+            # ở `reject_idx` phía trên, không đi qua nhánh này.
+            st = RowStatus.REJECTED if fail_rejects else RowStatus.UNVERIFIED
+            out.append(RowVerdict(i, ma_s, st, fail_reason[ma_s], num))
             continue
         if capped:
             out.append(RowVerdict(i, ma_s, RowStatus.UNVERIFIED, capped_reason, num))

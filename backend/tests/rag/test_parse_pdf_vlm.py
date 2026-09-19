@@ -330,4 +330,7 @@ def test_bang_con_KHONG_cong_dung_thi_hang_mang_co_chua_kiem(monkeypatch):
     blocks, canh_bao, _ = p._khoi_tu_vlm_tm(_FakeVisionTM(xau), "x.pdf", 61,
                                             SimpleNamespace(rotation=0))
     assert "FAIL 1" in canh_bao[1], canh_bao[1]
-    assert [b for b in blocks if b.get("atomic")] == [], "cả cụm FAIL phải bị loại"
+    hang = [b for b in blocks if b.get("atomic")]
+    assert len(hang) == 4, "đường tm GIỮ hàng khi FAIL (fail_rejects=False), không loại"
+    assert all(b["source_kind"] == "vision_unverified" for b in hang)
+    assert all(b.get("unverified_money") for b in hang), "phải mang cờ để extract gắn dấu"

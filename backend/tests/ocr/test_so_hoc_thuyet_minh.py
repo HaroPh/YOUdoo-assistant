@@ -125,3 +125,54 @@ def test_mac_dinh_van_la_duong_MA_SO_khong_doi_mot_byte():
     rows = [{"chi_tieu": "x", "ma_so": None, "Số cuối năm": "1.000.000"}]
     rep = classify_rows(rows, [], ["Số cuối năm"], strict_absent=False)
     assert rep.capped_unverified and "mã số" in rep.capped_reason
+
+
+def test_FAIL_tren_duong_tm_HA_xuong_unverified_khong_LOAI():
+    """Đo lúc nạp lại corpus sản xuất 2026-09-19: 14 FAIL trên SID kéo theo ~70
+    hàng bị LOẠI — chúng từng có trong corpus dưới dạng hàng Tesseract, giờ mất.
+    Các FAIL là `Doanh thu thuần`, `Số dư đầu năm`, bảng bộ phận: model gắn
+    `cong_don` cho HIỆU/SỐ DƯ dù prompt đã tách `hieu`.
+
+    Bản chất khác đường báo cáo chính: ở đó ràng buộc là `tt99.json` (chuẩn
+    ngoài) nên FAIL ⇒ đọc sai ⇒ loại. Ở đây ràng buộc là LỜI KHAI CẤU TRÚC của
+    chính model, FAIL không phân biệt được "cấu trúc sai" với "số sai" (spike:
+    38/38 chữ số đúng). Loại là quá tay; hạ xuống `unverified` + giữ lại thì
+    người dùng vẫn thấy số kèm dấu chưa kiểm — đường đã có."""
+    pl = {"cot": COT, "hang": [
+        _tm("21. DOANH THU", 1, "Doanh thu bán hàng", ["100.000.000", "90.000.000"]),
+        _tm("21. DOANH THU", 1, "Các khoản giảm trừ", ["10.000.000", "5.000.000"]),
+        # model gắn nhầm cong_don cho HIỆU -> ràng buộc 2 = 0 + 1 FAIL
+        _tm("21. DOANH THU", 0, "Doanh thu thuần", ["90.000.000", "85.000.000"], "cong_don"),
+    ]}
+    rows, cols, issues = rows_from_vision_tm(pl)
+    rb = rang_buoc_tu_bang_con(rows)
+    assert len(rb) == 1
+    rep = classify_rows(rows, rb, cols, strict_absent=False, key_by_index=True,
+                        fail_rejects=False)
+    assert [r.status for r in rep.rows] == [RowStatus.UNVERIFIED] * 3, (
+        [(r.status, r.reason) for r in rep.rows])
+    assert all(r.numeric for r in rep.rows), "cờ numeric giữ để extract gắn dấu"
+    assert "lệch" in rep.rows[2].reason, "lý do FAIL phải còn để cảnh báo nêu"
+
+
+def test_width_bad_money_van_LOAI_du_fail_rejects_False():
+    """`fail_rejects=False` chỉ nới FAIL số học. Rác cấu trúc (thừa ô, ô tiền
+    rác) vẫn là rác — không có gì để 'chưa kiểm', chỉ có sai."""
+    pl = {"cot": COT, "hang": [
+        _tm("A", 1, "a1", ["1.000.000", "2.000.000", "THỪA"]),   # width
+        _tm("A", 1, "a2", ["1.00O.000", "2.000.000"]),           # bad_money (chữ O)
+        _tm("A", 0, "TỔNG CỘNG", ["2.000.000", "4.000.000"], "cong_don"),
+    ]}
+    rows, cols, issues = rows_from_vision_tm(pl)
+    rep = classify_rows(rows, rang_buoc_tu_bang_con(rows), cols, strict_absent=False,
+                        key_by_index=True, fail_rejects=False, extra_issues=issues)
+    assert rep.rows[0].status == RowStatus.REJECTED and "width" in rep.rows[0].reason
+    assert rep.rows[1].status == RowStatus.REJECTED and "bad_money" in rep.rows[1].reason
+
+
+def test_mac_dinh_fail_van_LOAI_duong_bao_cao_chinh_khong_doi():
+    rows, cols, _ = rows_from_vision_tm({"cot": COT, "hang": [
+        _tm("A", 1, "a1", ["1.000.000", "1.000.000"]), _tm("A", 1, "a2", ["1.000.000", "1.000.000"]),
+        _tm("A", 0, "TỔNG CỘNG", ["9.000.000", "9.000.000"], "cong_don")]})
+    rep = classify_rows(rows, rang_buoc_tu_bang_con(rows), cols, strict_absent=False, key_by_index=True)
+    assert all(r.status == RowStatus.REJECTED for r in rep.rows), "mặc định giữ hành vi cũ"
