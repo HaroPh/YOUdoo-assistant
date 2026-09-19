@@ -476,3 +476,30 @@ def test_chunk_mac_dinh_text_de_state_cu_dung_lai_duoc():
     assert d["source_kind"] == "text"
     d.pop("source_kind")                       # state ghi trước 2026-09-11
     assert chunks_from_dicts([d])[0].source_kind == "text"
+
+
+def test_footer_noi_ro_LOP_nguon_la_kho_chung():
+    """#34 (2026-09-19). Đo qua Open WebUI thật: người dùng đính NTC, Open WebUI
+    tìm 0 nguồn trong tệp (Ollama nhúng tắt), backend LẶNG LẼ trả lời từ kho
+    chung bằng số của SID — trích dẫn trông chuẩn, SAI TÀI LIỆU, không có cách
+    nào nhận ra từ giao diện.
+
+    Không phát hiện được "có tệp đính kèm" ở phía ta: Open WebUI pop cả `files`
+    (middleware.py:2600) lẫn `metadata` (routers/openai.py:1207) trước khi gọi;
+    request có-tệp-0-nguồn và không-tệp giống nhau từng byte. Thứ ta BIẾT chắc:
+    footer này chỉ sinh trên đường kho chung. Nên nói thẳng LỚP nguồn — ai vừa
+    đính tệp mà đọc thấy "kho tài liệu chung" là có tín hiệu ngay.
+
+    Nhãn đứng SAU dấu hai chấm, cùng dòng: mọi test khác khớp chuỗi con
+    "📄 Nguồn:" và eval `citation_acc` khớp basename — cả hai còn nguyên."""
+    from src.agents.synthesis import build_citations
+    from src.rag.types import Chunk
+    c = Chunk(chunk_id=1, doc_id="d", source_file="D:/x/policy.docx", doc_title="p",
+              section_path="Chính sách › Mục 1", page=1, sheet=None, row_range=None,
+              text="…", effective_date=None, source_kind="text",
+              dense_score=None, sparse_score=None, rrf_score=0.0, rank=0)
+    foot = build_citations([c])
+    dong_dau = foot.strip().split("\n")[0]
+    assert dong_dau.startswith("📄 Nguồn:"), dong_dau
+    assert "kho tài liệu chung" in dong_dau, "phải nêu LỚP nguồn ngay trên dòng tiêu đề"
+    assert "• Chính sách › Mục 1 (policy.docx, tr.1)" in foot
