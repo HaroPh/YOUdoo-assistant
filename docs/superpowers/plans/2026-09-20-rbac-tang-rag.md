@@ -1068,10 +1068,11 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
 
 ```python
         # Baseline ghi trước 19b không có khoá role → hiểu là admin.
-        vai_do, vai_goc = result.get("role", "admin"), base.get("role", "admin")
-        if vai_do != vai_goc:
-            raise ValueError(f"baseline khác cấu hình role: đo={vai_do!r} "
-                             f"baseline={vai_goc!r} — cổng ÂM dùng "
+        measured_role = result.get("role", "admin")
+        baseline_role = base.get("role", "admin")
+        if measured_role != baseline_role:
+            raise ValueError(f"baseline khác cấu hình role: đo={measured_role!r} "
+                             f"baseline={baseline_role!r} — cổng ÂM dùng "
                              f"evals/compare_visibility.py, không dùng --baseline")
 ```
 
@@ -1236,12 +1237,12 @@ def main(argv=None) -> int:
         return 2
     admin = json.load(open(argv[0], encoding="utf-8"))
     restricted = json.load(open(argv[1], encoding="utf-8"))
-    ra = compare(admin, restricted)
-    print(json.dumps(ra, ensure_ascii=False, indent=2))
-    print(f"CỔNG ÂM {'PASS' if ra['ok'] else 'FAIL'} — thương mại {ra['n_commercial']} ca "
-          f"(lộ {len(ra['commercial_leaked'])}), khác {ra['n_other']} ca "
-          f"(kém đi {len(ra['regressed'])})")
-    return 0 if ra["ok"] else 1
+    result = compare(admin, restricted)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(f"CỔNG ÂM {'PASS' if result['ok'] else 'FAIL'} — thương mại {result['n_commercial']} ca "
+          f"(lộ {len(result['commercial_leaked'])}), khác {result['n_other']} ca "
+          f"(kém đi {len(result['regressed'])})")
+    return 0 if result["ok"] else 1
 
 
 if __name__ == "__main__":
