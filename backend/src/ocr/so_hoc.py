@@ -553,7 +553,8 @@ MIN_CODED_ROWS = 2
 def classify_rows(rows: list[dict], constraints: list[Constraint],
                   value_columns: list[str], *, strict_absent: bool = False,
                   conflicts: list[tuple[Constraint, Constraint]] | None = None,
-                  extra_issues: list[RowIssue] = ()) -> PageReport:
+                  extra_issues: list[RowIssue] = (),
+                  key_by_index: bool = False) -> PageReport:
     """Quy tắc theo hàng của spec — tất định, khớp đầu tiên thắng:
 
     1. REJECTED: có ô BAD / sai độ rộng / trùng mã số; HOẶC được BẤT KỲ ràng
@@ -569,8 +570,16 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
     `so_tien` sai từ `rows_from_vision` — gộp vào cùng một danh sách.
     """
     issues = [*extra_issues, *check_structure(rows, value_columns)]
+    # `key_by_index`: đường TRANG THUYẾT MINH — ràng buộc từ
+    # `rang_buoc_tu_bang_con` khoá theo CHỈ SỐ hàng vì trang không có mã số. Hai
+    # bất biến của đường mã số phải tắt theo, nếu không cổng mới vô dụng: trần
+    # "ít hơn N hàng có mã số" (đúng cảnh báo thấy khi nạp SID) và đơn điệu mã
+    # số (không có mã thì không có thứ tự để đơn điệu). Mặc định False -> đường
+    # trang báo cáo chính không đổi một byte, có test gác hai chiều.
     capped_reason = ""
-    if any(i.kind == "non_monotonic" for i in issues):
+    if key_by_index:
+        pass
+    elif any(i.kind == "non_monotonic" for i in issues):
         capped_reason = "mã số KHÔNG đơn điệu"
     elif sum(r.get("ma_so") is not None for r in rows) < MIN_CODED_ROWS:
         capped_reason = f"ít hơn {MIN_CODED_ROWS} hàng có mã số"
@@ -583,11 +592,17 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
     # Hàng bị loại vì cấu trúc KHÔNG được tham gia lookup: một hàng lặp mã số
     # nếu vào lookup sẽ che hàng thật; một ô BAD đã là NA sẵn nhưng loại sớm
     # cho nhất quán.
+    def _khoa(i: int, r: dict) -> str | None:
+        if key_by_index:
+            return str(i)
+        return None if r.get("ma_so") is None else str(r["ma_so"])
+
     by_ma: dict[str, dict] = {}
     for i, r in enumerate(rows):
-        if i in reject_idx or r.get("ma_so") is None:
+        k = _khoa(i, r)
+        if i in reject_idx or k is None:
             continue
-        by_ma[str(r["ma_so"])] = r
+        by_ma[k] = r
     evaluations = [evaluate(c, by_ma.get, col, strict_absent=strict_absent)
                    for c in constraints for col in value_columns]
 
@@ -608,13 +623,13 @@ def classify_rows(rows: list[dict], constraints: list[Constraint],
     out: list[RowVerdict] = []
     for i, r in enumerate(rows):
         ma = r.get("ma_so")
-        ma_s = None if ma is None else str(ma)
+        ma_s = _khoa(i, r) if key_by_index else (None if ma is None else str(ma))
         if i in reject_idx:
             out.append(RowVerdict(i, ma_s, RowStatus.REJECTED, reject_idx[i]))
             continue
         cells = {c: parse_money(r[c]) for c in value_columns if r.get(c) is not None}
         so_cot = [c for c, v in cells.items() if isinstance(v, int)]
-        if ma_s is None and not so_cot:
+        if (ma_s is None or key_by_index) and not so_cot:
             out.append(RowVerdict(i, None, RowStatus.LABEL))
             continue
         num = bool(so_cot)
@@ -745,6 +760,93 @@ def rows_from_vision(payload: dict) -> tuple[list[dict], list[str], list[RowIssu
             issues.append(RowIssue(i, ma_s, "width", f"{len(so_tien)} ô cho {len(cols)} cột"))
         rows.append(r)
     return rows, list(cols), issues
+
+
+def rows_from_vision_tm(payload: dict) -> tuple[list[dict], list[str], list[RowIssue]]:
+    """Hợp đồng VLM **tm-v1** cho TRANG THUYẾT MINH:
+    `{"cot": [...], "hang": [{"bang", "cap", "nhan", "gia_tri": [...], "loai"}]}`
+
+    Khác `rows_from_vision` đúng chỗ trang thuyết minh khác trang báo cáo chính:
+    KHÔNG có `ma_so`/`thuyet_minh`, thay bằng `bang` (hàng thuộc bảng con nào) +
+    `cap` (tầng) + `loai`. `ma_so` luôn None — không bịa mã giả, vì
+    `parse._khoi_tu_vlm` in "Mã số:" vào text người dùng.
+
+    `loai`: `cong_don` (tổng cộng dồn) | `hieu` (doanh thu thuần, lợi nhuận gộp
+    — là HIỆU, ràng buộc Σ sai bản chất) | `thuong`.
+    """
+    cols = payload.get("cot")
+    if not isinstance(cols, list) or not cols or not all(isinstance(c, str) and c for c in cols):
+        raise ValueError("VLM không khai `cot` hợp lệ")
+    if len(set(cols)) != len(cols):
+        raise ValueError(f"`cot` trùng tên: {cols}")
+    hang = payload.get("hang")
+    if not isinstance(hang, list):
+        raise ValueError("VLM không trả `hang` là list")
+    rows: list[dict] = []
+    issues: list[RowIssue] = []
+    for i, h in enumerate(hang):
+        if not isinstance(h, dict):
+            raise ValueError(f"hàng {i} không phải object")
+        gt = h.get("gia_tri")
+        if gt is None:
+            gt = []
+        if not isinstance(gt, list):
+            raise ValueError(f"hàng {i}: `gia_tri` không phải list")
+        cap = h.get("cap")
+        r = {"muc": None, "chi_tieu": h.get("nhan") or "", "ma_so": None,
+             "bang": h.get("bang"), "cap": None if cap is None else int(cap),
+             "loai": h.get("loai") or "thuong"}
+        for c, v in zip(cols, gt):
+            r[c] = None if v is None else str(v).strip()
+        if len(gt) > len(cols):
+            issues.append(RowIssue(i, None, "width", f"{len(gt)} ô cho {len(cols)} cột"))
+        rows.append(r)
+    return rows, list(cols), issues
+
+
+def rang_buoc_tu_bang_con(rows: list[dict]) -> list[Constraint]:
+    """Ràng buộc Σ suy từ CẤU TRÚC bảng con — tầng (d), chỉ cho trang thuyết minh.
+
+    Khoá là **chỉ số hàng** (chuỗi), không phải mã số: trang thuyết minh không có
+    mã số. `classify_rows(key_by_index=True)` khoá cùng cách.
+
+    Quy tắc quy thuộc, MỘT luật phủ cả hai hình dạng quan sát được: một hàng ở
+    cấp `m` thuộc về hàng cấp `m-1` **gần nhất, lùi trước rồi mới tiến**, trong
+    cùng `bang`. Cần cả hai chiều vì bảng thật trộn hai kiểu — hàng cha
+    "Ngắn hạn" đứng TRƯỚC các con của nó, còn "TỔNG CỘNG" đứng SAU các hàng cha
+    mà nó cộng (đo trên NTC tr48/tr53/tr57).
+
+    Chỉ hàng `loai == "cong_don"` sinh ràng buộc: `hieu` là phép trừ nên Σ sai
+    bản chất — spike tm-v0 gắn cờ tổng cho chúng và đó là một trong hai nguồn
+    FAIL giả.
+
+    Bỏ ràng buộc chỉ có 1 thành phần: "tổng = một hàng" là đồng nhất thức, không
+    chứng minh gì mà lại cấp bậc `verified` cho cả hai hàng.
+    """
+    theo_bang: dict[object, list[int]] = {}
+    for i, r in enumerate(rows):
+        theo_bang.setdefault(r.get("bang"), []).append(i)
+    out: list[Constraint] = []
+    for bang, idxs in theo_bang.items():
+        if bang is None:            # không biết thuộc bảng nào -> không dám gom
+            continue
+        cap = {i: rows[i].get("cap") for i in idxs}
+        for i in idxs:
+            if rows[i].get("loai") != "cong_don" or cap[i] is None:
+                continue
+            n = cap[i]
+            terms: list[tuple[str, int]] = []
+            for j in idxs:
+                if j == i or cap[j] != n + 1:
+                    continue
+                truoc = [x for x in idxs if x < j and cap[x] == n]
+                sau = [x for x in idxs if x > j and cap[x] == n]
+                chu = truoc[-1] if truoc else (sau[0] if sau else None)
+                if chu == i:
+                    terms.append((str(j), 1))
+            if len(terms) >= 2:
+                out.append(Constraint(str(i), terms, "bang_con"))
+    return out
 
 
 # --- lắp ráp: chọn bảng bằng số học, gộp tầng, phân loại ----------------------------

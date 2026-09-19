@@ -1,0 +1,86 @@
+{
+ "trang": 61,
+ "model": "gemini-3.5-flash-lite",
+ "tokens": 2015,
+ "payload": {
+  "cot": [
+   "Số cuối năm",
+   "Số đầu năm"
+  ],
+  "hang": [
+   {
+    "bang": "29.1 Cam kết cho thuê hoạt động",
+    "nhan": "Đến 1 năm",
+    "gia_tri": [
+     "4.941.448.061",
+     "15.611.296.360"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "29.1 Cam kết cho thuê hoạt động",
+    "nhan": "Từ 1 đến 5 năm",
+    "gia_tri": [
+     "686.060.606",
+     "44.066.767.985"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "29.1 Cam kết cho thuê hoạt động",
+    "nhan": "Trên 5 năm",
+    "gia_tri": [
+     null,
+     "94.841.935.650"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "29.1 Cam kết cho thuê hoạt động",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "5.627.508.667",
+     "154.519.999.995"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "29.2 Cam kết thuê hoạt động",
+    "nhan": "Đến 1 năm",
+    "gia_tri": [
+     "5.753.213.767",
+     "5.999.543.767"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "29.2 Cam kết thuê hoạt động",
+    "nhan": "Từ 1 đến 5 năm",
+    "gia_tri": [
+     "17.897.201.285",
+     "18.310.928.759"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "29.2 Cam kết thuê hoạt động",
+    "nhan": "Trên 5 năm",
+    "gia_tri": [
+     "61.153.500.007",
+     "64.464.642.383"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "29.2 Cam kết thuê hoạt động",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "84.803.915.059",
+     "88.775.114.909"
+    ],
+    "la_tong": true
+   }
+  ]
+ },
+ "raw": "{\"cot\": [\"Số cuối năm\", \"Số đầu năm\"], \"hang\": [{\"bang\": \"29.1 Cam kết cho thuê hoạt động\", \"nhan\": \"Đến 1 năm\", \"gia_tri\": [\"4.941.448.061\", \"15.611.296.360\"], \"la_tong\": false}, {\"bang\": \"29.1 Cam kết cho thuê hoạt động\", \"nhan\": \"Từ 1 đến 5 năm\", \"gia_tri\": [\"686.060.606\", \"44.066.767.985\"], \"la_tong\": false}, {\"bang\": \"29.1 Cam kết cho thuê hoạt động\", \"nhan\": \"Trên 5 năm\", \"gia_tri\": [null, \"94.841.935.650\"], \"la_tong\": false}, {\"bang\": \"29.1 Cam kết cho thuê hoạt động\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"5.627.508.667\", \"154.519.999.995\"], \"la_tong\": true}, {\"bang\": \"29.2 Cam kết thuê hoạt động\", \"nhan\": \"Đến 1 năm\", \"gia_tri\": [\"5.753.213.767\", \"5.999.543.767\"], \"la_tong\": false}, {\"bang\": \"29.2 Cam kết thuê hoạt động\", \"nhan\": \"Từ 1 đến 5 năm\", \"gia_tri\": [\"17.897.201.285\", \"18.310.928.759\"], \"la_tong\": false}, {\"bang\": \"29.2 Cam kết thuê hoạt động\", \"nhan\": \"Trên 5 năm\", \"gia_tri\": [\"61.153.500.007\", \"64.464.642.383\"], \"la_tong\": false}, {\"bang\": \"29.2 Cam kết thuê hoạt động\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"84.803.915.059\", \"88.775.114.909\"], \"la_tong\": true}]}"
+}

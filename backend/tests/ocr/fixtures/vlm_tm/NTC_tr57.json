@@ -1,0 +1,212 @@
+{
+ "trang": 57,
+ "model": "gemini-3.5-flash-lite",
+ "tokens": 3246,
+ "payload": {
+  "cot": [
+   "Năm nay",
+   "Năm trước"
+  ],
+  "hang": [
+   {
+    "bang": "22. GIÁ VỐN HÀNG BÁN VÀ DỊCH VỤ CUNG CẤP",
+    "nhan": "Giá vốn bán lẻ xăng dầu",
+    "gia_tri": [
+     "1.339.756.633.297",
+     "1.562.873.054.081"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "22. GIÁ VỐN HÀNG BÁN VÀ DỊCH VỤ CUNG CẤP",
+    "nhan": "Giá vốn cho thuê và cung cấp dịch vụ",
+    "gia_tri": [
+     "1.228.745.328",
+     "1.228.745.328"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "22. GIÁ VỐN HÀNG BÁN VÀ DỊCH VỤ CUNG CẤP",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "1.340.985.378.625",
+     "1.564.101.799.409"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "23. CHI PHÍ TÀI CHÍNH",
+    "nhan": "Chi phí lãi vay",
+    "gia_tri": [
+     "1.394.888.062",
+     "824.457.045"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "23. CHI PHÍ TÀI CHÍNH",
+    "nhan": "(Hoàn nhập dự phòng) dự phòng tổn thất đầu tư",
+    "gia_tri": [
+     "(36.675.200)",
+     "48.559.600"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "23. CHI PHÍ TÀI CHÍNH",
+    "nhan": "Chi phí khác",
+    "gia_tri": [
+     "19.883.876",
+     "15.469.424"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "23. CHI PHÍ TÀI CHÍNH",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "1.378.096.738",
+     "888.486.069"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí bán hàng",
+    "gia_tri": [
+     "52.760.860.385",
+     "53.336.578.818"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí nhân viên",
+    "gia_tri": [
+     "25.381.845.541",
+     "28.468.769.347"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí dịch vụ mua và thuê ngoài",
+    "gia_tri": [
+     "18.566.289.979",
+     "16.029.291.104"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí khấu hao",
+    "gia_tri": [
+     "2.798.861.741",
+     "2.847.085.058"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí dụng cụ, đồ dùng",
+    "gia_tri": [
+     "999.149.237",
+     "885.669.360"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí khác",
+    "gia_tri": [
+     "5.014.713.887",
+     "5.105.763.949"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí quản lý doanh nghiệp",
+    "gia_tri": [
+     "18.202.124.378",
+     "12.275.310.119"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí nhân viên quản lý",
+    "gia_tri": [
+     "10.838.532.806",
+     "6.108.132.423"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí khấu hao và hao mòn",
+    "gia_tri": [
+     "2.661.010.847",
+     "2.664.587.887"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí dịch vụ mua và thuê ngoài",
+    "gia_tri": [
+     "1.318.463.479",
+     "1.010.080.790"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "Chi phí khác",
+    "gia_tri": [
+     "3.384.117.246",
+     "2.492.509.019"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "70.962.984.763",
+     "65.611.888.937"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "25. THU NHẬP KHÁC",
+    "nhan": "Thu nhập từ phiếu xăng hết hạn sử dụng",
+    "gia_tri": [
+     "-",
+     "285.620.320"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "25. THU NHẬP KHÁC",
+    "nhan": "Khác",
+    "gia_tri": [
+     "13.841.826",
+     "106.554.493"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "25. THU NHẬP KHÁC",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "13.841.826",
+     "392.174.813"
+    ],
+    "la_tong": true
+   }
+  ]
+ },
+ "raw": "{\"cot\": [\"Năm nay\", \"Năm trước\"], \"hang\": [{\"bang\": \"22. GIÁ VỐN HÀNG BÁN VÀ DỊCH VỤ CUNG CẤP\", \"nhan\": \"Giá vốn bán lẻ xăng dầu\", \"gia_tri\": [\"1.339.756.633.297\", \"1.562.873.054.081\"], \"la_tong\": false}, {\"bang\": \"22. GIÁ VỐN HÀNG BÁN VÀ DỊCH VỤ CUNG CẤP\", \"nhan\": \"Giá vốn cho thuê và cung cấp dịch vụ\", \"gia_tri\": [\"1.228.745.328\", \"1.228.745.328\"], \"la_tong\": false}, {\"bang\": \"22. GIÁ VỐN HÀNG BÁN VÀ DỊCH VỤ CUNG CẤP\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"1.340.985.378.625\", \"1.564.101.799.409\"], \"la_tong\": true}, {\"bang\": \"23. CHI PHÍ TÀI CHÍNH\", \"nhan\": \"Chi phí lãi vay\", \"gia_tri\": [\"1.394.888.062\", \"824.457.045\"], \"la_tong\": false}, {\"bang\": \"23. CHI PHÍ TÀI CHÍNH\", \"nhan\": \"(Hoàn nhập dự phòng) dự phòng tổn thất đầu tư\", \"gia_tri\": [\"(36.675.200)\", \"48.559.600\"], \"la_tong\": false}, {\"bang\": \"23. CHI PHÍ TÀI CHÍNH\", \"nhan\": \"Chi phí khác\", \"gia_tri\": [\"19.883.876\", \"15.469.424\"], \"la_tong\": false}, {\"bang\": \"23. CHI PHÍ TÀI CHÍNH\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"1.378.096.738\", \"888.486.069\"], \"la_tong\": true}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí bán hàng\", \"gia_tri\": [\"52.760.860.385\", \"53.336.578.818\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí nhân viên\", \"gia_tri\": [\"25.381.845.541\", \"28.468.769.347\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí dịch vụ mua và thuê ngoài\", \"gia_tri\": [\"18.566.289.979\", \"16.029.291.104\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí khấu hao\", \"gia_tri\": [\"2.798.861.741\", \"2.847.085.058\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí dụng cụ, đồ dùng\", \"gia_tri\": [\"999.149.237\", \"885.669.360\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí khác\", \"gia_tri\": [\"5.014.713.887\", \"5.105.763.949\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí quản lý doanh nghiệp\", \"gia_tri\": [\"18.202.124.378\", \"12.275.310.119\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí nhân viên quản lý\", \"gia_tri\": [\"10.838.532.806\", \"6.108.132.423\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí khấu hao và hao mòn\", \"gia_tri\": [\"2.661.010.847\", \"2.664.587.887\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí dịch vụ mua và thuê ngoài\", \"gia_tri\": [\"1.318.463.479\", \"1.010.080.790\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"Chi phí khác\", \"gia_tri\": [\"3.384.117.246\", \"2.492.509.019\"], \"la_tong\": false}, {\"bang\": \"24. CHI PHÍ BÁN HÀNG VÀ CHI PHÍ QUẢN LÝ DOANH NGHIỆP\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"70.962.984.763\", \"65.611.888.937\"], \"la_tong\": true}, {\"bang\": \"25. THU NHẬP KHÁC\", \"nhan\": \"Thu nhập từ phiếu xăng hết hạn sử dụng\", \"gia_tri\": [\"-\", \"285.620.320\"], \"la_tong\": false}, {\"bang\": \"25. THU NHẬP KHÁC\", \"nhan\": \"Khác\", \"gia_tri\": [\"13.841.826\", \"106.554.493\"], \"la_tong\": false}, {\"bang\": \"25. THU NHẬP KHÁC\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"13.841.826\", \"392.174.813\"], \"la_tong\": true}]}"
+}

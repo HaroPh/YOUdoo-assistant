@@ -1,0 +1,77 @@
+{
+ "trang": 53,
+ "model": "gemini-3.5-flash-lite",
+ "tokens": 1976,
+ "payload": {
+  "cot": [
+   "Số cuối năm",
+   "Số đầu năm"
+  ],
+  "hang": [
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "Ngắn hạn",
+    "gia_tri": [
+     "20.825.614.486",
+     "21.163.576.100"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "Công ty Cổ phần Đầu tư Bất động sản Đô Thành (\"DOTHANHREAL\") (*)",
+    "gia_tri": [
+     "16.303.268.195",
+     "14.621.738.304"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "Ký quỹ, ký cược",
+    "gia_tri": [
+     "4.220.640.000",
+     "4.053.566.840"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "Khác",
+    "gia_tri": [
+     "301.706.291",
+     "2.488.270.956"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "Dài hạn",
+    "gia_tri": [
+     "4.476.504.100",
+     "4.389.824.100"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "Ký quỹ, ký cược",
+    "gia_tri": [
+     "4.476.504.100",
+     "4.389.824.100"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "17. PHẢI TRẢ KHÁC",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "25.302.118.586",
+     "25.553.400.200"
+    ],
+    "la_tong": true
+   }
+  ]
+ },
+ "raw": "{\"cot\": [\"Số cuối năm\", \"Số đầu năm\"], \"hang\": [{\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"Ngắn hạn\", \"gia_tri\": [\"20.825.614.486\", \"21.163.576.100\"], \"la_tong\": false}, {\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"Công ty Cổ phần Đầu tư Bất động sản Đô Thành (\\\"DOTHANHREAL\\\") (*)\", \"gia_tri\": [\"16.303.268.195\", \"14.621.738.304\"], \"la_tong\": false}, {\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"Ký quỹ, ký cược\", \"gia_tri\": [\"4.220.640.000\", \"4.053.566.840\"], \"la_tong\": false}, {\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"Khác\", \"gia_tri\": [\"301.706.291\", \"2.488.270.956\"], \"la_tong\": false}, {\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"Dài hạn\", \"gia_tri\": [\"4.476.504.100\", \"4.389.824.100\"], \"la_tong\": false}, {\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"Ký quỹ, ký cược\", \"gia_tri\": [\"4.476.504.100\", \"4.389.824.100\"], \"la_tong\": false}, {\"bang\": \"17. PHẢI TRẢ KHÁC\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"25.302.118.586\", \"25.553.400.200\"], \"la_tong\": true}]}"
+}
