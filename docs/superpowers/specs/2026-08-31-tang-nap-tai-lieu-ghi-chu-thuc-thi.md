@@ -3042,3 +3042,41 @@ phải độ chính xác OCR.
 - Worktree KHÔNG có `.env` (tệp gitignore ở gốc repo chính) → suite báo 21 fail
   + 65 error giả. Phải `set -a && . /d/Youdoo/.env && set +a` trước khi chạy.
 
+### Nạp lại corpus sản xuất + lát 5 lần đầu chạy trên tài liệu thật (2026-09-19)
+
+Sao lưu `backup_20260919` (18 tài liệu / 4.870 chunk) → xoá `public` → nạp 17
+seed + SID bằng `main` (`20d58d5`). Kết quả: **18 tài liệu / 4.541 chunk**,
+breadcrumb rác **544 → 0**, mọi chunk có embedding + `ts_vector_fold`.
+
+**Lát 5 trên SID (BCTC bán niên scan, 63 trang)**: 19 trang thuyết minh có kết
+quả, PASS 67 / FAIL 14 / NA 27; 3 trang từ chối vì VLM trả cột trùng tên (bảng
+nhóm cột theo năm: `Giá gốc, Giá gốc`) → giữ Tesseract. Chi phí đo được, sổ đếm
+đúng: **25 lượt / 70.092 token** — số đo đầu tiên của lát 5 trên tài liệu thật,
+~2.800 token/lượt.
+
+**Phát hiện: lát 5 XOÁ nội dung trên trang FAIL.** Quy tắc thừa hưởng "không
+bao giờ lưu hàng thất bại" loại cả cụm khi có ràng buộc FAIL. 14 FAIL trên SID
+đều kiểu `Doanh thu thuần`, `Số dư đầu năm trước`, bảng bộ phận — model gắn
+`cong_don` cho HIỆU/SỐ DƯ dù prompt đã tách `hieu`. Hàng bị loại từng có trong
+corpus dưới dạng Tesseract `ocr`, nay mất.
+
+Bản chất khác đường báo cáo chính: ở đó ràng buộc là `tt99.json` (chuẩn ngoài),
+FAIL ⇒ đọc sai ⇒ loại đúng. Ở đường thuyết minh ràng buộc là **lời khai cấu trúc
+của chính model**, FAIL không phân biệt được "cấu trúc sai" với "số sai" (spike:
+38/38 chữ số đúng). Sửa (`cc212ac`, merge `65420d9`): `classify_rows(
+fail_rejects=False)` cho đường tm — FAIL → `unverified`, giữ hàng + `numeric`
+để `UNVERIFIED_PREFIX` gắn dấu; `width`/`bad_money` vẫn loại.
+
+Nạp lại riêng SID sau sửa: hàng loại vì FAIL **0** (còn 3 loại vì width/
+bad_money — rác thật); `Doanh thu thuần` về corpus 7 chunk mang dấu; SID 640 →
+660 chunk; 25 lượt / 68.644 token. `public` cuối: **18 tài liệu / 4.561 chunk**.
+
+**Giới hạn lộ ra khi chạy hai lượt**: VLM **không tất định** — cùng trang, hai
+lượt trả cấu trúc hơi khác (`verified` 130 → 117, `unverified` 69 → 104, không
+phải do sửa). Mọi số đếm theo hàng của lát 5 mang phương sai theo lượt; muốn so
+hai cấu hình phải chạy nhiều lượt hoặc dùng fixture đã lưu.
+
+**Nợ mới**: bảng nhóm cột theo năm (cột trùng tên) → hợp đồng tm-v1 chưa đỡ;
+`loai=hieu` model vẫn gắn nhầm `cong_don` — cần tầng kiểm phép trừ hoặc prompt
+mạnh hơn, đo bằng fixture.
+
