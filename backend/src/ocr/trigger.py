@@ -29,7 +29,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from . import grid_rows, so_hoc
+from . import grid_rows, so_hoc, table
 
 # Tiêu đề in trên trang của ba báo cáo chính, theo cả TT 200/99 (doanh nghiệp)
 # lẫn TT 107 (hành chính sự nghiệp). So trên chuỗi bỏ dấu, chữ thường.
@@ -91,25 +91,68 @@ class Decision:
     reason: str
     tesseract: so_hoc.PageAssessment | None = None
     grid_rows: grid_rows.GridRows | None = None
+    # Hợp đồng VLM nào dùng cho trang này. `bang_chi_tieu` = prompt gốc (bảng
+    # có cột mã số); `thuyet_minh` = prompt tm-v1 (bảng con + cấp + loại tổng).
+    # None khi không gọi VLM.
+    che_do: str | None = None
+
+
+# Nhãn hàng tổng của bảng con — cùng tập với `so_hoc.rang_buoc_tu_bang_con`.
+def _la_nhan_tong(o: str) -> bool:
+    f = " ".join(fold(o).split())
+    return f.startswith("tong cong") or f in ("cong", "tong") or f.startswith("cong:")
+
+
+def co_bang_con_tu_kiem(grid: list[list[str]]) -> bool:
+    """Trang có ít nhất một token tiền VÀ một nhãn hàng tổng.
+
+    Đây là điều kiện CẦN để cổng `rang_buoc_tu_bang_con` dựng được ràng buộc —
+    không có phép cộng thì VLM đọc xong cũng không kiểm được, và số chưa kiểm
+    thì đã có đường `UNVERIFIED_PREFIX` rồi, không đáng một lượt gọi.
+
+    Đo 2026-09-19 trên 309 trang scan (5 PDF + SID): 198 trang có tiền, 203
+    trang có nhãn tổng, **152 trang (49,2%) có cả hai**. Đó là trần trên của
+    tầng này — nửa còn lại nằm ngoài tầm với của mọi cổng số học.
+    """
+    co_tien = co_tong = False
+    for row in grid or ():
+        for o in row:
+            o = str(o)
+            if not co_tien and table.MONEY_TOKEN.search(o):
+                co_tien = True
+            if not co_tong and _la_nhan_tong(o):
+                co_tong = True
+            if co_tien and co_tong:
+                return True
+    return False
 
 
 def decide(text: str, grid: list[list[str]]) -> Decision:
     """Một trang đọc-từ-ảnh có nên đi VLM không. Không có tác dụng phụ."""
     kind = statement_kind(text)
     if kind is None:
+        # Trang KHÔNG phải báo cáo chính. Trước 2026-09-19 dừng ở đây, nên
+        # 256/309 trang scan (thuyết minh) không bao giờ đi VLM. Nay: nếu trang
+        # có bảng con TỰ KIỂM ĐƯỢC (tiền + nhãn tổng) thì gọi, ở chế độ tm.
+        if co_bang_con_tu_kiem(grid):
+            return Decision(kind=None, call_vlm=True, che_do="thuyet_minh",
+                            reason="trang thuyết minh có bảng con tự kiểm được "
+                                   "(có token tiền và nhãn tổng)")
         n = len(title_kinds(text))
         ly_do = "không có tiêu đề báo cáo chính" if n == 0 else f"tiêu đề {n} loại — văn xuôi"
+        if grid:
+            ly_do += "; không có bảng con tự kiểm được"
         return Decision(kind=None, call_vlm=False, reason=ly_do)
     gr = grid_rows.rows_from_grid(grid) if grid else None
     if gr is None:
-        return Decision(kind=kind, call_vlm=True,
+        return Decision(kind=kind, call_vlm=True, che_do="bang_chi_tieu",
                         reason=f"tiêu đề {kind}, Tesseract không dựng được cột mã số")
     a = so_hoc.assess_page(gr.rows, gr.value_columns, strict_absent=False)
     if so_hoc.tesseract_vouched(a.report):
-        return Decision(kind=kind, call_vlm=False, tesseract=a, grid_rows=gr,
+        return Decision(kind=kind, call_vlm=False, che_do="bang_chi_tieu", tesseract=a, grid_rows=gr,
                         reason=f"tiêu đề {kind}, số học vouch cho Tesseract "
                                f"(bảng {a.form.mau if a.form else '-'})")
     vs = [e.verdict for e in a.report.evaluations]
-    return Decision(kind=kind, call_vlm=True, tesseract=a, grid_rows=gr,
+    return Decision(kind=kind, call_vlm=True, che_do="bang_chi_tieu", tesseract=a, grid_rows=gr,
                     reason=f"tiêu đề {kind}, số học KHÔNG vouch cho Tesseract "
                            f"(PASS {vs.count('PASS')}, FAIL {vs.count('FAIL')}, NA {vs.count('NA')})")

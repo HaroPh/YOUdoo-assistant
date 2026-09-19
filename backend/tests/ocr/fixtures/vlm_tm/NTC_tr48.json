@@ -1,0 +1,140 @@
+{
+ "trang": 48,
+ "model": "gemini-3.5-flash-lite",
+ "tokens": 2402,
+ "payload": {
+  "cot": [
+   "Số cuối năm",
+   "Số đầu năm"
+  ],
+  "hang": [
+   {
+    "bang": "8. HÀNG TỒN KHO",
+    "nhan": "Hàng hóa",
+    "gia_tri": [
+     "13.191.120.281",
+     "20.340.950.189"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "8. HÀNG TỒN KHO",
+    "nhan": "Công cụ dụng cụ, vật liệu phụ",
+    "gia_tri": [
+     "84.843.654",
+     "79.049.786"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "8. HÀNG TỒN KHO",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "13.275.963.935",
+     "20.419.999.975"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Ngắn hạn",
+    "gia_tri": [
+     "1.299.253.023",
+     "1.046.686.892"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí thuê mặt bằng",
+    "gia_tri": [
+     "802.000.000",
+     "691.000.000"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí sửa chữa",
+    "gia_tri": [
+     "71.431.247",
+     "126.514.845"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí công cụ, dụng cụ",
+    "gia_tri": [
+     "12.440.467",
+     "51.221.778"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí khác",
+    "gia_tri": [
+     "413.381.309",
+     "177.950.269"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Dài hạn",
+    "gia_tri": [
+     "4.899.428.041",
+     "4.263.963.827"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí thuê mặt bằng",
+    "gia_tri": [
+     "2.265.000.000",
+     "2.709.000.000"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí sửa chữa",
+    "gia_tri": [
+     "1.298.265.635",
+     "768.286.668"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí công cụ, dụng cụ",
+    "gia_tri": [
+     "930.727.190",
+     "726.951.827"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "Chi phí khác",
+    "gia_tri": [
+     "405.435.216",
+     "59.725.332"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "9. CHI PHÍ TRẢ TRƯỚC",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "6.198.681.064",
+     "5.310.650.719"
+    ],
+    "la_tong": true
+   }
+  ]
+ },
+ "raw": "{\"cot\": [\"Số cuối năm\", \"Số đầu năm\"], \"hang\": [{\"bang\": \"8. HÀNG TỒN KHO\", \"nhan\": \"Hàng hóa\", \"gia_tri\": [\"13.191.120.281\", \"20.340.950.189\"], \"la_tong\": false}, {\"bang\": \"8. HÀNG TỒN KHO\", \"nhan\": \"Công cụ dụng cụ, vật liệu phụ\", \"gia_tri\": [\"84.843.654\", \"79.049.786\"], \"la_tong\": false}, {\"bang\": \"8. HÀNG TỒN KHO\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"13.275.963.935\", \"20.419.999.975\"], \"la_tong\": true}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Ngắn hạn\", \"gia_tri\": [\"1.299.253.023\", \"1.046.686.892\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí thuê mặt bằng\", \"gia_tri\": [\"802.000.000\", \"691.000.000\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí sửa chữa\", \"gia_tri\": [\"71.431.247\", \"126.514.845\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí công cụ, dụng cụ\", \"gia_tri\": [\"12.440.467\", \"51.221.778\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí khác\", \"gia_tri\": [\"413.381.309\", \"177.950.269\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Dài hạn\", \"gia_tri\": [\"4.899.428.041\", \"4.263.963.827\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí thuê mặt bằng\", \"gia_tri\": [\"2.265.000.000\", \"2.709.000.000\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí sửa chữa\", \"gia_tri\": [\"1.298.265.635\", \"768.286.668\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí công cụ, dụng cụ\", \"gia_tri\": [\"930.727.190\", \"726.951.827\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"Chi phí khác\", \"gia_tri\": [\"405.435.216\", \"59.725.332\"], \"la_tong\": false}, {\"bang\": \"9. CHI PHÍ TRẢ TRƯỚC\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"6.198.681.064\", \"5.310.650.719\"], \"la_tong\": true}]}"
+}

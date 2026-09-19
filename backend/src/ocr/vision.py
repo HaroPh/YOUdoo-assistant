@@ -123,6 +123,14 @@ def parse_response(text: str) -> dict:
     """Bóc JSON khỏi phản hồi: bỏ rào ```json, lấy từ `{` đầu tới `}` cuối.
     Hỏng → `VisionBadResponse` với độ dài, KHÔNG kèm nội dung (log không được
     chứa số tiền đọc từ tài liệu người dùng)."""
+    data = _boc_json(text)
+    if "hang" not in data:
+        raise VisionBadResponse(f"JSON không có khoá `hang` ({len(text or '')} ký tự)")
+    return data
+
+
+def _boc_json(text: str) -> dict:
+    """Bóc object JSON khỏi phản hồi — dùng chung cho cả hai hợp đồng."""
     s = _JSON_FENCE.sub("", text or "")
     i, j = s.find("{"), s.rfind("}")
     if i < 0 or j <= i:
@@ -133,8 +141,56 @@ def parse_response(text: str) -> dict:
         # Không kèm vị trí/nội dung lỗi: thông điệp này đi vào cảnh báo
         # IngestReport, và lưới `test_khong_ro_loi_exception` cấm rò exception.
         raise VisionBadResponse(f"JSON hỏng ({len(text or '')} ký tự)") from None
-    if not isinstance(data, dict) or "hang" not in data:
+    if not isinstance(data, dict):
+        raise VisionBadResponse(f"JSON không phải object ({len(text or '')} ký tự)")
+    return data
+
+
+PROMPT_TM_VERSION = "tm-v1"
+
+# Prompt RIÊNG cho trang thuyết minh. Khác `PROMPT` ở chỗ trang thuyết minh
+# khác trang báo cáo chính: không có cột mã số, nhưng có NHIỀU BẢNG CON, mỗi
+# bảng một hàng tổng, và bảng có thể HAI TẦNG.
+#
+# Ba trường `bang`/`cap`/`loai` là thứ spike 2026-09-19 đo ra là BẮT BUỘC:
+#   - `bang`: bản tm-v0 để tuỳ ý -> 46% hàng trả null, gom nhóm thành rác.
+#   - `cap` : tm-v0 không có -> bảng hai tầng (tr48/52/53/57) bị gộp phẳng,
+#             hàng cha bị đếm hai lần, lệch ĐÚNG GẤP ĐÔI. Cả 8 "FAIL" của
+#             spike là lỗi này, không phải lỗi đọc.
+#   - `loai`: tm-v0 dùng boolean `la_tong` -> model gắn cờ tổng cho "lợi nhuận
+#             gộp", "doanh thu thuần", "số cuối năm" vốn là HIỆU, ràng buộc Σ
+#             sai bản chất. Tách `cong_don` khỏi `hieu`.
+PROMPT_TM = """Đây là ảnh MỘT trang THUYẾT MINH báo cáo tài chính Việt Nam. Trang này thường có NHIỀU BẢNG CON nhỏ, mỗi bảng một dòng Cộng/Tổng cộng.
+Hãy CHÉP LẠI NGUYÊN VĂN mọi hàng có số tiền thành JSON. Không suy diễn, không tính toán, không sửa số.
+
+Trả về DUY NHẤT một object JSON theo đúng hình dạng này:
+{"cot": ["<tên cột số thứ nhất nguyên văn, vd Số cuối năm>", "<tên cột số thứ hai>", ...],
+ "hang": [{"bang": "<tiêu đề bảng con mà hàng này thuộc về, nguyên văn, vd 9. CHI PHÍ TRẢ TRƯỚC>",
+           "cap": <số nguyên: 0 cho dòng tổng của cả bảng con, 1 cho mục chính, 2 cho mục con của mục chính>,
+           "nhan": "<tên chỉ tiêu nguyên văn, vd Chi phí thuê mặt bằng>",
+           "gia_tri": ["<số tiền cột 1 NGUYÊN VĂN kể cả dấu chấm và ngoặc, hoặc \"-\", hoặc null>", "<cột 2>", ...],
+           "loai": "<cong_don | hieu | thuong>"}]}
+
+Quy tắc:
+- `bang` BẮT BUỘC cho mọi hàng, cùng một chuỗi cho mọi hàng của cùng bảng con. Bảng con mới bắt đầu khi có tiêu đề mục mới.
+- `cap` thể hiện quan hệ CỘNG: một hàng cấp 1 là tổng của các hàng cấp 2 ngay dưới nó; hàng cấp 0 là tổng của các hàng cấp 1.
+  Bảng chỉ có một tầng thì dùng cấp 1 cho các mục và cấp 0 cho dòng Tổng cộng.
+- `loai`: "cong_don" nếu hàng này là TỔNG CỘNG DỒN của các hàng cấp dưới (Cộng, Tổng cộng, và cả mục chính như "Ngắn hạn" khi nó là tổng của các dòng dưới);
+  "hieu" nếu hàng là kết quả của phép TRỪ (Doanh thu thuần, Lợi nhuận gộp, Lợi nhuận sau thuế, Số cuối năm của bảng tăng giảm);
+  "thuong" cho mọi hàng còn lại.
+- `gia_tri` giữ đúng số cột như `cot`; ô trống để null, ô gạch ngang để "-".
+- KHÔNG bỏ hàng Cộng/Tổng cộng. KHÔNG thêm hàng không có trong ảnh. KHÔNG tự tính giá trị nào.
+- Không giải thích, không markdown ngoài JSON."""
+
+
+def parse_response_tm(text: str) -> dict:
+    """Như `parse_response` nhưng cho hợp đồng tm-v1: khoá bắt buộc là `cot`
+    (danh sách cột) chứ không phải `trang.cot_gia_tri`."""
+    data = _boc_json(text)
+    if "hang" not in data:
         raise VisionBadResponse(f"JSON không có khoá `hang` ({len(text or '')} ký tự)")
+    if "cot" not in data:
+        raise VisionBadResponse(f"JSON không có khoá `cot` ({len(text or '')} ký tự)")
     return data
 
 
@@ -208,9 +264,16 @@ class VisionReader:
             self._clients[idx] = self._client_factory(spec_for(self.model), khoa)
         return self._clients[idx]
 
-    def read_table(self, png: bytes) -> VisionTable:
+    def read_table(self, png: bytes, *, che_do: str = "bang_chi_tieu") -> VisionTable:
         """PNG một trang → bảng theo hợp đồng. Ném một trong bốn lỗi có tên ở
-        đầu module; người gọi biến chúng thành cảnh báo `IngestReport`."""
+        đầu module; người gọi biến chúng thành cảnh báo `IngestReport`.
+
+        `che_do`: `bang_chi_tieu` (prompt gốc, trang có cột mã số) hoặc
+        `thuyet_minh` (prompt tm-v1, bảng con + cấp + loại tổng). `trigger.decide`
+        chọn, không đoán ở đây."""
+        prompt, pv, boc = ((PROMPT, PROMPT_VERSION, parse_response)
+                           if che_do != "thuyet_minh"
+                           else (PROMPT_TM, PROMPT_TM_VERSION, parse_response_tm))
         if not vlm_enabled():
             if not self._disabled_logged:
                 logger.info("VLM tắt: không có khoá %s — trang Tesseract hỏng giữ nguyên bậc ocr", VLM_ENV)
@@ -221,7 +284,7 @@ class VisionReader:
 
         from langchain_core.messages import HumanMessage
         msg = HumanMessage(content=[
-            {"type": "text", "text": PROMPT},
+            {"type": "text", "text": prompt},
             {"type": "image_url",
              "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode("ascii")}},
         ])
@@ -242,12 +305,12 @@ class VisionReader:
             self._record(p, c, t)
             text = _text_of(getattr(resp, "content", ""))
             try:
-                payload = parse_response(text)
+                payload = boc(text)
             except VisionBadResponse:
                 self.failures += 1
                 raise
             return VisionTable(payload=payload, raw=text, model=self.model,
-                               prompt_version=PROMPT_VERSION, prompt_tokens=p,
+                               prompt_version=pv, prompt_tokens=p,
                                completion_tokens=c, total_tokens=t)
         raise VisionQuotaExhausted(f"hết {so_khoa} khoá {VLM_ENV} vì 429")
 

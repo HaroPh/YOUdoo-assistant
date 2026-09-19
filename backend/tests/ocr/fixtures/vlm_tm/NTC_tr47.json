@@ -1,0 +1,122 @@
+{
+ "trang": 47,
+ "model": "gemini-3.5-flash-lite",
+ "tokens": 2391,
+ "payload": {
+  "cot": [
+   "Số cuối năm",
+   "Số đầu năm"
+  ],
+  "hang": [
+   {
+    "bang": "4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN",
+    "nhan": "Tiền mặt",
+    "gia_tri": [
+     "4.119.923.200",
+     "4.426.373.683"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN",
+    "nhan": "Tiền gửi ngân hàng",
+    "gia_tri": [
+     "6.801.214.770",
+     "28.677.584.304"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN",
+    "nhan": "Các khoản tương đương tiền (*)",
+    "gia_tri": [
+     "63.000.000.000",
+     "104.400.000.000"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "73.921.137.970",
+     "137.503.957.987"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "6. PHẢI THU NGẮN HẠN CỦA KHÁCH HÀNG",
+    "nhan": "Phải thu các bên khác",
+    "gia_tri": [
+     "5.558.544.029",
+     "5.428.264.418"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "6. PHẢI THU NGẮN HẠN CỦA KHÁCH HÀNG",
+    "nhan": "Phải thu các bên liên quan (Thuyết minh số 28)",
+    "gia_tri": [
+     "19.822.750",
+     "19.838.980"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "6. PHẢI THU NGẮN HẠN CỦA KHÁCH HÀNG",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "5.578.366.779",
+     "5.448.103.398"
+    ],
+    "la_tong": true
+   },
+   {
+    "bang": "7. PHẢI THU NGẮN HẠN KHÁC",
+    "nhan": "Lãi tiền gửi phải thu",
+    "gia_tri": [
+     "1.869.345.204",
+     "171.785.753"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "7. PHẢI THU NGẮN HẠN KHÁC",
+    "nhan": "Đặt cọc",
+    "gia_tri": [
+     "23.029.303",
+     "8.000.000"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "7. PHẢI THU NGẮN HẠN KHÁC",
+    "nhan": "Tạm ứng cho nhân viên",
+    "gia_tri": [
+     "1.557.032",
+     "158.992.669"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "7. PHẢI THU NGẮN HẠN KHÁC",
+    "nhan": "Khác",
+    "gia_tri": [
+     "310.500",
+     "-"
+    ],
+    "la_tong": false
+   },
+   {
+    "bang": "7. PHẢI THU NGẮN HẠN KHÁC",
+    "nhan": "TỔNG CỘNG",
+    "gia_tri": [
+     "1.894.242.039",
+     "338.778.422"
+    ],
+    "la_tong": true
+   }
+  ]
+ },
+ "raw": "{\"cot\": [\"Số cuối năm\", \"Số đầu năm\"], \"hang\": [{\"bang\": \"4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN\", \"nhan\": \"Tiền mặt\", \"gia_tri\": [\"4.119.923.200\", \"4.426.373.683\"], \"la_tong\": false}, {\"bang\": \"4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN\", \"nhan\": \"Tiền gửi ngân hàng\", \"gia_tri\": [\"6.801.214.770\", \"28.677.584.304\"], \"la_tong\": false}, {\"bang\": \"4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN\", \"nhan\": \"Các khoản tương đương tiền (*)\", \"gia_tri\": [\"63.000.000.000\", \"104.400.000.000\"], \"la_tong\": false}, {\"bang\": \"4. TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"73.921.137.970\", \"137.503.957.987\"], \"la_tong\": true}, {\"bang\": \"6. PHẢI THU NGẮN HẠN CỦA KHÁCH HÀNG\", \"nhan\": \"Phải thu các bên khác\", \"gia_tri\": [\"5.558.544.029\", \"5.428.264.418\"], \"la_tong\": false}, {\"bang\": \"6. PHẢI THU NGẮN HẠN CỦA KHÁCH HÀNG\", \"nhan\": \"Phải thu các bên liên quan (Thuyết minh số 28)\", \"gia_tri\": [\"19.822.750\", \"19.838.980\"], \"la_tong\": false}, {\"bang\": \"6. PHẢI THU NGẮN HẠN CỦA KHÁCH HÀNG\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"5.578.366.779\", \"5.448.103.398\"], \"la_tong\": true}, {\"bang\": \"7. PHẢI THU NGẮN HẠN KHÁC\", \"nhan\": \"Lãi tiền gửi phải thu\", \"gia_tri\": [\"1.869.345.204\", \"171.785.753\"], \"la_tong\": false}, {\"bang\": \"7. PHẢI THU NGẮN HẠN KHÁC\", \"nhan\": \"Đặt cọc\", \"gia_tri\": [\"23.029.303\", \"8.000.000\"], \"la_tong\": false}, {\"bang\": \"7. PHẢI THU NGẮN HẠN KHÁC\", \"nhan\": \"Tạm ứng cho nhân viên\", \"gia_tri\": [\"1.557.032\", \"158.992.669\"], \"la_tong\": false}, {\"bang\": \"7. PHẢI THU NGẮN HẠN KHÁC\", \"nhan\": \"Khác\", \"gia_tri\": [\"310.500\", \"-\"], \"la_tong\": false}, {\"bang\": \"7. PHẢI THU NGẮN HẠN KHÁC\", \"nhan\": \"TỔNG CỘNG\", \"gia_tri\": [\"1.894.242.039\", \"338.778.422\"], \"la_tong\": true}]}"
+}

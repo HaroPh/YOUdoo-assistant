@@ -75,7 +75,12 @@ MIEN_TRU = {
               "biết vì sao trang scan mất cấu trúc cột — mất chi tiết này thì "
               "cảnh báo trống rỗng, không nói gì hơn tên loại exception."),
     "backend/src/rag/parse.py": (
-        6, 6, "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
+        10, 10, "THÊM BỐN 2026-09-19: `_khoi_tu_vlm_tm` (trang thuyết minh, "
+              "hợp đồng tm-v1) lặp ĐÚNG bốn nhánh của `_khoi_tu_vlm` — hết "
+              "khoá/trần, phản hồi VLM hỏng, gọi VLM thất bại, JSON không theo "
+              "hợp đồng — và đi cùng một đường `(where, reason)` → "
+              "`IngestReport.warnings` → CLI. Cùng lý lẽ, chỉ khác hợp đồng. "
+              "hai chỗ khớp nằm trong `_doc_trang_bang_anh` (tầng OCR bậc 1, "
               "task 4 spec 2026-09-04-tang-ocr §12) + BỐN chỗ trong "
               "`_khoi_tu_vlm` (bậc 3, 2026-09-11: hết khoá/trần, phản hồi VLM "
               "hỏng, gọi VLM thất bại, JSON không theo hợp đồng) — cùng một "

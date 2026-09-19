@@ -311,6 +311,14 @@ MIN_HEADER_CELLS = 3
 # hàng có số ra khỏi ứng viên header) lẫn `table_score.score_unlabelled`.
 MONEY = re.compile(r"^\(?\d{1,3}(?:\.\d{3})+\)?$")
 
+# Như `MONEY` nhưng KHÔNG neo hai đầu: ô thật trên trang scan mang rác OCR
+# dính vào số ("154.519.999.995 :", "88.775.114.909 Fy", "94.841.935.650 Ầ"),
+# nên neo cả ô là trượt sạch. Đo 2026-09-19: dùng `MONEY` để dò token làm
+# NTC_2025 ra 0 trang có hàng tổng, trong khi trang 61 có hai bảng con
+# cộng đúng. Dùng cái này khi HỎI "ô có chứa số tiền không", dùng `MONEY`
+# khi hỏi "ô CHỈ LÀ số tiền".
+MONEY_TOKEN = re.compile(r"\(?\d{1,3}(?:\.\d{3})+\)?")
+
 
 def median_char_width(words: list[OcrWord]) -> float:
     """Bề rộng một ký tự, lấy TRUNG VỊ trên tỷ lệ TỪNG TỪ.

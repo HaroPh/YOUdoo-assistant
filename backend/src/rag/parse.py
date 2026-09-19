@@ -634,6 +634,84 @@ def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[
     return blocks, canh_bao, False
 
 
+# Cấp tiêu đề của MỌI block `bang` (bảng con trang thuyết minh). Cố định, không
+# dùng `heading_level()`: các bảng con trên một trang là ANH EM, mà
+# `heading_level` cho "9. CHI PHÍ TRẢ TRƯỚC" cấp 2 (IN HOA) và "29.2 Cam kết
+# thuê hoạt động" cấp 5 (numbering) — trộn hai cấp thì bảng con này lồng vào
+# trong bảng con kia và breadcrumb nói sai quan hệ.
+_TM_BANG_LEVEL = 5
+
+
+def _khoi_tu_vlm_tm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[str, str] | None, bool]:
+    """Như `_khoi_tu_vlm` nhưng cho TRANG THUYẾT MINH (hợp đồng tm-v1).
+
+    Hai khác biệt bản chất so với trang báo cáo chính:
+
+    1. Ràng buộc đến từ CẤU TRÚC bảng con (`rang_buoc_tu_bang_con`) chứ không
+       từ `tt99.json` — trang không có cột mã số. `classify_rows` vì thế khoá
+       theo chỉ số hàng (`key_by_index=True`).
+    2. Mỗi `bang` phát một block TIÊU ĐỀ. Đây không phải trang trí: `index_text()`
+       nối `section_path` vào chuỗi đem đi embed, và hàng số của trang thuyết
+       minh là chunk atomic ngắn KHÔNG chứa từ nào của câu hỏi — breadcrumb là
+       cầu nối duy nhất tới nó (xem bug `VND` 2026-09-17, vá `467f33a`).
+    """
+    try:
+        img = _anh_cua_trang(path, pageno, OCR_DPI)
+        if kq.rotation:
+            img = img.rotate(-kq.rotation, expand=True)
+        t = reader.read_table(vision.page_png(img), che_do="thuyet_minh")
+    except vision.VisionUnavailable:
+        return [], None, True
+    except (vision.VisionQuotaExhausted, vision.VisionCapReached) as e:
+        return [], (f"trang {pageno} (VLM/tm)", f"dừng VLM cho phần còn lại: {e}"), True
+    except vision.VisionBadResponse as e:
+        return [], (f"trang {pageno} (VLM/tm)", f"phản hồi không dùng được, giữ Tesseract: {e}"), False
+    except Exception as e:                          # noqa: BLE001 — timeout, mạng
+        return [], (f"trang {pageno} (VLM/tm)",
+                    f"gọi VLM thất bại, giữ Tesseract: {type(e).__name__}: {e}"), False
+    try:
+        rows, cols, issues = so_hoc.rows_from_vision_tm(t.payload)
+    except ValueError as e:
+        return [], (f"trang {pageno} (VLM/tm)", f"JSON không theo hợp đồng, giữ Tesseract: {e}"), False
+
+    rb = so_hoc.rang_buoc_tu_bang_con(rows)
+    rep = so_hoc.classify_rows(rows, rb, cols, strict_absent=False,
+                               extra_issues=issues, key_by_index=True)
+    columns = ["Chỉ tiêu", *cols]
+    blocks: list[dict] = []
+    loai: list[str] = []
+    bang_hien: object = object()                    # sentinel: khác mọi giá trị thật
+    for rv in rep.rows:
+        r = rows[rv.index]
+        if rv.status == so_hoc.RowStatus.REJECTED:
+            loai.append(f"{(r.get('chi_tieu') or '?')[:24]}: {rv.reason}")
+            continue
+        bang = r.get("bang")
+        if bang != bang_hien:
+            bang_hien = bang
+            nhan_bang = " ".join(str(bang).split()) if bang else ""
+            if nhan_bang:
+                blocks.append({"text": nhan_bang, "heading_level": _TM_BANG_LEVEL,
+                               "page": pageno, "source_kind": rv.status, "ocr_conf": None})
+        if rv.status == so_hoc.RowStatus.LABEL:
+            text = " ".join((r.get("chi_tieu") or "").split())
+            if text and text != (" ".join(str(bang).split()) if bang else None):
+                blocks.append({"text": text, "heading_level": None, "page": pageno,
+                               "source_kind": so_hoc.RowStatus.UNVERIFIED, "ocr_conf": None})
+            continue
+        row = [" ".join((r.get("chi_tieu") or "").split()), *(r.get(c) or "" for c in cols)]
+        blocks.append({"text": row_to_text(row, columns, compact=True), "heading_level": None,
+                       "page": pageno, "atomic": True, "source_kind": rv.status, "ocr_conf": None,
+                       "unverified_money": rv.status == so_hoc.RowStatus.UNVERIFIED and rv.numeric})
+    vs = [e.verdict for e in rep.evaluations]
+    canh_bao = (f"trang {pageno} (VLM/tm)",
+                f"model {t.model}/{t.prompt_version}, {len(rb)} ràng buộc bảng con · "
+                f"PASS {vs.count('PASS')} FAIL {vs.count('FAIL')} NA {vs.count('NA')} · "
+                + rep.summary
+                + (f" · loại: {'; '.join(loai[:6])}{' …' if len(loai) > 6 else ''}" if loai else ""))
+    return blocks, canh_bao, False
+
+
 def _khoi_tu_luoi_anh(grid: list[list[str]], pageno: int, furniture: set,
                       conf: float | None, *, strict_numeric: bool = False) -> list[dict]:
     """Blocks của MỘT trang đọc-từ-ảnh có lưới, GIỮ NGUYÊN thứ tự hàng.
@@ -818,7 +896,10 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                     if qd.call_vlm:
                         if vlm_reader is None:
                             vlm_reader = VISION_READER_FACTORY()
-                        vlm_blocks, vlm_canh_bao, dung = _khoi_tu_vlm(vlm_reader, path, pageno, kq_anh)
+                        # `trigger.decide` chọn hợp đồng, không đoán ở đây.
+                        doc = (_khoi_tu_vlm_tm if qd.che_do == "thuyet_minh"
+                               else _khoi_tu_vlm)
+                        vlm_blocks, vlm_canh_bao, dung = doc(vlm_reader, path, pageno, kq_anh)
                         if vlm_canh_bao:
                             all_warnings.append(vlm_canh_bao)
                         if dung:
