@@ -29,7 +29,7 @@ def _vis_clause(visibility) -> tuple[str, tuple]:
     return " AND c.visibility = ANY(%s)", (sorted(visibility),)
 
 
-def _dense(conn, qvec, visibility=UNRESTRICTED) -> list[tuple]:
+def _dense(conn, qvec, visibility) -> list[tuple]:
     clause, extra = _vis_clause(visibility)
     return conn.execute(
         f"SELECT {_COLS}, 1 - (c.embedding <=> %s::vector) AS score "
@@ -39,7 +39,7 @@ def _dense(conn, qvec, visibility=UNRESTRICTED) -> list[tuple]:
     ).fetchall()
 
 
-def _sparse(conn, qseg, visibility=UNRESTRICTED) -> list[tuple]:
+def _sparse(conn, qseg, visibility) -> list[tuple]:
     """Chân từ-khoá của hệ hybrid.
 
     ⚠️ ĐO ĐƯỢC 2026-08-20: chân này trả về **0 kết quả cho 64/64** câu hỏi của
@@ -111,7 +111,7 @@ def fold_enabled() -> bool:
     return os.environ.get("RAG_FOLD_ENABLED", "1") != "0"
 
 
-def _lexical_fold(conn, qseg_fold: str, visibility=UNRESTRICTED) -> list[tuple]:
+def _lexical_fold(conn, qseg_fold: str, visibility) -> list[tuple]:
     """Chân khớp mặt chữ trên text ĐÃ BỎ DẤU — cả hai phía đều bỏ dấu.
 
     Vì sao chân này tồn tại trong khi ghi chú cũ kết luận "hồi sinh sparse là

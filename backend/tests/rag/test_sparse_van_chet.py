@@ -29,6 +29,7 @@ from evals.retrieval_cases import RETRIEVAL_CASES
 from src.rag import db as _db
 from src.rag import retrieve as rt
 from src.rag.ingest import segment_vi
+from src.rag.visibility import UNRESTRICTED
 
 
 @pytest.mark.integration
@@ -36,7 +37,7 @@ def test_chan_sparse_van_tra_rong_tren_corpus_that():
     conn = _db.connect()
     try:
         co_ket_qua = [q for q, _e, _d in RETRIEVAL_CASES
-                      if rt._sparse(conn, segment_vi(q))]
+                      if rt._sparse(conn, segment_vi(q), UNRESTRICTED)]
     finally:
         conn.close()
     assert not co_ket_qua, (
