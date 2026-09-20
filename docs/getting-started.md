@@ -140,12 +140,17 @@ backend.
    docker cp backend\migrations\002_mcp_call_log.sql youdoo-postgres:/tmp/002_mcp_call_log.sql
    docker cp backend\migrations\004_user_memory.sql youdoo-postgres:/tmp/004_user_memory.sql
    docker cp backend\migrations\007_ocr_xuat_xu.sql youdoo-postgres:/tmp/007_ocr_xuat_xu.sql
+   docker cp backend\migrations\009_rag_visibility_backfill.sql youdoo-postgres:/tmp/009_rag_visibility_backfill.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/001_llm_usage.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/002_mcp_call_log.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/004_user_memory.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/007_ocr_xuat_xu.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/008_ts_vector_bo_dau.sql
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/009_rag_visibility_backfill.sql
    ```
+
+   009 **xoá** tài liệu SID khỏi corpus (thao tác phá huỷ, có chủ đích — xem
+   header file); DB dựng mới không có SID nên in `0 / 0`.
 
    `admin` / `ai_assistant` are `POSTGRES_USER` and `POSTGRES_DB` from
    `docker-compose.yml` — they must match the user and database in your
