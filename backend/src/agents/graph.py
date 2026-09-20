@@ -73,13 +73,13 @@ def build_graph(llm, tools, checkpointer, role_cfg=None, mcp_all_tools=None) -> 
         planner_prompt_for(role_cfg) if role_cfg is not None else None,
         role_cfg=role_cfg))
     g.add_node("erp_write_executor", make_erp_write_executor_node(tools))
-    g.add_node("rag", make_rag_node(llms["synthesis"]))
+    g.add_node("rag", make_rag_node(llms["synthesis"], role_cfg=role_cfg))
     # Fan-out đường đọc (SP-2b): `mixed` giữ TÊN và giữ chỗ trong intent_targets
     # để decide_route không phải đổi — hàm đó là thứ SOP_SELECT_CASES đo
     # trực tiếp. Hai chân chạy cùng superstep (hai cạnh thẳng ra), fuse_answer
     # có hai cạnh vào nên chỉ chạy sau khi CẢ HAI xong.
     g.add_node("mixed", make_mixed_node())
-    g.add_node("gather_docs", make_gather_docs_node())
+    g.add_node("gather_docs", make_gather_docs_node(role_cfg=role_cfg))
     g.add_node("gather_erp", make_gather_erp_node(
         llms["fusion"], build_erp_query_tools(role_cfg)))
     g.add_node("fuse_answer", make_fuse_answer_node(llms["fusion"]))

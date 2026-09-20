@@ -21,7 +21,7 @@ from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       WRITE_CONFIRM_PREFIX, WRITE_CONFIRM_SUFFIX,
                       canh_bao_rui_ro,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
-from .roles import OTHER_DEPT, DENIED, DEPT_OF
+from .roles import OTHER_DEPT, DENIED, DEPT_OF, rag_visibility_of
 from .write_registry import COORDINATED_TOOLS, expand_chain
 from .handoff import build_handoff, existing_handoff
 from ..erp_query import crm
@@ -88,12 +88,18 @@ def make_erp_read_node(llm, tools):
 
 # ── rag (doc-only answering) ──────────────────────────────────────────────────
 
-def make_rag_node(llm):
+def make_rag_node(llm, role_cfg=None):
     """Document Q&A: retrieve (sync, off the loop) → grounded synthesis + citations.
 
     retrieve() is sync psycopg; asyncio.to_thread keeps the event loop free.
     Any failure degrades to SAFE_MSG — the graph never crashes.
+
+    role_cfg → visibility (spec 2026-09-20 §5). None → retrieve() tự fail-closed
+    về {'all'}: test cũ gọi build_graph() không truyền vai vẫn chạy, chỉ không
+    thấy 4 tài liệu thương mại — hồi quy ĐÚNG, lộ chỗ ngầm chạy như admin.
     """
+    visibility = rag_visibility_of(role_cfg)
+
     async def rag_node(state: ERPAgentState) -> dict:
         last_human = next(
             (m for m in reversed(state["messages"]) if m.type == "human"), None)
@@ -124,7 +130,8 @@ def make_rag_node(llm):
             # :139) — chỉ câu trả lời tra cứu tài liệu là không nhận.
             # test_rag_node_KHONG_nap_khoi_ky_uc gác chiều ngược lại.
             result = await asyncio.to_thread(
-                retrieve, query, TOP_K, None, (prev,) if prev else ())
+                retrieve, query, TOP_K, None, (prev,) if prev else (),
+                visibility=visibility)
             bao_tien_trinh(NHAN_DOC_TAI_LIEU)
             answer = await synthesize(query, result, llm)
         except Exception:
