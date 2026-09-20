@@ -1,10 +1,10 @@
 """Probe sống 19b: cùng câu hỏi, 4 vai, qua backend THẬT (spec §7).
-Chạy: python tests/live_verify_rbac_rag.py — cần backend :8002 (mã worktree),
+Chạy TỪ backend/: python -m tests.live_verify_rbac_rag — cần backend :8002 (mã worktree),
 YOUDOO_ROLE_MAP + YOUDOO_API_TOKEN trong env. Marker live; không vào pytest thường."""
 import sys
 import uuid
 
-from live_verify_common import chat, load_env, role_user_id
+from tests.live_verify_common import chat, load_env, role_user_id
 
 CAU_HOI = "Chính sách chiết khấu của công ty như thế nào?"
 DAU_HIEU_LO = ("5%", "10%", "15%", "2%")
