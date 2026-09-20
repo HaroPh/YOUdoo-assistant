@@ -1197,7 +1197,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
 
 
 async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
-                              memory: str | None = None, visibility=UNRESTRICTED):
+                              memory: str | None = None, visibility=UNRESTRICTED,
+                              role: str = "admin"):
     """Đo chuỗi TRẢ LỜI TÀI LIỆU đầu-cuối: retrieve() thật → synthesize() thật.
 
     Khác `synthesis` ở đúng một điểm, và đó là điểm quan trọng nhất:
@@ -1267,6 +1268,11 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
             # Tên chân đi vào kết quả để một lượt chạy có ký ức không bao giờ
             # bị đọc nhầm thành số của chân gốc.
             "memory_preset": memory or "none",
+            # Tự khai visibility đã đo, cùng lý do memory_preset ở trên (19b
+            # fix-round #1): không có baseline/gate cho set này, nhưng đọc
+            # JSON không được phép mù trước việc --role warehouse và --role
+            # admin đo hai cấu hình visibility khác nhau.
+            "role": role,
             "fact_acc": _acc("fact_ok", per_case),
             "refusal_acc": _acc("refusal_ok", per_case),
             "citation_acc": _acc("citation_ok", per_case),
@@ -1276,7 +1282,7 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
 
 
 async def eval_multiturn(pace: float = 0.0, checkpoint_path=None,
-                         visibility=UNRESTRICTED):
+                         visibility=UNRESTRICTED, role: str = "admin"):
     """Đo GIẢI CHIẾU ở câu hỏi nối tiếp — KHÔNG gọi LLM lần nào.
 
     `rag_node` lấy duy nhất tin nhắn cuối (`query = last_human.content`) cho cả
@@ -1331,6 +1337,10 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None,
         }
 
     return {"set": "multiturn", "n": len(MULTITURN_CASES),
+            # Tự khai visibility đã đo — cùng lý do "role" của eval_retrieval/
+            # eval_synthesis_live (19b fix-round #1): không có baseline/gate
+            # cho set này, nhưng JSON không được phép mù trước cấu hình vai.
+            "role": role,
             "recall_at_6_no_ctx": _avg("no_ctx", "recall_at_final", per_case),
             "recall_at_6_with_ctx": _avg("with_ctx", "recall_at_final", per_case),
             "recall_at_20_no_ctx": _avg("no_ctx", "recall_at_pool", per_case),
@@ -1486,8 +1496,10 @@ async def main(argv=None):
             kwargs["role"] = args.role
         if args.set in role_config.VISIBILITY_SENSITIVE_SETS:
             kwargs["visibility"] = role_config.visibility_for(args.role)
-            if args.set == "retrieval":
-                kwargs["role"] = args.role      # vào JSON kết quả → _gate kiểm parity
+            # Cả ba bộ tự khai "role" vào JSON kết quả — chỉ riêng `retrieval`
+            # có baseline/`_gate` kiểm parity trên khoá này (fix-round #1:
+            # synthesis_live/multiturn tự khai nhưng KHÔNG có baseline/gate).
+            kwargs["role"] = args.role
         if args.set in ("retrieval", "multiturn"):
             # KHÔNG dựng LLM: bộ này thuần truy xuất. _llm() gọi
             # chain_for("retrieval") mà "retrieval" không nằm trong

@@ -1,6 +1,8 @@
 # backend/tests/jobs/test_run_eval_visibility.py
 """--role đi tới visibility của ba bộ gọi retrieve() thật; baseline có hậu tố
 vai để --role warehouse --save-baseline KHÔNG đè baseline admin."""
+from types import SimpleNamespace
+
 import pytest
 
 from evals import role_config, run_eval
@@ -60,3 +62,67 @@ async def test_main_mac_dinh_admin_la_unrestricted(monkeypatch):
     monkeypatch.setattr(run_eval, "eval_retrieval", gia)
     await run_eval.main(["--set", "retrieval", "--model", "bge-m3", "--pace", "0"])
     assert thay["visibility"] is UNRESTRICTED
+
+
+# --- Fix-round #1 (review): synthesis_live/multiturn tự khai "role" trong kết
+# quả JSON, cùng lý do memory_preset đã tự khai — không có baseline/gate nào
+# đọc khoá này (out of scope), nhưng đọc JSON không được phép mù trước cấu
+# hình vai đã đo.
+
+@pytest.mark.asyncio
+async def test_eval_synthesis_live_ket_qua_mang_role(monkeypatch):
+    case = SimpleNamespace(question="câu hỏi", kind="insufficient",
+                           expect="không áp dụng", source="x.pdf")
+    monkeypatch.setattr(run_eval, "SYNTHESIS_LIVE_CASES", [case])
+    monkeypatch.setattr(run_eval, "_retrieve",
+                        lambda *a, **kw: SimpleNamespace(chunks=[], method="dense-rrf"))
+
+    async def gia_synthesize(question, result, llm, memory=""):
+        return "câu trả lời giả"
+
+    monkeypatch.setattr(run_eval, "_synthesize", gia_synthesize)
+    mac_dinh = await run_eval.eval_synthesis_live(object())
+    assert mac_dinh["role"] == "admin"
+    theo_vai = await run_eval.eval_synthesis_live(object(), role="warehouse")
+    assert theo_vai["role"] == "warehouse"
+
+
+@pytest.mark.asyncio
+async def test_eval_multiturn_ket_qua_mang_role(monkeypatch):
+    case = SimpleNamespace(prev_turn="câu trước", question="câu hỏi",
+                           expect=frozenset({("a.pdf", "Điều 1")}), kind="elliptical")
+    monkeypatch.setattr(run_eval, "MULTITURN_CASES", [case])
+    monkeypatch.setattr(run_eval, "_retrieve",
+                        lambda *a, **kw: SimpleNamespace(chunks=[], method="dense-rrf"))
+    mac_dinh = await run_eval.eval_multiturn()
+    assert mac_dinh["role"] == "admin"
+    theo_vai = await run_eval.eval_multiturn(role="warehouse")
+    assert theo_vai["role"] == "warehouse"
+
+
+@pytest.mark.asyncio
+async def test_main_truyen_role_vao_eval_multiturn_va_synthesis_live(monkeypatch):
+    thay_multiturn, thay_synth = {}, {}
+
+    async def gia_multiturn(pace=0.0, checkpoint_path=None, **kw):
+        thay_multiturn.update(kw)
+        return {"set": "multiturn", "n": 0, "role": kw.get("role"),
+                "fails": [], "errors": []}
+
+    async def gia_synthesis_live(llm, pace=0.0, checkpoint_path=None, **kw):
+        thay_synth.update(kw)
+        return {"set": "synthesis_live", "n": 0, "role": kw.get("role"),
+                "fails": [], "errors": []}
+
+    monkeypatch.setattr(run_eval, "eval_multiturn", gia_multiturn)
+    monkeypatch.setattr(run_eval, "eval_synthesis_live", gia_synthesis_live)
+
+    await run_eval.main(["--set", "multiturn", "--model", "bge-m3",
+                         "--pace", "0", "--role", "warehouse"])
+    assert thay_multiturn["role"] == "warehouse"
+    assert thay_multiturn["visibility"] == frozenset({"all"})
+
+    await run_eval.main(["--set", "synthesis_live", "--model", "bge-m3",
+                         "--pace", "0", "--role", "sales"])
+    assert thay_synth["role"] == "sales"
+    assert thay_synth["visibility"] == frozenset({"all", "commercial"})
