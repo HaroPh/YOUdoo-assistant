@@ -36,6 +36,7 @@ from evals.write_suggest_oracle import oracle_proposes_write
 from evals.synthesis_live_score import score_answer
 from src.agents.synthesis import synthesize as _synthesize
 from src.rag.retrieve import retrieve as _retrieve
+from src.rag.visibility import UNRESTRICTED
 from src.rag.config import TOP_N as _TOP_N, TOP_K as _TOP_K, RERANK_MODEL
 from src.agents import roles
 from src.agents.prompts import CHITCHAT_PROMPT
@@ -103,8 +104,13 @@ def baseline_path(model: str, set_name: str, role: str = "admin",
 
     Chuẩn hoá đặt ở ĐÂY chứ không ở hai chỗ gọi, vì đây là nơi giữ quy ước tên —
     để hai nơi tự nhớ "nhớ hạ role về admin" là đúng cách nó trôi lệch.
+
+    Bộ nhạy VISIBILITY cũng giữ hậu tố vai: `--set retrieval --role warehouse
+    --save-baseline` mà không có hậu tố sẽ ĐÈ baseline admin — xoá mốc cổng
+    dương của 19b.
     """
-    if set_name not in role_config.ROLE_SENSITIVE_SETS:
+    if set_name not in (role_config.ROLE_SENSITIVE_SETS
+                        | role_config.VISIBILITY_SENSITIVE_SETS):
         role = "admin"
     here = os.path.dirname(__file__)
     stem = f"baseline-{model.replace(':', '-')}-{set_name}"
@@ -1091,7 +1097,8 @@ def _dang_go(ten: str):
 
 
 async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
-                         rerank: bool = True, dang_go: str = "co_dau"):
+                         rerank: bool = True, dang_go: str = "co_dau",
+                         visibility=UNRESTRICTED, role: str = "admin"):
     """Đo TẦNG TRUY XUẤT trên corpus thật — KHÔNG gọi LLM lần nào.
 
     Khác mọi bộ eval khác ở đúng điểm này: `synthesis` và `multi_source` nạp
@@ -1101,6 +1108,9 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
 
     rerank=False đặt RAG_RERANK_ENABLED=0 cho cả lượt chạy — chân đối chứng
     của rerank_delta (spec §6).
+
+    `visibility`/`role`: mặc định KHÔNG lọc (bằng hành vi trước 19b, giữ
+    baseline cũ so được); `--role warehouse` là chân của cổng ÂM.
     """
     lat: list[float] = []
     per_case: list[dict] = []
@@ -1123,7 +1133,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
         # được truy vấn KHÔNG DẤU cho recall@20 = 1/64 = 0,0156 — bộ vàng cũ
         # 100% có dấu nên chưa bao giờ chạm dạng gõ này.
         result, ms = await _timed(
-            asyncio.to_thread(_retrieve, _dang_go(dang_go)(question), _TOP_N))
+            asyncio.to_thread(_retrieve, _dang_go(dang_go)(question), _TOP_N,
+                              None, (), visibility=visibility))
         lat.append(ms)
         ranked = [label_of(c) for c in result.chunks]
         score = score_one(ranked, {tuple(x) for x in expected},
@@ -1171,6 +1182,7 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
     # nhận diện được cấu hình của chính nó"). Sáu JSON committed trước khi có
     # hai khoá này KHÔNG có chúng — xem README.md cùng thư mục.
     return {"set": "retrieval", "n": n, "rerank": rerank, "dang_go": dang_go,
+            "role": role,
             "rerank_model": RERANK_MODEL,
             "rerank_mode": os.environ.get("RAG_RERANK_MODE", "blend"),
             "methods_seen": sorted({r["method"] for r in per_case}),
@@ -1185,7 +1197,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
 
 
 async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
-                              memory: str | None = None):
+                              memory: str | None = None, visibility=UNRESTRICTED,
+                              role: str = "admin"):
     """Đo chuỗi TRẢ LỜI TÀI LIỆU đầu-cuối: retrieve() thật → synthesize() thật.
 
     Khác `synthesis` ở đúng một điểm, và đó là điểm quan trọng nhất:
@@ -1206,7 +1219,8 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
     async def call(case):
         question, kind, expect, source = case[0], case[1], case[2], case[3]
         expect = tuple(expect) if isinstance(expect, list) else expect
-        result = await asyncio.to_thread(_retrieve, question)
+        result = await asyncio.to_thread(_retrieve, question, _TOP_K, None, (),
+                                         visibility=visibility)
         # CẢNH BÁO — từ 2026-08-20 đây KHÔNG còn là đường production.
         # Chính số đo của ba chân này dẫn tới quyết định CẮT dây nối ký ức ở
         # rag_node (xem nodes.py::rag_node), nên production chạy `memory=""`.
@@ -1254,6 +1268,11 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
             # Tên chân đi vào kết quả để một lượt chạy có ký ức không bao giờ
             # bị đọc nhầm thành số của chân gốc.
             "memory_preset": memory or "none",
+            # Tự khai visibility đã đo, cùng lý do memory_preset ở trên (19b
+            # fix-round #1): không có baseline/gate cho set này, nhưng đọc
+            # JSON không được phép mù trước việc --role warehouse và --role
+            # admin đo hai cấu hình visibility khác nhau.
+            "role": role,
             "fact_acc": _acc("fact_ok", per_case),
             "refusal_acc": _acc("refusal_ok", per_case),
             "citation_acc": _acc("citation_ok", per_case),
@@ -1262,7 +1281,8 @@ async def eval_synthesis_live(llm, pace: float = 0.0, checkpoint_path=None,
             "fails": fails, "errors": errors}
 
 
-async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
+async def eval_multiturn(pace: float = 0.0, checkpoint_path=None,
+                         visibility=UNRESTRICTED, role: str = "admin"):
     """Đo GIẢI CHIẾU ở câu hỏi nối tiếp — KHÔNG gọi LLM lần nào.
 
     `rag_node` lấy duy nhất tin nhắn cuối (`query = last_human.content`) cho cả
@@ -1280,9 +1300,10 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
     async def call(case):
         prev, question, expect, kind = case[0], case[1], case[2], case[3]
         want = {tuple(x) for x in expect}
-        no_ctx = await asyncio.to_thread(_retrieve, question, _TOP_N)
+        no_ctx = await asyncio.to_thread(_retrieve, question, _TOP_N,
+                                         visibility=visibility)
         with_ctx = await asyncio.to_thread(_retrieve, question, _TOP_N,
-                                           None, (prev,))
+                                           None, (prev,), visibility=visibility)
         row = {"question": question, "kind": kind}
         for tag, res in (("no_ctx", no_ctx), ("with_ctx", with_ctx)):
             ranked = [label_of(c) for c in res.chunks]
@@ -1316,6 +1337,10 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None):
         }
 
     return {"set": "multiturn", "n": len(MULTITURN_CASES),
+            # Tự khai visibility đã đo — cùng lý do "role" của eval_retrieval/
+            # eval_synthesis_live (19b fix-round #1): không có baseline/gate
+            # cho set này, nhưng JSON không được phép mù trước cấu hình vai.
+            "role": role,
             "recall_at_6_no_ctx": _avg("no_ctx", "recall_at_final", per_case),
             "recall_at_6_with_ctx": _avg("with_ctx", "recall_at_final", per_case),
             "recall_at_20_no_ctx": _avg("no_ctx", "recall_at_pool", per_case),
@@ -1415,8 +1440,9 @@ async def main(argv=None):
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
                     choices=sorted(roles.load_profile()),
-                    help="vai để dựng prompt (chỉ có tác dụng với "
-                         "intent/sop_select/planner; các bộ khác bỏ qua)")
+                    help="vai để dựng prompt VÀ lọc visibility RAG (tác dụng "
+                         "với intent/sop_select/planner/retrieval/"
+                         "synthesis_live/multiturn; các bộ khác bỏ qua)")
     ap.add_argument("--save-baseline", action="store_true")
     ap.add_argument("--baseline")
     ap.add_argument("--pace", type=float, default=None,
@@ -1468,6 +1494,12 @@ async def main(argv=None):
                         "read", "chitchat"):
             kwargs["memory"] = args.memory
         if args.set in role_config.ROLE_SENSITIVE_SETS:
+            kwargs["role"] = args.role
+        if args.set in role_config.VISIBILITY_SENSITIVE_SETS:
+            kwargs["visibility"] = role_config.visibility_for(args.role)
+            # Cả ba bộ tự khai "role" vào JSON kết quả — chỉ riêng `retrieval`
+            # có baseline/`_gate` kiểm parity trên khoá này (fix-round #1:
+            # synthesis_live/multiturn tự khai nhưng KHÔNG có baseline/gate).
             kwargs["role"] = args.role
         if args.set in ("retrieval", "multiturn"):
             # KHÔNG dựng LLM: bộ này thuần truy xuất. _llm() gọi

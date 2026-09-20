@@ -31,6 +31,7 @@ from ..rag.retrieve import retrieve
 from ..rag.types import Chunk
 from ..rag.config import TOP_K
 from .history import previous_user_turn
+from .roles import rag_visibility_of
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ def make_mixed_node():
     return mixed
 
 
-def make_gather_docs_node():
+def make_gather_docs_node(role_cfg=None):
     """Chân TÀI LIỆU: retrieve() thuần, KHÔNG gọi LLM lần nào.
 
     Luôn truy xuất bằng NGUYÊN câu hỏi người dùng. `fusion` cũ phải mang cơ chế
@@ -88,7 +89,11 @@ def make_gather_docs_node():
     vốn không bao giờ kéo được sla.docx lên; fan-out dùng thẳng câu hỏi đầy đủ
     (chính là query mà docstring fusion nói là "reliably does"), nên cơ chế đó
     không còn cần trên đường này.
+
+    role_cfg → visibility như rag_node (spec 2026-09-20 §5); None → fail-closed.
     """
+    visibility = rag_visibility_of(role_cfg)
+
     async def gather_docs(state: ERPAgentState) -> dict:
         query = _last_human(state)
         if not query:
@@ -100,7 +105,8 @@ def make_gather_docs_node():
             # retrieve() là psycopg ĐỒNG BỘ — to_thread giữ event loop rảnh
             # cho chân ERP chạy song song trong cùng superstep.
             result = await asyncio.to_thread(
-                retrieve, query, TOP_K, None, (prev,) if prev else ())
+                retrieve, query, TOP_K, None, (prev,) if prev else (),
+                visibility=visibility)
             chunks = ([] if result.is_empty() or not passes_floor(result)
                       else result.chunks)
             doc_context = [chunk_to_dict(c) for c in chunks]

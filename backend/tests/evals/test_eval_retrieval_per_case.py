@@ -19,7 +19,7 @@ async def test_ket_qua_co_per_case_du_truong_va_json_hoa_duoc(monkeypatch):
     fake = SimpleNamespace(
         chunks=[_chunk("x/b.pdf", "Điều 9"), _chunk("x/a.pdf", "Điều 1")],
         method="dense-rrf+rerank")
-    monkeypatch.setattr(run_eval, "_retrieve", lambda q, k: fake)
+    monkeypatch.setattr(run_eval, "_retrieve", lambda *a, **kw: fake)
     result = await run_eval.eval_retrieval()
     assert len(result["per_case"]) == 1
     row = result["per_case"][0]

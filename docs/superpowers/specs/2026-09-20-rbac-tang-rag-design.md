@@ -158,10 +158,11 @@ lại; thêm một tập riêng cho **visibility** để hai nghĩa không lẫn
   (`docs/getting-started.md:123-126`):
   1. `UPDATE rag_chunks SET visibility = 'commercial' WHERE visibility <> 'commercial' AND
      (source_file LIKE '%discount_policy.docx' OR … 4 basename)` — kỳ vọng **24** dòng.
-  2. `DELETE FROM rag_chunks WHERE source_file LIKE '%BaoCaoTaiChinhBanNien%'`;
-     `DELETE FROM rag_documents WHERE source_file LIKE '%BaoCaoTaiChinhBanNien%'` — kỳ vọng
-     **660** chunk, 1 tài liệu. **Thao tác phá huỷ duy nhất** của 19b: header migration ghi rõ, và
-     migration in `count(*)` trước/sau bằng `RAISE NOTICE` để lượt chạy tay có bằng chứng.
+  2. Đếm `rag_chunks` khớp `source_file LIKE '%BaoCaoTaiChinhBanNien%'` (để báo cáo), rồi
+     `DELETE FROM rag_documents WHERE source_file LIKE '%BaoCaoTaiChinhBanNien%'` — chunk đi theo
+     `ON DELETE CASCADE` (không có `DELETE FROM rag_chunks` riêng) — kỳ vọng **660** chunk, 1 tài
+     liệu. **Thao tác phá huỷ duy nhất** của 19b: header migration ghi rõ, và migration in
+     `count(*)` trước/sau bằng `RAISE NOTICE` để lượt chạy tay có bằng chứng.
   3. Ghi `rag_embedding_marker` không đụng.
 - `DOC_VISIBILITY` xuất hiện **hai chỗ** (Python + SQL). Một test hợp đồng đọc file 009 và khẳng định
   bốn basename trong SQL **bằng đúng** `set(DOC_VISIBILITY)` — hai nguồn không được trôi.
@@ -171,7 +172,7 @@ lại; thêm một tập riêng cho **visibility** để hai nghĩa không lẫn
 **Unit** (`pytest -m "not integration and not live"`, không DB):
 - `visibility.py`: `class_for` trả `'commercial'` cho 4 basename kể cả khi truyền đường dẫn đầy đủ
   Windows/POSIX; `'all'` cho tệp lạ; mọi giá trị `DOC_VISIBILITY` ∈ `VISIBILITY_CLASSES`.
-- `RoleCfg.rag_visibility` cho 4 vai đúng §3; admin là `None`.
+- `RoleCfg.rag_visibility` cho 4 vai đúng §3; admin là `UNRESTRICTED`.
 - `resolve()`: `None`, `frozenset()`, `set()` → `DEFAULT_VISIBILITY`; `UNRESTRICTED` → chính nó;
   một `_Unrestricted()` **khác** (không phải singleton) → vẫn fail-closed (so bằng `is`).
 - `retrieve()` fail-closed: không truyền **và** truyền `None` → SQL chứa mệnh đề lọc với `['all']`
@@ -234,4 +235,74 @@ thương mại **vẫn trong corpus**, chỉ đổi lớp; bộ `retrieval` khô
 
 ## 10. Ghi chép thực thi
 
-*(điền khi thi hành: số cổng dương/âm, 4 câu trả lời probe sống, khó khăn, giả thuyết bị bác)*
+Thi hành 2026-09-20, 10 task TDD, mỗi task một implementer + một review độc lập.
+
+### Số đo
+
+| Cổng | Kết quả |
+|---|---|
+| Suite unit (worktree, `not integration and not live`) | 2 859 passed, 1 skipped, 0 failed |
+| Integration 19b (Postgres thật, chạy một mình) | 2 passed |
+| Cổng DƯƠNG `--role admin` | `GATE PASS — model=0.963 baseline=0.963`, exit 0 |
+| Cổng ÂM `compare_visibility` | `CỔNG ÂM PASS — thương mại 10 ca (lộ 0), khác 99 ca (kém đi 0)`, exit 0 |
+| Probe sống 4 vai | PASS — kho không lộ, 3 vai còn lại đọc được |
+
+Truy xuất, bộ `retrieval` 109 ca, `bge-m3` + rerank blend:
+
+| | r@20 | r@6 | mrr | lat_p50 |
+|---|---|---|---|---|
+| Mốc trước 19b | 0,9771 | 0,9633 | 0,8012 | 573 ms |
+| `admin` sau 19b | 0,9771 | 0,9633 | 0,7996 | 528 ms |
+| `warehouse` sau 19b | 0,8853 | 0,8716 | 0,7248 | 521 ms |
+
+`admin` **bằng đúng** mốc cũ ở hai chỉ số được gác. Phần sụt của `warehouse` là
+0,9771 − 0,8853 = **0,0918 ≈ 10/109 = 0,0917** — đúng bằng 10 ca thương mại rơi về 0,
+không ca nào khác mất. Đây là kiểm chéo số học độc lập với dòng PASS của cổng âm.
+`lat_p50` giảm 573→528 ms vì pool nhỏ đi sau khi gỡ 660 chunk SID.
+
+### Migration 009 trên DB thật
+
+Trước: `[('all', 4561)]`, SID 1 tài liệu / 660 chunk, tổng 18 tài liệu / 4 561 chunk.
+Sau: `[('all', 3877), ('commercial', 24)]`, SID 0/0, tổng 17 tài liệu / 3 901 chunk.
+24 chunk `commercial` đúng 4 tệp: `bang_gia` 8, `discount_policy` 5, `payment_policy` 5, `sla` 6.
+
+Trước khi chạy đã chụp ảnh `backup_pre009` (18 tài liệu / 4 561 chunk, đủ embedding).
+**`backup_20260919` mà plan viện dẫn là ảnh CŨ** (4 870 chunk / 968 chunk SID, chụp trước lần
+nạp lại corpus 19/09) — khôi phục từ đó sẽ trả về corpus cũ, không phải trạng thái trước 009.
+
+### Probe sống — toàn văn rút gọn
+
+Cùng câu hỏi "Chính sách chiết khấu của công ty như thế nào?", 4 vai, qua backend thật:
+
+- `sales` / `accounting` / `admin`: trả đúng chính sách (3 cấp khách hàng, 5%/10%, cộng 2% cho
+  đơn ≥ 50 triệu, trần 15%), chú thích nguồn 5 mục của `discount_policy.docx`.
+- `warehouse`: trả về **chuyện bán cổ phần** trích `luat-doanhnghiep.pdf` Điều 126. Không có
+  `5%`, `10%`, `15%`, `2%`, không có "chiết khấu theo cấp", không có `discount_policy`.
+  Tức chunk thương mại **không vào tới retrieval**, chứ không phải LLM may mà không nhắc.
+
+### Khó khăn và giới hạn còn lại
+
+1. **Vai bị chặn không được BÁO là bị chặn.** `warehouse` nhận một câu trả lời lạc đề từ corpus
+   công khai chứ không có thông điệp từ chối. Đúng thiết kế (lọc ở tầng retrieval), nhưng người
+   dùng thật sẽ tưởng trợ lý hiểu sai câu hỏi. Đáng cân nhắc cho một mục sau.
+2. **`synthesis_live` và `multiturn` chưa có cổng theo vai.** Hai bộ này đã nhận `--role` và JSON
+   đã tự khai `role`, nhưng chưa có baseline/gate nào đọc nó. Một lượt đo sai vai ở hai bộ đó
+   hiện chỉ phát hiện được bằng cách đọc khoá `role` trong tệp kết quả.
+3. **`LIKE '%tên'` trong migration khớp rộng hơn `basename()` của Python.** `_` là ký tự đại diện
+   trong `LIKE` nên `payment_policy.docx` cũng khớp `paymentXpolicy.docx`. Đã đo trên corpus thật:
+   bắt đúng 4 tệp / 24 chunk, không thừa không sót. Rủi ro còn lại là một lần nạp **tương lai** có
+   tệp tên kiểu `old_discount_policy.docx` sẽ bị gắn `commercial` oan — sai theo chiều giấu nhiều
+   hơn, không phải chiều lộ.
+4. **Không có ràng buộc cấu trúc cho chân retrieval thứ tư.** Nếu ai đó thêm một chân mới mà quên
+   `_vis_clause`, không test nào hiện nay đỏ. An toàn đang dựa vào người viết nhớ.
+5. **`jobs/resilience.py` nuốt mọi exception** (ADR-009 §2.2, có chủ đích). Một lỗi trong
+   `_retrieve` biến thành `errors` + `per_case` rỗng chứ không nổ — chính cơ chế này đã biến một
+   `TypeError` thành `assert 0 == 1` khó hiểu trong lúc thi hành Task 7.
+
+### Giả thuyết bị bác trong lúc thi hành
+
+- *"Test đỏ ở `tests/evals/` là có sẵn, không liên quan"* — SAI. Task 7 làm hỏng nó; lượt kiểm
+  chứng của chính Task 7 đã bỏ qua đúng thư mục nó vừa sửa.
+- *"Thêm module vào danh sách parametrize của `test_cli_utf8.py` là đủ để bắt lỗi cp1252"* — SAI.
+  Test đó chỉ import và tự gọi `use_utf8_streams()`, không gọi `main()` của module, nên xanh cả
+  trước lẫn sau khi sửa. Phải có test chạy CLI thật qua subprocess mới bắt được.

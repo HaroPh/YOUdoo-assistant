@@ -12,6 +12,7 @@ from .parse import (extract_effective_date, parse_docx, parse_pdf,
 from .chunking import (chunk_text_blocks, chunk_xlsx_sheets, fold_vi,
                        index_text)
 from .ingest_report import IngestReport, Rejection, Warning
+from .visibility import class_for
 from src.cli_console import use_utf8_streams
 
 # Đuôi nạp được TRỰC TIẾP → loại parser.
@@ -183,13 +184,13 @@ def _ingest_known(path: str, kind: str, conn,
             conn.execute(
                 "INSERT INTO rag_chunks (doc_id, source_file, doc_title, section_path, page, "
                 "sheet, row_range, columns, chunk_index, token_count, chunk_text, "
-                "source_kind, ocr_conf, embedding, "
+                "source_kind, ocr_conf, embedding, visibility, "
                 # `chunk_text_fold` đi qua ĐÚNG pipeline của `ts_vector`
                 # (index_text + segment_vi) rồi mới bỏ dấu, để hai chân
                 # nhìn cùng một chuỗi. `ts_vector_fold` là cột GENERATED
                 # nên KHÔNG liệt kê ở đây — Postgres tự dựng.
                 "ts_vector, chunk_text_fold) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, "
                 "to_tsvector('simple', %s), %s)",
                 (c["doc_id"], c["source_file"], c["doc_title"], c["section_path"], c["page"],
                  c["sheet"], c["row_range"], c["columns"], c["chunk_index"], c["token_count"],
@@ -198,6 +199,11 @@ def _ingest_known(path: str, kind: str, conn,
                  # đặt hai khoá này và không có lý do gì phải đặt.
                  c.get("source_kind", "text"), c.get("ocr_conf"),
                  vec,
+                 # Lớp hiển thị từ basename (spec 2026-09-20 §6) — lần nạp
+                 # seed/ sau tự đúng, không reset về 'all'. Re-ingest là NO-OP
+                 # khi content_hash không đổi, nên corpus đang có PHẢI backfill
+                 # bằng migration 009, không thể "nạp lại cho nó tự đúng".
+                 class_for(c["source_file"]),
                  segment_vi(index_text(c["section_path"], c["chunk_text"])),
                  # KHÔNG qua `segment_vi`: pyvi tạo token GHÉP
                  # (`chinh_sach`) đòi khớp y hệt ở cả hai phía, mà phía truy
