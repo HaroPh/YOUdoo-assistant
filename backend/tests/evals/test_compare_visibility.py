@@ -100,6 +100,44 @@ def test_cli_exit_khac_0_khi_that_bai(tmp_path, monkeypatch):
     assert cv.main([str(admin_path), str(kho_path)]) != 0
 
 
+def test_hai_luot_kho_that_bai():
+    """Hai lượt CÙNG vai (ở đây: hai lượt `warehouse`) không chứng minh được
+    gì — cổng phải từ chối NGAY vì vế đầu không phải vai admin, trước khi so
+    bất kỳ ca nào."""
+    kho1 = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho1["role"] = "warehouse"
+    kho2 = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho2["role"] = "warehouse"
+    with pytest.raises(ValueError, match="admin"):
+        cv.compare(kho1, kho2, cases=CASES)
+
+
+def test_cung_tep_hai_lan_that_bai():
+    """Truyền đúng MỘT tệp (vd admin.json) hai lần — hai vế cùng khai
+    role='admin', cổng phải từ chối vì không so hai vai KHÁC nhau."""
+    admin = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0), ("SLA giao hàng?", 1.0, 1.0, 1.0),
+                  ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    admin["role"] = "admin"
+    admin_lai = dict(admin)
+    with pytest.raises(ValueError, match="cùng vai"):
+        cv.compare(admin, admin_lai, cases=CASES)
+
+
+def test_admin_khong_thay_thuong_mai_bi_tu_choi():
+    """Vế 'admin' mà recall_at_pool = 0 trên MỌI ca thương mại không giống
+    một lượt đo không-lọc thật — có thể chính nó cũng đang bị chặn, hoặc nạp
+    nhầm tệp. Cổng không được coi đó là bằng chứng cho vế còn lại."""
+    admin_gia = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
+                      ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho["role"] = "warehouse"
+    with pytest.raises(ValueError, match="thương mại"):
+        cv.compare(admin_gia, kho, cases=CASES)
+
+
 def test_thieu_khoa_trong_mot_ca_bao_loi_ngay_khong_lang_le():
     """per_case thiếu khoá recall_at_pool → KeyError ngay lập tức, không bỏ
     qua ca đó trong im lặng. Quyết định có chủ đích: một cổng phủ định

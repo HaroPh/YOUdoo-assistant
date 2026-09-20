@@ -9,6 +9,16 @@ Bất biến:
       khỏi pool 20 không đẩy được đáp án ra, chỉ kéo được vào.
 recall_at_final CHỈ báo cáo: pool khác → reranker thấy tập khác.
 
+Trước khi so ca, compare() còn đòi hỏi CHÍNH LƯỢT ĐO có ý nghĩa — thiếu điều
+này cổng qua được mà không chứng minh gì (vd so hai lượt kho, hay so một tệp
+với chính nó):
+  (c) vế admin phải tự khai role="admin" (khoá `role` trong JSON, thêm ở
+      Task 7);
+  (d) vế bị chặn phải khai một role KHÁC vế admin;
+  (e) vế admin phải THẬT SỰ thấy ít nhất một ca thương mại (recall_at_pool >
+      0) — nếu không, "admin" ở đây có thể cũng đang bị chặn hoặc nạp nhầm
+      tệp, và phép so sánh không đo được gì.
+
 Chạy: python -m evals.compare_visibility admin.json warehouse.json → exit 0/1.
 """
 import json
@@ -26,10 +36,24 @@ def _is_commercial_case(expected) -> bool | None:
 
 
 def compare(admin: dict, restricted: dict, cases=RETRIEVAL_CASES) -> dict:
+    # Cổng ÂM chỉ chứng minh điều gì nếu vế "admin" THẬT SỰ là admin và vế
+    # "restricted" THẬT SỰ là một vai KHÁC — không kiểm hai điều này thì so
+    # hai lượt kho với nhau, hay so một tệp với chính nó, vẫn in PASS mà
+    # không đo được gì (đã xảy ra: hai JSON tự khai `role` từ Task 7, nhưng
+    # compare() trước bản sửa này chưa từng đọc khoá đó).
+    admin_role = admin.get("role", "admin")
+    if admin_role != "admin":
+        raise ValueError(f"vế admin không phải vai admin: role={admin_role!r}")
+    restricted_role = restricted.get("role")
+    if restricted_role == admin_role:
+        raise ValueError(
+            f"hai vế cùng vai ({admin_role!r}) — cổng ÂM cần so HAI vai KHÁC "
+            f"nhau, không so một vai với chính nó (hay hai lượt cùng vai)")
     by_q_admin = {r["question"]: r for r in admin["per_case"]}
     by_q_res = {r["question"]: r for r in restricted["per_case"]}
     leaked, regressed = [], []
     n_commercial = n_other = 0
+    admin_thay_thuong_mai = False
     for question, expected, _difficulty in cases:
         if question not in by_q_admin or question not in by_q_res:
             raise ValueError(f"thiếu ca ở một bên: {question!r}")
@@ -40,6 +64,8 @@ def compare(admin: dict, restricted: dict, cases=RETRIEVAL_CASES) -> dict:
         a, r = by_q_admin[question], by_q_res[question]
         if kind:
             n_commercial += 1
+            if a["recall_at_pool"] > 0:
+                admin_thay_thuong_mai = True
             if r["recall_at_pool"] != 0:
                 leaked.append({"question": question, "recall_at_pool": r["recall_at_pool"]})
         else:
@@ -48,6 +74,11 @@ def compare(admin: dict, restricted: dict, cases=RETRIEVAL_CASES) -> dict:
                 regressed.append({"question": question,
                                   "admin": a["recall_at_pool"],
                                   "restricted": r["recall_at_pool"]})
+    if n_commercial and not admin_thay_thuong_mai:
+        raise ValueError(
+            "vế admin không thấy tài liệu thương mại ở BẤT KỲ ca nào "
+            "(recall_at_pool = 0 trên toàn bộ ca thương mại) — không giống "
+            "một lượt đo không-lọc thật, cổng không chứng minh được gì")
     return {"ok": not leaked and not regressed,
             "n_commercial": n_commercial, "n_other": n_other,
             "commercial_leaked": leaked, "regressed": regressed}
