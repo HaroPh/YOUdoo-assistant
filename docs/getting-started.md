@@ -157,8 +157,12 @@ backend.
    `DATABASE_URL`. If you overrode `POSTGRES_USER` in `.env`, use that
    value here instead.
 
-   All five scripts are idempotent (`CREATE TABLE IF NOT EXISTS` /
-   `ADD COLUMN IF EXISTS ... IF NOT EXISTS`), so re-running them is harmless.
+   All six scripts are idempotent. The first five re-run harmlessly via
+   `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF EXISTS ... IF NOT EXISTS`;
+   `009` gets there a different way — its `UPDATE` is guarded by
+   `WHERE visibility <> 'commercial'` (a row already backfilled is skipped,
+   not rewritten) and its `DELETE` is naturally idempotent (a second run
+   matches 0 rows).
 
    `001_llm_usage.sql` — the LLM budget ledger. `002_mcp_call_log.sql` —
    the audit trail for every MCP call. `004_user_memory.sql` — the
@@ -178,6 +182,10 @@ backend.
    (~7s for 4,870 chunks. Add `--tat-ca` to overwrite existing values,
    needed only if `fold_vi` itself changes.) Skipping this leaves the
    folded leg silently doing nothing on the old rows.
+   `009_rag_visibility_backfill.sql` — backfills `rag_chunks.visibility`
+   to `'commercial'` for the four price/discount/payment/SLA documents
+   (RBAC at the RAG layer), and removes the SID financial-report document
+   that had leaked into the corpus.
 
    **On a fresh install, `rag_chunks` does not exist yet at this step** —
    it is created by `ensure_schema()` from `schema.sql` the first time you

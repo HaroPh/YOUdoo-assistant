@@ -1440,8 +1440,9 @@ async def main(argv=None):
     ap.add_argument("--model", required=True)
     ap.add_argument("--role", default="admin",
                     choices=sorted(roles.load_profile()),
-                    help="vai để dựng prompt (chỉ có tác dụng với "
-                         "intent/sop_select/planner; các bộ khác bỏ qua)")
+                    help="vai để dựng prompt VÀ lọc visibility RAG (tác dụng "
+                         "với intent/sop_select/planner/retrieval/"
+                         "synthesis_live/multiturn; các bộ khác bỏ qua)")
     ap.add_argument("--save-baseline", action="store_true")
     ap.add_argument("--baseline")
     ap.add_argument("--pace", type=float, default=None,

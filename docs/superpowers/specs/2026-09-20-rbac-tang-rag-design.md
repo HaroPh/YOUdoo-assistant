@@ -158,10 +158,11 @@ lại; thêm một tập riêng cho **visibility** để hai nghĩa không lẫn
   (`docs/getting-started.md:123-126`):
   1. `UPDATE rag_chunks SET visibility = 'commercial' WHERE visibility <> 'commercial' AND
      (source_file LIKE '%discount_policy.docx' OR … 4 basename)` — kỳ vọng **24** dòng.
-  2. `DELETE FROM rag_chunks WHERE source_file LIKE '%BaoCaoTaiChinhBanNien%'`;
-     `DELETE FROM rag_documents WHERE source_file LIKE '%BaoCaoTaiChinhBanNien%'` — kỳ vọng
-     **660** chunk, 1 tài liệu. **Thao tác phá huỷ duy nhất** của 19b: header migration ghi rõ, và
-     migration in `count(*)` trước/sau bằng `RAISE NOTICE` để lượt chạy tay có bằng chứng.
+  2. Đếm `rag_chunks` khớp `source_file LIKE '%BaoCaoTaiChinhBanNien%'` (để báo cáo), rồi
+     `DELETE FROM rag_documents WHERE source_file LIKE '%BaoCaoTaiChinhBanNien%'` — chunk đi theo
+     `ON DELETE CASCADE` (không có `DELETE FROM rag_chunks` riêng) — kỳ vọng **660** chunk, 1 tài
+     liệu. **Thao tác phá huỷ duy nhất** của 19b: header migration ghi rõ, và migration in
+     `count(*)` trước/sau bằng `RAISE NOTICE` để lượt chạy tay có bằng chứng.
   3. Ghi `rag_embedding_marker` không đụng.
 - `DOC_VISIBILITY` xuất hiện **hai chỗ** (Python + SQL). Một test hợp đồng đọc file 009 và khẳng định
   bốn basename trong SQL **bằng đúng** `set(DOC_VISIBILITY)` — hai nguồn không được trôi.
@@ -171,7 +172,7 @@ lại; thêm một tập riêng cho **visibility** để hai nghĩa không lẫn
 **Unit** (`pytest -m "not integration and not live"`, không DB):
 - `visibility.py`: `class_for` trả `'commercial'` cho 4 basename kể cả khi truyền đường dẫn đầy đủ
   Windows/POSIX; `'all'` cho tệp lạ; mọi giá trị `DOC_VISIBILITY` ∈ `VISIBILITY_CLASSES`.
-- `RoleCfg.rag_visibility` cho 4 vai đúng §3; admin là `None`.
+- `RoleCfg.rag_visibility` cho 4 vai đúng §3; admin là `UNRESTRICTED`.
 - `resolve()`: `None`, `frozenset()`, `set()` → `DEFAULT_VISIBILITY`; `UNRESTRICTED` → chính nó;
   một `_Unrestricted()` **khác** (không phải singleton) → vẫn fail-closed (so bằng `is`).
 - `retrieve()` fail-closed: không truyền **và** truyền `None` → SQL chứa mệnh đề lọc với `['all']`
