@@ -94,3 +94,71 @@ def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
     dense_calls = [sql for sql, _ in conn.calls if "<=>" in sql]
     assert len(dense_calls) == 2
     assert all(VIS_CLAUSE in s for s in dense_calls)
+
+
+# ─── Integration: DB thật ──────────────────────────────────────────────────
+
+from src.rag.chunking import fold_vi
+from src.rag.ingest import segment_vi
+
+_DIM = 1024
+
+
+def _vec(hot: int) -> str:
+    """Vector đơn vị trục `hot`, dạng chuỗi cho %s::vector."""
+    v = ["0"] * _DIM
+    v[hot] = "1"
+    return "[" + ",".join(v) + "]"
+
+
+def _nap_hai_tai_lieu(conn):
+    """1 chunk 'commercial' (trục 0) + 1 chunk 'all' (trục 1); cùng từ khoá
+    'chiết khấu' để chân sparse và chân bỏ dấu đều có ứng viên."""
+    rows = [("d-tm", "seed\\discount_policy.docx", "commercial", 0,
+             "Chính sách chiết khấu: bậc 5%, cộng 2%, trần 15%."),
+            ("d-all", "seed/policy.docx", "all", 1,
+             "Chính sách hoàn hàng và chiết khấu chung trong 30 ngày.")]
+    for doc_id, src, vis, hot, text in rows:
+        conn.execute("INSERT INTO rag_documents (doc_id, source_file, content_hash) "
+                     "VALUES (%s, %s, %s)", (doc_id, src, doc_id))
+        conn.execute(
+            "INSERT INTO rag_chunks (doc_id, source_file, chunk_text, visibility, "
+            "embedding, ts_vector, chunk_text_fold) "
+            "VALUES (%s, %s, %s, %s, %s::vector, to_tsvector('simple', %s), %s)",
+            (doc_id, src, text, vis, _vec(hot), segment_vi(text), fold_vi(text)))
+
+
+@pytest.mark.integration
+def test_ba_chan_tren_db_that_khong_lo_commercial_cho_all(clean_tables, monkeypatch):
+    conn = clean_tables
+    _nap_hai_tai_lieu(conn)
+    monkeypatch.setenv("RAG_FOLD_ENABLED", "1")
+    # Truy vấn "nhìn" giống chunk commercial nhất: trục 0 → dense xếp nó đầu
+    monkeypatch.setattr(rt, "embed_query", lambda q: [1.0] + [0.0] * (_DIM - 1))
+    q = "chiết khấu"
+    chi_all = frozenset({"all"})
+
+    dense = rt._dense(conn, [1.0] + [0.0] * (_DIM - 1), chi_all)
+    sparse = rt._sparse(conn, segment_vi(q), chi_all)
+    fold = rt._lexical_fold(conn, fold_vi(q), chi_all)
+    for ten, rows in (("dense", dense), ("sparse", sparse), ("fold", fold)):
+        assert rows, f"chân {ten} không có ứng viên — fixture sai, test tự vô hiệu"
+        # cột 2 = source_file (xem _COLS)
+        assert all("policy.docx" in r[2] and "discount" not in r[2] for r in rows), (ten, rows)
+
+    ket_qua = rt.retrieve(q, conn=conn, visibility=chi_all)
+    assert {c.source_file for c in ket_qua.chunks} == {"seed/policy.docx"}
+
+
+@pytest.mark.integration
+def test_unrestricted_thay_ca_hai(clean_tables, monkeypatch):
+    """Khẳng định TẬP, không khẳng định thứ tự: hai chunk hoà điểm ts_rank ở
+    chân sparse/fold, RRF có thể xếp 'all' trước — thứ tự không phải điều
+    test này đo."""
+    conn = clean_tables
+    _nap_hai_tai_lieu(conn)
+    monkeypatch.setenv("RAG_FOLD_ENABLED", "1")
+    monkeypatch.setattr(rt, "embed_query", lambda q: [1.0] + [0.0] * (_DIM - 1))
+    ket_qua = rt.retrieve("chiết khấu", conn=conn, visibility=UNRESTRICTED)
+    assert {c.source_file for c in ket_qua.chunks} == {"seed\\discount_policy.docx",
+                                                        "seed/policy.docx"}
