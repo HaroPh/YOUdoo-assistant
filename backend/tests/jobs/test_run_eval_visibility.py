@@ -116,6 +116,11 @@ async def test_main_truyen_role_vao_eval_multiturn_va_synthesis_live(monkeypatch
 
     monkeypatch.setattr(run_eval, "eval_multiturn", gia_multiturn)
     monkeypatch.setattr(run_eval, "eval_synthesis_live", gia_synthesis_live)
+    # main() nhánh synthesis_live gọi _llm() → dựng router → PostgresUsageStore
+    # đọc os.environ['DATABASE_URL']. Máy dev có .env nên xanh giả; runner CI
+    # không có → KeyError → INFRA ERROR → SystemExit(2) (CI đỏ 2026-09-20,
+    # run 35519484563). Mock như mọi test lái main() ở test_eval_gate.py.
+    monkeypatch.setattr(run_eval, "_llm", lambda m, role=None: object())
 
     await run_eval.main(["--set", "multiturn", "--model", "bge-m3",
                          "--pace", "0", "--role", "warehouse"])
