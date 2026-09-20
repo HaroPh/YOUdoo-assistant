@@ -15,6 +15,7 @@ import json
 import sys
 
 from evals.retrieval_cases import RETRIEVAL_CASES
+from src.cli_console import use_utf8_streams
 from src.rag.visibility import DOC_VISIBILITY, basename
 
 
@@ -53,6 +54,7 @@ def compare(admin: dict, restricted: dict, cases=RETRIEVAL_CASES) -> dict:
 
 
 def main(argv=None) -> int:
+    use_utf8_streams()
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) != 2:
         print("dùng: python -m evals.compare_visibility <admin.json> <restricted.json>")
