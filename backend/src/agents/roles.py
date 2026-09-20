@@ -18,6 +18,8 @@ khai báo sẽ khiến nó bị CẤM, không phải được cấp cho mọi va
 import os
 from dataclasses import dataclass, field
 
+from src.rag.visibility import DEFAULT_VISIBILITY, UNRESTRICTED
+
 OWN = "own"
 NEEDS_SIGN_OFF = "needs_sign_off"
 OTHER_DEPT = "other_dept"
@@ -99,6 +101,9 @@ class RoleCfg:
     # thì KHÔNG khai ở đây — other_dept tự suy ra từ DEPT_OF.
     other_dept_extra: frozenset = field(default_factory=frozenset)
     unrestricted: bool = False        # chỉ vai admin
+    # Lớp tài liệu RAG vai này được thấy (spec 2026-09-20 §3). Mặc định
+    # THẤY ÍT NHẤT: hồ sơ quên khai thì không lộ tài liệu thương mại.
+    rag_visibility: object = DEFAULT_VISIBILITY   # frozenset[str] | UNRESTRICTED
 
     @property
     def other_dept(self) -> frozenset:
@@ -196,15 +201,20 @@ MCP_WAREHOUSE = os.environ.get("MCP_ODOO_URL_WAREHOUSE", "http://localhost:8004/
 MCP_ACCOUNTING = os.environ.get("MCP_ODOO_URL_ACCOUNTING", "http://localhost:8005/sse")
 MCP_SALES = os.environ.get("MCP_ODOO_URL_SALES", "http://127.0.0.1:8006/sse")
 
+_SEES_COMMERCIAL = frozenset({"all", "commercial"})
+
 PROFILES = {
     "small-business": {
-        "admin": RoleCfg("admin", "Quản trị", MCP_ADMIN, unrestricted=True),
+        "admin": RoleCfg("admin", "Quản trị", MCP_ADMIN, unrestricted=True,
+                         rag_visibility=UNRESTRICTED),
         "warehouse": RoleCfg("warehouse", "Kho", MCP_WAREHOUSE,
                              own=_WH_OWN, needs_sign_off=_WH_SIGN_OFF),
         "accounting": RoleCfg("accounting", "Kế toán", MCP_ACCOUNTING,
-                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF),
+                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF,
+                              rag_visibility=_SEES_COMMERCIAL),
         "sales": RoleCfg("sales", "Bán hàng", MCP_SALES,
-                         own=_SALES_OWN, needs_sign_off=_SALES_SIGN_OFF),
+                         own=_SALES_OWN, needs_sign_off=_SALES_SIGN_OFF,
+                         rag_visibility=_SEES_COMMERCIAL),
     },
     # Doanh nghiệp lớn chia nhỏ trách nhiệm: 3 nghiệp vụ RỜI tập own∪sign_off
     # của vai kho ⇒ quyền bị gỡ khỏi tài khoản Odoo (khác với việc chỉ đổi
@@ -214,7 +224,8 @@ PROFILES = {
     # không lấy chúng — phải khai qua other_dept_extra để planner vẫn được
     # nhắc tên và lời từ chối vẫn xảy ra.
     "enterprise": {
-        "admin": RoleCfg("admin", "Quản trị", MCP_ADMIN, unrestricted=True),
+        "admin": RoleCfg("admin", "Quản trị", MCP_ADMIN, unrestricted=True,
+                         rag_visibility=UNRESTRICTED),
         "warehouse": RoleCfg(
             "warehouse", "Kho", MCP_WAREHOUSE,
             own=frozenset({"deliver_order", "receive_order", "validate_picking",
@@ -224,12 +235,14 @@ PROFILES = {
             other_dept_extra=frozenset({"inventory_adjustment",
                                         "scrap_product", "return_order"})),
         "accounting": RoleCfg("accounting", "Kế toán", MCP_ACCOUNTING,
-                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF),
+                              own=_ACC_OWN, needs_sign_off=_ACC_SIGN_OFF,
+                              rag_visibility=_SEES_COMMERCIAL),
         # Hồ sơ enterprise dùng CÙNG tập với small-business: phỏng vấn phân
         # quyền chưa từng hỏi tới bộ phận bán hàng, nên chia nhỏ hơn ở đây sẽ
         # là bịa. Khi có số liệu thì tách như vai kho đã tách.
         "sales": RoleCfg("sales", "Bán hàng", MCP_SALES,
-                         own=_SALES_OWN, needs_sign_off=_SALES_SIGN_OFF),
+                         own=_SALES_OWN, needs_sign_off=_SALES_SIGN_OFF,
+                         rag_visibility=_SEES_COMMERCIAL),
     },
 }
 
@@ -256,3 +269,9 @@ def role_for_user(user_id):
         if uid.strip() == str(user_id).strip():
             return role.strip() or None
     return None
+
+
+def rag_visibility_of(role_cfg):
+    """None khi không có vai — retrieve() tự fail-closed (spec §4), luật đó
+    KHÔNG được lặp ở caller."""
+    return None if role_cfg is None else role_cfg.rag_visibility
