@@ -31,6 +31,17 @@ from src.agents.skill_loader import (load_skill_specs, render_worker_block,
 # quên khai sẽ âm thầm đo cấu hình admin.
 ROLE_SENSITIVE_SETS = frozenset({"intent", "sop_select", "planner"})
 
+# Ba bộ gọi retrieve() THẬT. --role ở đây đổi VISIBILITY (tập lớp tài liệu
+# được thấy), KHÔNG đổi prompt — cố ý tách khỏi ROLE_SENSITIVE_SETS để hai
+# nghĩa không lẫn (spec 2026-09-20 §5). Mặc định --role admin = không lọc =
+# đúng hành vi trước 19b, nên baseline cũ vẫn so được.
+VISIBILITY_SENSITIVE_SETS = frozenset({"retrieval", "synthesis_live", "multiturn"})
+
+
+def visibility_for(role_name: str):
+    return roles.rag_visibility_of(role_cfg(role_name))
+
+
 _MCP_DIR = (pathlib.Path(__file__).resolve().parents[2]
             / "mcp-servers" / "odoo")
 

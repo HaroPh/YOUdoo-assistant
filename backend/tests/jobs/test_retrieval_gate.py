@@ -17,7 +17,7 @@ from jobs.eval_gate import _gate
 # Hình dạng đúng của `baseline-bge-m3-retrieval.json` (2026-09-19): 109 ca,
 # recall báo cáo 4 chữ số thập phân.
 N = 109
-BASE = {"dang_go": "co_dau", "rerank": True, "n": N,
+BASE = {"dang_go": "co_dau", "rerank": True, "role": "admin", "n": N,
         "recall_at_20": 0.9771, "recall_at_6": 0.9633, "mrr": 0.8058}
 
 
@@ -68,6 +68,19 @@ def test_gate_tu_choi_baseline_khac_cau_hinh(khoa, gia_tri):
     quy — ném lỗi nói rõ khoá nào lệch, không trả FAIL."""
     with pytest.raises(ValueError, match=khoa):
         _gate("retrieval", _ket_qua(**{khoa: gia_tri}), BASE)
+
+
+def test_gate_tu_choi_baseline_khac_vai():
+    """Lượt --role warehouse so với baseline admin: FAIL là ĐÚNG về mặt số,
+    nhưng đó là dùng sai cổng — cổng âm có công cụ riêng (compare_visibility)."""
+    with pytest.raises(ValueError, match="role"):
+        _gate("retrieval", _ket_qua(role="warehouse"), BASE)
+
+
+def test_gate_baseline_cu_khong_co_role_hieu_la_admin():
+    """baseline-bge-m3-retrieval.json ghi trước 19b không có khoá role."""
+    base_cu = {k: v for k, v in BASE.items() if k != "role"}
+    assert _gate("retrieval", _ket_qua(), base_cu) is True
 
 
 async def test_main_baseline_retrieval_in_dong_gate_bang_recall_at_6(

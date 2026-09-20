@@ -160,6 +160,13 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
             if result[khoa] != base[khoa]:
                 raise ValueError(f"baseline khác cấu hình {khoa}: "
                                  f"đo={result[khoa]!r} baseline={base[khoa]!r}")
+        # Baseline ghi trước 19b không có khoá role → hiểu là admin.
+        measured_role = result.get("role", "admin")
+        baseline_role = base.get("role", "admin")
+        if measured_role != baseline_role:
+            raise ValueError(f"baseline khác cấu hình role: đo={measured_role!r} "
+                             f"baseline={baseline_role!r} — cổng ÂM dùng "
+                             f"evals/compare_visibility.py, không dùng --baseline")
         # r@20 là TRẦN POOL (reranker chỉ chọn trong 20 ứng viên) — tụt là có
         # tài liệu bị lọc mất khỏi ứng viên, không dung sai. r@6 chịu 1/n như
         # `confirm` vì rerank blend có thể lật một ca biên; mrr không gác —
