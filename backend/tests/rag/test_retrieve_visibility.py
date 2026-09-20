@@ -87,13 +87,36 @@ def test_tap_lop_di_vao_tham_so_da_sap_xep(khong_ra_ngoai):
                                          if isinstance(p, (list, tuple))], (ten, params)
 
 
+def _sql_theo_chan(conn: _FakeConn) -> dict[str, list[tuple[str, tuple]]]:
+    """Như `_sql_cua_ba_chan` nhưng GOM cả list thay vì ghi đè — cần khi một
+    lượt `retrieve()` gọi cùng một chân nhiều lần (primary + mỗi aux)."""
+    ra: dict[str, list[tuple[str, tuple]]] = {"dense": [], "fold": [], "sparse": []}
+    for sql, params in conn.calls:
+        if "<=>" in sql:
+            ra["dense"].append((sql, params))
+        elif "ts_vector_fold" in sql:
+            ra["fold"].append((sql, params))
+        elif "c.ts_vector @@" in sql:
+            ra["sparse"].append((sql, params))
+    return ra
+
+
 def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
-    """Lượt hỏi trước (aux) đi qua cùng ba hàm — không có cửa sau."""
+    """Lượt hỏi trước (aux) đi qua cùng BA hàm — không có cửa sau.
+
+    Đường thật: `rag_node` và `gather_docs` đều truyền `(prev,)` ở MỌI lượt
+    hỏi tiếp theo, nên một lượt `retrieve()` với 1 aux sinh SÁU câu SQL — 3
+    chân × (primary + aux). Trước bản sửa này, test chỉ soi cặp DENSE (nhận
+    diện qua `"<=>"`) và bỏ sót sparse/fold: xoá `visibility` khỏi lời gọi
+    aux của `_sparse`/`_lexical_fold` (retrieve.py:284, :287) mà suite vẫn
+    xanh — xem xác nhận tay ở nhật ký thực thi task này."""
     conn = _FakeConn()
     rt.retrieve("câu sau", conn=conn, aux_queries=("câu trước",))
-    dense_calls = [sql for sql, _ in conn.calls if "<=>" in sql]
-    assert len(dense_calls) == 2
-    assert all(VIS_CLAUSE in s for s in dense_calls)
+    chan = _sql_theo_chan(conn)
+    assert {ten: len(calls) for ten, calls in chan.items()} == {
+        "dense": 2, "sparse": 2, "fold": 2}, chan
+    for ten, calls in chan.items():
+        assert all(VIS_CLAUSE in sql for sql, _params in calls), ten
 
 
 # ─── Integration: DB thật ──────────────────────────────────────────────────
