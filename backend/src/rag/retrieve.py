@@ -9,6 +9,7 @@ from .embed import embed_query
 from .ingest import segment_vi
 from .chunking import fold_vi, index_text
 from .types import Chunk, RetrievalResult
+from .visibility import UNRESTRICTED, resolve
 
 # `d.effective_date` lấy qua LEFT JOIN: nó thuộc rag_documents chứ không
 # thuộc chunk. LEFT chứ không INNER — tài liệu nghiệp vụ không có ngày, và
@@ -18,16 +19,27 @@ _COLS = ("c.id, c.doc_id, c.source_file, c.doc_title, c.section_path, c.page, "
 _FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
 
-def _dense(conn, qvec) -> list[tuple]:
+def _vis_clause(visibility) -> tuple[str, tuple]:
+    """Mệnh đề lọc lớp + tham số đi kèm. ('', ()) khi UNRESTRICTED — SQL của
+    đường admin bằng ĐÚNG SQL trước 19b. Lọc đứng trong WHERE, tức TRƯỚC
+    ORDER BY/LIMIT: lọc sau pool vừa tốn chỗ trong TOP_N vừa rò qua
+    total_candidates."""
+    if visibility is UNRESTRICTED:
+        return "", ()
+    return " AND c.visibility = ANY(%s)", (sorted(visibility),)
+
+
+def _dense(conn, qvec, visibility=UNRESTRICTED) -> list[tuple]:
+    clause, extra = _vis_clause(visibility)
     return conn.execute(
         f"SELECT {_COLS}, 1 - (c.embedding <=> %s::vector) AS score "
-        f"FROM {_FROM} WHERE c.embedding IS NOT NULL "
+        f"FROM {_FROM} WHERE c.embedding IS NOT NULL{clause} "
         f"ORDER BY c.embedding <=> %s::vector LIMIT %s",
-        (qvec, qvec, TOP_N),
+        (qvec, *extra, qvec, TOP_N),
     ).fetchall()
 
 
-def _sparse(conn, qseg) -> list[tuple]:
+def _sparse(conn, qseg, visibility=UNRESTRICTED) -> list[tuple]:
     """Chân từ-khoá của hệ hybrid.
 
     ⚠️ ĐO ĐƯỢC 2026-08-20: chân này trả về **0 kết quả cho 64/64** câu hỏi của
@@ -51,11 +63,12 @@ def _sparse(conn, qseg) -> list[tuple]:
     thiết kế. Muốn hồi sinh sparse thì phải đổi cách ứng viên vào pool (ví dụ
     mỗi chân giữ TOP_N riêng thay vì chia nhau 20 chỗ), chứ không phải sửa
     truy vấn."""
+    clause, extra = _vis_clause(visibility)
     return conn.execute(
         f"SELECT {_COLS}, ts_rank(c.ts_vector, plainto_tsquery('simple', %s)) AS score "
-        f"FROM {_FROM} WHERE c.ts_vector @@ plainto_tsquery('simple', %s) "
+        f"FROM {_FROM} WHERE c.ts_vector @@ plainto_tsquery('simple', %s){clause} "
         f"ORDER BY score DESC LIMIT %s",
-        (qseg, qseg, TOP_N),
+        (qseg, qseg, *extra, TOP_N),
     ).fetchall()
 
 
@@ -98,7 +111,7 @@ def fold_enabled() -> bool:
     return os.environ.get("RAG_FOLD_ENABLED", "1") != "0"
 
 
-def _lexical_fold(conn, qseg_fold: str) -> list[tuple]:
+def _lexical_fold(conn, qseg_fold: str, visibility=UNRESTRICTED) -> list[tuple]:
     """Chân khớp mặt chữ trên text ĐÃ BỎ DẤU — cả hai phía đều bỏ dấu.
 
     Vì sao chân này tồn tại trong khi ghi chú cũ kết luận "hồi sinh sparse là
@@ -114,10 +127,11 @@ def _lexical_fold(conn, qseg_fold: str) -> list[tuple]:
     tq = _or_tsquery(qseg_fold)
     if not tq:
         return []
+    clause, extra = _vis_clause(visibility)
     cur = conn.execute(
         f"SELECT {_COLS}, ts_rank(c.ts_vector_fold, to_tsquery('simple', %s)) AS score "
-        f"FROM {_FROM} WHERE c.ts_vector_fold @@ to_tsquery('simple', %s) "
-        f"ORDER BY score DESC LIMIT {TOP_N}", (tq, tq))
+        f"FROM {_FROM} WHERE c.ts_vector_fold @@ to_tsquery('simple', %s){clause} "
+        f"ORDER BY score DESC LIMIT {TOP_N}", (tq, tq, *extra))
     return cur.fetchall()
 
 
@@ -240,7 +254,11 @@ def compress(query: str, chunks: list[Chunk], k: int) -> list[Chunk]:
 
 
 def retrieve(query: str, k: int = TOP_K, conn=None,
-             aux_queries: tuple[str, ...] = ()) -> RetrievalResult:
+             aux_queries: tuple[str, ...] = (), *, visibility=None) -> RetrievalResult:
+    # Fail-closed TẠI ĐÂY (spec §4): không truyền / None / rỗng → {'all'}.
+    # Chỉ đúng đối tượng UNRESTRICTED mới bỏ lọc. Mục 17b từng lộ đường mất
+    # vai — "quên truyền" phải là THẤY ÍT NHẤT.
+    visibility = resolve(visibility)
     own = conn is None
     if own:
         conn = _db.connect()
@@ -248,7 +266,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
     try:
         qvec = embed_query(query)
         qseg = segment_vi(query)
-        dense, sparse = _dense(conn, qvec), _sparse(conn, qseg)
+        dense, sparse = _dense(conn, qvec, visibility), _sparse(conn, qseg, visibility)
         fused = _rrf(dense, sparse)
         # Chân BỎ DẤU là một chân RRF NGANG QUYỀN với dense. Quét trọng số
         # 2026-09-08 cho thấy 1,0 là điểm duy nhất chạy được: dưới 0,7 nó
@@ -256,17 +274,17 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         # dense (cả ba dạng gõ tụt về 0,7188).
         fold_gop = False
         if fold_enabled():
-            hang_fold = _lexical_fold(conn, fold_vi(query))
+            hang_fold = _lexical_fold(conn, fold_vi(query), visibility)
             fold_gop = bool(hang_fold)
             fused = _rrf_fold(hang_fold, fused)
         for aux in aux_queries:
             if aux == query:
                 continue
-            aux_dense = _dense(conn, embed_query(aux))
-            aux_sparse = _sparse(conn, segment_vi(aux))
+            aux_dense = _dense(conn, embed_query(aux), visibility)
+            aux_sparse = _sparse(conn, segment_vi(aux), visibility)
             fused = _rrf(aux_dense, aux_sparse, acc=fused)
             if fold_enabled():
-                hang_fold = _lexical_fold(conn, fold_vi(aux))
+                hang_fold = _lexical_fold(conn, fold_vi(aux), visibility)
                 fold_gop = fold_gop or bool(hang_fold)
                 fused = _rrf_fold(hang_fold, fused)
         ordered = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)
