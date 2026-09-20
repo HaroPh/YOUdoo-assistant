@@ -2,7 +2,7 @@
 import pytest
 
 from src.agents import roles
-from src.rag.visibility import DEFAULT_VISIBILITY, UNRESTRICTED
+from src.rag.visibility import DEFAULT_VISIBILITY, UNRESTRICTED, VISIBILITY_CLASSES
 
 SEES_COMMERCIAL = frozenset({"all", "commercial"})
 
@@ -35,3 +35,17 @@ def test_rag_visibility_of_none_tra_none():
     assert roles.rag_visibility_of(None) is None
     admin = roles.PROFILES["small-business"]["admin"]
     assert roles.rag_visibility_of(admin) is UNRESTRICTED
+
+
+@pytest.mark.parametrize("profile", sorted(roles.PROFILES))
+def test_moi_lop_khai_trong_role_thuoc_visibility_classes(profile):
+    """`roles.py` có `_SEES_COMMERCIAL` — một bản khai lớp ĐỘC LẬP, không đối
+    chiếu với `VISIBILITY_CLASSES` (nguồn thật ở src/rag/visibility.py). Một
+    lỗi gõ như 'comercial' vẫn fail-closed (lớp lạ không khớp gì trong SQL
+    ANY(%s)) nhưng ÂM THẦM làm vai kế toán/bán hàng MẤT tài liệu thương mại,
+    không có test nào bắt được. Kiểm mọi lớp mà mỗi vai (trừ UNRESTRICTED)
+    khai ra đều nằm trong VISIBILITY_CLASSES."""
+    for cfg in roles.PROFILES[profile].values():
+        if cfg.rag_visibility is UNRESTRICTED:
+            continue
+        assert cfg.rag_visibility <= VISIBILITY_CLASSES, (cfg.name, cfg.rag_visibility)
