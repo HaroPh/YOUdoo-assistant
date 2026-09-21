@@ -15,7 +15,9 @@ from .visibility import UNRESTRICTED, resolve
 # thuộc chunk. LEFT chứ không INNER — tài liệu nghiệp vụ không có ngày, và
 # INNER JOIN sẽ lặng lẽ loại chúng khỏi mọi kết quả truy xuất.
 _COLS = ("c.id, c.doc_id, c.source_file, c.doc_title, c.section_path, c.page, "
-         "c.sheet, c.row_range, c.chunk_text, d.effective_date, c.source_kind")
+         "c.sheet, c.row_range, c.chunk_text, d.effective_date, c.source_kind, "
+         "c.visibility")
+VIS_IDX = 11   # vị trí c.visibility trong hàng; score vẫn là row[-1]
 _FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
 
@@ -253,6 +255,44 @@ def compress(query: str, chunks: list[Chunk], k: int) -> list[Chunk]:
     return chunks[:k]  # Phase 2: top-k selection (extractive slot)
 
 
+def _prepare_queries(query: str, aux_queries) -> list[tuple[list[float], str, str]]:
+    """Nhúng + tách từ + bỏ dấu MỘT LẦN cho query chính và mọi aux. Bản lọc lẫn
+    bản bóng dùng chung danh sách này — không nhúng lại (Ollama), không tách lại."""
+    prepared = [(embed_query(query), segment_vi(query), fold_vi(query))]
+    for aux in aux_queries:
+        if aux == query:
+            continue
+        prepared.append((embed_query(aux), segment_vi(aux), fold_vi(aux)))
+    return prepared
+
+
+def _fuse_legs(conn, prepared, visibility) -> tuple[dict, bool]:
+    """Ba chân × mọi truy vấn đã chuẩn bị, gộp RRF theo ĐÚNG thứ tự cũ
+    (dense+sparse rồi fold, cho query chính rồi từng aux). Trả (fused, fold_gop)."""
+    fused: dict = {}
+    fold_gop = False
+    use_fold = fold_enabled()
+    for qvec, qseg, qfold in prepared:
+        fused = _rrf(_dense(conn, qvec, visibility),
+                     _sparse(conn, qseg, visibility), acc=fused)
+        if use_fold:
+            hang_fold = _lexical_fold(conn, qfold, visibility)
+            fold_gop = fold_gop or bool(hang_fold)
+            fused = _rrf_fold(hang_fold, fused)
+    return fused, fold_gop
+
+
+def _hidden_at_rank_one(fused: dict, visibility) -> frozenset:
+    """Luật hạng-1 (spec §3): lớp của ứng viên đứng đầu bản bóng, nếu vai
+    không được xem lớp đó. Hạng-5 bị giấu KHÔNG tính — vai kho hỏi hoàn hàng
+    mà bảng giá lọt hạng 5 vẫn phải được trả lời."""
+    if not fused:
+        return frozenset()
+    top = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)[0]
+    cls = top["row"][VIS_IDX]
+    return frozenset() if cls in visibility else frozenset({cls})
+
+
 def retrieve(query: str, k: int = TOP_K, conn=None,
              aux_queries: tuple[str, ...] = (), *, visibility=None) -> RetrievalResult:
     # Fail-closed TẠI ĐÂY (spec §4): không truyền / None / rỗng → {'all'}.
@@ -264,29 +304,9 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         conn = _db.connect()
         _db.ensure_schema(conn, RAG_SCHEMA)
     try:
-        qvec = embed_query(query)
-        qseg = segment_vi(query)
-        dense, sparse = _dense(conn, qvec, visibility), _sparse(conn, qseg, visibility)
-        fused = _rrf(dense, sparse)
-        # Chân BỎ DẤU là một chân RRF NGANG QUYỀN với dense. Quét trọng số
-        # 2026-09-08 cho thấy 1,0 là điểm duy nhất chạy được: dưới 0,7 nó
-        # không bao giờ chen nổi vào top-20, từ 1,5 trở lên nó nuốt cả chân
-        # dense (cả ba dạng gõ tụt về 0,7188).
-        fold_gop = False
-        if fold_enabled():
-            hang_fold = _lexical_fold(conn, fold_vi(query), visibility)
-            fold_gop = bool(hang_fold)
-            fused = _rrf_fold(hang_fold, fused)
-        for aux in aux_queries:
-            if aux == query:
-                continue
-            aux_dense = _dense(conn, embed_query(aux), visibility)
-            aux_sparse = _sparse(conn, segment_vi(aux), visibility)
-            fused = _rrf(aux_dense, aux_sparse, acc=fused)
-            if fold_enabled():
-                hang_fold = _lexical_fold(conn, fold_vi(aux), visibility)
-                fold_gop = fold_gop or bool(hang_fold)
-                fused = _rrf_fold(hang_fold, fused)
+        prepared = _prepare_queries(query, aux_queries)
+        qseg = prepared[0][1]
+        fused, fold_gop = _fuse_legs(conn, prepared, visibility)
         ordered = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)
 
         # Pool RỘNG (TOP_N) cho reranker chọn lọc, cắt k SAU rerank —
@@ -306,11 +326,19 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         rerank_query = query if not aux_queries else query + "\n" + "\n".join(aux_queries)
         chunks, reranked = rerank(rerank_query, pool)
         chunks = compress(query, chunks, k)
+        # Bản BÓNG không lọc: cùng vector/từ khoá, cùng RRF, KHÔNG rerank, chỉ
+        # để hỏi "thứ tốt nhất có bị giấu không". Hàng của nó chết tại đây —
+        # chỉ TÊN LỚP đi ra. Admin (UNRESTRICTED) không tốn thêm gì.
+        hidden_classes = frozenset()
+        if visibility is not UNRESTRICTED:
+            shadow, _fold = _fuse_legs(conn, prepared, UNRESTRICTED)
+            hidden_classes = _hidden_at_rank_one(shadow, visibility)
         return RetrievalResult(
             query=query, query_used=qseg, chunks=chunks,
             top_score=chunks[0].rrf_score if chunks else 0.0,
             total_candidates=len(fused),
-            method=method_label(fold_gop, reranked))
+            method=method_label(fold_gop, reranked),
+            hidden_classes=hidden_classes)
     finally:
         if own:
             conn.close()

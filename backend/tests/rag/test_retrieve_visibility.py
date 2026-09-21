@@ -37,15 +37,18 @@ def khong_ra_ngoai(monkeypatch):
 
 
 def _sql_cua_ba_chan(conn: _FakeConn) -> dict[str, tuple[str, tuple]]:
-    """Nhận diện chân theo dấu hiệu riêng của từng câu SQL."""
+    """Nhận diện chân theo dấu hiệu riêng của từng câu SQL.
+
+    Lấy câu ĐẦU mỗi chân — bản bóng không lọc (spec 2026-09-21) chạy SAU và
+    không được đè."""
     ra = {}
     for sql, params in conn.calls:
         if "<=>" in sql:
-            ra["dense"] = (sql, params)
+            ra.setdefault("dense", (sql, params))
         elif "ts_vector_fold" in sql:
-            ra["fold"] = (sql, params)
+            ra.setdefault("fold", (sql, params))
         elif "c.ts_vector @@" in sql:
-            ra["sparse"] = (sql, params)
+            ra.setdefault("sparse", (sql, params))
     return ra
 
 
@@ -69,14 +72,20 @@ def test_truyen_None_cung_fail_closed(khong_ra_ngoai):
 
 
 def test_unrestricted_thi_sql_khong_co_visibility(khong_ra_ngoai):
-    """Đường admin phải là ĐÚNG SQL trước 19b — để cổng dương so được với
-    baseline cũ mà không có mệnh đề thừa."""
+    """Đường admin phải KHÔNG có mệnh đề lọc — để cổng dương so được với
+    baseline cũ mà không tốn thêm chi phí lọc.
+
+    Từ task hidden_classes (2026-09-21), `_COLS` thêm `c.visibility` ở CUỐI
+    cho MỌI truy vấn (kể cả đường admin) — bản lọc và bản bóng phải cùng hình
+    dạng cột để dùng chung `_fuse_legs`/`_hidden_at_rank_one`. Do đó chữ
+    "visibility" giờ luôn có mặt trong SELECT; bất biến thật sự cần giữ là
+    KHÔNG có mệnh đề lọc (`VIS_CLAUSE`), không phải "không có chữ visibility"."""
     conn = _FakeConn()
     rt.retrieve("thuế suất", conn=conn, visibility=UNRESTRICTED)
     chan = _sql_cua_ba_chan(conn)
     assert set(chan) == {"dense", "sparse", "fold"}
     for ten, (sql, _p) in chan.items():
-        assert "visibility" not in sql, ten
+        assert VIS_CLAUSE not in sql, ten
 
 
 def test_tap_lop_di_vao_tham_so_da_sap_xep(khong_ra_ngoai):
@@ -113,10 +122,10 @@ def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
     conn = _FakeConn()
     rt.retrieve("câu sau", conn=conn, aux_queries=("câu trước",))
     chan = _sql_theo_chan(conn)
-    assert {ten: len(calls) for ten, calls in chan.items()} == {
-        "dense": 2, "sparse": 2, "fold": 2}, chan
+    # 4 câu mỗi chân: [primary lọc, aux lọc, primary bóng, aux bóng]. Nửa đầu
+    # PHẢI có mệnh đề (không cửa sau cho aux); nửa sau là bản bóng không lọc.
     for ten, calls in chan.items():
-        assert all(VIS_CLAUSE in sql for sql, _params in calls), ten
+        assert [VIS_CLAUSE in sql for sql, _params in calls] == [True, True, False, False], ten
 
 
 # ─── Integration: DB thật ──────────────────────────────────────────────────
