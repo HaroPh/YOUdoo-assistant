@@ -26,7 +26,7 @@ flowchart TD
 
     IR -->|read query| READ["erp_read<br/><i>ReAct agent, 28 read-only ERP tools</i>"]
     IR -->|write intent| WP["erp_write_planner<br/><i>+ deterministic role gate</i>"]
-    IR -->|policy/doc question| RAG["rag<br/><i>document-only synthesis</i>"]
+    IR -->|policy/doc question| RAG["rag<br/><i>document-only synthesis,<br/>role-filtered retrieval</i>"]
     IR -->|needs BOTH doc + ERP| MIX["mixed (fan-out)"]
     IR -->|matches a defined SOP| SKILL["skill node<br/><i>(dynamically loaded)</i>"]
     IR -->|unroutable| UNK["respond_unknown"]
@@ -36,7 +36,7 @@ flowchart TD
     COORD --> WC["write_continuation"]
     WX --> WC --> END1(["END"])
 
-    MIX --> GD["gather_docs<br/><i>hybrid retrieve() — dense+sparse+rerank</i>"]
+    MIX --> GD["gather_docs<br/><i>hybrid retrieve() — dense + accent-folded lexical,<br/>RRF, cross-encoder rerank, role-filtered</i>"]
     MIX --> GE["gather_erp<br/><i>ReAct agent, read-only ERP tools</i>"]
     GD --> FUSE["fuse_answer<br/><i>single LLM call over both sources</i>"]
     GE --> FUSE --> END2(["END"])
@@ -88,9 +88,37 @@ sliding-window rate limiter, a sha256 **hash-chained audit log** of every write
 so tampering is detectable), and a default bind of `127.0.0.1`.
 
 **LLM routing is multi-provider and quota-aware.** Seven roles (router, chitchat,
-evaluator, planner, read, fusion, synthesis) each resolve through a fallback chain
-(Gemini → Groq → OpenRouter), with usage tracked in Postgres so budget state
-survives restarts.
+evaluator, planner, read, fusion, synthesis) each resolve through a per-role fallback
+chain over a catalog of five models (three Gemini tiers, Groq `gpt-oss-120b`,
+OpenRouter Nemotron), with API keys rotated *within* a link before falling to the
+next provider, and usage tracked in Postgres so budget state survives restarts. The
+catalog was consolidated from nine models after live-gated tests found two of them
+silently dead. Open WebUI's model dropdown is real: `/v1/models` lists the
+catalog, and the chosen alias is the one that answers.
+
+**Retrieval is hybrid, role-filtered in SQL, and every leg was measured.** The
+corpus is 17 documents — internal policies plus Vietnamese legal texts — indexed as
+~3,900 chunks with hierarchical section paths and effective dates for legal
+articles. `retrieve()` fuses a dense leg (`bge-m3`, 1024-d, pgvector) with an
+**accent-folded lexical leg** via RRF, then a cross-encoder rerank
+(`bge-reranker-v2-m3`, GPU) acts as a *vote* blended into the fused score rather
+than the sole ranker. Each of those choices reversed an earlier one on data: the
+original sparse full-text leg was dead on Vietnamese text (0 hits in 64 queries)
+and reviving it made recall worse; folding diacritics took recall on unaccented
+queries from 0.016 to 0.60; and rerank-as-sole-ranker lost to rerank-as-vote on a
+second, larger hard set. Role-based visibility (below) is applied *inside* the SQL
+of every leg, before `LIMIT`, so a blocked document never reaches fusion.
+
+**Ingest handles the formats a Vietnamese SME actually has.** PDF, DOCX, XLSX (and
+`.xlsm` — Vietnamese ledgers almost always carry macros), PPTX, plus legacy
+`.doc`/`.xls`/`.rtf`/`.odt`/`.ods` through LibreOffice conversion; spreadsheet
+header detection; PDF table extraction. Scanned documents go through a **three-tier
+OCR** path — Tesseract page OCR, a table-aware pass, and a Gemini vision model for
+scanned financial statements — gated by a deterministic arithmetic check (the
+columns must add up) rather than an OCR confidence score, which measured as *not* a
+quality metric. The same extractor is exposed at `PUT /v1/documents/process` so Open
+WebUI's own per-user knowledge base uses it for uploaded files, keeping personal
+documents out of the shared corpus by construction.
 
 ## Role-based access
 
@@ -138,6 +166,20 @@ actually ship the goods, and only get blocked halfway through.
 
 The role also prefixes the LangGraph `thread_id`, so switching roles mid-conversation
 can't resume a pending confirmation inside a graph that no longer has that node.
+
+**Documents are role-filtered too, at the retrieval layer.** Four commercial
+documents (price list, discount, payment and SLA policies) are readable by
+`accounting`, `sales` and `admin` but not `warehouse`. The label on a chunk is a
+*class* (`all` / `commercial`), not a role list, so adding a role is a code change
+and not a data migration; the filter is a `WHERE visibility = ANY(...)` in the SQL
+of every retrieval leg; and it **fails closed** — a caller that loses its role sees
+*less*, and only an identity-checked sentinel (not `None`) disables the filter,
+inverting the `Optional` reflex that had opened an earlier audit hole. Measured
+after the change: `admin` recall unchanged at 0.977 against the pre-change
+baseline; `warehouse` at 0.885, a drop of 0.092 ≈ 10/109 — exactly the ten
+commercial cases and nothing else, cross-checked arithmetically rather than trusted
+from the gate's PASS line. A live probe through the real backend confirmed the
+warehouse role gets no policy numbers at all.
 
 > The role → tool mapping is deliberately **not** reproduced here — it lives in
 > [roles.py](backend/src/agents/roles.py), and hand-copying it into docs is exactly
@@ -239,10 +281,16 @@ Found by measurement, not guessed.
   "the document half failed" from "the document genuinely doesn't cover this". The
   pure-`rag` route degrades loudly; `mixed` does not — confirmed by live-testing the
   same failure through both routes side by side.
-- **A shared read credential means every role can read everything.** A deliberate
-  trade-off matching business reality (warehouse staff need to know whether an order
-  is paid before shipping), and reversible: every `erp_query` function already takes
-  an injectable gateway.
+- **A shared read credential means every role can read every ERP record.** A
+  deliberate trade-off matching business reality (warehouse staff need to know
+  whether an order is paid before shipping), and reversible: every `erp_query`
+  function already takes an injectable gateway. Documents, by contrast, *are*
+  role-filtered (above); ERP reads are not.
+- **A role blocked from a document is not told it was blocked.** Filtering happens
+  in retrieval, so the warehouse role asking about the discount policy gets a
+  confident, cited answer about *share sales* from the Enterprise Law — grounded, but
+  off-topic — instead of "no document you can see covers this". The spec asked for
+  a refusal; the live probe shows the criterion is half met.
 - **The out-of-department refusal reads wrong for one profile.** Under `enterprise`,
   a few operations (inventory adjustment, scrapping, returns) leave the warehouse
   role while still being *warehouse work*, so the refusal says "contact the Warehouse
@@ -253,6 +301,10 @@ Found by measurement, not guessed.
 - An approval flow for `needs_sign_off`, which exists in the policy model but has no
   runtime behavior of its own.
 - Make `fuse_answer` distinguish "retrieval failed" from "found nothing relevant".
+- Tell a blocked role it was blocked (a refusal path in synthesis when retrieval
+  filtered out every strong candidate), and extend the per-role eval gate from
+  `retrieval` to the synthesis and multi-turn sets — they already record the role
+  they measured, nothing reads it yet.
 - Per-role read gateways, closing the shared-read-credential trade-off above.
 - **SP-4 (shelved):** a meeting-agent extension — joining a live meeting, taking
   notes, answering ERP questions in real time. Two design questions are settled
@@ -264,14 +316,17 @@ Found by measurement, not guessed.
 
 | | |
 |---|---|
-| **Backend** | Python 3.11, FastAPI, LangGraph, LangChain |
-| **LLM providers** | Google Gemini, Groq, OpenRouter (multi-provider fallback router) |
-| **Retrieval** | PostgreSQL + pgvector, hybrid dense/sparse + cross-encoder rerank; embeddings via a dedicated self-hosted Ollama (`bge-m3`) |
-| **ERP reads** | Odoo XML-RPC through a read-only gateway with allow-listed business functions, 28 agent-facing tools |
-| **ERP writes** | a separate MCP server (35 tools) as four role-isolated processes, with a deny-by-default method allowlist, rate limiting, and a hash-chained audit log |
-| **Observability** | Langfuse (self-hosted: Postgres, ClickHouse, MinIO, Redis) |
+| **Backend** | Python 3.11, FastAPI, LangGraph 1.x + LangChain 1.x with a Postgres checkpointer; psycopg 3 |
+| **LLM providers** | Google Gemini (three tiers), Groq (`gpt-oss-120b`), OpenRouter (Nemotron) — five-model catalog, seven agent roles, per-role fallback chains, in-link key rotation, usage ledger in Postgres, user-selectable via `/v1/models` |
+| **Retrieval** | PostgreSQL 16 + pgvector; dense `bge-m3` (self-hosted Ollama) + accent-folded lexical leg, RRF fusion, `bge-reranker-v2-m3` cross-encoder on GPU as a blended vote; hierarchical section paths, legal effective dates, **role-based visibility filtered in SQL** |
+| **Ingest / OCR** | PDF, DOCX, XLSX/XLSM/XLTX, PPTX, legacy Office via LibreOffice; three-tier OCR — Tesseract, table-aware pass, Gemini vision — with a deterministic arithmetic gate for financial tables; document-extraction endpoint for Open WebUI uploads |
+| **ERP reads** | Odoo XML-RPC through a read-only gateway with allow-listed business functions, 28 agent-facing tools; every read audited with role and user |
+| **ERP writes** | a separate MCP server (35 tools) as four role-isolated processes, with a deny-by-default method allowlist, rate limiting, and a sha256 hash-chained audit log |
+| **Skills (SOPs)** | folder-based `SKILL.md` procedures loaded dynamically into their own graph nodes — quoting with discount, delivery, goods receipt |
+| **User memory** | per-user facts in Postgres, filtered for sensitive content before anything is stored, injected once per turn |
+| **Observability** | Langfuse (self-hosted: Postgres, ClickHouse, MinIO, Redis), routing traces linked to conversation traces |
 | **Frontend** | [Open WebUI](https://openwebui.com/) via an OpenAI-compatible `/v1` endpoint |
-| **Testing** | pytest (2,100+ tests) plus an eval suite with a gate job enforcing regression thresholds |
+| **Testing** | pytest, 2,981 tests — 2,865 unit, 63 integration against a real Postgres, 53 live against the real backend, Odoo and LLM APIs — plus an eval suite (retrieval, synthesis, multi-turn, routing, per-role) with positive *and* negative gates enforcing regression thresholds; GitHub Actions CI on `windows-latest` |
 
 ## Running it locally
 
