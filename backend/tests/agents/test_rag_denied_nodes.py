@@ -98,7 +98,14 @@ class _LLMGhiInput:
 
 
 async def test_gather_docs_bi_chan_dat_doc_denied(monkeypatch):
-    monkeypatch.setattr(fanout, "retrieve", lambda *a, **kw: _ket_qua(TM))
+    """`_ket_qua(TM)` dựng chunks=[] nên assert doc_context == [] KHÔNG THỂ đỏ
+    (coordinator round 2, H1) — production retrieve() trả về CÙNG LÚC chunk
+    thấy được (lạc đề, chính chunk mà tính năng này phải dập) VÀ hidden_classes
+    (retrieve.py). Dùng chunk VƯỢT SÀN thật để phép chốt đo đúng việc dập chunk,
+    không phải trùng hợp với chunks=[] có sẵn của fixture."""
+    monkeypatch.setattr(fanout, "retrieve", lambda *a, **kw: RetrievalResult(
+        query="q", query_used="q", chunks=[_CHUNK_VUOT_SAN], top_score=0.9,
+        total_candidates=1, hidden_classes=TM))
     out = await fanout.make_gather_docs_node(role_cfg=KHO)(_state())
     assert out["doc_context"] == []
     assert out["doc_denied"] == rag_access.denied_message(KHO, TM, roles.load_profile())
@@ -147,6 +154,75 @@ async def test_fuse_bi_chan_co_erp_noi_cau_tu_choi_vao_cuoi(monkeypatch):
     assert answer.endswith(msg)                  # tất định, nối vào CUỐI
     assert "bị hạn chế theo vai" in llm.seen[0]  # model được BÁO, không được tự suy
     assert "KHÔNG kết luận gì về chính sách" in llm.seen[0]
+
+
+async def test_fuse_bi_chan_llm_nem_van_tra_cau_tu_choi():
+    """H2 (coordinator round 2): bị chặn + có ERP, LLM ném lỗi (vd 429 hết hạn
+    mức — chuyện thường ở repo này) — KHÔNG được rơi về SAFE_MSG ("tài liệu
+    tạm thời gặp sự cố... thử lại sau"), vì tài liệu không hỏng, vai bị chặn,
+    và mời thử lại là vô ích. Phải trả câu từ chối tất định."""
+    msg = rag_access.denied_message(KHO, TM, roles.load_profile())
+
+    class _LLMNem:
+        async def ainvoke(self, messages, config=None):
+            raise RuntimeError("429 quota")
+
+    out = await fanout.make_fuse_answer_node(_LLMNem())(
+        {"messages": [HumanMessage(content="S00042 có được chiết khấu không?")],
+         "doc_context": [], "erp_facts": "S00042: đã giao 12/09", "doc_denied": msg})
+    assert out["messages"][0].content == msg
+
+
+async def test_fuse_bi_chan_llm_tra_rong_van_tra_cau_tu_choi():
+    """H2, nhánh thứ hai: LLM trả chuỗi rỗng/toàn khoảng trắng thay vì ném."""
+    msg = rag_access.denied_message(KHO, TM, roles.load_profile())
+
+    class _LLMRong:
+        async def ainvoke(self, messages, config=None):
+            return AIMessage(content="   ")
+
+    out = await fanout.make_fuse_answer_node(_LLMRong())(
+        {"messages": [HumanMessage(content="S00042 có được chiết khấu không?")],
+         "doc_context": [], "erp_facts": "S00042: đã giao 12/09", "doc_denied": msg})
+    assert out["messages"][0].content == msg
+
+
+async def test_fuse_khong_bi_chan_loi_erp_van_tra_safe_msg():
+    """H2 KHÔNG được đổi hành vi đường KHÔNG bị chặn: doc_denied=None thì
+    `doc_denied or SAFE_MSG` == SAFE_MSG như cũ, kể cả khi LLM ném lỗi."""
+    from src.agents.synthesis import SAFE_MSG
+
+    class _LLMNem:
+        async def ainvoke(self, messages, config=None):
+            raise RuntimeError("lỗi bất kỳ")
+
+    out = await fanout.make_fuse_answer_node(_LLMNem())(
+        {"messages": [HumanMessage(content="còn hàng không?")],
+         "doc_context": [], "erp_facts": "tồn: 5", "doc_denied": None})
+    assert out["messages"][0].content == SAFE_MSG
+
+
+async def test_fuse_bi_chan_noi_sau_verifier_khong_bi_nuot(monkeypatch):
+    """H3 (nâng từ Minor, coordinator round 2): patch cả hai verifier thành
+    identity không canh được THỨ TỰ — nếu khối nối câu từ chối bị dời lên
+    TRÊN verifier, test cũ vẫn xanh. verify_erp_grounding trả sentinel cố
+    định ("FALLBACK") để chứng minh câu từ chối được nối SAU khi verifier đã
+    chạy xong, không bị verifier (fail-open thật) nuốt/thay thế."""
+    async def _giu_nguyen(answer, *a, **kw):
+        return answer
+
+    async def _fallback(*a, **kw):
+        return "FALLBACK"
+
+    monkeypatch.setattr(fanout, "cite_and_verify", _giu_nguyen)
+    monkeypatch.setattr(fanout, "verify_erp_grounding", _fallback)
+    msg = rag_access.denied_message(KHO, TM, roles.load_profile())
+    llm = _LLMGhiInput()
+    out = await fanout.make_fuse_answer_node(llm)(
+        {"messages": [HumanMessage(content="S00042 có được chiết khấu không?")],
+         "doc_context": [], "erp_facts": "S00042: đã giao 12/09", "doc_denied": msg})
+    answer = out["messages"][0].content
+    assert answer == "FALLBACK\n\n" + msg
 
 
 def test_render_fuse_input_mac_dinh_khong_doi():

@@ -234,7 +234,13 @@ def make_fuse_answer_node(llm):
             ])
             answer = (resp.content or "").strip()
             if not answer:
-                return {"messages": [AIMessage(content=SAFE_MSG)], **clear,
+                # Bị chặn + ERP có dữ kiện nhưng LLM trả rỗng: SAFE_MSG ("tài
+                # liệu tạm thời gặp sự cố") SAI SỰ THẬT cho vai bị chặn — tài
+                # liệu không hỏng, vai bị chặn — và mời thử lại vô ích
+                # (spec §5, coordinator round 2, H2). doc_denied None ở
+                # đường không bị chặn giữ nguyên SAFE_MSG như cũ.
+                return {"messages": [AIMessage(content=doc_denied or SAFE_MSG)],
+                        **clear,
                         "suggested_write": False, "suggested_write_at": anchor}
             # Tách cờ TRƯỚC cite_and_verify: extract_used_citations() cắt cụt
             # mọi thứ từ NGUỒN_DÙNG trở đi, nên nếu model đặt ĐỀ_XUẤT_GHI sau
@@ -259,7 +265,10 @@ def make_fuse_answer_node(llm):
                 answer = answer.rstrip() + "\n\n" + doc_denied
         except Exception:
             logger.exception("fuse_answer failed")
-            answer = SAFE_MSG
+            # Cùng lý do với nhánh "LLM trả rỗng" ở trên (H2): bị chặn thì
+            # SAFE_MSG sai sự thật, kể cả khi lỗi đến từ LLM/cite_and_verify/
+            # verify_erp_grounding (429 hạn mức là chuyện thường ở repo này).
+            answer = doc_denied or SAFE_MSG
             suggested_write = False
         # Cờ đi qua STATE KEY RIÊNG, KHÔNG gắn lên AIMessage: `_invoke_fresh`
         # (erp_agent.py) dựng lại toàn bộ kênh "messages" từ history text thuần
