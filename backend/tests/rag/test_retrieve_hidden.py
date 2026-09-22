@@ -164,11 +164,23 @@ def _truc(hot: int):
 
 @pytest.mark.integration
 def test_ca_thuan_commercial_hang_1_thi_bao(clean_tables, monkeypatch):
+    """Câu hỏi "bậc cộng trần" — CỐ Ý không dùng "chiết khấu": từ đó nằm ở CẢ
+    HAI tài liệu fixture (xem `_nap_hai_tai_lieu`), nên chân sparse/fold sẽ
+    hoà điểm và hạng-1 của bản bóng rơi vào tay thứ tự vật lý/kế hoạch không
+    xác định (đúng như `test_retrieve_visibility.py:196-200` đã cảnh báo cho
+    cặp fixture này) — kiểm thực nghiệm: đảo thứ tự INSERT trong
+    `_nap_hai_tai_lieu` khiến bản test dùng "chiết khấu" LẬT ĐỎ dù code không
+    hồi quy gì (xem task-5-report.md, mục "Vòng sửa 1"). "bậc", "cộng", "trần"
+    chỉ xuất hiện trong văn bản 'commercial', không có trong văn bản 'all' —
+    đã xác nhận bằng to_tsvector/to_tsquery thật trên Postgres (không đoán
+    bằng mắt): sparse/fold của bản bóng chỉ khớp chunk commercial, dense
+    (được steer bằng embed_query giả) cũng nghiêng về commercial — cả BA chân
+    đồng thuận, hạng-1 không phụ thuộc tie-break."""
     conn = clean_tables
     _nap_hai_tai_lieu(conn)
     monkeypatch.setenv("RAG_FOLD_ENABLED", "1")
     monkeypatch.setattr(rt, "embed_query", lambda q: _truc(0))   # gần chunk commercial
-    r = rt.retrieve("chiết khấu", conn=conn, visibility=CHI_ALL)
+    r = rt.retrieve("bậc cộng trần", conn=conn, visibility=CHI_ALL)
     assert r.hidden_classes == frozenset({"commercial"})
     assert {c.source_file for c in r.chunks} == {"seed/policy.docx"}   # vẫn lọc
 
