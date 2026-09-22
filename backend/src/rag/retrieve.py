@@ -21,6 +21,14 @@ _COLS = ("c.id, c.doc_id, c.source_file, c.doc_title, c.section_path, c.page, "
          "c.sheet, c.row_range, c.chunk_text, d.effective_date, c.source_kind, "
          "c.visibility")
 VIS_IDX = 11   # vị trí c.visibility trong hàng; score vẫn là row[-1]
+
+# Ngưỡng "top-k" cho tín hiệu `hidden_classes` (spec 2026-09-21 §3, ĐỔI 2026-09-22
+# — chủ dự án quyết sau khi cổng ÂM thật FAIL với luật hạng-1: chỉ bắt 5/10 câu
+# thương mại thật, 0 lộ, 0 từ chối oan). Đo lại trên 109 ca (task-9-brief,
+# 2026-09-22): k=1 bắt 5/10 (khớp cổng ÂM); k=3 bắt 9/10 với 0/99 từ chối oan;
+# k=5 mới bắt đầu có từ chối oan (1/99). Chủ dự án chọn k=3 — nhiều nhất mà vẫn
+# 0 từ chối oan.
+HIDDEN_TOP_K = 3
 _FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
 
@@ -285,22 +293,26 @@ def _fuse_legs(conn, prepared, visibility) -> tuple[dict, bool]:
     return fused, fold_gop
 
 
-def _hidden_at_rank_one(fused: dict, visibility) -> frozenset:
-    """Luật hạng-1 (spec §3): lớp của ứng viên đứng đầu bản bóng, nếu vai
-    không được xem lớp đó. Hạng-5 bị giấu KHÔNG tính — vai kho hỏi hoàn hàng
-    mà bảng giá lọt hạng 5 vẫn phải được trả lời.
+def _hidden_in_top_k(fused: dict, visibility, k: int = HIDDEN_TOP_K) -> frozenset:
+    """Luật top-k (spec §3, ĐỔI 2026-09-22 — xem `HIDDEN_TOP_K`): duyệt **k ứng
+    viên đầu** của bản bóng (thứ tự RRF), trả `frozenset` gồm MỌI lớp bị giấu
+    tìm thấy trong k ứng viên đó (vai không được xem lớp đó). Hôm nay chỉ có
+    thể là `{"commercial"}`, nhưng không hardcode một lớp — thêm lớp mới thì
+    hàm này tự đúng. Ngoài top-k bị giấu KHÔNG tính — vai kho hỏi hoàn hàng mà
+    bảng giá lọt hạng 4 (ngoài top-3) vẫn phải được trả lời.
 
-    TIỀN ĐIỀU KIỆN (F5 vòng sửa 1): `visibility` PHẢI là một frozenset lớp đã
-    resolve — KHÔNG được là sentinel `UNRESTRICTED`. `cls in visibility` sẽ
-    ném `TypeError` với sentinel đó (`_Unrestricted` không định nghĩa
-    `__contains__`). Hôm nay caller duy nhất (`retrieve()`) đã tự guard bằng
-    `if visibility is not UNRESTRICTED` trước khi gọi hàm này — đừng gỡ guard
-    đó, và đừng gọi hàm này trực tiếp với `UNRESTRICTED`."""
+    TIỀN ĐIỀU KIỆN (F5 vòng sửa 1 của Task 1, GIỮ NGUYÊN qua đổi luật này):
+    `visibility` PHẢI là một frozenset lớp đã resolve — KHÔNG được là sentinel
+    `UNRESTRICTED`. `cls not in visibility` sẽ ném `TypeError` với sentinel đó
+    (`_Unrestricted` không định nghĩa `__contains__`). Hôm nay caller duy nhất
+    (`retrieve()`) đã tự guard bằng `if visibility is not UNRESTRICTED` trước
+    khi gọi hàm này — đừng gỡ guard đó, và đừng gọi hàm này trực tiếp với
+    `UNRESTRICTED`."""
     if not fused:
         return frozenset()
-    top = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)[0]
-    cls = top["row"][VIS_IDX]
-    return frozenset() if cls in visibility else frozenset({cls})
+    top_k = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)[:k]
+    return frozenset(cls for cls in (e["row"][VIS_IDX] for e in top_k)
+                      if cls not in visibility)
 
 
 def retrieve(query: str, k: int = TOP_K, conn=None,
@@ -337,11 +349,12 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         chunks, reranked = rerank(rerank_query, pool)
         chunks = compress(query, chunks, k)
         # Bản BÓNG không lọc: cùng vector/từ khoá, cùng RRF, KHÔNG rerank, chỉ
-        # để hỏi "thứ tốt nhất có bị giấu không". Hàng của nó chết tại đây —
-        # chỉ TÊN LỚP đi ra. Admin (UNRESTRICTED) không tốn thêm gì.
+        # để hỏi "top-k ứng viên tốt nhất có lớp nào bị giấu không". Hàng của
+        # nó chết tại đây — chỉ TÊN LỚP đi ra. Admin (UNRESTRICTED) không tốn
+        # thêm gì.
         hidden_classes = frozenset()
         if visibility is not UNRESTRICTED:
-            # `try` CHỈ bọc I/O (G1 vòng sửa 2). `_hidden_at_rank_one` là hàm
+            # `try` CHỈ bọc I/O (G1 vòng sửa 2). `_hidden_in_top_k` là hàm
             # THUẦN — chế độ hỏng duy nhất của nó là vi phạm tiền điều kiện
             # (F5), tức LỖI LẬP TRÌNH, không phải sự cố thoáng qua như DB. Gộp
             # chung một `except Exception` sẽ fail-open CẢ lỗi lập trình,
@@ -362,7 +375,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
             if shadow is not None:
                 # NGOÀI try: vi phạm tiền điều kiện phải NỔ TO, không được
                 # degrade lặng lẽ chung với nhánh I/O ở trên.
-                hidden_classes = _hidden_at_rank_one(shadow, visibility)
+                hidden_classes = _hidden_in_top_k(shadow, visibility)
         return RetrievalResult(
             query=query, query_used=qseg, chunks=chunks,
             top_score=chunks[0].rrf_score if chunks else 0.0,
