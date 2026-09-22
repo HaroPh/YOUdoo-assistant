@@ -11,16 +11,22 @@ CASES = [
 ]
 
 
-def _run(rows):
+_TM = {"chiết khấu bậc mấy?", "SLA giao hàng?"}   # hai ca THUẦN thương mại trong CASES
+
+
+def _run(rows, restricted=False):
+    """`hidden` mặc định ĐÚNG: vế bị chặn bật ở ca thương mại, vế admin tắt hết.
+    Test nào muốn sai thì sửa từng dòng SAU khi dựng."""
     return {"per_case": [{"question": q, "recall_at_pool": p, "recall_at_final": f,
-                          "reciprocal_rank": r} for q, p, f, r in rows]}
+                          "reciprocal_rank": r, "hidden": restricted and q in _TM}
+                         for q, p, f, r in rows]}
 
 
 def test_qua_khi_thuong_mai_ve_0_va_ca_khac_khong_kem():
     admin = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0), ("SLA giao hàng?", 1.0, 1.0, 0.5),
                   ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
     kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
-                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
     ra = cv.compare(admin, kho, cases=CASES)
     assert ra["ok"] is True
     assert ra["n_commercial"] == 2 and ra["n_other"] == 1
@@ -31,7 +37,7 @@ def test_truot_khi_mot_ca_thuong_mai_van_lo():
     admin = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0), ("SLA giao hàng?", 1.0, 1.0, 1.0),
                   ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
     kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.5, 0.0, 0.0),
-                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
     ra = cv.compare(admin, kho, cases=CASES)
     assert ra["ok"] is False
     assert [x["question"] for x in ra["commercial_leaked"]] == ["SLA giao hàng?"]
@@ -41,7 +47,7 @@ def test_truot_khi_ca_khac_kem_di():
     admin = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0), ("SLA giao hàng?", 1.0, 1.0, 1.0),
                   ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
     kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
-                ("thuế suất GTGT?", 0.5, 0.5, 0.5)])
+                ("thuế suất GTGT?", 0.5, 0.5, 0.5)], restricted=True)
     ra = cv.compare(admin, kho, cases=CASES)
     assert ra["ok"] is False
     assert [x["question"] for x in ra["regressed"]] == ["thuế suất GTGT?"]
@@ -71,7 +77,7 @@ def test_neu_bo_loc_bi_tat_cong_phai_that_bai():
                   ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
     kho_khong_loc = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0),
                           ("SLA giao hàng?", 1.0, 1.0, 1.0),
-                          ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+                          ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
     ra = cv.compare(admin, kho_khong_loc, cases=CASES)
     assert ra["ok"] is False
     assert {x["question"] for x in ra["commercial_leaked"]} == {"chiết khấu bậc mấy?",
@@ -91,12 +97,14 @@ def test_cli_exit_khac_0_khi_that_bai(tmp_path, monkeypatch):
 
     monkeypatch.setattr(cv, "compare", lambda admin, restricted: {
         "ok": True, "n_commercial": 0, "n_other": 0,
-        "commercial_leaked": [], "regressed": []})
+        "commercial_leaked": [], "regressed": [],
+        "commercial_unflagged": [], "other_flagged": []})
     assert cv.main([str(admin_path), str(kho_path)]) == 0
 
     monkeypatch.setattr(cv, "compare", lambda admin, restricted: {
         "ok": False, "n_commercial": 1, "n_other": 0,
-        "commercial_leaked": [{"question": "x", "recall_at_pool": 1.0}], "regressed": []})
+        "commercial_leaked": [{"question": "x", "recall_at_pool": 1.0}], "regressed": [],
+        "commercial_unflagged": [], "other_flagged": []})
     assert cv.main([str(admin_path), str(kho_path)]) != 0
 
 
@@ -105,10 +113,10 @@ def test_hai_luot_kho_that_bai():
     gì — cổng phải từ chối NGAY vì vế đầu không phải vai admin, trước khi so
     bất kỳ ca nào."""
     kho1 = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
-                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
     kho1["role"] = "warehouse"
     kho2 = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
-                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
     kho2["role"] = "warehouse"
     with pytest.raises(ValueError, match="admin"):
         cv.compare(kho1, kho2, cases=CASES)
@@ -132,7 +140,7 @@ def test_admin_khong_thay_thuong_mai_bi_tu_choi():
     admin_gia = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
                       ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
     kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
-                ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
     kho["role"] = "warehouse"
     with pytest.raises(ValueError, match="thương mại"):
         cv.compare(admin_gia, kho, cases=CASES)
@@ -146,3 +154,38 @@ def test_thieu_khoa_trong_mot_ca_bao_loi_ngay_khong_lang_le():
     thieu_khoa = {"per_case": [{"question": "thuế suất GTGT?"}]}  # thiếu recall_at_pool
     with pytest.raises(KeyError):
         cv.compare(admin, thieu_khoa, cases=CASES[2:])
+
+
+# ── Bất biến (c): cờ `hidden` phải đúng ở CẢ HAI chiều ──
+
+def _cap_dung():
+    admin = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0), ("SLA giao hàng?", 1.0, 1.0, 0.5),
+                  ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
+                ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
+    return admin, kho
+
+
+def test_ca_thuong_mai_khong_bat_co_thi_that_bai():
+    admin, kho = _cap_dung()
+    kho["per_case"][1]["hidden"] = False            # "SLA giao hàng?" bị chặn mà không báo
+    ra = cv.compare(admin, kho, cases=CASES)
+    assert ra["ok"] is False
+    assert [x["question"] for x in ra["commercial_unflagged"]] == ["SLA giao hàng?"]
+    assert ra["commercial_leaked"] == [] and ra["other_flagged"] == []
+
+
+def test_ca_khac_bat_co_oan_thi_that_bai():
+    admin, kho = _cap_dung()
+    kho["per_case"][2]["hidden"] = True             # "thuế suất GTGT?" bị từ chối oan
+    ra = cv.compare(admin, kho, cases=CASES)
+    assert ra["ok"] is False
+    assert [x["question"] for x in ra["other_flagged"]] == ["thuế suất GTGT?"]
+    assert ra["commercial_unflagged"] == []
+
+
+def test_thieu_khoa_hidden_la_loi():
+    admin, kho = _cap_dung()
+    del kho["per_case"][0]["hidden"]
+    with pytest.raises(ValueError, match="hidden"):
+        cv.compare(admin, kho, cases=CASES)

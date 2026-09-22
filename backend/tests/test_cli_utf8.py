@@ -125,7 +125,8 @@ def test_compare_visibility_cli_song_qua_cp1252(tmp_path):
         return {"per_case": [
             {"question": q, "recall_at_pool": overrides.get(q, 1.0),
              "recall_at_final": overrides.get(q, 1.0),
-             "reciprocal_rank": overrides.get(q, 1.0)}
+             "reciprocal_rank": overrides.get(q, 1.0),
+             "hidden": overrides.get(q, 1.0) == 0.0 and q in commercial_questions}
             for q, _expected, _difficulty in RETRIEVAL_CASES]}
 
     admin_path = tmp_path / "admin.json"

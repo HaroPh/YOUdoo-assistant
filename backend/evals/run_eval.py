@@ -1140,7 +1140,8 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
         score = score_one(ranked, {tuple(x) for x in expected},
                           k_pool=_TOP_N, k_final=_TOP_K)
         per_case.append({"question": question, "difficulty": difficulty,
-                         "method": result.method, **score})
+                         "method": result.method, "hidden": bool(result.hidden_classes),
+                         **score})
         if score["recall_at_pool"] > 0:
             return None
         return {"question": question, "difficulty": difficulty,

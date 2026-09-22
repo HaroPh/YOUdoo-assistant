@@ -131,3 +131,15 @@ async def test_main_truyen_role_vao_eval_multiturn_va_synthesis_live(monkeypatch
                          "--pace", "0", "--role", "sales"])
     assert thay_synth["role"] == "sales"
     assert thay_synth["visibility"] == frozenset({"all", "commercial"})
+
+
+@pytest.mark.asyncio
+async def test_eval_retrieval_per_case_mang_hidden(monkeypatch):
+    from src.rag.types import RetrievalResult
+    case = ("câu thử", frozenset({("a.pdf", "Điều 1")}), "hard")
+    monkeypatch.setattr(run_eval, "RETRIEVAL_CASES", [case])
+    fake = RetrievalResult(query="q", query_used="q", chunks=[], top_score=0.0,
+                           total_candidates=0, hidden_classes=frozenset({"commercial"}))
+    monkeypatch.setattr(run_eval, "_retrieve", lambda *a, **kw: fake)
+    result = await run_eval.eval_retrieval(pace=0.0)
+    assert result["per_case"][0]["hidden"] is True
