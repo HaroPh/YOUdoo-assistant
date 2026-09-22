@@ -22,6 +22,7 @@ from .prompts import (SYSTEM_PROMPT, WRITE_PLANNER_PROMPT,
                       canh_bao_rui_ro,
                       CHITCHAT_PROMPT, render_working_context, dept_of)
 from .roles import OTHER_DEPT, DENIED, DEPT_OF, rag_visibility_of
+from .rag_access import denied_message
 from .write_registry import COORDINATED_TOOLS, expand_chain
 from .handoff import build_handoff, existing_handoff
 from ..erp_query import crm
@@ -133,6 +134,14 @@ def make_rag_node(llm, role_cfg=None):
                 retrieve, query, TOP_K, None, (prev,) if prev else (),
                 visibility=visibility)
             bao_tien_trinh(NHAN_DOC_TAI_LIEU)
+            if result.hidden_classes:
+                # Kiểm tra TẤT ĐỊNH, không giao cho model: thứ tốt nhất bị giấu
+                # theo vai → từ chối có tên phòng ban, không LLM, không footer
+                # (spec 2026-09-21 §5). Model tự viết lời từ chối từng đo ra
+                # refusal_acc tụt — nên không đưa nó vào synthesize().
+                logger.info("rag_node: vai %s bị chặn lớp %s",
+                            getattr(role_cfg, "name", None), sorted(result.hidden_classes))
+                return {"messages": [AIMessage(content=denied_message(role_cfg, result.hidden_classes))]}
             answer = await synthesize(query, result, llm)
         except Exception:
             logger.exception("rag_node failed")
