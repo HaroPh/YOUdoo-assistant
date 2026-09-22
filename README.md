@@ -179,7 +179,11 @@ after the change: `admin` recall unchanged at 0.977 against the pre-change
 baseline; `warehouse` at 0.885, a drop of 0.092 ≈ 10/109 — exactly the ten
 commercial cases and nothing else, cross-checked arithmetically rather than trusted
 from the gate's PASS line. A live probe through the real backend confirmed the
-warehouse role gets no policy numbers at all.
+warehouse role gets no policy numbers at all. **A blocked role is now told it was
+blocked, on both the `rag` and `mixed` routes:** `retrieve()` runs an unfiltered
+shadow query and flags when a hidden class sits among the shadow pass's top
+candidates, and both routes end with a deterministic refusal naming the owning
+department instead of a confident, off-topic answer.
 
 > The role → tool mapping is deliberately **not** reproduced here — it lives in
 > [roles.py](backend/src/agents/roles.py), and hand-copying it into docs is exactly
@@ -286,11 +290,20 @@ Found by measurement, not guessed.
   whether an order is paid before shipping), and reversible: every `erp_query`
   function already takes an injectable gateway. Documents, by contrast, *are*
   role-filtered (above); ERP reads are not.
-- **A role blocked from a document is not told it was blocked.** Filtering happens
-  in retrieval, so the warehouse role asking about the discount policy gets a
-  confident, cited answer about *share sales* from the Enterprise Law — grounded, but
-  off-topic — instead of "no document you can see covers this". The spec asked for
-  a refusal; the live probe shows the criterion is half met.
+- **On the `mixed` route, the fusion model still writes its own — sometimes wrong —
+  reason before the deterministic refusal.** A blocked role now gets a refusal naming
+  the right department on both routes (closing the limitation this bullet used to
+  describe), but on `mixed` the model's own paragraph runs first, and it can name a
+  cause that isn't true: a live probe showed it claim "the ERP has no data on
+  discount tiers" when the real cause was that the document had been withheld by
+  role. The user reads two contradicting explanations, the wrong one first. No
+  automated check catches this — that paragraph contains none of the refusal's
+  marker text, so it was found only by reading the output by eye. Fixing it means
+  changing the fuse prompt, which this repo only does after an A/B with
+  measurements; deliberately not attempted here. Detection also has a floor: one
+  commercial question has its hidden document ranked outside the detection window
+  in every measurement so far and is excused via a staleness-checked exception list
+  rather than fixed.
 - **The out-of-department refusal reads wrong for one profile.** Under `enterprise`,
   a few operations (inventory adjustment, scrapping, returns) leave the warehouse
   role while still being *warehouse work*, so the refusal says "contact the Warehouse
@@ -301,10 +314,8 @@ Found by measurement, not guessed.
 - An approval flow for `needs_sign_off`, which exists in the policy model but has no
   runtime behavior of its own.
 - Make `fuse_answer` distinguish "retrieval failed" from "found nothing relevant".
-- Tell a blocked role it was blocked (a refusal path in synthesis when retrieval
-  filtered out every strong candidate), and extend the per-role eval gate from
-  `retrieval` to the synthesis and multi-turn sets — they already record the role
-  they measured, nothing reads it yet.
+- Extend the per-role eval gate from `retrieval` to the synthesis and multi-turn
+  sets — they already record the role they measured, nothing reads it yet.
 - Per-role read gateways, closing the shared-read-credential trade-off above.
 - **SP-4 (shelved):** a meeting-agent extension — joining a live meeting, taking
   notes, answering ERP questions in real time. Two design questions are settled

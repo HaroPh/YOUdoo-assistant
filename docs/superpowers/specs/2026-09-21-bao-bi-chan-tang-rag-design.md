@@ -242,3 +242,170 @@ bằng 3 test mới và 1 test integration bị thay bằng 2 test mới); integ
 của task): `HIDDEN_TOP_K` 3→4 làm đỏ đúng `test_bi_giau_o_hang_4_thi_khong_bao`; 3→2 làm
 đỏ đúng `test_bi_giau_o_hang_3_thi_bao` — không test nào khác đỏ theo. Chi tiết đầy đủ:
 `task-9-report.md` (workspace SDD, không vào git).
+
+**Task 10 (2026-09-22) — miễn `KNOWN_UNFLAGGED` cho ca không k nào bắt được, cổng ÂM
+cuối cùng PASS.** Xem §6.3/§7 và mục dưới cho số đo; mã: `commercial_unflagged_known` /
+`_new` + `known_stale` (hai kiểm rữa: ca được miễn NAY CÓ CỜ → rữa "đã chữa được"; câu
+trong danh sách KHÔNG còn trong bộ ca → rữa "đổi tên/xoá"). Miễn KHÔNG áp cho
+`leaked`/`other_flagged`. Unit 2925/1/120/0 warning (+6 test so Task 9).
+
+### Task 8 (hoàn tất, 2026-09-22) — Step 1, 2, 4 và tổng kết thi hành
+
+**Step 1 — toàn suite (số cuối cùng, tại `c345e33`):**
+- Qua launcher, `-m "not integration and not live"`: **2925 passed, 1 skipped, 120
+  deselected, 0 warning** (256,80 s).
+- Lượt CI-parity (đúng môi trường CI thật: 4 biến `ODOO_*` giả đặt, `DATABASE_URL`
+  VẮNG), trên `tests/jobs tests/evals tests/agents`: **1583 passed, 0 failed.**
+  (Khó khăn tự bắt: lượt CI-parity ĐẦU TIÊN của chính người viết báo cáo này dùng
+  `env -u DATABASE_URL` trong shell vốn không có `.env`, nên xoá nhầm LUÔN cả 4 biến
+  `ODOO_*` mà CI thật CÓ đặt — 17 failed giả, 16 ở một file file nhánh này không hề
+  đụng. Đọc `.github/workflows/tests.yml` xác nhận CI đặt đủ 4 biến `ODOO_*`, chỉ
+  KHÔNG đặt `DATABASE_URL`; chạy lại đúng môi trường đó cho ra 1583/0. Bài học: mô
+  phỏng CI phải sao y biến môi trường CI, xoá NHIỀU hơn CI xoá thì tạo báo động giả.)
+
+**Step 2 — integration một mình, qua launcher (DSN in ra):** **23 passed, 18
+deselected, 0 skipped.**
+
+**Step 3 — cổng ÂM/DƯƠNG cuối cùng, sau khi luật đổi sang top-3 (Task 9) và có miễn
+`KNOWN_UNFLAGGED` (Task 10):**
+
+```
+CỔNG ÂM PASS — thương mại 10 ca (lộ 0, không báo chặn 1 — trong đó 1 ca đã biết
+được miễn, 0 ca mới), khác 99 ca (kém đi 0, từ chối oan 0)
+```
+exit 0.
+
+```
+GATE PASS — model=0.963 baseline=0.963
+```
+exit 0 — đường admin KHÔNG hồi quy vì việc thêm lượt bóng.
+
+lat_p50: **admin 523 ms, warehouse 558 ms** (+35 ms, đo trên corpus THẬT ~3 900 chunk).
+So với con số Task 5 (+4,2 ms, ×2,50, đo trên **fixture 2 tài liệu**): con số fixture
+chứng minh lượt bóng là cỡ mili-giây và không gọi LLM, nhưng KHÔNG nói được chi phí
+tuyệt đối trên corpus thật, nơi chân dense đắt hơn — +35 ms mới là con số thật của
+lượt bóng trên dữ liệu sản xuất; hai con số không được lẫn vào nhau.
+
+Bảng k đầy đủ (`do_topk.py`, chỉ đọc, không sửa mã production; k=1 tái hiện đúng
+5/10 · 0/99 nên tự chứng minh đáng tin) — đây là bằng chứng cho quyết định chọn k=3:
+
+| k | bắt được | từ chối oan |
+|---|---|---|
+| 1 | 5/10 | 0/99 |
+| 2 | 6/10 | 0/99 |
+| **3** | **9/10** | **0/99** ← chọn |
+| 4 | 9/10 | 0/99 |
+| 5 | 9/10 | 1/99 |
+
+Ca duy nhất không k nào bắt được: *"bên bán phải đóng gói hàng ra sao trước khi
+chuyển đi?"* (mong đợi `sla.docx`) — tài liệu ẩn của nó đứng hạng **> 5** trong bản
+bóng. Miễn qua `KNOWN_UNFLAGGED` (Task 10), có kiểm rữa staleness: cổng sẽ FAIL nếu
+ca này bắt đầu được phát hiện, hoặc câu hỏi biến mất khỏi bộ ca — miễn không thể âm
+thầm che một hồi quy thật hay một ca đã đổi.
+
+**Step 4 — probe sống trên hạ tầng thật (backend + 4 MCP của worktree, exit 0):**
+
+```
+[rag]   kho từ chối đúng câu tất định: True | kho không trích lạc đề: True |
+        thấy footer: {'sales': True, 'accounting': True, 'admin': True} | PASS
+[mixed] marker đúng 1 lần: True (đếm=1) | kết bằng câu tất định: True |
+        phần ERP trước đó không rỗng: True | không trích lạc đề: True | PASS
+```
+
+warehouse / rag (nguyên văn):
+```
+Tài liệu về việc này thuộc phạm vi Kế toán / Bán hàng; vai Kho không được xem. Bạn có thể hỏi trực tiếp phòng Kế toán hoặc Bán hàng.
+```
+
+warehouse / mixed (nguyên văn):
+```
+Hiện tại, sản phẩm [E-COM07] Large Cabinet đang có tồn kho là 0.
+
+Về chính sách chiết khấu cho khách hàng Azure Interior, hệ thống ERP hiện không có dữ liệu về các cấp độ chiết khấu, do đó tôi không thể cung cấp thông tin về mức giảm giá phần trăm cho khách hàng này.
+
+Tài liệu về việc này thuộc phạm vi Kế toán / Bán hàng; vai Kho không được xem. Bạn có thể hỏi trực tiếp phòng Kế toán hoặc Bán hàng.
+```
+
+sales / mixed (nguyên văn — đối chứng, vai được phép thấy mọi thứ):
+```
+Theo chính sách, sản phẩm [E-COM07] Large Cabinet hiện có số lượng tồn kho là 0.
+
+Về mức giảm giá, khách hàng Azure Interior thuộc cấp Thân thiết sẽ được chiết khấu 5% trên tổng giá trị đơn hàng theo chính sách chiết khấu theo cấp. Ngoài ra, nếu đơn hàng có giá trị từ 50 triệu đồng trở lên và được thanh toán trong thời hạn quy định, đơn hàng sẽ được cộng thêm 2% chiết khấu số lượng (với tổng chiết khấu tối đa không vượt quá 15%), đồng thời áp dụng điều kiện khách hàng không có công nợ quá hạn tại thời điểm lập đơn và không mua hàng khuyến mãi hay hàng đã giảm giá.
+
+📄 Nguồn: kho tài liệu chung
+• Chính sách chiết khấu theo cấp khách hàng › Mục 2 — Mức chiết khấu theo cấp (discount_policy.docx)
+• Chính sách chiết khấu theo cấp khách hàng › Mục 3 — Chiết khấu theo số lượng (discount_policy.docx)
+• Chính sách chiết khấu theo cấp khách hàng › Mục 4 — Điều kiện áp dụng (discount_policy.docx)
+```
+
+Một lượt được trả lời bởi **gemini-3.5-flash-lite** ("model bạn chọn đang quá tải") —
+probe chạy một phần dưới model dự phòng, không phải model chính đã ghim.
+
+**Phát hiện đọc bằng mắt (máy KHÔNG bắt được):** đoạn giữa của câu trả lời mixed vai
+kho là do model fusion TỰ VIẾT, và nó SAI: *"hệ thống ERP hiện không có dữ liệu về
+các cấp độ chiết khấu"* — không đúng, tài liệu bị chặn THEO VAI, ERP không hề thiếu
+dữ liệu. Người dùng đọc HAI lời giải thích mâu thuẫn nhau, cái SAI đứng trước, cái
+ĐÚNG (câu tất định) đứng sau. Oracle không bắt được vì đoạn đó không chứa
+`DENIED_MARKER` (đếm vẫn = 1, đúng cấu trúc) — đây chính là lỗ hổng reviewer Task 4
+đã cảnh báo và là lý do bắt buộc đọc nguyên văn thay vì tin mỗi con số PASS.
+
+Ruling: GHI LÀ HẠN CHẾ ĐÃ BIẾT + việc mở, KHÔNG sửa trong nhánh này. Lời hứa của spec
+(câu từ chối tất định, đúng phòng ban, tới được người dùng) ĐÃ ĐẠT trên cả hai tuyến;
+đoạn phụ sai là vấn đề PROMPT của fuse, mà đổi prompt ở repo này bắt buộc A/B có số đo
+(tiền lệ `fuse-prompt-obligation-penalty`) — ngoài phạm vi plan đã duyệt.
+
+**Chưa xác nhận — ghi là gap, không phải sự thật đã kiểm:** tuyến thật của câu mixed
+trong probe KHÔNG được xác nhận độc lập qua Langfuse/log backend. Bằng chứng duy nhất
+là câu trả lời chứa cả dữ liệu ERP thật LẪN câu từ chối — nhất quán với tuyến mixed,
+nhưng router là một LLM và không trace nào được soi. Đây là "chưa đo được đường
+mixed", không phải "đã xác nhận".
+
+**Dọn hạ tầng (đã xác nhận):** dừng đúng các tiến trình khởi bởi probe (so PID trước/
+sau), xoá bản chép `.env`, gỡ junction MCP, giữ junction `backend/.venv`; 8002-8006
+trống lại; không đụng tiến trình có trước.
+
+### Khó khăn / giả thuyết bị bác — ghi vào repo (không chỉ scratch)
+
+1. **Kỳ vọng của plan "luật hạng-1 bắt 10/10" bị BÁC bởi số đo thật (5/10).** Mã
+   Task 1-7 đúng với đặc tả nó nhận được — 7 vòng review độc lập đều xác nhận vậy;
+   đặc tả (kỳ vọng của plan) sai. Chủ dự án sau đó chọn top-3 từ chính bảng k đo
+   được ở trên, không phải chọn trước rồi đo để xác nhận.
+2. **Câu spec §3/§4 "SQL giữ byte-for-byte như 19b đã khẳng định" không còn đúng
+   NGHĨA ĐEN** sau khi Task 1 làm `_COLS` thêm `c.visibility` vào MỌI truy vấn kể cả
+   đường admin. Bất biến ràng buộc THẬT — đường admin không có mệnh đề lọc, không
+   chạy lượt bóng, không thêm truy vấn — vẫn giữ nguyên; một cột thêm vào hàng đã có
+   sẵn (không join, không mệnh đề, không câu SQL thứ tư) không phạm bất biến đó. Câu
+   chữ đã được sửa ở §3/§4 trong nhiệm vụ ghi chép này (ruling của controller
+   2026-09-22); mã không đổi.
+3. **Mẫu hình lặp lại nhiều lần trên nhánh này: cổng XANH trong khi CẤU TRÚC không
+   thể ĐỎ — đây là bài học chính của nhánh.** Bốn ví dụ cụ thể, mỗi cái bị phát hiện
+   và sửa trước khi merge:
+   - Task 3: mồi nhử `_LLMKhongDuocGoi` bị fixture `chunks=[]` làm `synthesize()`
+     ngắn mạch TRƯỚC khi tới LLM — 2 vòng sửa mới ra được cổng bắt đúng hình dạng
+     nguy hiểm thật ("cổng CHẠY, hành động [gọi LLM] CŨNG chạy" dù nội dung câu trả
+     lời vẫn đúng); cách sửa cuối là assert THẲNG một cờ `bi_goi` được set trước khi
+     mồi nhử ném lỗi, không suy luận từ nội dung.
+   - Task 1 (G2): một assert là HẰNG ĐÚNG vì helper test tự gieo sẵn cả ba khoá
+     (`dense`/`sparse`/`fold`) nên không đột biến nào của mã có thể làm nó đỏ; sửa
+     bằng dựng dict động (giống helper anh em) rồi đột biến bằng một chân biến mất
+     THẬT (`RAG_FOLD_ENABLED=0`).
+   - Task 4 (H1): assert `doc_context == []` không thể đỏ vì fixture test hardcode
+     sẵn `chunks=[]` — production thật trả về chunk lạc đề CÙNG `hidden_classes`, và
+     dập đúng chunk đó là mục đích của cả tính năng; sửa bằng fixture dựng từ chunk
+     lạc đề thật (`_CHUNK_VUOT_SAN`).
+   - Task 5: một test integration chỉ xanh nhờ Postgres TỰ CHỌN thứ tự khi hai chân
+     hoà điểm tuyệt đối trên từ khoá của câu hỏi fixture; đảo thứ tự INSERT (thực
+     nghiệm, khôi phục ngay sau) LẬT test đó sang ĐỎ mà không đổi một byte mã — sự
+     mong manh là quan sát được, không chỉ suy luận. Sửa bằng đổi sang câu hỏi độc
+     quyền từ vựng (kiểm bằng `to_tsvector`/`to_tsquery` thật), không đụng fixture.
+
+   Không phải review bỏ sót — mỗi cái đều bị chính reviewer hoặc implementer phát
+   hiện trong lúc làm nhiệm vụ liên quan; ghi lại vì đây là hình dạng lỗi có thể tái
+   phát ở nhiệm vụ khác, và vì repo yêu cầu khó khăn phải nằm trong repo, không chỉ
+   trong ghi chú scratch.
+4. **Một câu sai còn nằm trong git log, đã bị bác nhưng KHÔNG bị xoá.** Thân commit
+   `ce68dc1` (Task 4) viết rằng mồi nhử `_LLMKhongDuocGoi` "còn sống" — sai, và bị
+   chính commit `568de7a` ngay sau đó BÁC BỎ bằng sửa thật. Lịch sử KHÔNG được viết
+   lại (`ce68dc1` không phải HEAD tại thời điểm phát hiện, môi trường không dùng
+   rebase tương tác) — người đọc `git log` của nhánh này sau đây không nên tin câu
+   "còn sống" trong thân `ce68dc1`; câu đúng là câu trong `568de7a`.
