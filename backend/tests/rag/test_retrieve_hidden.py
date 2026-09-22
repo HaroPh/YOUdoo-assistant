@@ -148,3 +148,48 @@ def test_loi_luot_bong_khong_giet_ket_qua_da_loc(khong_ra_ngoai):
     assert [c.source_file for c in r.chunks] == ["seed/policy.docx"]
     # Fail-open: mất tín hiệu TƯ VẤN hidden_classes, không mất kết quả.
     assert r.hidden_classes == frozenset()
+
+
+# ─── Integration: DB thật ──────────────────────────────────────────────────
+
+from tests.rag.test_retrieve_visibility import _DIM, _nap_hai_tai_lieu
+from src.rag.visibility import UNRESTRICTED as _UNR
+
+
+def _truc(hot: int):
+    v = [0.0] * _DIM
+    v[hot] = 1.0
+    return v
+
+
+@pytest.mark.integration
+def test_ca_thuan_commercial_hang_1_thi_bao(clean_tables, monkeypatch):
+    conn = clean_tables
+    _nap_hai_tai_lieu(conn)
+    monkeypatch.setenv("RAG_FOLD_ENABLED", "1")
+    monkeypatch.setattr(rt, "embed_query", lambda q: _truc(0))   # gần chunk commercial
+    r = rt.retrieve("chiết khấu", conn=conn, visibility=CHI_ALL)
+    assert r.hidden_classes == frozenset({"commercial"})
+    assert {c.source_file for c in r.chunks} == {"seed/policy.docx"}   # vẫn lọc
+
+
+@pytest.mark.integration
+def test_ca_nguoc_all_hang_1_thi_khong_bao(clean_tables, monkeypatch):
+    conn = clean_tables
+    _nap_hai_tai_lieu(conn)
+    monkeypatch.setenv("RAG_FOLD_ENABLED", "1")
+    monkeypatch.setattr(rt, "embed_query", lambda q: _truc(1))   # gần chunk 'all'
+    r = rt.retrieve("hoàn hàng", conn=conn, visibility=CHI_ALL)
+    assert r.hidden_classes == frozenset()
+    assert r.chunks, "fixture sai — không có ứng viên thì test tự vô hiệu"
+
+
+@pytest.mark.integration
+def test_admin_khong_bao_va_thay_ca_hai(clean_tables, monkeypatch):
+    conn = clean_tables
+    _nap_hai_tai_lieu(conn)
+    monkeypatch.setenv("RAG_FOLD_ENABLED", "1")
+    monkeypatch.setattr(rt, "embed_query", lambda q: _truc(0))
+    r = rt.retrieve("chiết khấu", conn=conn, visibility=_UNR)
+    assert r.hidden_classes == frozenset()
+    assert {c.source_file for c in r.chunks} == {"seed\\discount_policy.docx", "seed/policy.docx"}
