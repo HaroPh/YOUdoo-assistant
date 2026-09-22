@@ -80,6 +80,11 @@ class ERPAgentState(TypedDict):
     erp_facts: str | None         # chân ERP của fan-out `mixed`: dữ kiện thô
                                   # dạng văn bản (KHÔNG phải câu trả lời), hoặc
                                   # "". Cùng vòng đời với doc_context.
+    doc_denied: str | None        # chân TÀI LIỆU của `mixed` bị CHẶN THEO VAI: câu
+                                  # từ chối đã dựng (rag_access.denied_message).
+                                  # Mang CHUỖI vì gather_docs có role_cfg còn
+                                  # fuse_answer không. Cùng vòng đời với
+                                  # doc_context: `mixed` xoá lúc VÀO, fuse xoá lúc RA.
     user_memory: str | None       # khối ký ức đã render, nạp MỘT LẦN ở chat()
                                   # rồi ghép vào đầu system prompt của 4 node
                                   # sinh câu trả lời. Đọc-thôi với mọi node —

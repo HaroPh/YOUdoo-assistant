@@ -32,6 +32,7 @@ from ..rag.types import Chunk
 from ..rag.config import TOP_K
 from .history import previous_user_turn
 from .roles import rag_visibility_of
+from .rag_access import denied_message
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ def make_mixed_node():
     thuộc vào việc mọi đường lỗi của mọi chân đều nhớ ghi key.
     """
     async def mixed(state: ERPAgentState) -> dict:
-        return {"doc_context": None, "erp_facts": None}
+        return {"doc_context": None, "erp_facts": None, "doc_denied": None}
 
     return mixed
 
@@ -107,6 +108,12 @@ def make_gather_docs_node(role_cfg=None):
             result = await asyncio.to_thread(
                 retrieve, query, TOP_K, None, (prev,) if prev else (),
                 visibility=visibility)
+            if result.hidden_classes:
+                # Thứ tốt nhất bị giấu theo vai: chân tài liệu KHÔNG rỗng về
+                # thông tin — nó biết mình bị chặn. Đẩy câu từ chối qua state
+                # để fuse_answer nối vào, model không được tự viết.
+                return {"doc_context": [],
+                        "doc_denied": denied_message(role_cfg, result.hidden_classes)}
             chunks = ([] if result.is_empty() or not passes_floor(result)
                       else result.chunks)
             doc_context = [chunk_to_dict(c) for c in chunks]
@@ -159,7 +166,8 @@ def make_gather_erp_node(llm, tools):
     return gather_erp
 
 
-def render_fuse_input(chunks, erp_facts: str, question: str) -> str:
+def render_fuse_input(chunks, erp_facts: str, question: str,
+                      doc_denied: str | None = None) -> str:
     """NGUỒN SỰ THẬT DUY NHẤT cho hình dạng input của fuse_answer.
 
     Dùng bởi CẢ node thật LẪN evals.run_eval.eval_multi_source — bắt buộc, không
@@ -172,8 +180,13 @@ def render_fuse_input(chunks, erp_facts: str, question: str) -> str:
     fusion cũ phải tự quản `start=` tăng dần vì agent gọi search_documents nhiều
     lần; fan-out truy xuất ĐÚNG MỘT LẦN nên _format_context chạy start=1 và sổ
     sách đó biến mất.
+
+    `doc_denied` (spec 2026-09-21 §5): phần TÀI LIỆU ghi rõ bị hạn chế theo vai
+    để model KHÔNG tự suy "chính sách không đề cập"; eval gọi 3 tham số như cũ.
     """
-    return (f"TÀI LIỆU:\n{_format_context(chunks)}\n\n"
+    tai_lieu = (_format_context(chunks) if chunks or not doc_denied
+                else "(bị hạn chế theo vai — KHÔNG kết luận gì về chính sách)")
+    return (f"TÀI LIỆU:\n{tai_lieu}\n\n"
             f"DỮ LIỆU ERP:\n{erp_facts}\n\n"
             f"CÂU HỎI: {question}")
 
@@ -187,18 +200,24 @@ def make_fuse_answer_node(llm):
     không phải hai lớp cho cùng một việc.
     """
     async def fuse_answer(state: ERPAgentState) -> dict:
-        clear = {"doc_context": None, "erp_facts": None}
+        clear = {"doc_context": None, "erp_facts": None, "doc_denied": None}
         # Neo tự hết hạn cho cờ suggested_write: số message người dùng THẤY sau
         # lượt này = history vào + đúng 1 câu trả lời node này phát ra. Ghi trên
         # MỌI đường return (kể cả SAFE_MSG) để không đường nào để lại cờ cũ.
         anchor = len(state["messages"]) + 1
         erp_facts = state.get("erp_facts") or ""
+        doc_denied = state.get("doc_denied")
         # Khởi tạo TRƯỚC try: nhánh trả về sớm bên dưới (cả hai chân rỗng)
         # thoát hàm trước khi extract_write_suggestion chạy — thiếu dòng này
         # sẽ ném UnboundLocalError ở return cuối cùng.
         suggested_write = False
         try:
             chunks = chunks_from_dicts(state.get("doc_context"))
+            if doc_denied and not erp_facts:
+                # Chân tài liệu bị chặn, chân ERP rỗng → chỉ còn câu từ chối.
+                # Đứng TRƯỚC nhánh SAFE_MSG: bị chặn không phải "không có gì".
+                return {"messages": [AIMessage(content=doc_denied)], **clear,
+                        "suggested_write": False, "suggested_write_at": anchor}
             if not chunks and not erp_facts:
                 # Hai chân cùng rỗng → không có gì để suy luận. Kiểm tra TẤT
                 # ĐỊNH, không giao cho model tự nhận ra.
@@ -211,7 +230,7 @@ def make_fuse_answer_node(llm):
             resp = await llm.ainvoke([
                 SystemMessage(content=system),
                 HumanMessage(content=render_fuse_input(
-                    chunks, erp_facts, _last_human(state))),
+                    chunks, erp_facts, _last_human(state), doc_denied=doc_denied)),
             ])
             answer = (resp.content or "").strip()
             if not answer:
@@ -236,6 +255,8 @@ def make_fuse_answer_node(llm):
             answer = await cite_and_verify(answer, chunks, llm)
             if erp_facts:
                 answer = await verify_erp_grounding(answer, [erp_facts], llm)
+            if doc_denied:
+                answer = answer.rstrip() + "\n\n" + doc_denied
         except Exception:
             logger.exception("fuse_answer failed")
             answer = SAFE_MSG

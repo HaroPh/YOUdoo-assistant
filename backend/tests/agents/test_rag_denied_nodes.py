@@ -83,3 +83,66 @@ async def test_rag_node_bi_chan_khong_goi_llm_that_su_du_chunk_khong_rong(monkey
     # exception của synthesize() rồi vẫn trả câu từ chối — chỉ `bi_goi` mới
     # lộ ra rằng llm.ainvoke() đã thực sự được gọi.
     assert llm.bi_goi is False
+
+
+# ─── Đường mixed ───────────────────────────────────────────────────────────
+
+class _LLMGhiInput:
+    """Ghi lại input để kiểm dòng 'bị hạn chế theo vai'; trả câu ERP thuần."""
+    def __init__(self):
+        self.seen = []
+
+    async def ainvoke(self, messages, config=None):
+        self.seen.append(messages[-1].content)
+        return AIMessage(content="Đơn S00042 đã giao ngày 12/09.")
+
+
+async def test_gather_docs_bi_chan_dat_doc_denied(monkeypatch):
+    monkeypatch.setattr(fanout, "retrieve", lambda *a, **kw: _ket_qua(TM))
+    out = await fanout.make_gather_docs_node(role_cfg=KHO)(_state())
+    assert out["doc_context"] == []
+    assert out["doc_denied"] == rag_access.denied_message(KHO, TM, roles.load_profile())
+
+
+async def test_gather_docs_khong_bi_chan_khong_co_khoa_doc_denied(monkeypatch):
+    """Giữ nguyên hình dạng cũ để `mixed` (xoá lúc VÀO) là lớp chịu lực duy nhất."""
+    monkeypatch.setattr(fanout, "retrieve", lambda *a, **kw: _ket_qua())
+    out = await fanout.make_gather_docs_node(role_cfg=KHO)(_state())
+    assert "doc_denied" not in out
+
+
+async def test_mixed_xoa_doc_denied_luc_vao():
+    out = await fanout.make_mixed_node()({"messages": [], "doc_denied": "cũ"})
+    assert out["doc_denied"] is None
+
+
+async def test_fuse_bi_chan_va_erp_rong_tra_thang_cau_tu_choi():
+    msg = rag_access.denied_message(KHO, TM, roles.load_profile())
+    out = await fanout.make_fuse_answer_node(_LLMKhongDuocGoi())(
+        {"messages": [HumanMessage(content="q")], "doc_context": [],
+         "erp_facts": "", "doc_denied": msg})
+    assert out["messages"][0].content == msg
+    assert out["doc_denied"] is None            # clear lúc RA
+
+
+async def test_fuse_bi_chan_co_erp_noi_cau_tu_choi_vao_cuoi(monkeypatch):
+    async def _giu_nguyen(answer, *a, **kw):
+        return answer
+    monkeypatch.setattr(fanout, "cite_and_verify", _giu_nguyen)
+    monkeypatch.setattr(fanout, "verify_erp_grounding", _giu_nguyen)
+    msg = rag_access.denied_message(KHO, TM, roles.load_profile())
+    llm = _LLMGhiInput()
+    out = await fanout.make_fuse_answer_node(llm)(
+        {"messages": [HumanMessage(content="S00042 có được chiết khấu không?")],
+         "doc_context": [], "erp_facts": "S00042: đã giao 12/09", "doc_denied": msg})
+    answer = out["messages"][0].content
+    assert answer.startswith("Đơn S00042 đã giao ngày 12/09.")
+    assert answer.endswith(msg)                  # tất định, nối vào CUỐI
+    assert "bị hạn chế theo vai" in llm.seen[0]  # model được BÁO, không được tự suy
+    assert "KHÔNG kết luận gì về chính sách" in llm.seen[0]
+
+
+def test_render_fuse_input_mac_dinh_khong_doi():
+    from src.agents.fanout import render_fuse_input
+    assert render_fuse_input([], "erp", "q") == "TÀI LIỆU:\n\n\nDỮ LIỆU ERP:\nerp\n\nCÂU HỎI: q"
+    assert "bị hạn chế theo vai" in render_fuse_input([], "erp", "q", doc_denied="x")

@@ -28,7 +28,7 @@ def _result(chunks) -> RetrievalResult:
 
 def _state(text: str) -> dict:
     return {"messages": [HumanMessage(content=text)], "intent": "mixed",
-            "doc_context": None, "erp_facts": None}
+            "doc_context": None, "erp_facts": None, "doc_denied": None}
 
 
 def test_state_has_fanout_keys():
@@ -36,6 +36,7 @@ def test_state_has_fanout_keys():
     ann = ERPAgentState.__annotations__
     assert "doc_context" in ann
     assert "erp_facts" in ann
+    assert "doc_denied" in ann
 
 
 def test_gather_erp_prompt_forbids_concluding():
@@ -508,9 +509,10 @@ async def test_mixed_node_clears_both_join_keys():
     không phụ thuộc vào việc mọi đường lỗi đều nhớ ghi key."""
     import src.agents.fanout as fanout
     stale = {"messages": [HumanMessage(content="câu mới")], "intent": "mixed",
-             "doc_context": [asdict(_chunk())], "erp_facts": "dữ kiện lượt trước"}
+             "doc_context": [asdict(_chunk())], "erp_facts": "dữ kiện lượt trước",
+             "doc_denied": "cũ"}
     out = await fanout.make_mixed_node()(stale)
-    assert out == {"doc_context": None, "erp_facts": None}
+    assert out == {"doc_context": None, "erp_facts": None, "doc_denied": None}
 
 
 async def test_mixed_node_never_writes_messages():
