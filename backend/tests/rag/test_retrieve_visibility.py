@@ -122,6 +122,10 @@ def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
     conn = _FakeConn()
     rt.retrieve("câu sau", conn=conn, aux_queries=("câu trước",))
     chan = _sql_theo_chan(conn)
+    # F4 (vòng sửa 1): khẳng định lại "đủ ba chân" — bản cũ `{ten: len(calls)}
+    # == {...}` đồng thời khẳng định điều này; vòng lặp bên dưới một mình sẽ
+    # ĐÚNG RỖNG nếu một chân biến mất hẳn khỏi đường aux.
+    assert set(chan) == {"dense", "sparse", "fold"}
     # 4 câu mỗi chân: [primary lọc, aux lọc, primary bóng, aux bóng]. Nửa đầu
     # PHẢI có mệnh đề (không cửa sau cho aux); nửa sau là bản bóng không lọc.
     for ten, calls in chan.items():

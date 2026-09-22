@@ -102,3 +102,37 @@ def test_hidden_at_rank_one_don_vi():
     assert rt._hidden_at_rank_one({2: {"row": ALL, "rrf": 0.02}}, CHI_ALL) == frozenset()
     assert rt._hidden_at_rank_one({}, CHI_ALL) == frozenset()
     assert rt._hidden_at_rank_one(fused, frozenset({"all", "commercial"})) == frozenset()
+
+
+def test_vis_idx_khop_voi_cot_that():
+    """Cổng tất định, không cần DB (F2 vòng sửa 1): `VIS_IDX` phải trỏ đúng cột
+    `c.visibility` trong CHUỖI `_COLS` THẬT của production — không chỉ trong
+    hàng `_row()` dựng tay ở trên. Nếu sau này ai đổi thứ tự `_COLS` mà quên
+    sửa `VIS_IDX`, các test khác ở trên vẫn xanh (vì `_row()` không đọc
+    `_COLS`) trong khi production đọc nhầm cột và báo ra một tên lớp bậy —
+    đúng lằn "fixture khác trường thật" đã cắn repo này một lần."""
+    assert [c.strip() for c in rt._COLS.split(",")][rt.VIS_IDX] == "c.visibility"
+
+
+class _ConnBongLoi:
+    """Mô phỏng lỗi DB CHỈ ở lượt bóng (không lọc) — lượt LỌC vẫn chạy bình
+    thường, y hệt tình huống F3 (vòng sửa 1) mô tả."""
+
+    def __init__(self, visible):
+        self.visible = visible
+
+    def execute(self, sql, params=None):
+        if VIS_CLAUSE in sql:
+            return _Cur(self.visible)
+        raise RuntimeError("DB lỗi giả lập ở lượt bóng")
+
+
+def test_loi_luot_bong_khong_giet_ket_qua_da_loc(khong_ra_ngoai):
+    """F3 (vòng sửa 1): lượt bóng hỏng không được giết một retrieval ĐÃ lọc
+    SQL thành công — fail-open, giống cách `rerank()` đã fail-open."""
+    conn = _ConnBongLoi(visible=[ALL])
+    r = rt.retrieve("chiết khấu", conn=conn, visibility=CHI_ALL)
+    # BẤT BIẾN: lỗi lượt bóng không vứt bỏ chunks đã lọc SQL thành công.
+    assert [c.source_file for c in r.chunks] == ["seed/policy.docx"]
+    # Fail-open: mất tín hiệu TƯ VẤN hidden_classes, không mất kết quả.
+    assert r.hidden_classes == frozenset()

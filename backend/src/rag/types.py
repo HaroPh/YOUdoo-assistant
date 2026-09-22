@@ -55,7 +55,7 @@ class RetrievalResult:
     # Lớp bị GIẤU mà lẽ ra đứng hạng 1 nếu không lọc (spec 2026-09-21 §3).
     # Rỗng khi UNRESTRICTED, khi bản bóng trống, hay khi hạng-1 thấy được.
     # Chỉ mang TÊN LỚP — hàng bị giấu không bao giờ rời retrieve().
-    hidden_classes: frozenset = frozenset()
+    hidden_classes: frozenset[str] = frozenset()
 
     def is_empty(self) -> bool:
         return not self.chunks

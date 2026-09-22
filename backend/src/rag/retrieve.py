@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 import os
 import re
 
@@ -10,6 +11,8 @@ from .ingest import segment_vi
 from .chunking import fold_vi, index_text
 from .types import Chunk, RetrievalResult
 from .visibility import UNRESTRICTED, resolve
+
+logger = logging.getLogger(__name__)
 
 # `d.effective_date` lấy qua LEFT JOIN: nó thuộc rag_documents chứ không
 # thuộc chunk. LEFT chứ không INNER — tài liệu nghiệp vụ không có ngày, và
@@ -285,7 +288,14 @@ def _fuse_legs(conn, prepared, visibility) -> tuple[dict, bool]:
 def _hidden_at_rank_one(fused: dict, visibility) -> frozenset:
     """Luật hạng-1 (spec §3): lớp của ứng viên đứng đầu bản bóng, nếu vai
     không được xem lớp đó. Hạng-5 bị giấu KHÔNG tính — vai kho hỏi hoàn hàng
-    mà bảng giá lọt hạng 5 vẫn phải được trả lời."""
+    mà bảng giá lọt hạng 5 vẫn phải được trả lời.
+
+    TIỀN ĐIỀU KIỆN (F5 vòng sửa 1): `visibility` PHẢI là một frozenset lớp đã
+    resolve — KHÔNG được là sentinel `UNRESTRICTED`. `cls in visibility` sẽ
+    ném `TypeError` với sentinel đó (`_Unrestricted` không định nghĩa
+    `__contains__`). Hôm nay caller duy nhất (`retrieve()`) đã tự guard bằng
+    `if visibility is not UNRESTRICTED` trước khi gọi hàm này — đừng gỡ guard
+    đó, và đừng gọi hàm này trực tiếp với `UNRESTRICTED`."""
     if not fused:
         return frozenset()
     top = sorted(fused.values(), key=lambda e: e["rrf"], reverse=True)[0]
@@ -331,8 +341,18 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         # chỉ TÊN LỚP đi ra. Admin (UNRESTRICTED) không tốn thêm gì.
         hidden_classes = frozenset()
         if visibility is not UNRESTRICTED:
-            shadow, _fold = _fuse_legs(conn, prepared, UNRESTRICTED)
-            hidden_classes = _hidden_at_rank_one(shadow, visibility)
+            try:
+                shadow, _fold = _fuse_legs(conn, prepared, UNRESTRICTED)
+                hidden_classes = _hidden_at_rank_one(shadow, visibility)
+            except Exception:  # noqa: BLE001 — fail-open (F3 vòng sửa 1):
+                # lỗi DB ở lượt bóng KHÔNG ĐƯỢC vứt bỏ `chunks` đã tính xong.
+                # Xấu nhất là mất tín hiệu tư vấn hidden_classes (người dùng
+                # nhận câu trả lời lạc đề thay vì câu từ chối) — đúng bằng
+                # hành vi trước khi feature này tồn tại, không phải lỗ bảo mật:
+                # `chunks` vẫn luôn là bản đã lọc SQL, không đụng tới ở đây.
+                logger.warning("Lượt bóng (hidden_classes) lỗi — bỏ qua tín hiệu, "
+                               "giữ nguyên kết quả đã lọc", exc_info=True)
+                hidden_classes = frozenset()
         return RetrievalResult(
             query=query, query_used=qseg, chunks=chunks,
             top_score=chunks[0].rrf_score if chunks else 0.0,
