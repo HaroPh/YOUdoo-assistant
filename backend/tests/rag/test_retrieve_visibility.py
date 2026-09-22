@@ -130,7 +130,7 @@ def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
     ĐỔI 2026-09-22 (review cuối nhánh, C1): lượt BÓNG không còn nhận aux —
     chỉ hợp nhất câu hiện tại (`prepared[:1]`), vì hợp nhất ngang trọng số
     RRF với lượt người dùng TRƯỚC gây từ chối oan 32% và bỏ sót 67% câu
-    thương mại thật (đo `do_multiturn.py`, xem `test_retrieve_hidden.py`).
+    thương mại thật (đo `measure_hidden_multiturn.py`, xem `test_retrieve_hidden.py`).
     Lượt LỌC không đổi — vẫn nhận cả aux."""
     conn = _FakeConn()
     rt.retrieve("câu sau", conn=conn, aux_queries=("câu trước",))

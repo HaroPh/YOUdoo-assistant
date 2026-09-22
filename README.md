@@ -312,7 +312,8 @@ Found by measurement, not guessed.
   question, 32% of unrelated follow-ups were wrongly refused; when the previous turn
   was unrelated, 67% of genuinely commercial questions were missed. Restricting the
   shadow pass to the current question only fixed both — 0% false refusals, 90%
-  caught — and is not a trade-off against the single-turn numbers above. Unmeasured:
+  caught — better on both axes than merging in the previous turn, not a trade-off
+  between them. Unmeasured:
   a follow-up that only reads as commercial *because of* the prior turn (an elliptic
   question like "for how long?" after one about SLAs) now gets none of that context
   in the shadow pass either.

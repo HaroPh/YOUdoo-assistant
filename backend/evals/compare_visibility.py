@@ -39,7 +39,9 @@ from src.rag.visibility import DOC_VISIBILITY, basename
 # mại, 0 lộ, 0 từ chối oan (một lượt, câu có dấu) — đúng điều chủ dự án đã
 # chọn khi xem bảng top-k. Ca còn sót, đo 2026-09-22: tài liệu bị giấu
 # (sla.docx, Điều 4 — Đóng gói và vận chuyển) đứng HẠNG 6 của bản bóng KHÔNG
-# lọc (`do_rank_one.py`, 35 ứng viên) — SỬA CHỮ (review cuối nhánh, I1): câu
+# lọc (đo gốc: 35 ứng viên; tái lập được bằng
+# `evals/results/bao-bi-chan-2026-09-21/measure_hidden_topk.py` sau khi nâng
+# `MAX_K=6`, D3) — SỬA CHỮ (review cuối nhánh, I1): câu
 # ban đầu ở đây nói "KHÔNG có giá trị k nào (kể cả top-20) bắt được" là SAI,
 # và sai do chính controller viết ra rồi lan ra 4 chỗ trong repo (xem §10).
 # Câu đúng: BẮT ĐƯỢC ca này cần k >= 6, nhưng TỪ CHỐI OAN đã xuất hiện từ

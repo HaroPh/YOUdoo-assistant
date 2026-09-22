@@ -2,8 +2,9 @@
 
 Bằng chứng tái lập được cho quyết định "lượt bóng chỉ dùng câu hiện tại"
 (`src/rag/retrieve.py`, sóng sửa cuối sau review toàn nhánh, 2026-09-22) —
-đưa vào repo theo ruling của `final-fix-findings.md` để bằng chứng không biến
-mất khi workspace SDD bị dọn.
+đưa vào repo theo ruling của controller ở sóng sửa cuối (xem spec
+`2026-09-21-bao-bi-chan-tang-rag-design.md` §10 Task 11) để bằng chứng không
+biến mất khi workspace SDD bị dọn.
 
 Chỉ đọc — KHÔNG sửa mã production. Nhúng qua Ollama MỘT LẦN cho mỗi câu (109
 câu), rồi ghép cặp từ các tuple đã tính, nên các cặp chỉ tốn SQL.
@@ -29,8 +30,9 @@ không phải identifier hợp lệ cho import theo module) — cwd PHẢI là `
 để `sys.path.insert(0, ".")` thấy được `evals`/`src`, và `DATABASE_URL`/
 `OLLAMA_URL` phải đã có trong môi trường (`.env` đã nạp, hoặc set tay):
     python evals/results/bao-bi-chan-2026-09-21/measure_hidden_multiturn.py
-Xem README cùng thư mục cho lệnh đầy đủ kèm nạp môi trường. ~99*10*2 + 400 + 109
-lượt gọi Ollama — vài phút, không gọi LLM.
+Xem README cùng thư mục cho lệnh đầy đủ kèm nạp môi trường. 109 lượt gọi Ollama
+(một lần nhúng mỗi câu trong 109 câu của bộ ca; các cặp lượt-trước/lượt-này ghép
+lại từ các vector đã nhúng, không nhúng lại) — vài phút, không gọi LLM.
 """
 import random
 import sys

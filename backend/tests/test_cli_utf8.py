@@ -126,8 +126,9 @@ def test_compare_visibility_cli_song_qua_cp1252(tmp_path):
         # Câu trong KNOWN_UNFLAGGED (Task 10) KHÔNG BAO GIỜ được đóng dấu
         # hidden=True ở đây: đo 2026-09-22 nó đứng hạng > 5 trong bản bóng —
         # SỬA CHỮ (review cuối nhánh, I1): câu cũ ở đây nói "không k nào bắt
-        # được" là SAI; đo lại chính xác bằng `do_rank_one.py` cho HẠNG 6 (35
-        # ứng viên). Bắt được cần k >= 6, nhưng k=5 đã sinh 1/99 từ chối oan
+        # được" là SAI; đo lại chính xác cho HẠNG 6 (đo gốc: 35 ứng viên; tái
+        # lập được bằng `measure_hidden_topk.py` sau khi nâng `MAX_K=6`, D3).
+        # Bắt được cần k >= 6, nhưng k=5 đã sinh 1/99 từ chối oan
         # — miễn là đánh đổi k, không phải giới hạn truy xuất. Một fixture
         # "lọc hoàn hảo" mà vẫn gán hidden=True cho đúng
         # câu này là dựng SAI thực tế, và sẽ tự kích kiểm mục rữa của Task 10

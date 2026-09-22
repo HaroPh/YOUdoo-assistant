@@ -3,13 +3,13 @@ bao nhiêu ca thương mại, và trả giá bao nhiêu ca TỪ CHỐI OAN?
 
 Bằng chứng tái lập được cho quyết định `HIDDEN_TOP_K = 3` (`src/rag/retrieve.py`,
 Task 9, spec `2026-09-21-bao-bi-chan-tang-rag-design.md` §3/§6.3) — được đưa vào
-repo theo ruling của `final-fix-findings.md` (sóng sửa cuối, 2026-09-22) để bằng
-chứng không biến mất khi workspace SDD bị dọn.
+repo theo ruling của controller ở sóng sửa cuối (2026-09-22, xem spec §10 Task 11)
+để bằng chứng không biến mất khi workspace SDD bị dọn.
 
 Chỉ đọc — KHÔNG sửa mã production. Chạy cục bộ: embed qua Ollama, truy vấn
 Postgres. Không gọi LLM.
 
-In bảng k = 1..5 (MỘT LƯỢT, không `aux` — `shadow_classes()` gọi
+In bảng k = 1..6 (MỘT LƯỢT, không `aux` — `shadow_classes()` gọi
 `_prepare_queries(question, ())`, không phụ thuộc `HIDDEN_TOP_K` hiện hành của
 `retrieve.py` vì tự tính hạng bằng chính `_fuse_legs`): (bắt được / 10 ca
 thương mại) và (từ chối oan / 99 ca khác).
@@ -38,7 +38,12 @@ from src.rag.db import connect                                    # noqa: E402
 from src.rag.visibility import UNRESTRICTED, resolve               # noqa: E402
 
 WAREHOUSE_VISIBILITY = resolve(frozenset({"all"}))
-MAX_K = 5
+# Nâng 5 → 6 (sóng sửa doc trước merge, D3): bảng cần đi tới hạng 6 để tái lập
+# được số đo của ca "bên bán phải đóng gói hàng ra sao trước khi chuyển đi?"
+# (sla.docx) — hạng 6 trong bản bóng, xem spec §10 Task 11 / I1. Không thêm
+# hàng k=6 nào vào tài liệu đã commit dựa trên NIỀM TIN; con số ở k=6 chỉ được
+# ghi vào tài liệu sau khi chạy lại script này và đọc kết quả thật.
+MAX_K = 6
 
 
 def shadow_classes(conn, question: str) -> list[str]:

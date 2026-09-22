@@ -201,7 +201,7 @@ def test_loi_luot_bong_khong_giet_ket_qua_da_loc(khong_ra_ngoai):
 
 # ─── C1 (review cuối nhánh) — lượt bóng chỉ dùng CÂU HIỆN TẠI ──────────────
 #
-# Đo thật (`do_multiturn.py`, 990 + 990 + 400 cặp câu hỏi thật, seed 20260922):
+# Đo thật (`measure_hidden_multiturn.py`, 990 + 990 + 400 cặp câu hỏi thật, seed 20260922):
 # lượt bóng cũ hợp nhất câu hiện tại với aux (lượt người dùng trước) NGANG
 # trọng số RRF. Hai chiều hỏng: (A) trước=thương mại, nay=khác → 317/990
 # (32,0%) TỪ CHỐI OAN; (C) trước=khác, nay=thương mại → chỉ 327/990 (33,0%)
@@ -210,8 +210,8 @@ def test_loi_luot_bong_khong_giet_ket_qua_da_loc(khong_ra_ngoai):
 #
 # `_ConnHaiPool`/`_FakeConn` ở trên trả CÙNG một danh sách cho MỌI câu hỏi,
 # nên không dựng được ca "aux xếp hạng-1 một tài liệu mà câu hiện tại thì
-# không" — đúng cái bẫy mô tả trong `final-fix-findings.md`. `_ConnTheoCau`
-# dưới đây trả kết quả THEO TỪNG CÂU: chân dense phân biệt câu qua chính
+# không" — đúng cái bẫy mô tả trong ruling sóng sửa cuối (spec §10 Task 11).
+# `_ConnTheoCau` dưới đây trả kết quả THEO TỪNG CÂU: chân dense phân biệt câu qua chính
 # tham số `%s::vector` (embed_query bị monkeypatch thành one-hot theo câu,
 # không theo thứ tự gọi); chân bỏ dấu phân biệt qua việc `fold_vi(câu)` có
 # rỗng hay không (rỗng → `_or_tsquery` rỗng → `_lexical_fold` bỏ qua, không
@@ -297,9 +297,9 @@ def test_luot_truoc_khong_lien_quan_khong_che_phat_hien_cua_cau_hien_tai(khong_r
     """C1 chiều C (327/990 = 33,0% mã cũ BẮT ĐÚNG so với 891/990 = 90,0% chỉ-
     câu-hiện-tại): câu NÀY tự nó có tài liệu thương mại trong top-3 bản bóng
     của CHÍNH NÓ (hạng 2 trong 3 ứng viên); câu TRƯỚC không liên quan nhưng
-    xếp hạng cao ở CẢ dense lẫn bỏ dấu (mô phỏng đúng cơ chế đo được: "lượt
-    trước tốp cả hai chân sống" — xem addendum P1-A của `final-review-
-    report.md`) — đủ trọng số RRF gộp để đẩy tài liệu thương mại của câu NÀY
+    xếp hạng cao ở CẢ dense lẫn bỏ dấu (mô phỏng đúng cơ chế đo được khi đo C1:
+    "lượt trước tốp cả hai chân sống" — xem spec §10 Task 11) — đủ trọng số
+    RRF gộp để đẩy tài liệu thương mại của câu NÀY
     ra ngoài top-3 nếu bóng còn hợp nhất cả câu trước. Chỉ-câu-hiện-tại
     (sau sửa) vẫn phải BÁO. Đột biến bắt buộc: hoàn nguyên như test trên →
     test này phải ĐỎ."""

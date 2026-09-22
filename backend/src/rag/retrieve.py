@@ -24,10 +24,10 @@ VIS_IDX = 11   # vị trí c.visibility trong hàng; score vẫn là row[-1]
 
 # Ngưỡng "top-k" cho tín hiệu `hidden_classes` (spec 2026-09-21 §3, ĐỔI 2026-09-22
 # — chủ dự án quyết sau khi cổng ÂM thật FAIL với luật hạng-1: chỉ bắt 5/10 câu
-# thương mại thật, 0 lộ, 0 từ chối oan). Đo lại trên 109 ca (task-9-brief,
-# 2026-09-22): k=1 bắt 5/10 (khớp cổng ÂM); k=3 bắt 9/10 với 0/99 từ chối oan;
-# k=5 mới bắt đầu có từ chối oan (1/99). Chủ dự án chọn k=3 — nhiều nhất mà vẫn
-# 0 từ chối oan.
+# thương mại thật, 0 lộ, 0 từ chối oan). Đo lại trên 109 ca — MỘT LƯỢT, câu CÓ
+# DẤU (task-9-brief, 2026-09-22): k=1 bắt 5/10 (khớp cổng ÂM); k=3 bắt 9/10 với
+# 0/99 từ chối oan; k=5 mới bắt đầu có từ chối oan (1/99), cùng phạm vi đo.
+# Chủ dự án chọn k=3 — nhiều nhất mà vẫn 0 từ chối oan.
 HIDDEN_TOP_K = 3
 _FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
@@ -366,7 +366,7 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
                 # KHÔNG `prepared` đầy đủ. `prepared` gồm câu hiện tại + mọi
                 # aux (lượt người dùng TRƯỚC, luôn truyền khi có —
                 # `nodes.py`/`fanout.py`); hợp nhất cả hai NGANG trọng số RRF
-                # từng hỏng CẢ HAI CHIỀU (đo `do_multiturn.py`, 990+990+400
+                # từng hỏng CẢ HAI CHIỀU (đo `measure_hidden_multiturn.py`, 990+990+400
                 # cặp câu hỏi thật, seed 20260922): trước=thương mại/nay=khác
                 # → 317/990 (32,0%) TỪ CHỐI OAN; trước=khác/nay=thương mại →
                 # chỉ 327/990 (33,0%) BẮT ĐÚNG. Chỉ dùng câu hiện tại
