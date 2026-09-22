@@ -22,7 +22,14 @@ def _run(rows, restricted=False):
                          for q, p, f, r in rows]}
 
 
-def test_qua_khi_thuong_mai_ve_0_va_ca_khac_khong_kem():
+def test_qua_khi_thuong_mai_ve_0_va_ca_khac_khong_kem(monkeypatch):
+    # CASES ở trên là bộ ca tự tạo cho riêng file test này, không phải bộ ca
+    # thật (RETRIEVAL_CASES) — nó không hề chứa câu hỏi thật trong
+    # KNOWN_UNFLAGGED (Task 10), nên nếu để nguyên hằng số thật thì kiểm mục
+    # rữa "câu đã biết không còn trong bộ ca" sẽ báo rữa SAI (bộ ca này chưa
+    # từng có ý định chứa câu đó). Vô hiệu hoá KNOWN_UNFLAGGED cho riêng test
+    # này để cô lập với Task 10 — các test CỦA Task 10 dùng CASES_KNOWN riêng.
+    monkeypatch.setattr(cv, "KNOWN_UNFLAGGED", frozenset())
     admin = _run([("chiết khấu bậc mấy?", 1.0, 1.0, 1.0), ("SLA giao hàng?", 1.0, 1.0, 0.5),
                   ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
     kho = _run([("chiết khấu bậc mấy?", 0.0, 0.0, 0.0), ("SLA giao hàng?", 0.0, 0.0, 0.0),
@@ -203,3 +210,82 @@ def test_thieu_khoa_hidden_o_ca_khong_thuong_mai_cung_la_loi():
     del kho["per_case"][2]["hidden"]
     with pytest.raises(ValueError, match="hidden"):
         cv.compare(admin, kho, cases=CASES)
+
+
+# ── Task 10: danh sách ngoại lệ KNOWN_UNFLAGGED, có kiểm mục rữa ──
+
+_KNOWN_Q = next(iter(cv.KNOWN_UNFLAGGED))   # câu duy nhất hôm nay: gói hàng SLA
+
+CASES_KNOWN = [
+    (_KNOWN_Q, frozenset({("sla.docx", "Điều 4 — Đóng gói và vận chuyển")}), "hard"),
+    ("thuế suất GTGT?", frozenset({("luat-thuegtgt.pdf", "Điều 9")}), "easy"),
+]
+
+
+def test_khong_co_mot_cau_trong_KNOWN_UNFLAGGED():
+    """Brief đòi hằng này hôm nay chứa ĐÚNG MỘT câu — nếu ai đó thêm/bớt mà
+    không cập nhật comment/test thì phải thấy ngay ở đây."""
+    assert len(cv.KNOWN_UNFLAGGED) == 1
+
+
+def test_ca_da_biet_khong_co_thi_ok_va_duoc_mien():
+    admin = _run([(_KNOWN_Q, 1.0, 1.0, 1.0), ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho = _run([(_KNOWN_Q, 0.0, 0.0, 0.0), ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
+    ra = cv.compare(admin, kho, cases=CASES_KNOWN)
+    assert ra["ok"] is True
+    assert [x["question"] for x in ra["commercial_unflagged_known"]] == [_KNOWN_Q]
+    # commercial_unflagged vẫn ĐẦY ĐỦ — ca miễn KHÔNG biến mất khỏi kết quả
+    assert [x["question"] for x in ra["commercial_unflagged"]] == [_KNOWN_Q]
+    assert ra["commercial_unflagged_new"] == []
+    assert ra["known_stale"] == []
+
+
+def test_ca_da_biet_co_co_la_mot_rua_va_that_bai():
+    """Nếu ca đã-biết lượt này LẠI bắt được cờ (hidden=True), đó là mục RỮA:
+    retrieval đã cải thiện, danh sách miễn không còn cần nữa — cổng phải FAIL
+    và thông điệp phải bảo xoá dòng đó khỏi KNOWN_UNFLAGGED."""
+    admin = _run([(_KNOWN_Q, 1.0, 1.0, 1.0), ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho = _run([(_KNOWN_Q, 0.0, 0.0, 0.0), ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
+    kho["per_case"][0]["hidden"] = True   # giờ ĐÃ bắt được cờ
+    ra = cv.compare(admin, kho, cases=CASES_KNOWN)
+    assert ra["ok"] is False
+    assert [x["question"] for x in ra["known_stale"]] == [_KNOWN_Q]
+    assert "xoá" in ra["known_stale"][0]["reason"]
+    assert ra["commercial_unflagged"] == []
+    assert ra["commercial_unflagged_known"] == [] and ra["commercial_unflagged_new"] == []
+
+
+def test_ca_thuong_mai_khac_khong_co_thi_vao_nhom_moi_va_that_bai(monkeypatch):
+    """Danh sách miễn KHÔNG được che ca thương mại KHÁC không cờ — ca mới
+    (không nằm trong KNOWN_UNFLAGGED) vẫn phải rơi vào commercial_unflagged_new
+    và làm cổng FAIL. (CASES ở đây không mô phỏng bộ ca thật, nên vô hiệu hoá
+    KNOWN_UNFLAGGED để không lẫn với kiểm mục rữa — xem test phía trên.)"""
+    monkeypatch.setattr(cv, "KNOWN_UNFLAGGED", frozenset())
+    admin, kho = _cap_dung()
+    kho["per_case"][1]["hidden"] = False   # "SLA giao hàng?" bị chặn mà không báo
+    ra = cv.compare(admin, kho, cases=CASES)
+    assert ra["ok"] is False
+    assert [x["question"] for x in ra["commercial_unflagged_new"]] == ["SLA giao hàng?"]
+    assert ra["commercial_unflagged_known"] == []
+    assert ra["known_stale"] == []
+
+
+def test_ca_da_biet_bi_lo_van_that_bai_mien_khong_ap_cho_lo():
+    """Lộ và từ chối oan KHÔNG BAO GIỜ được miễn — kể cả cho ca trong
+    KNOWN_UNFLAGGED."""
+    admin = _run([(_KNOWN_Q, 1.0, 1.0, 1.0), ("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho = _run([(_KNOWN_Q, 0.7, 0.0, 0.0), ("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
+    ra = cv.compare(admin, kho, cases=CASES_KNOWN)
+    assert ra["ok"] is False
+    assert [x["question"] for x in ra["commercial_leaked"]] == [_KNOWN_Q]
+
+
+def test_cau_da_biet_khong_con_trong_bo_ca_la_rua():
+    """Câu trong KNOWN_UNFLAGGED mà KHÔNG có trong bộ ca (đổi tên/xoá câu
+    hỏi) cũng là mục rữa — kiểm bằng tập câu hỏi của `cases`."""
+    cases_khuyet = [c for c in CASES_KNOWN if c[0] != _KNOWN_Q]
+    admin = _run([("thuế suất GTGT?", 1.0, 1.0, 1.0)])
+    kho = _run([("thuế suất GTGT?", 1.0, 1.0, 1.0)], restricted=True)
+    ra = cv.compare(admin, kho, cases=cases_khuyet)
+    assert ra["ok"] is False
+    assert [x["question"] for x in ra["known_stale"]] == [_KNOWN_Q]

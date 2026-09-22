@@ -110,6 +110,7 @@ def test_compare_visibility_cli_song_qua_cp1252(tmp_path):
     Dùng RETRIEVAL_CASES và DOC_VISIBILITY THẬT (không mock) để dựng đủ bộ
     ca — main() không có tham số --cases, luôn so trên bộ đầy đủ; đây vẫn là
     test đơn vị (không DB, không Odoo, không LLM, không mạng)."""
+    from evals.compare_visibility import KNOWN_UNFLAGGED
     from evals.retrieval_cases import RETRIEVAL_CASES
     from src.rag.visibility import DOC_VISIBILITY, basename
 
@@ -122,11 +123,17 @@ def test_compare_visibility_cli_song_qua_cp1252(tmp_path):
     assert commercial_questions, "cần >=1 ca thương mại thật để test có ý nghĩa"
 
     def _full_case_json(overrides):
+        # Câu trong KNOWN_UNFLAGGED (Task 10) KHÔNG BAO GIỜ được đóng dấu
+        # hidden=True ở đây: đo 2026-09-22 nó đứng hạng > 5, không k nào bắt
+        # được — một fixture "lọc hoàn hảo" mà vẫn gán hidden=True cho đúng
+        # câu này là dựng SAI thực tế, và sẽ tự kích kiểm mục rữa của Task 10
+        # (đúng như thiết kế) rồi làm cổng FAIL — không phải lỗi của cổng.
         return {"per_case": [
             {"question": q, "recall_at_pool": overrides.get(q, 1.0),
              "recall_at_final": overrides.get(q, 1.0),
              "reciprocal_rank": overrides.get(q, 1.0),
-             "hidden": overrides.get(q, 1.0) == 0.0 and q in commercial_questions}
+             "hidden": (overrides.get(q, 1.0) == 0.0 and q in commercial_questions
+                        and q not in KNOWN_UNFLAGGED)}
             for q, _expected, _difficulty in RETRIEVAL_CASES]}
 
     admin_path = tmp_path / "admin.json"
