@@ -189,3 +189,17 @@ def test_thieu_khoa_hidden_la_loi():
     del kho["per_case"][0]["hidden"]
     with pytest.raises(ValueError, match="hidden"):
         cv.compare(admin, kho, cases=CASES)
+
+
+def test_thieu_khoa_hidden_o_ca_khong_thuong_mai_cung_la_loi():
+    """Guard 'hidden' có HAI bản sao — một ở nhánh `if kind:` (thương mại),
+    một ở nhánh `else:` (khác). test_thieu_khoa_hidden_la_loi ở trên chỉ xoá
+    khoá ở ca thương mại (index 0 = "chiết khấu bậc mấy?"), nên chỉ đâm được
+    bản sao thứ nhất — bản sao trong nhánh `else:` chưa từng bị test nào gọi
+    tới. Xác nhận CASES[2] ("thuế suất GTGT?") THẬT SỰ phi thương mại bằng
+    chính _is_commercial_case, không tin suông theo index."""
+    assert cv._is_commercial_case(CASES[2][1]) is False
+    admin, kho = _cap_dung()
+    del kho["per_case"][2]["hidden"]
+    with pytest.raises(ValueError, match="hidden"):
+        cv.compare(admin, kho, cases=CASES)
