@@ -28,4 +28,10 @@ async def test_ket_qua_co_per_case_du_truong_va_json_hoa_duoc(monkeypatch):
     assert row["method"] == "dense-rrf+rerank"
     assert row["reciprocal_rank"] == 0.5
     assert row["hit_ranks"] == [2]
+    # M3 (sóng sửa cuối, 2026-09-22): trước đây không test nào assert
+    # `hidden is False` cho ca KHÔNG bị giấu (`fake.hidden_classes=frozenset()`
+    # ở trên) — đột biến hardcode `"hidden": True` ở run_eval.py sống sót qua
+    # unit suite, chỉ cổng ÂM thật (`compare_visibility`) mới bắt được. Thêm
+    # assert này để unit suite tự bắt đột biến đó (xem report, mục M3).
+    assert row["hidden"] is False
     json.dumps(result, ensure_ascii=False)

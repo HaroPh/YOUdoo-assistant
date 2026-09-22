@@ -1,6 +1,6 @@
 # Báo bị chặn ở tầng RAG — thiết kế
 
-**Ngày:** 2026-09-21 · **Trạng thái:** đã duyệt thiết kế, chờ plan · **Nối tiếp:** 19b
+**Ngày:** 2026-09-21 · **Trạng thái:** đã thi hành xong 10 task TDD + sóng sửa cuối sau review toàn nhánh, chờ merge (M5 — sửa chữ, review cuối nhánh 2026-09-22: header còn ghi "chờ plan" dù §10 đã ghi đủ) · **Nối tiếp:** 19b
 (`docs/superpowers/specs/2026-09-20-rbac-tang-rag-design.md`)
 
 ## 1. Vấn đề
@@ -24,7 +24,7 @@ Gốc rễ **không phải prompt**: hệ thống không có tín hiệu nào ch
 |---|---|
 | Vai bị chặn thấy gì? | **Nói rõ bị chặn + chỉ đúng phòng ban** — khớp kiểu `other_dept` bên ERP. Chấp nhận tiết lộ tài liệu tồn tại (công ty nhỏ, ai cũng biết có bảng giá). |
 | Đường nào? | **Cả `rag` lẫn `mixed`** — đường mixed vốn đã có lỗ "nhập nhằng thất bại và không-có" (README, Known limitations). |
-| Cách phát hiện? | **Truy vấn bóng không lọc bên trong `retrieve()`, luật hạng-1** (§3). Hai hướng bị loại: sửa prompt (không phân biệt được bị chặn/không có, và mọi lần đụng prompt đường tài liệu đều đo ra `refusal_acc` tụt); đếm ứng viên lớp giấu vượt ngưỡng (điểm dense/lexical không cùng thang, phải hiệu chỉnh từng chân). |
+| Cách phát hiện? | **Truy vấn bóng không lọc bên trong `retrieve()`, luật hạng-1** (§3 — ĐÃ THAY bằng top-k, Task 9; xem đoạn "ĐỔI 2026-09-22" ngay đầu §3, dòng này GIỮ LẠI làm dấu vết, M5 review cuối nhánh). Hai hướng bị loại: sửa prompt (không phân biệt được bị chặn/không có, và mọi lần đụng prompt đường tài liệu đều đo ra `refusal_acc` tụt); đếm ứng viên lớp giấu vượt ngưỡng (điểm dense/lexical không cùng thang, phải hiệu chỉnh từng chân). |
 
 ## 3. Hợp đồng `retrieve()` — tín hiệu `hidden_classes`
 
@@ -62,8 +62,10 @@ Mặc định rỗng ⇒ mọi chỗ dựng `RetrievalResult` hiện có (produc
   `Chunk` không cần trường mới.
 - Trong `retrieve()`, sau khi có `ordered` của bản đã lọc, **chỉ khi**
   `visibility is not UNRESTRICTED`:
-  1. chạy lại `_dense`/`_sparse`/`_lexical_fold` (và các `aux`) với `UNRESTRICTED`,
-     **dùng lại** `qvec`, `qseg`, chuỗi bỏ dấu đã tính — không nhúng lại, không rerank;
+  1. chạy lại `_dense`/`_sparse`/`_lexical_fold` (và các `aux`, xem "ĐỔI 2026-09-22 (C1)"
+     dưới đây — dòng này GIỮ LẠI làm dấu vết, mã hiện tại KHÔNG còn chạy aux ở lượt bóng)
+     với `UNRESTRICTED`, **dùng lại** `qvec`, `qseg`, chuỗi bỏ dấu đã tính — không nhúng
+     lại, không rerank;
   2. gộp RRF y hệt nhánh chính (`_rrf`, `_rrf_fold`, cùng thứ tự);
   3. (luật BAN ĐẦU, xem "ĐỔI 2026-09-22" ở trên) lấy phần tử hạng 1; nếu
      `row[11] not in visibility` → `hidden_classes = {row[11]}`. Bản bóng không có ứng
@@ -95,6 +97,20 @@ Cái nó đánh giá sai là NGƯỠNG: đo thật cho thấy phần lớn câu 
 giấu rơi ở hạng 2-3 chứ không phải hạng 1 (xem bảng k ở trên), nên "tốt nhất" cần đọc là
 "trong vài ứng viên tốt nhất", không phải đúng một ứng viên đứng đầu. Luật nào cũng có rủi
 ro **từ chối oan** ở chiều ngược; §6 đo đúng rủi ro đó, nay có SỐ ĐO kèm theo (bảng k).
+
+**ĐỔI 2026-09-22 (C1, review cuối nhánh) — lượt bóng chỉ dùng CÂU HIỆN TẠI:** bước 1 ở
+trên ("chạy lại ... và các `aux`") mô tả hành vi TRƯỚC sửa. Cả hai node sản xuất
+(`nodes.py`, `fanout.py`) luôn truyền lượt người dùng TRƯỚC làm `aux` khi có; lượt bóng cũ
+hợp nhất câu hiện tại với `aux` đó NGANG trọng số RRF. Đo qua `do_multiturn.py` (990+990+400
+cặp câu hỏi thật, seed 20260922): trước=thương mại/nay=khác → **32,0%** TỪ CHỐI OAN;
+trước=khác/nay=thương mại → chỉ **33,0%** BẮT ĐÚNG (bỏ sót 67%). Sửa: lượt bóng chỉ dùng
+`prepared[:1]` (câu hiện tại, bỏ mọi `aux`) — cho **0/990** từ chối oan và **90,0%** bắt
+đúng, tốt hơn trên CẢ HAI trục đo được, không phải đánh đổi. Lượt LỌC (bản đã lọc trả về
+cho người dùng) KHÔNG đổi — vẫn dùng `prepared` đầy đủ, vì `aux` giúp tìm chunk thấy được
+cho câu hỏi nối tiếp, hành vi có từ trước tính năng này. **Chưa đo:** câu thương mại chỉ
+"trông giống" thương mại NHỜ ngữ cảnh lượt trước (câu tỉnh lược, ví dụ "trong bao lâu?" sau
+một câu về SLA) — sau sửa, lượt bóng không còn thấy ngữ cảnh đó; `do_multiturn.py` chỉ đo
+các cặp câu ĐỘC LẬP, không đo nhóm câu tỉnh lược này.
 
 Lưu ý thang đo: top-k của bản bóng là hạng **RRF trước rerank**; bản thấy được trả về
 theo thứ tự **sau rerank**. Chấp nhận — tín hiệu là "khớp thô mạnh nhất bị giấu", và §6
@@ -190,11 +206,15 @@ thì không; đẩy chuỗi qua state tránh phải nối `role_cfg` vào node f
 
 ## 7. Rủi ro và giới hạn biết trước
 
+> **Phạm vi của mọi con số "0 từ chối oan" trong mục này (SỬA CHỮ, review cuối nhánh
+> 2026-09-22): MỘT LƯỢT, câu CÓ DẤU.** Xem hai gạch đầu dòng cuối mục này cho số đo
+> nhiều lượt và không dấu — cả hai đều KHÔNG phải cổng chính thức.
+
 - **Dưới-phát-hiện**: luật hạng-1 ban đầu chỉ bắt 5/10 câu thương mại thật (Task 8) —
   ĐÃ SỬA bằng top-3 (Task 9, xem §3/§6.3). Rủi ro tương tự vẫn còn ở chiều khác: câu
   thương mại nào có tài liệu bị giấu rơi NGOÀI top-3 ("bên bán phải đóng gói ra sao",
-  đo được hạng >5) vẫn không bị bắt — chấp nhận, vì k lớn hơn bắt đầu sinh từ chối oan
-  (k=5 cho 1/99).
+  đo được ở HẠNG 6 — không phải "không k nào bắt được", SỬA CHỮ I1, xem §10) vẫn không
+  bị bắt — chấp nhận, vì k lớn hơn bắt đầu sinh từ chối oan (k=5 cho 1/99).
 - **Từ chối oan** khi một tài liệu thương mại tình cờ lọt **top-k** cho câu hỏi hợp lệ
   (ban đầu viết cho hạng-1). §6.3 đo trực tiếp trên 99 ca theo TỪNG giá trị k; k=3 (chọn)
   vẫn 0/99, k=5 mới bắt đầu có (1/99).
@@ -203,6 +223,17 @@ thì không; đẩy chuỗi qua state tránh phải nối `role_cfg` vào node f
 - Bản bóng dùng hạng RRF, bản thấy dùng hạng sau rerank — hai thang khác nhau, đã nêu §3.
 - Chỉ áp dụng cho lớp `commercial` hiện có; thêm lớp mới thì `departments_for` tự suy,
   không cần sửa gì ở đây.
+- **Nhiều lượt (C1, ĐÃ SỬA, review cuối nhánh 2026-09-22):** lượt bóng CŨ hợp nhất câu
+  hiện tại với lượt người dùng TRƯỚC ngang trọng số RRF — 32,0% từ chối oan khi trước=
+  thương mại/nay=khác, chỉ 33,0% bắt đúng khi trước=khác/nay=thương mại (đo
+  `do_multiturn.py`, 990+990+400 cặp, seed 20260922). Sửa bằng chỉ dùng câu hiện tại ở
+  lượt bóng (`prepared[:1]`): 0/990 từ chối oan, 90,0% bắt đúng — tốt hơn CẢ HAI trục.
+  **Chưa đo:** câu thương mại chỉ trông giống thương mại NHỜ ngữ cảnh lượt trước (câu
+  tỉnh lược cần câu trước mới hiểu được) — nhóm này ngoài phạm vi `do_multiturn.py`.
+- **Câu gõ KHÔNG DẤU (I2, đo, không sửa mã):** cổng ÂM chạy lại với `--dang-go
+  khong_dau` cho 0 lộ, 0 từ chối oan (giữ an toàn) nhưng chỉ **2/10** câu thương mại
+  được báo (so 9/10 khi có dấu) — dưới-phát-hiện nặng hơn nhiều so với dạng có dấu.
+  Cổng chính thức vẫn là dạng CÓ DẤU; số không dấu chỉ để công bố.
 
 ## 8. Ngoài phạm vi
 
@@ -248,6 +279,61 @@ cuối cùng PASS.** Xem §6.3/§7 và mục dưới cho số đo; mã: `commerc
 `_new` + `known_stale` (hai kiểm rữa: ca được miễn NAY CÓ CỜ → rữa "đã chữa được"; câu
 trong danh sách KHÔNG còn trong bộ ca → rữa "đổi tên/xoá"). Miễn KHÔNG áp cho
 `leaked`/`other_flagged`. Unit 2925/1/120/0 warning (+6 test so Task 9).
+
+**Task 11 (sóng sửa cuối, 2026-09-22) — sau review toàn nhánh (`final-review-report.md`),
+controller ra ruling `final-fix-findings.md`: sửa C1 (Critical), I1, I2; M3, M5, M6.**
+
+- **C1 (Critical):** lượt bóng ở `retrieve()` (dòng gọi `_fuse_legs`) đổi từ `prepared`
+  (câu hiện tại + mọi `aux`) sang `prepared[:1]` (chỉ câu hiện tại). Cơ chế lỗi: cả hai
+  node sản xuất (`nodes.py:133-135`, `fanout.py:108-110`) luôn truyền lượt người dùng
+  TRƯỚC làm `aux` từ lượt hỏi thứ hai của MỌI hội thoại; lượt bóng cũ hợp nhất câu hiện
+  tại với `aux` đó NGANG trọng số RRF, nên tài liệu thương mại hạng cao của lượt TRƯỚC
+  lấn vào top-3 của lượt NÀY bất kể câu hỏi. Đo bằng `do_multiturn.py` (990+990+400 cặp
+  câu hỏi thật, seed 20260922, script chỉ đọc — không sửa mã production): trước=thương
+  mại/nay=khác → **317/990 (32,0%)** từ chối oan; trước=khác/nay=thương mại → chỉ
+  **327/990 (33,0%)** bắt đúng. Chỉ-câu-hiện-tại: **0/990** từ chối oan, **891/990
+  (90,0%)** bắt đúng — tốt hơn CẢ HAI trục, không phải đánh đổi. Lượt LỌC không đổi.
+  Hai test unit mới (`test_retrieve_hidden.py`) dùng conn giả `_ConnTheoCau` trả kết
+  quả THEO TỪNG CÂU (phân biệt qua tham số vector và qua việc `fold_vi` có rỗng hay
+  không) — bẫy mà conn giả cũ (trả cùng danh sách cho mọi câu) không dựng được. Đột
+  biến bắt buộc (hoàn nguyên về `prepared` đầy đủ) làm CẢ HAI test ĐỎ, khôi phục về
+  xanh, `git diff` rỗng — xem `final-fix-report.md`.
+- **I1:** câu "không k nào bắt được (kể cả top-20)" ở 4 chỗ (`compare_visibility.py`,
+  `docs/trang-thai-chung.md` dòng 19c, spec này §7/§10, `test_cli_utf8.py`) là SAI, do
+  chính controller viết ra rồi lan ra — SỬA CHỮ, không sửa mã: đo trực tiếp bằng
+  `do_rank_one.py`, tài liệu bị giấu của ca *"bên bán phải đóng gói hàng ra sao trước
+  khi chuyển đi?"* đứng **HẠNG 6** của bản bóng (35 ứng viên), tức k=6 BẮT ĐƯỢC. Câu
+  đúng: bắt được cần k ≥ 6, nhưng từ chối oan đã xuất hiện từ k=5 (1/99) — miễn là đánh
+  đổi k, không phải giới hạn truy xuất.
+- **I2 (đo, không sửa mã):** cổng ÂM chạy lại với `--dang-go khong_dau` (script
+  `compare_visibility.py` có sẵn, không tốn hạn mức LLM — chỉ Ollama embedding +
+  Postgres): thương mại 10 ca (lộ 0, **không báo chặn 8** — 1 ca đã biết được miễn, 7 ca
+  mới), khác 99 ca (kém đi 0, từ chối oan 0). Tức 0 lộ, 0 từ chối oan vẫn giữ, nhưng chỉ
+  **2/10** câu thương mại được báo (so 9/10 khi có dấu) — sai về phía BỎ SÓT (an toàn),
+  không phải phía lộ/từ chối oan. Cổng chính thức vẫn là dạng CÓ DẤU; số không dấu ghi
+  vào §7/README/19c làm số công bố, không phải cổng.
+- **M3:** thêm `assert row["hidden"] is False` vào
+  `tests/evals/test_eval_retrieval_per_case.py` cho ca không bị giấu — trước đó không
+  test unit nào assert nhánh `False`, nên đột biến hardcode `"hidden": True` ở
+  `run_eval.py` sống sót qua unit suite. Đột biến ép `True` → test ĐỎ, khôi phục → xanh.
+- **M5:** header spec sửa "chờ plan" → "đã thi hành xong ... chờ merge"; §2 dòng "Cách
+  phát hiện?" thêm dấu vết ĐÃ THAY (trỏ về đoạn "ĐỔI 2026-09-22" ở §3), khớp cách §3 đã
+  làm.
+- **M6:** thêm mục (5) và (6) vào danh sách "cổng xanh mà cấu trúc không thể đỏ" ở
+  trên — (5) fixture `test_cli_utf8.py` từng đóng dấu sai cho ca không k nào bắt được
+  lúc đó, bị kiểm rữa Task 10 bắt ngay; (6, lớn nhất) mọi cổng của nhánh này chạy MỘT
+  LƯỢT nên mù trước toàn bộ chiều lỗi của C1 — chỉ phát hiện được nhờ đọc lại đường gọi
+  thật và đo bằng script rời, không qua bộ cổng có sẵn.
+- **Đưa 2 script đo vào repo** (tái lập được bằng chứng, không tốn hạn mức khi chạy
+  lại): `do_topk.py` → `backend/evals/results/bao-bi-chan-2026-09-21/measure_hidden_topk.py`,
+  `do_multiturn.py` → `.../measure_hidden_multiturn.py`. Đổi identifier sang tiếng Anh,
+  giữ nguyên logic/seed/tự chứng, `py_compile` sạch — KHÔNG chạy lại (số liệu ở trên đã
+  đủ, chạy lại tốn Ollama + Postgres không cần thiết cho sóng sửa này).
+
+Unit sau sóng sửa cuối: **2927 passed, 1 skipped, 120 deselected, 0 warning** (+2 so
+Task 10 — đúng 2 test unit mới của C1, không test nào khác đổi số). Chi tiết đầy đủ,
+kể cả toàn văn transcript đột biến: `final-fix-report.md` (workspace SDD, không vào
+git).
 
 ### Task 8 (hoàn tất, 2026-09-22) — Step 1, 2, 4 và tổng kết thi hành
 
@@ -297,10 +383,13 @@ Bảng k đầy đủ (`do_topk.py`, chỉ đọc, không sửa mã production; 
 | 4 | 9/10 | 0/99 |
 | 5 | 9/10 | 1/99 |
 
-Ca duy nhất không k nào bắt được: *"bên bán phải đóng gói hàng ra sao trước khi
+Ca duy nhất không bắt được ở k=1..5: *"bên bán phải đóng gói hàng ra sao trước khi
 chuyển đi?"* (mong đợi `sla.docx`) — tài liệu ẩn của nó đứng hạng **> 5** trong bản
-bóng. Miễn qua `KNOWN_UNFLAGGED` (Task 10), có kiểm rữa staleness: cổng sẽ FAIL nếu
-ca này bắt đầu được phát hiện, hoặc câu hỏi biến mất khỏi bộ ca — miễn không thể âm
+bóng (SỬA CHỮ, review cuối nhánh, I1: đo lại bằng `do_rank_one.py` cho HẠNG 6 chính
+xác, tức k=6 BẮT ĐƯỢC — câu cũ "không k nào bắt được kể cả top-20" ở đây là SAI, xem
+Task 11 dưới). Miễn qua `KNOWN_UNFLAGGED` (Task 10), có kiểm rữa staleness: cổng sẽ
+FAIL nếu ca này bắt đầu được phát hiện, hoặc câu hỏi biến mất khỏi bộ ca — miễn không
+thể âm
 thầm che một hồi quy thật hay một ca đã đổi.
 
 **Step 4 — probe sống trên hạ tầng thật (backend + 4 MCP của worktree, exit 0):**
@@ -378,8 +467,9 @@ trống lại; không đụng tiến trình có trước.
    chữ đã được sửa ở §3/§4 trong nhiệm vụ ghi chép này (ruling của controller
    2026-09-22); mã không đổi.
 3. **Mẫu hình lặp lại nhiều lần trên nhánh này: cổng XANH trong khi CẤU TRÚC không
-   thể ĐỎ — đây là bài học chính của nhánh.** Bốn ví dụ cụ thể, mỗi cái bị phát hiện
-   và sửa trước khi merge:
+   thể ĐỎ — đây là bài học chính của nhánh.** Sáu ví dụ cụ thể (bốn từ Task 1-5, hai
+   thêm ở sóng sửa cuối review toàn nhánh — M6), mỗi cái bị phát hiện và sửa trước
+   khi merge:
    - Task 3: mồi nhử `_LLMKhongDuocGoi` bị fixture `chunks=[]` làm `synthesize()`
      ngắn mạch TRƯỚC khi tới LLM — 2 vòng sửa mới ra được cổng bắt đúng hình dạng
      nguy hiểm thật ("cổng CHẠY, hành động [gọi LLM] CŨNG chạy" dù nội dung câu trả
@@ -398,6 +488,23 @@ trống lại; không đụng tiến trình có trước.
      nghiệm, khôi phục ngay sau) LẬT test đó sang ĐỎ mà không đổi một byte mã — sự
      mong manh là quan sát được, không chỉ suy luận. Sửa bằng đổi sang câu hỏi độc
      quyền từ vựng (kiểm bằng `to_tsvector`/`to_tsquery` thật), không đụng fixture.
+   - **(5, review cuối nhánh, M6)** `tests/test_cli_utf8.py` — fixture "lọc hoàn hảo"
+     của `test_compare_visibility_cli_song_qua_cp1252` đóng dấu `hidden=True` cho MỌI
+     câu thương mại kể cả câu KHÔNG k nào bắt được lúc đó (`sla.docx`) — kiểm mục rữa
+     của Task 10 tự bắt được ngay lần chạy đầu (fixture nói câu này bắt được, staleness
+     check nói ngược lại) và buộc phải sửa fixture cho khớp thực tế đo được. Không
+     phải cổng đỏ vĩnh viễn nhờ ĐÚNG cơ chế đã thiết kế cho việc này.
+   - **(6, review cuối nhánh, M6 — lớn nhất trong sáu):** MỌI cổng của nhánh này —
+     unit, integration, cổng ÂM (`compare_visibility.py`), probe sống — đều chạy
+     MỘT LƯỢT (không `aux`/lịch sử hội thoại). C1 (xem trên) là hệ quả trực tiếp: một
+     lỗi khiến 32% câu hỏi bị từ chối oan và 67% câu thương mại bị bỏ sót ở SẢN XUẤT
+     (nơi `aux` luôn có mặt từ lượt thứ hai của mọi hội thoại) không cổng nào trong số
+     đó nhìn thấy được, vì không cổng nào truyền `aux_queries`. Chỉ phát hiện được nhờ
+     review cuối nhánh đọc lại đường gọi thật (`nodes.py`/`fanout.py` luôn truyền lượt
+     trước) rồi đo trực tiếp bằng script rời (`do_multiturn.py`), không qua bộ cổng có
+     sẵn nào. Đây là dạng lỗi "cổng CẤU TRÚC không thể ĐỎ" nặng nhất tìm thấy trên
+     nhánh — không phải vì fixture nông, mà vì TOÀN BỘ chiều đo (nhiều lượt) chưa từng
+     tồn tại trong bộ cổng.
 
    Không phải review bỏ sót — mỗi cái đều bị chính reviewer hoặc implementer phát
    hiện trong lúc làm nhiệm vụ liên quan; ghi lại vì đây là hình dạng lỗi có thể tái

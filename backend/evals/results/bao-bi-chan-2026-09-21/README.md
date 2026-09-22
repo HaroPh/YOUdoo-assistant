@@ -51,3 +51,38 @@ Chênh lệch 0,9771 − 0,8853 = 0,0918 ≈ 10/109 = 0,0917: phần sụt truy 
 đúng bằng 10 ca thương mại rơi về 0, không ca nào khác mất — giống hệt 19b, vì đây
 là số đo TRUY XUẤT thuần, không đổi bởi tính năng câu từ chối (tính năng đó chỉ
 chạm bước SAU truy xuất, ở `rag_node`/`fuse_answer`).
+
+**SỬA CHỮ (review cuối nhánh, 2026-09-22, I1):** hạng chính xác của tài liệu bị
+giấu ở ca "không báo chặn" trên là **HẠNG 6** trong bản bóng (35 ứng viên, đo bằng
+`do_rank_one.py`, script rời không đưa vào repo) — không phải "không k nào bắt
+được kể cả top-20" như một số chỗ khác từng ghi (câu đó sai, do controller viết ra
+rồi lan ra 4 chỗ trong repo, đã sửa — xem spec §10 mục Task 11). k=6 BẮT ĐƯỢC ca
+này; lý do miễn qua `KNOWN_UNFLAGGED` là ĐÁNH ĐỔI k (k=5 đã sinh 1/99 từ chối oan),
+không phải giới hạn của truy xuất.
+
+## Hai script đo — đưa vào repo để bằng chứng tái lập được (sóng sửa cuối, 2026-09-22)
+
+`measure_hidden_topk.py` và `measure_hidden_multiturn.py` trong thư mục này là hai
+script CHỈ ĐỌC (không sửa mã production, không gọi LLM) dùng để đo hai quyết định
+lớn của nhánh:
+
+- **`measure_hidden_topk.py`** — bảng "bắt được / từ chối oan" theo từng giá trị
+  k=1..5, bằng chứng cho quyết định `HIDDEN_TOP_K = 3` (Task 9). Tự chứng: hàng k=1
+  phải khớp đúng 5/10 · 0/99 (số đo gốc bằng luật hạng-1, Task 8).
+- **`measure_hidden_multiturn.py`** — đo C1 (sóng sửa cuối): so hai chế độ hợp
+  nhất lượt bóng (`with_prev` — câu hiện tại + lượt trước, đúng mã TRƯỚC sửa;
+  `current_only` — chỉ câu hiện tại, đúng mã SAU sửa) trên ba loại cặp câu hỏi
+  (990 + 400 + 990 cặp, seed 20260922). Tự chứng: chế độ `current_only` phải khớp
+  đúng số đo một-lượt của cổng ÂM (9/10 · 0/99).
+
+Cả hai đã `py_compile` sạch nhưng **KHÔNG được chạy lại** khi đưa vào repo — số
+liệu đã có đủ trong `final-fix-findings.md` và spec §10 (Task 11); chạy lại tốn
+Ollama + Postgres không cần thiết cho việc ghi chép. Muốn tái lập, chạy như MỘT
+SCRIPT (không phải `-m` — tên thư mục có dấu `-`, không phải identifier hợp lệ),
+từ `backend/` với `DATABASE_URL`/`OLLAMA_URL` đã có trong môi trường:
+
+```powershell
+# .env đã nạp (hoặc set tay hai biến trên), cwd = backend/
+.venv\Scripts\python.exe evals/results/bao-bi-chan-2026-09-21/measure_hidden_topk.py
+.venv\Scripts\python.exe evals/results/bao-bi-chan-2026-09-21/measure_hidden_multiturn.py
+```

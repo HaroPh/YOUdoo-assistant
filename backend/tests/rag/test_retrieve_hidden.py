@@ -199,6 +199,128 @@ def test_loi_luot_bong_khong_giet_ket_qua_da_loc(khong_ra_ngoai):
     assert r.hidden_classes == frozenset()
 
 
+# ─── C1 (review cuối nhánh) — lượt bóng chỉ dùng CÂU HIỆN TẠI ──────────────
+#
+# Đo thật (`do_multiturn.py`, 990 + 990 + 400 cặp câu hỏi thật, seed 20260922):
+# lượt bóng cũ hợp nhất câu hiện tại với aux (lượt người dùng trước) NGANG
+# trọng số RRF. Hai chiều hỏng: (A) trước=thương mại, nay=khác → 317/990
+# (32,0%) TỪ CHỐI OAN; (C) trước=khác, nay=thương mại → chỉ 327/990 (33,0%)
+# BẮT ĐÚNG so với 891/990 (90,0%) nếu bóng chỉ dùng câu hiện tại. Chỉ-câu-
+# hiện-tại tốt hơn trên CẢ HAI trục — không phải đánh đổi.
+#
+# `_ConnHaiPool`/`_FakeConn` ở trên trả CÙNG một danh sách cho MỌI câu hỏi,
+# nên không dựng được ca "aux xếp hạng-1 một tài liệu mà câu hiện tại thì
+# không" — đúng cái bẫy mô tả trong `final-fix-findings.md`. `_ConnTheoCau`
+# dưới đây trả kết quả THEO TỪNG CÂU: chân dense phân biệt câu qua chính
+# tham số `%s::vector` (embed_query bị monkeypatch thành one-hot theo câu,
+# không theo thứ tự gọi); chân bỏ dấu phân biệt qua việc `fold_vi(câu)` có
+# rỗng hay không (rỗng → `_or_tsquery` rỗng → `_lexical_fold` bỏ qua, không
+# bắn SQL — xem `retrieve.py:_lexical_fold`).
+
+CAU_NAY = "chính sách đổi trả hàng như thế nào?"
+CAU_TRUOC = "chính sách chiết khấu theo cấp khách như thế nào?"
+
+
+def _vec_mot_hot(idx: int) -> list[float]:
+    v = [0.0] * 1024
+    v[idx] = 1.0
+    return v
+
+
+VEC_NAY = _vec_mot_hot(0)
+VEC_TRUOC = _vec_mot_hot(1)
+
+
+def _embed_theo_cau(anh_xa: dict[str, list[float]]):
+    def _embed(q):
+        return anh_xa.get(q, [0.0] * 1024)
+    return _embed
+
+
+def _fold_theo_cau(anh_xa: dict[str, str]):
+    def _fold(q):
+        return anh_xa.get(q, "")
+    return _fold
+
+
+class _ConnTheoCau:
+    """Conn giả trả kết quả THEO TỪNG CÂU cho chân dense (khoá bằng chính
+    tham số vector) và chân bỏ dấu (một danh sách cố định, chỉ được chạm khi
+    `fold_vi(câu)` khác rỗng — tự nhiên chỉ câu được cấu hình có tokens mới
+    gọi tới). Lượt LỌC (có mệnh đề `VIS_CLAUSE`) luôn trả `visible`, không
+    phân biệt câu — hai test dưới không cần lượt lọc phân biệt gì, chỉ cần
+    `hidden_classes` (từ lượt BÓNG) và bất biến an toàn `chunks`."""
+
+    def __init__(self, theo_vec: dict[tuple, list[tuple]], visible: list[tuple],
+                 fold_rows: list[tuple] | None = None):
+        self.theo_vec = theo_vec
+        self.visible = visible
+        self.fold_rows = fold_rows or []
+        self.calls: list[tuple[str, tuple]] = []
+
+    def execute(self, sql, params=None):
+        self.calls.append((sql, params))
+        if VIS_CLAUSE in sql:
+            return _Cur(self.visible)
+        if "<=>" in sql:
+            return _Cur(self.theo_vec.get(tuple(params[0]), []))
+        if "ts_vector_fold" in sql:
+            return _Cur(self.fold_rows)
+        return _Cur([])   # chân sparse — chết trên corpus thật (xem _sparse)
+
+
+def test_luot_truoc_thuong_mai_khong_lam_cau_hien_tai_bi_tu_choi(khong_ra_ngoai, monkeypatch):
+    """C1 chiều A (317/990, 32,0% từ chối oan đo được): câu TRƯỚC xếp hạng-1
+    một tài liệu thương mại trong bản bóng của CHÍNH NÓ; câu NÀY không liên
+    quan và bản bóng của CHÍNH NÓ không có gì bị giấu. Bóng chỉ-câu-hiện-tại
+    (sau sửa) phải KHÔNG báo. Đột biến bắt buộc: hoàn nguyên `retrieve.py`
+    dòng lượt bóng về `_fuse_legs(conn, prepared, UNRESTRICTED)` (đầy đủ
+    `prepared`, gồm cả câu trước) → test này phải ĐỎ (xem report)."""
+    monkeypatch.setattr(rt, "embed_query",
+                         _embed_theo_cau({CAU_NAY: VEC_NAY, CAU_TRUOC: VEC_TRUOC}))
+    monkeypatch.setattr(rt, "fold_vi", _fold_theo_cau({}))   # cả hai câu rỗng — bỏ dấu không chạy
+
+    ALL_NAY = _row(10, "seed/all_nay.docx", "all", 0.5)
+    ALL_TRUOC2 = _row(11, "seed/all_truoc2.docx", "all", 0.4)
+    ALL_TRUOC3 = _row(12, "seed/all_truoc3.docx", "all", 0.3)
+    conn = _ConnTheoCau(
+        theo_vec={tuple(VEC_NAY): [ALL_NAY],
+                  tuple(VEC_TRUOC): [TM, ALL_TRUOC2, ALL_TRUOC3]},
+        visible=[ALL_NAY])
+    r = rt.retrieve(CAU_NAY, conn=conn, aux_queries=(CAU_TRUOC,), visibility=CHI_ALL)
+    assert r.hidden_classes == frozenset()
+    # BẤT BIẾN AN TOÀN: chunk trả về không đụng tài liệu thương mại của câu trước.
+    assert [c.source_file for c in r.chunks] == ["seed/all_nay.docx"]
+
+
+def test_luot_truoc_khong_lien_quan_khong_che_phat_hien_cua_cau_hien_tai(khong_ra_ngoai, monkeypatch):
+    """C1 chiều C (327/990 = 33,0% mã cũ BẮT ĐÚNG so với 891/990 = 90,0% chỉ-
+    câu-hiện-tại): câu NÀY tự nó có tài liệu thương mại trong top-3 bản bóng
+    của CHÍNH NÓ (hạng 2 trong 3 ứng viên); câu TRƯỚC không liên quan nhưng
+    xếp hạng cao ở CẢ dense lẫn bỏ dấu (mô phỏng đúng cơ chế đo được: "lượt
+    trước tốp cả hai chân sống" — xem addendum P1-A của `final-review-
+    report.md`) — đủ trọng số RRF gộp để đẩy tài liệu thương mại của câu NÀY
+    ra ngoài top-3 nếu bóng còn hợp nhất cả câu trước. Chỉ-câu-hiện-tại
+    (sau sửa) vẫn phải BÁO. Đột biến bắt buộc: hoàn nguyên như test trên →
+    test này phải ĐỎ."""
+    monkeypatch.setattr(rt, "embed_query",
+                         _embed_theo_cau({CAU_NAY: VEC_NAY, CAU_TRUOC: VEC_TRUOC}))
+    monkeypatch.setattr(rt, "fold_vi", _fold_theo_cau({CAU_TRUOC: "truoc tokens"}))
+
+    KHAC_A = _row(20, "seed/khac_a.docx", "all", 0.5)
+    KHAC_B = _row(21, "seed/khac_b.docx", "all", 0.3)
+    X1 = _row(22, "seed/x1.docx", "all", 0.5)
+    X2 = _row(23, "seed/x2.docx", "all", 0.4)
+    conn = _ConnTheoCau(
+        theo_vec={tuple(VEC_NAY): [KHAC_A, TM, KHAC_B],
+                  tuple(VEC_TRUOC): [X1, X2]},
+        visible=[KHAC_A],
+        fold_rows=[X1, X2])   # câu trước tốp CẢ dense lẫn bỏ dấu
+    r = rt.retrieve(CAU_NAY, conn=conn, aux_queries=(CAU_TRUOC,), visibility=CHI_ALL)
+    assert r.hidden_classes == frozenset({"commercial"})
+    assert [c.source_file for c in r.chunks] == ["seed/khac_a.docx"]
+
+
 # ─── Integration: DB thật ──────────────────────────────────────────────────
 
 from src.rag.chunking import fold_vi

@@ -304,6 +304,24 @@ Found by measurement, not guessed.
   commercial question has its hidden document ranked outside the detection window
   in every measurement so far and is excused via a staleness-checked exception list
   rather than fixed.
+- **The blocked-role detection pass only ever looked at single-turn questions, and
+  every gate that measured it (unit, integration, the negative gate, the live probe)
+  shared that blind spot.** Production always feeds the previous user turn into the
+  same shadow query from the conversation's second turn onward. Measuring across
+  990+990+400 real question pairs found it broke both ways: after a commercial
+  question, 32% of unrelated follow-ups were wrongly refused; when the previous turn
+  was unrelated, 67% of genuinely commercial questions were missed. Restricting the
+  shadow pass to the current question only fixed both — 0% false refusals, 90%
+  caught — and is not a trade-off against the single-turn numbers above. Unmeasured:
+  a follow-up that only reads as commercial *because of* the prior turn (an elliptic
+  question like "for how long?" after one about SLAs) now gets none of that context
+  in the shadow pass either.
+- **Unaccented input catches fewer blocked-role questions, though it stays safe.**
+  Vietnamese typed without diacritics degrades the dense leg (recall 0.0156 alone,
+  documented above); re-running the negative gate on unaccented input still gave 0
+  leaks and 0 false refusals, but only 2 of 10 commercial questions were flagged
+  (versus 9 of 10 with diacritics). The accented form remains the official gate;
+  the unaccented number is disclosure, not a gate.
 - **The out-of-department refusal reads wrong for one profile.** Under `enterprise`,
   a few operations (inventory adjustment, scrapping, returns) leave the warehouse
   role while still being *warehouse work*, so the refusal says "contact the Warehouse

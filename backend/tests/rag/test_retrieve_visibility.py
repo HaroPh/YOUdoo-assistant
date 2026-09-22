@@ -77,7 +77,7 @@ def test_unrestricted_thi_sql_khong_co_visibility(khong_ra_ngoai):
 
     Từ task hidden_classes (2026-09-21), `_COLS` thêm `c.visibility` ở CUỐI
     cho MỌI truy vấn (kể cả đường admin) — bản lọc và bản bóng phải cùng hình
-    dạng cột để dùng chung `_fuse_legs`/`_hidden_at_rank_one`. Do đó chữ
+    dạng cột để dùng chung `_fuse_legs`/`_hidden_in_top_k`. Do đó chữ
     "visibility" giờ luôn có mặt trong SELECT; bất biến thật sự cần giữ là
     KHÔNG có mệnh đề lọc (`VIS_CLAUSE`), không phải "không có chữ visibility"."""
     conn = _FakeConn()
@@ -125,7 +125,13 @@ def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
     chân × (primary + aux). Trước bản sửa này, test chỉ soi cặp DENSE (nhận
     diện qua `"<=>"`) và bỏ sót sparse/fold: xoá `visibility` khỏi lời gọi
     aux của `_sparse`/`_lexical_fold` (retrieve.py:284, :287) mà suite vẫn
-    xanh — xem xác nhận tay ở nhật ký thực thi task này."""
+    xanh — xem xác nhận tay ở nhật ký thực thi task này.
+
+    ĐỔI 2026-09-22 (review cuối nhánh, C1): lượt BÓNG không còn nhận aux —
+    chỉ hợp nhất câu hiện tại (`prepared[:1]`), vì hợp nhất ngang trọng số
+    RRF với lượt người dùng TRƯỚC gây từ chối oan 32% và bỏ sót 67% câu
+    thương mại thật (đo `do_multiturn.py`, xem `test_retrieve_hidden.py`).
+    Lượt LỌC không đổi — vẫn nhận cả aux."""
     conn = _FakeConn()
     rt.retrieve("câu sau", conn=conn, aux_queries=("câu trước",))
     chan = _sql_theo_chan(conn)
@@ -133,10 +139,11 @@ def test_aux_queries_cung_bi_loc(khong_ra_ngoai):
     # == {...}` đồng thời khẳng định điều này; vòng lặp bên dưới một mình sẽ
     # ĐÚNG RỖNG nếu một chân biến mất hẳn khỏi đường aux.
     assert set(chan) == {"dense", "sparse", "fold"}
-    # 4 câu mỗi chân: [primary lọc, aux lọc, primary bóng, aux bóng]. Nửa đầu
-    # PHẢI có mệnh đề (không cửa sau cho aux); nửa sau là bản bóng không lọc.
+    # 3 câu mỗi chân: [primary lọc, aux lọc, primary bóng]. Nửa đầu PHẢI có
+    # mệnh đề (không cửa sau cho aux, lượt lọc không đổi); câu thứ ba là bản
+    # bóng không lọc CHỈ của câu hiện tại — không còn câu bóng thứ tư cho aux.
     for ten, calls in chan.items():
-        assert [VIS_CLAUSE in sql for sql, _params in calls] == [True, True, False, False], ten
+        assert [VIS_CLAUSE in sql for sql, _params in calls] == [True, True, False], ten
 
 
 # ─── Integration: DB thật ──────────────────────────────────────────────────

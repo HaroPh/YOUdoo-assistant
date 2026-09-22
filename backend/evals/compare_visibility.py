@@ -36,14 +36,17 @@ from src.rag.visibility import DOC_VISIBILITY, basename
 # Danh sách ngoại lệ CÓ KIỂM MỤC RỮA (Task 10, controller quyết 2026-09-22).
 #
 # Sau khi đổi sang top-3 (Task 9), cổng ÂM chạy thật bắt được 9/10 ca thương
-# mại, 0 lộ, 0 từ chối oan — đúng điều chủ dự án đã chọn khi xem bảng top-k.
-# Ca còn sót, đo 2026-09-22: tài liệu bị giấu (sla.docx, Điều 4 — Đóng gói và
-# vận chuyển) đứng hạng > 5 trong bản bóng KHÔNG lọc (unfiltered pass), nên
-# KHÔNG có giá trị k nào (kể cả top-20) bắt được ca này — đây KHÔNG phải lỗi
-# của luật top-3, mà là giới hạn của chính lượt truy xuất. Vì cổng là nhị
-# phân (mọi danh sách phải rỗng), ca này sẽ khiến cổng FAIL VĨNH VIỄN nếu
-# không được miễn — và một cổng đỏ vĩnh viễn là cổng người ta học cách bỏ
-# qua (repo này đã dính lằn đó nhiều lần).
+# mại, 0 lộ, 0 từ chối oan (một lượt, câu có dấu) — đúng điều chủ dự án đã
+# chọn khi xem bảng top-k. Ca còn sót, đo 2026-09-22: tài liệu bị giấu
+# (sla.docx, Điều 4 — Đóng gói và vận chuyển) đứng HẠNG 6 của bản bóng KHÔNG
+# lọc (`do_rank_one.py`, 35 ứng viên) — SỬA CHỮ (review cuối nhánh, I1): câu
+# ban đầu ở đây nói "KHÔNG có giá trị k nào (kể cả top-20) bắt được" là SAI,
+# và sai do chính controller viết ra rồi lan ra 4 chỗ trong repo (xem §10).
+# Câu đúng: BẮT ĐƯỢC ca này cần k >= 6, nhưng TỪ CHỐI OAN đã xuất hiện từ
+# k=5 (1/99) — lý do miễn là ĐÁNH ĐỔI k, không phải "truy xuất không thể
+# bắt". Vì cổng là nhị phân (mọi danh sách phải rỗng), ca này sẽ khiến cổng
+# FAIL VĨNH VIỄN nếu không được miễn — và một cổng đỏ vĩnh viễn là cổng
+# người ta học cách bỏ qua (repo này đã dính lằn đó nhiều lần).
 #
 # NGUY HIỂM: danh sách miễn là cách một cổng âm thầm mất giá trị. Vì vậy
 # compare() dưới đây tự kiểm mục RỮA mỗi lượt chạy: nếu ca này lại bắt được

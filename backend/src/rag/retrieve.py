@@ -362,7 +362,20 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
             # không ai grep — đúng đột biến (a′) đã lộ ra ở vòng sửa 1.
             shadow = None
             try:
-                shadow, _fold = _fuse_legs(conn, prepared, UNRESTRICTED)
+                # CHỈ câu hiện tại (ĐỔI 2026-09-22, review cuối nhánh, C1) —
+                # KHÔNG `prepared` đầy đủ. `prepared` gồm câu hiện tại + mọi
+                # aux (lượt người dùng TRƯỚC, luôn truyền khi có —
+                # `nodes.py`/`fanout.py`); hợp nhất cả hai NGANG trọng số RRF
+                # từng hỏng CẢ HAI CHIỀU (đo `do_multiturn.py`, 990+990+400
+                # cặp câu hỏi thật, seed 20260922): trước=thương mại/nay=khác
+                # → 317/990 (32,0%) TỪ CHỐI OAN; trước=khác/nay=thương mại →
+                # chỉ 327/990 (33,0%) BẮT ĐÚNG. Chỉ dùng câu hiện tại
+                # (`prepared[:1]`) cho 0/990 từ chối oan và 891/990 (90,0%)
+                # bắt đúng — tốt hơn trên CẢ HAI trục đo được, không phải
+                # đánh đổi. Lượt LỌC ở trên KHÔNG đổi — vẫn dùng `prepared`
+                # đầy đủ (aux giúp tìm chunk thấy được cho câu nối tiếp,
+                # hành vi có từ trước, không đụng).
+                shadow, _fold = _fuse_legs(conn, prepared[:1], UNRESTRICTED)
             except Exception:  # noqa: BLE001 — fail-open (F3 vòng sửa 1):
                 # lỗi DB (I/O) ở lượt bóng KHÔNG ĐƯỢC vứt bỏ `chunks` đã tính
                 # xong. Xấu nhất là mất tín hiệu tư vấn hidden_classes (người
