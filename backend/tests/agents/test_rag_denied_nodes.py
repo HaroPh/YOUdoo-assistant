@@ -118,11 +118,18 @@ async def test_mixed_xoa_doc_denied_luc_vao():
 
 async def test_fuse_bi_chan_va_erp_rong_tra_thang_cau_tu_choi():
     msg = rag_access.denied_message(KHO, TM, roles.load_profile())
-    out = await fanout.make_fuse_answer_node(_LLMKhongDuocGoi())(
+    llm = _LLMKhongDuocGoi()
+    out = await fanout.make_fuse_answer_node(llm)(
         {"messages": [HumanMessage(content="q")], "doc_context": [],
          "erp_facts": "", "doc_denied": msg})
     assert out["messages"][0].content == msg
     assert out["doc_denied"] is None            # clear lúc RA
+    # Bằng chứng ĐỘC LẬP với nội dung (coordinator round 1, cùng lớp lỗi Task
+    # 3): nếu code tính đúng câu từ chối NHƯNG vẫn lỡ gọi llm.ainvoke() trước
+    # khi return, except Exception bao ngoài của fuse_answer nuốt gọn lỗi đó
+    # và content vẫn khớp — so khớp content một mình sẽ không bắt được. Chỉ
+    # `bi_goi` (set TRƯỚC dòng raise, sống sót qua except) mới lộ ra.
+    assert llm.bi_goi is False
 
 
 async def test_fuse_bi_chan_co_erp_noi_cau_tu_choi_vao_cuoi(monkeypatch):
