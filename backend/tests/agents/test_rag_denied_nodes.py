@@ -22,7 +22,16 @@ _CHUNK_VUOT_SAN = Chunk(chunk_id=1, doc_id="d1", source_file="f", doc_title="t",
 
 
 class _LLMKhongDuocGoi:
+    """Ném ra NGAY khi bị gọi — nhưng nếu bên gọi nuốt exception đó (vd
+    `except Exception` bao ngoài của rag_node) rồi vẫn trả nội dung ĐÚNG,
+    so khớp nội dung sẽ không bắt được việc LLM đã chạy. `bi_goi` là bằng
+    chứng ĐỘC LẬP với nội dung trả về — set TRƯỚC dòng raise nên sống sót
+    qua mọi lớp except bên ngoài (coordinator round 2, spec 2026-09-21 §5)."""
+    def __init__(self):
+        self.bi_goi = False
+
     async def ainvoke(self, messages, config=None):
+        self.bi_goi = True
         raise AssertionError("LLM bị gọi dù đã có câu từ chối tất định")
 
 
@@ -65,6 +74,12 @@ async def test_rag_node_bi_chan_khong_goi_llm_that_su_du_chunk_khong_rong(monkey
                         lambda *a, **kw: RetrievalResult(
                             query="q", query_used="q", chunks=[_CHUNK_VUOT_SAN],
                             top_score=0.9, total_candidates=1, hidden_classes=TM))
-    out = await nodes_mod.make_rag_node(_LLMKhongDuocGoi(), role_cfg=KHO)(_state())
+    llm = _LLMKhongDuocGoi()
+    out = await nodes_mod.make_rag_node(llm, role_cfg=KHO)(_state())
     msg = out["messages"][0].content
     assert msg == rag_access.denied_message(KHO, TM, roles.load_profile())
+    # Bằng chứng ĐỘC LẬP với nội dung: cổng "content đúng nhưng LLM đã chạy
+    # song song" (coordinator round 2) không đổi `msg` nếu code cố tình nuốt
+    # exception của synthesize() rồi vẫn trả câu từ chối — chỉ `bi_goi` mới
+    # lộ ra rằng llm.ainvoke() đã thực sự được gọi.
+    assert llm.bi_goi is False
