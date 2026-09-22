@@ -98,15 +98,22 @@ def test_tap_lop_di_vao_tham_so_da_sap_xep(khong_ra_ngoai):
 
 def _sql_theo_chan(conn: _FakeConn) -> dict[str, list[tuple[str, tuple]]]:
     """Như `_sql_cua_ba_chan` nhưng GOM cả list thay vì ghi đè — cần khi một
-    lượt `retrieve()` gọi cùng một chân nhiều lần (primary + mỗi aux)."""
-    ra: dict[str, list[tuple[str, tuple]]] = {"dense": [], "fold": [], "sparse": []}
+    lượt `retrieve()` gọi cùng một chân nhiều lần (primary + mỗi aux).
+
+    Dựng dict ĐỘNG, không gieo sẵn ba khoá (G2 vòng sửa 2): bản gieo sẵn cũ
+    khiến `set(chan)` luôn đúng bằng `{"dense","sparse","fold"}` bất kể thực
+    tế chạy gì — một chân im lặng hoàn toàn vẫn để lại khoá với list rỗng,
+    nên `assert set(chan) == {...}` ở nơi gọi là một hằng đúng, không đo được
+    hồi quy thật nào. Giống hệt `_sql_cua_ba_chan`: một chân không bắn câu SQL
+    nào phải làm khoá đó BIẾN MẤT."""
+    ra: dict[str, list[tuple[str, tuple]]] = {}
     for sql, params in conn.calls:
         if "<=>" in sql:
-            ra["dense"].append((sql, params))
+            ra.setdefault("dense", []).append((sql, params))
         elif "ts_vector_fold" in sql:
-            ra["fold"].append((sql, params))
+            ra.setdefault("fold", []).append((sql, params))
         elif "c.ts_vector @@" in sql:
-            ra["sparse"].append((sql, params))
+            ra.setdefault("sparse", []).append((sql, params))
     return ra
 
 

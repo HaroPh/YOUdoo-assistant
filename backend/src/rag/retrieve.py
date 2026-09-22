@@ -341,18 +341,28 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
         # chỉ TÊN LỚP đi ra. Admin (UNRESTRICTED) không tốn thêm gì.
         hidden_classes = frozenset()
         if visibility is not UNRESTRICTED:
+            # `try` CHỈ bọc I/O (G1 vòng sửa 2). `_hidden_at_rank_one` là hàm
+            # THUẦN — chế độ hỏng duy nhất của nó là vi phạm tiền điều kiện
+            # (F5), tức LỖI LẬP TRÌNH, không phải sự cố thoáng qua như DB. Gộp
+            # chung một `except Exception` sẽ fail-open CẢ lỗi lập trình,
+            # khiến tính năng chết âm thầm mà chỉ để lại một dòng WARNING
+            # không ai grep — đúng đột biến (a′) đã lộ ra ở vòng sửa 1.
+            shadow = None
             try:
                 shadow, _fold = _fuse_legs(conn, prepared, UNRESTRICTED)
-                hidden_classes = _hidden_at_rank_one(shadow, visibility)
             except Exception:  # noqa: BLE001 — fail-open (F3 vòng sửa 1):
-                # lỗi DB ở lượt bóng KHÔNG ĐƯỢC vứt bỏ `chunks` đã tính xong.
-                # Xấu nhất là mất tín hiệu tư vấn hidden_classes (người dùng
-                # nhận câu trả lời lạc đề thay vì câu từ chối) — đúng bằng
-                # hành vi trước khi feature này tồn tại, không phải lỗ bảo mật:
-                # `chunks` vẫn luôn là bản đã lọc SQL, không đụng tới ở đây.
+                # lỗi DB (I/O) ở lượt bóng KHÔNG ĐƯỢC vứt bỏ `chunks` đã tính
+                # xong. Xấu nhất là mất tín hiệu tư vấn hidden_classes (người
+                # dùng nhận câu trả lời lạc đề thay vì câu từ chối) — đúng
+                # bằng hành vi trước khi feature này tồn tại, không phải lỗ
+                # bảo mật: `chunks` vẫn luôn là bản đã lọc SQL, không đụng
+                # tới ở đây.
                 logger.warning("Lượt bóng (hidden_classes) lỗi — bỏ qua tín hiệu, "
                                "giữ nguyên kết quả đã lọc", exc_info=True)
-                hidden_classes = frozenset()
+            if shadow is not None:
+                # NGOÀI try: vi phạm tiền điều kiện phải NỔ TO, không được
+                # degrade lặng lẽ chung với nhánh I/O ở trên.
+                hidden_classes = _hidden_at_rank_one(shadow, visibility)
         return RetrievalResult(
             query=query, query_used=qseg, chunks=chunks,
             top_score=chunks[0].rrf_score if chunks else 0.0,

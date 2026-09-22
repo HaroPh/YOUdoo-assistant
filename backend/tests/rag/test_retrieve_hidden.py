@@ -104,6 +104,18 @@ def test_hidden_at_rank_one_don_vi():
     assert rt._hidden_at_rank_one(fused, frozenset({"all", "commercial"})) == frozenset()
 
 
+def test_hidden_at_rank_one_voi_sentinel_thi_no_to():
+    """Cổng hợp đồng thường trực (G1-c vòng sửa 2): biến tiền điều kiện F5
+    (docstring) thành một cổng CI thật. `visibility` PHẢI là frozenset đã
+    resolve — gọi với sentinel `UNRESTRICTED` phải NỔ `TypeError`, không được
+    lặng lẽ trả `frozenset()`. `fused` phải KHÁC RỖNG, nếu không hàm trả sớm
+    ở nhánh `if not fused` trước khi chạm `cls in visibility` — test sẽ
+    đúng-rỗng (vacuous)."""
+    fused = {1: {"row": TM, "rrf": 0.03}}
+    with pytest.raises(TypeError):
+        rt._hidden_at_rank_one(fused, UNRESTRICTED)
+
+
 def test_vis_idx_khop_voi_cot_that():
     """Cổng tất định, không cần DB (F2 vòng sửa 1): `VIS_IDX` phải trỏ đúng cột
     `c.visibility` trong CHUỖI `_COLS` THẬT của production — không chỉ trong
