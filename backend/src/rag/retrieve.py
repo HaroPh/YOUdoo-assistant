@@ -31,6 +31,27 @@ VIS_IDX = 11   # vị trí c.visibility trong hàng; score vẫn là row[-1]
 HIDDEN_TOP_K = 3
 _FROM = "rag_chunks c LEFT JOIN rag_documents d ON d.doc_id = c.doc_id"
 
+# KHOÁ PHÁ HOÀ (2026-09-23). Cả ba chân đều `ORDER BY <điểm> ... LIMIT`, nên khi
+# nhiều hàng cùng điểm, Postgres trả theo thứ tự VẬT LÝ của heap — đổi sau mỗi
+# UPDATE (MVCC nối phiên bản mới vào cuối), sau VACUUM FULL/CLUSTER, sau khi nạp
+# lại corpus. Hậu quả: thứ hạng truy xuất đổi mà KHÔNG dòng code nào đổi, nên
+# mọi cổng dựa trên recall có thể đỏ/xanh vì lý do giả.
+#
+# Đo được, không phải phòng xa (bench ngoài 2026-09-23 + corpus production):
+#   - chân bỏ dấu: 117/200 câu TVPL hoà ts_rank trong top-20; trên production
+#     10/24 truy vấn bộ multiturn hoà, 2/24 có nhóm hoà VẮT QUA biên LIMIT 20
+#     (tức hàng nào LỌT VÀO pool cũng là tuỳ ý, không chỉ thứ tự);
+#   - một lệnh `UPDATE visibility` làm 21/1.000 câu TVPL đổi top-6;
+#   - chân dense KHÔNG miễn nhiễm: production có 5 nhóm embedding trùng nhau,
+#     trong đó MỘT nhóm 7 chunk nằm ở 7 tài liệu khác nhau — recall chấm theo
+#     (source_file, section_path) nên hoà ở đây đổi luôn kết quả chấm.
+#
+# `, c.id` không làm chất lượng tốt lên; nó chọn người thắng CỐ ĐỊNH thay vì
+# tuỳ ý. Lưu ý cho sau này: ở 3.901 chunk planner chọn Seq Scan + top-N heapsort
+# cho cả chân dense (EXPLAIN 2026-09-23), nên khoá phụ không tốn gì. Nếu corpus
+# lớn tới mức HNSW thắng, khoá phụ sẽ CHẶN index-ordered scan — phải đo lại.
+# Gác bởi tests/rag/test_retrieve_tie_break.py.
+
 
 def _vis_clause(visibility) -> tuple[str, tuple]:
     """Mệnh đề lọc lớp + tham số đi kèm. ('', ()) khi UNRESTRICTED — SQL của
@@ -47,7 +68,7 @@ def _dense(conn, qvec, visibility) -> list[tuple]:
     return conn.execute(
         f"SELECT {_COLS}, 1 - (c.embedding <=> %s::vector) AS score "
         f"FROM {_FROM} WHERE c.embedding IS NOT NULL{clause} "
-        f"ORDER BY c.embedding <=> %s::vector LIMIT %s",
+        f"ORDER BY c.embedding <=> %s::vector, c.id LIMIT %s",
         (qvec, *extra, qvec, TOP_N),
     ).fetchall()
 
@@ -80,7 +101,7 @@ def _sparse(conn, qseg, visibility) -> list[tuple]:
     return conn.execute(
         f"SELECT {_COLS}, ts_rank(c.ts_vector, plainto_tsquery('simple', %s)) AS score "
         f"FROM {_FROM} WHERE c.ts_vector @@ plainto_tsquery('simple', %s){clause} "
-        f"ORDER BY score DESC LIMIT %s",
+        f"ORDER BY score DESC, c.id LIMIT %s",
         (qseg, qseg, *extra, TOP_N),
     ).fetchall()
 
@@ -144,7 +165,7 @@ def _lexical_fold(conn, qseg_fold: str, visibility) -> list[tuple]:
     cur = conn.execute(
         f"SELECT {_COLS}, ts_rank(c.ts_vector_fold, to_tsquery('simple', %s)) AS score "
         f"FROM {_FROM} WHERE c.ts_vector_fold @@ to_tsquery('simple', %s){clause} "
-        f"ORDER BY score DESC LIMIT {TOP_N}", (tq, tq, *extra))
+        f"ORDER BY score DESC, c.id LIMIT {TOP_N}", (tq, tq, *extra))
     return cur.fetchall()
 
 
