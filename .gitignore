@@ -40,3 +40,9 @@ tmp-docs/
 
 # --- Rac test co tu TRUOC dot OCR bac 1 (review toan nhanh B6) --------------
 backend/suite_quick_result.txt
+
+# --- Dataset ben thu 3 clone ve de doi chieu (vd VLegal-Bench, CC BY-NC-ND
+# 4.0 -- cam tao derivative work). CHI ban goc khong sua duoc o day; ket qua
+# phan loai/chia phai tinh lai tu kich ban, KHONG luu thanh tep. Xem docstring
+# backend/evals/vlegal_bench_roles.py. ------------------------------------
+backend/evals/external-data/
