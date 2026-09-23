@@ -76,7 +76,10 @@ Kiểm định ghép cặp (chênh TB, CI95 bootstrap, p hoán vị; thắng/ho�
    2026-08-20 (override trên bge THUA cả tắt rerank, bộ 64 ca, corpus cũ) không tái lập ở đây.
 3. **Chỗ mất lớn nhất nằm TRƯỚC reranker**: 7–8,5% đáp án không vào pool 20 (r@20 0,915/0,928);
    reranker tốt nhất đạt r@6 0,890/0,909 trên trần 0,915/0,928.
-4. 4B chưa đo trên bộ ngoài (cần `device_map` tràn CPU, ~2 giờ/chân).
+4. 4B chưa đo trên bộ ngoài (cần `device_map` tràn CPU, ~2 giờ/chân). Từ đợt dọn
+   Docker 2026-09-23, `Qwen/Qwen3-Reranker-4B` đã bị **xoá khỏi cache HF** — đo
+   lại sẽ tải về ~7,5 GB trước khi chạy. `bge-reranker-v2-m3` (mặc định
+   production) và `Qwen3-Reranker-0.6B` vẫn còn trong cache.
 
 ## Pha B — vai (nhãn GIẢ LẬP)
 
