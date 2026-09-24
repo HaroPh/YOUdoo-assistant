@@ -200,6 +200,28 @@ def _fake_sop_select_eval(acc=1.0, hijack=0, n=20):
     return fn
 
 
+def _fake_multiturn_eval(ell=(0.75, 1.0), ind=(1.0, 1.0)):
+    """KHÔNG có tham số `llm` — cố ý.
+
+    Bộ này không gọi LLM lần nào, và chữ ký ở đây chính là phép kiểm: nếu job
+    vẫn gọi theo khuôn chung (`fn(llm, **kwargs)`) thì `pace` nhận hai giá trị
+    và fake ném TypeError. Nói cách khác, test không cần assert riêng về
+    NO_LLM_SETS — chữ ký đã gác.
+    """
+    async def fn(pace=0.0, checkpoint_path=None, visibility=None, role="admin"):
+        fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path,
+                         "visibility": visibility, "role": role})
+        return {"set": "multiturn", "n": 12, "role": role,
+                "by_kind": {
+                    "elliptical": {"n": 8, "recall_at_6_no_ctx": ell[0],
+                                   "recall_at_6_with_ctx": ell[1]},
+                    "independent": {"n": 4, "recall_at_6_no_ctx": ind[0],
+                                    "recall_at_6_with_ctx": ind[1]}},
+                "fails": [], "errors": []}
+    fn.calls = []
+    return fn
+
+
 def _fake_gather_eval(tool_recall=1.0, fact_coverage=1.0, n=10):
     async def fn(llm, pace=0.0, checkpoint_path=None):
         fn.calls.append({"pace": pace, "checkpoint_path": checkpoint_path})
@@ -501,6 +523,12 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     fmemory = _fake_memory_eval()
     monkeypatch.setitem(eval_gate.EVAL_FN, "memory", fmemory)
 
+    # multiturn NẰM TRONG "all" (2026-09-24): cổng tuyệt đối hai chiều, tự so
+    # trong cùng lượt, đúng tiền lệ chitchat/language/memory. Không tốn hạn
+    # mức — bộ này không gọi LLM lần nào.
+    fmultiturn = _fake_multiturn_eval()
+    monkeypatch.setitem(eval_gate.EVAL_FN, "multiturn", fmultiturn)
+
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == \
@@ -512,9 +540,14 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     assert "language" in result.detail
     assert "memory" in result.detail
     assert result.exit_code == PASS
+    assert "multiturn" in result.detail
     for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop, flanguage,
-               fmemory):
+               fmemory, fmultiturn):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
+    # Bộ nhạy VISIBILITY phải nhận `visibility` thật, không chỉ nhãn `role` —
+    # truyền mỗi `role` cho ra báo cáo ghi tên vai trong khi vẫn đo không lọc.
+    assert fmultiturn.calls[0]["visibility"] is not None
+    assert fmultiturn.calls[0]["pace"] == 0.0, "bộ không gọi LLM thì không giãn nhịp"
     assert fgather.calls == [], "gather KHÔNG được chạy dưới --set all"
     assert fmsg.calls == [], "multi_source_gather KHÔNG được chạy dưới --set all"
     assert flocalize.calls == [], "localize KHÔNG được chạy dưới --set all"

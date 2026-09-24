@@ -1,10 +1,14 @@
 # backend/evals/multiturn_cases.py
 """Bộ ca hội thoại HAI LƯỢT — đo giải chiếu ở câu hỏi nối tiếp.
 
-VÌ SAO TỒN TẠI. `rag_node` lấy DUY NHẤT tin nhắn người dùng cuối cùng
-(`query = last_human.content`) cho cả truy xuất lẫn sinh; lịch sử hội thoại bị
-bỏ hoàn toàn. Cả 12 bộ eval hiện có đều một-lượt, nên chỗ này chưa bao giờ
-được đo.
+VÌ SAO TỒN TẠI. Khi bộ này ra đời (2026-08-20), `rag_node` lấy DUY NHẤT tin
+nhắn người dùng cuối cùng và bỏ hoàn toàn lịch sử hội thoại, trong khi cả 12 bộ
+eval khi đó đều một-lượt — chỗ này chưa bao giờ được đo.
+
+ĐÃ ĐỔI (19b/19c): CẢ `rag_node` LẪN `gather_docs` nay đều truyền lượt hỏi liền
+trước vào `aux_queries`. Bộ này vì thế không còn đo "thứ production chưa làm"
+mà đo "thứ production ĐANG làm có hại không" — và nó gác thật từ 2026-09-24
+(cổng `multiturn` trong jobs/eval_gate.py).
 
 Spike 2026-08-20 trên 6 ca dựng tay: `recall@6` tụt **6/6 → 3/6** khi chỉ dùng
 câu rút gọn. Câu càng ít nội dung càng hỏng nặng — "thế còn hàng giảm giá?"

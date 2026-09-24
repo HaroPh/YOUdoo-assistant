@@ -1286,15 +1286,18 @@ async def eval_multiturn(pace: float = 0.0, checkpoint_path=None,
                          visibility=UNRESTRICTED, role: str = "admin"):
     """Đo GIẢI CHIẾU ở câu hỏi nối tiếp — KHÔNG gọi LLM lần nào.
 
-    `rag_node` lấy duy nhất tin nhắn cuối (`query = last_human.content`) cho cả
-    truy xuất lẫn sinh; lịch sử hội thoại bị bỏ hoàn toàn. Cả 12 bộ eval trước
-    đều một-lượt nên chỗ này chưa bao giờ được đo.
+    Khi bộ này ra đời (2026-08-20), `rag_node` lấy duy nhất tin nhắn cuối và bỏ
+    hoàn toàn lịch sử — "không ngữ cảnh" khi đó là hành vi production. ĐÃ ĐỔI:
+    từ 19b/19c, CẢ `rag_node` LẪN `gather_docs` đều truyền lượt hỏi liền trước
+    vào `aux_queries` từ lượt thứ hai của mọi hội thoại. Nói cách khác nhánh
+    "có ngữ cảnh" mới là production, còn "không ngữ cảnh" giờ là chân ĐỐI CHỨNG.
 
-    Mỗi ca chạy HAI lần trong cùng lượt: không ngữ cảnh (đúng hành vi
-    production hiện tại) và có ngữ cảnh (lượt trước đưa vào `aux_queries`).
-    Đo cả hai trong một lượt là bắt buộc, không phải tiện tay — nhóm
-    `independent` chỉ có nghĩa khi so được hai chiều, và nó là nửa duy nhất
-    bắt được MẶT HẠI của việc trộn hai truy vấn vào cùng pool 20.
+    Mỗi ca vẫn chạy HAI lần trong cùng lượt, và đó là điều bắt buộc chứ không
+    phải tiện tay: cổng `multiturn` (jobs/eval_gate.py) so hai nhánh với NHAU
+    trong cùng một lượt thay vì so với baseline, nên nhóm `independent` chỉ có
+    nghĩa khi có đủ cả hai. Nó là nửa duy nhất bắt được MẶT HẠI của việc truyền
+    lượt trước — và đã bắt thật: truy vấn ghép cho cross-encoder làm
+    `independent` recall@6 tụt 1,00 → 0,75 (sửa 2026-09-24).
     """
     per_case: list[dict] = []
 
@@ -1498,9 +1501,12 @@ async def main(argv=None):
             kwargs["role"] = args.role
         if args.set in role_config.VISIBILITY_SENSITIVE_SETS:
             kwargs["visibility"] = role_config.visibility_for(args.role)
-            # Cả ba bộ tự khai "role" vào JSON kết quả — chỉ riêng `retrieval`
-            # có baseline/`_gate` kiểm parity trên khoá này (fix-round #1:
-            # synthesis_live/multiturn tự khai nhưng KHÔNG có baseline/gate).
+            # Cả ba bộ tự khai "role" vào JSON kết quả. `retrieval` có
+            # baseline/`_gate` kiểm parity trên khoá này; `multiturn` có cổng
+            # từ 2026-09-24 nhưng là cổng TUYỆT ĐỐI tự so trong cùng lượt, nên
+            # nó không kiểm parity qua baseline mà vẫn phải khai đúng vai (job
+            # in `role` ra báo cáo). Còn `synthesis_live` vẫn tự khai mà chưa
+            # có cổng nào.
             kwargs["role"] = args.role
         if args.set in ("retrieval", "multiturn"):
             # KHÔNG dựng LLM: bộ này thuần truy xuất. _llm() gọi
