@@ -114,3 +114,52 @@ def test_moi_nhan_khop_it_nhat_mot_chunk_that():
     assert not missing, (
         f"{len(missing)} nhãn không khớp chunk thật nào — golden set đã trôi "
         f"khỏi corpus (hoặc sai chính tả). Nhãn hỏng: {missing[:10]}")
+
+
+def _baseline_retrieval_files():
+    """Mọi baseline của bộ `retrieval`, gồm cả biến thể dạng gõ và vai."""
+    import glob
+    import os
+    here = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "evals")
+    return sorted(glob.glob(os.path.join(here, "baseline-*-retrieval*.json")))
+
+
+def test_moi_baseline_do_tren_DUNG_bo_ca_hien_tai():
+    """Baseline phải được chốt trên CHÍNH bộ ca hiện tại.
+
+    LỖI THẬT (phát hiện 2026-09-24): hard-set mở rộng 17→62 ca ngày 2026-09-19
+    nhưng chỉ baseline dạng CÓ DẤU được chốt lại. Hai baseline `nua_dau` /
+    `khong_dau` ở lại 64 ca, nên mỗi lần chạy là so 109 ca với mốc 64 ca —
+    `GATE FAIL` giả, lệch tới 0,09. Không ai thấy trong 5 tuần vì bộ
+    `retrieval` không nằm trong `EVAL_FN` của job nào.
+
+    Đo lại trên CÙNG 64 ca thì không có hồi quy nào: nửa dấu khớp đúng
+    0,8203 = 0,8203, không dấu lệch 1 ca (và lệch đó có TRƯỚC phiên sửa).
+
+    Test này bắt đúng cơ chế đã xảy ra — bộ ca đổi mà baseline không theo —
+    thay vì phải chạy cả ba dạng gõ mỗi đêm.
+    """
+    import collections
+    import json
+
+    muon = collections.Counter(d for _q, _e, d in RETRIEVAL_CASES)
+    files = _baseline_retrieval_files()
+    assert files, "không tìm thấy baseline nào của bộ retrieval — glob sai?"
+
+    sai = []
+    for path in files:
+        with open(path, encoding="utf-8") as f:
+            b = json.load(f)
+        ten = path.rsplit("baseline-", 1)[-1]
+        if b["n"] != len(RETRIEVAL_CASES):
+            sai.append(f"{ten}: n={b['n']}, bộ ca hiện tại {len(RETRIEVAL_CASES)}")
+            continue
+        co = {k: v["n"] for k, v in b.get("by_difficulty", {}).items()}
+        if co != dict(muon):
+            sai.append(f"{ten}: độ khó {co}, hiện tại {dict(muon)}")
+    assert not sai, (
+        "baseline chốt trên bộ ca KHÁC bộ ca hiện tại — mọi phép so với chúng "
+        "là khập khiễng:\n  " + "\n  ".join(sai)
+        + "\nChốt lại: python -m evals.run_eval --set retrieval --model bge-m3 "
+          "--dang-go <dạng> --save-baseline")

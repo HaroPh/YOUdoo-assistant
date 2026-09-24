@@ -25,7 +25,10 @@ from src.llm.catalog import chain_for, nhip_toi_thieu, spec_for
 # có mặt: chúng là cổng tuyệt đối (violations==0 / hijack==0), không phải phép
 # đo tương đối — thêm baseline cho chúng là đổi ngữ nghĩa cổng.
 BASELINE_SETS = frozenset({"intent", "confirm", "planner", "read",
-                           "synthesis", "multi_source", "sop_select"})
+                           "synthesis", "multi_source", "sop_select",
+                           # `retrieval` CO baseline (bge-m3), khong phai cong
+                           # tuyet doi — khac `multiturn` ngay duoi.
+                           "retrieval"})
 
 # Bộ KHÔNG gọi LLM lần nào — đo thuần truy xuất (Postgres + model nhúng). Cần
 # đường đi riêng ở BA chỗ, nếu không job sẽ nổ hoặc nói dối:
@@ -35,7 +38,7 @@ BASELINE_SETS = frozenset({"intent", "confirm", "planner", "read",
 #   - "model" trong báo cáo phải là model NHÚNG, không phải model chat của một
 #     role nào đó — ghi tên model chat vào đây là để lại một con số nói sai
 #     điều gì vừa được đo.
-NO_LLM_SETS = frozenset({"multiturn"})
+NO_LLM_SETS = frozenset({"multiturn", "retrieval"})
 
 # Nhãn model cho NO_LLM_SETS. Không lấy từ `config.EMBED_MODEL` vì đây là nhãn
 # BÁO CÁO, phải khớp quy ước tên baseline (`baseline-bge-m3-*.json`).
@@ -84,7 +87,8 @@ EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "language": run_eval.eval_language,
            "memory": run_eval.eval_memory,
            # KHÔNG nhận `llm` — xem NO_LLM_SETS.
-           "multiturn": run_eval.eval_multiturn}
+           "multiturn": run_eval.eval_multiturn,
+           "retrieval": run_eval.eval_retrieval}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -206,7 +210,14 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # Có 3 file baseline khác `dang_go` và cờ --no-rerank: so kết quả với
         # baseline khác cấu hình là so táo với cam. DÙNG SAI, không phải hồi
         # quy → ném, không trả FAIL.
-        for khoa in ("dang_go", "rerank"):
+        # `n` THÊM 2026-09-24, cùng lý do "táo với cam" như hai khoá kia và nó
+        # đã cắn thật: hard-set mở rộng 17→62 ca ngày 2026-09-19 nhưng chỉ
+        # baseline dạng CÓ DẤU được chốt lại, nên `nua_dau`/`khong_dau` so 109
+        # ca với mốc 64 ca — lệch tới 0,09, trông y hệt hồi quy chất lượng.
+        # Đo lại trên CÙNG 64 ca thì nửa dấu khớp tuyệt đối. Phòng tuyến thứ
+        # hai là test hợp đồng `test_moi_baseline_do_tren_DUNG_bo_ca_hien_tai`,
+        # bắt được ngay cả khi không ai chạy cổng.
+        for khoa in ("dang_go", "rerank", "n"):
             if result[khoa] != base[khoa]:
                 raise ValueError(f"baseline khác cấu hình {khoa}: "
                                  f"đo={result[khoa]!r} baseline={base[khoa]!r}")
@@ -289,7 +300,14 @@ def run(args) -> JobResult:
             # từ rpm catalog) — baseline thiếu/hỏng thì fail nhanh, không đốt
             # call vô ích. chitchat KHÔNG có baseline (base ở lại None).
             base = None
-            bpath = _baseline_for(set_name, args.baseline_model, args.role)
+            # Bộ KHÔNG gọi LLM neo baseline vào model NHÚNG, không vào
+            # `--baseline-model` (mặc định `qwen3-8b`, một model CHAT). Dùng
+            # neo chung sẽ đi tìm `baseline-qwen3-8b-retrieval.json` không tồn
+            # tại → INFRA_ERROR mỗi đêm, trong khi tệp thật tên `bge-m3`.
+            bpath = _baseline_for(
+                set_name,
+                EMBED_MODEL_LABEL if khong_llm else args.baseline_model,
+                args.role)
             if bpath is not None:
                 with open(bpath, encoding="utf-8") as f:
                     base = json.load(f)
@@ -344,6 +362,12 @@ def run(args) -> JobResult:
             acc_key = ("tool_acc" if set_name in ("planner", "read")
                        else "grounded_acc" if set_name == "synthesis"
                        else "both_source_coverage" if set_name == "multi_source"
+                       # GIỮ TRÙNG với run_eval.main (`--baseline` in dòng
+                       # GATE): hai chỗ cùng phải biết "chỉ số đầu" của bộ
+                       # này, và chọn khác nhau thì báo cáo job nói một đằng,
+                       # CLI nói một nẻo. `retrieval` KHÔNG có khoá `acc` —
+                       # thiếu dòng này là KeyError ngay đêm đầu.
+                       else "recall_at_6" if set_name == "retrieval"
                        else "acc")
             entry.update(**{acc_key: result[acc_key]},
                          baseline_acc=base[acc_key],
@@ -364,6 +388,19 @@ def run(args) -> JobResult:
             extra = ("" if result.get("hijack") is None
                      else f" hijack={result['hijack']}"
                           f" depth_acc={result.get('depth_acc')}")
+            if set_name == "retrieval":
+                # r@20 là vế THỨ HAI của cổng và là vế KHÔNG dung sai (trần
+                # pool). Không in ra thì một lượt FAIL vì r@20 trông y hệt một
+                # lượt FAIL vì r@6, và người đọc báo cáo không có cách nào
+                # phân biệt. `dang_go`/`n` đi kèm vì chúng là điều kiện hợp lệ
+                # của phép so — `n` lệch chính là thứ đã trôi im lặng 5 tuần.
+                entry.update(recall_at_20=result.get("recall_at_20"),
+                             mrr=result.get("mrr"),
+                             dang_go=result.get("dang_go"), n=result.get("n"),
+                             role=result.get("role"))
+                extra = (f" r@20={result['recall_at_20']:.4f}"
+                         f" (baseline {base['recall_at_20']:.4f})"
+                         f" dang_go={result.get('dang_go')} n={result.get('n')}")
             print(f"[{set_name}] model={model} pace={pace}s "
                   f"{acc_key}={result[acc_key]:.3f} "
                   f"baseline={base[acc_key]:.3f}{extra} "
@@ -474,7 +511,7 @@ def add_args(p):
                    choices=["both", "all", "intent", "confirm", "chitchat",
                             "planner", "read", "synthesis", "multi_source",
                             "multi_source_gather", "sop_select", "gather",
-                            "multiturn"],
+                            "multiturn", "retrieval"],
                    default="both")
     p.add_argument("--pace", type=float, default=None,
                    help="giây/call (mặc định auto: (60/rpm)*1.2 suy từ catalog)")

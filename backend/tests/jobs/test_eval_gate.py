@@ -200,6 +200,24 @@ def _fake_sop_select_eval(acc=1.0, hijack=0, n=20):
     return fn
 
 
+def _fake_retrieval_eval(n=109, r20=0.9771, r6=0.963):
+    """KHÔNG có tham số `llm` — cùng lý do `_fake_multiturn_eval` ngay dưới.
+
+    Bắt buộc phải có fake: bộ này chạy được THẬT mà không cần LLM, nên nếu
+    quên patch thì `--set all` trong unit test sẽ nối vào Postgres và Ollama
+    thật — xanh chậm, phụ thuộc máy, và vô nghĩa. (Đo được: 20s → 86s.)
+    """
+    async def fn(pace=0.0, checkpoint_path=None, rerank=True,
+                 dang_go="co_dau", visibility=None, role="admin"):
+        fn.calls.append({"pace": pace, "dang_go": dang_go, "role": role,
+                         "visibility": visibility})
+        return {"set": "retrieval", "n": n, "rerank": rerank, "dang_go": dang_go,
+                "role": role, "recall_at_20": r20, "recall_at_6": r6, "mrr": 0.8,
+                "lat_p50": 100, "lat_p95": 200, "fails": [], "errors": []}
+    fn.calls = []
+    return fn
+
+
 def _fake_multiturn_eval(ell=(0.75, 1.0), ind=(1.0, 1.0)):
     """KHÔNG có tham số `llm` — cố ý.
 
@@ -529,6 +547,18 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     fmultiturn = _fake_multiturn_eval()
     monkeypatch.setitem(eval_gate.EVAL_FN, "multiturn", fmultiturn)
 
+    # retrieval NẰM TRONG "all" (2026-09-24): cổng baseline-tương đối vốn ĐÃ
+    # tồn tại trong `_gate`, chỉ là chưa set nào gọi. Baseline giả để test
+    # không phụ thuộc tệp thật trong repo.
+    retr_base = tmp_path / "retrieval.json"
+    retr_base.write_text(
+        '{"set":"retrieval","n":109,"rerank":true,"dang_go":"co_dau",'
+        '"role":"admin","recall_at_20":0.9771,"recall_at_6":0.963}',
+        encoding="utf-8")
+    _patch_baseline(monkeypatch, "retrieval", retr_base)
+    fretrieval = _fake_retrieval_eval()
+    monkeypatch.setitem(eval_gate.EVAL_FN, "retrieval", fretrieval)
+
     result = eval_gate.run(_args(set_="all"))
 
     assert set(result.detail) == \
@@ -541,9 +571,12 @@ def test_set_all_runs_every_registered_set_except_triple_light_gate(monkeypatch,
     assert "memory" in result.detail
     assert result.exit_code == PASS
     assert "multiturn" in result.detail
+    assert "retrieval" in result.detail
     for fn in (fi, fc, fchat, fplanner, fread, fsynthesis, fms, fsop, flanguage,
-               fmemory, fmultiturn):
+               fmemory, fmultiturn, fretrieval):
         assert len(fn.calls) == 1, f"{fn} was not called exactly once"
+    assert fretrieval.calls[0]["visibility"] is not None
+    assert fretrieval.calls[0]["pace"] == 0.0, "bộ không gọi LLM thì không giãn nhịp"
     # Bộ nhạy VISIBILITY phải nhận `visibility` thật, không chỉ nhãn `role` —
     # truyền mỗi `role` cho ra báo cáo ghi tên vai trong khi vẫn đo không lọc.
     assert fmultiturn.calls[0]["visibility"] is not None
@@ -769,13 +802,22 @@ def test_bo_co_baseline_khong_doi():
     `sop_select` ĐÃ ĐỔI 2026-08-17, có chủ đích: cổng tuyệt đối cũ (acc == 1.0)
     đỏ vĩnh viễn từ 2026-07-31 nên bị gỡ khỏi `--set all`, tức nó gác đúng bằng
     KHÔNG suốt 6 tuần. Nay theo khuôn 4 cổng anh em — `hijack` giữ tuyệt đối
-    (thuộc tính an toàn), `acc` so baseline (chất lượng)."""
+    (thuộc tính an toàn), `acc` so baseline (chất lượng).
+
+    `retrieval` THÊM 2026-09-24: nó vốn đã CÓ baseline và đã có nhánh `_gate`
+    riêng (CLI `--baseline` gọi thẳng vào đó), chỉ là chưa bao giờ nằm trong
+    `EVAL_FN` nên không job nào chạy. Thêm vào đây không đổi ngữ nghĩa cổng —
+    công thức giữ nguyên văn — mà chỉ khiến cổng sẵn có được CHẠY.
+
+    `multiturn` KHÔNG có mặt, cũng thêm 2026-09-24 nhưng là cổng TUYỆT ĐỐI tự
+    so trong cùng lượt: nó không đọc baseline nào."""
     from jobs import eval_gate
     assert "chitchat" not in eval_gate.BASELINE_SETS
     assert "sop_select" in eval_gate.BASELINE_SETS
+    assert "multiturn" not in eval_gate.BASELINE_SETS
     assert eval_gate.BASELINE_SETS == frozenset(
         {"intent", "confirm", "planner", "read", "synthesis", "multi_source",
-         "sop_select"})
+         "sop_select", "retrieval"})
 
 
 def test_duong_dan_baseline_theo_vai():
