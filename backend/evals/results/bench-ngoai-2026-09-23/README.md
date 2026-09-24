@@ -1,5 +1,18 @@
 # Benchmark retriever + reranker trên dataset NGOÀI (2026-09-23)
 
+> ⚠️ **Số tuyệt đối ở đây đo trên mã CHƯA có khoá phá hoà** (trước `a2b07be`).
+> `ORDER BY score DESC LIMIT` dùng top-N heapsort — không ổn định — nên khi hoà
+> điểm, hàng nào lọt vào pool là tuỳ ý; chính bảng dưới ghi 117/200 câu TVPL hoà
+> `ts_rank`. **Pool cache của lượt này không tái lập được bằng mã hôm nay**;
+> nó được giữ nguyên ở `bench-cache/*-pools.PRE-TIEBREAK-20260923.json`.
+>
+> Đo lại hai chân trên mã đã tất định: [`../bench-ngoai-2026-09-24-tiebreak/`](../bench-ngoai-2026-09-24-tiebreak/README.md)
+> — r@20 TVPL 0,9150 → 0,9193, Zalo 0,9277 → 0,9365, không hồi quy ở chân nào.
+>
+> Kết luận **tương đối** của Pha A (bge thắng Qwen3-0.6B; override thắng blend)
+> **KHÔNG bị ảnh hưởng**: mọi chân chấm trên cùng một pool, nên chênh lệch giữa
+> chúng không phụ thuộc pool ấy được dựng ra sao.
+
 Mã: `evals/bench_ngoai.py`, `evals/bench_ngoai_legs.sh`, test `tests/evals/test_bench_ngoai.py`.
 
 ## Dữ liệu
