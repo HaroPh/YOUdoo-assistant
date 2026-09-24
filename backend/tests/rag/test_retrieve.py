@@ -254,6 +254,14 @@ def test_retrieve_aux_query_pulls_crowded_out_doc_into_pool(clean_tables, monkey
 
 @pytest.mark.integration
 def test_rerank_query_includes_aux_when_present(clean_tables, monkeypatch):
+    # THU HẸP 2026-09-24: chỉ còn đúng ở chế độ `override`. Đo trên bộ
+    # multiturn cho thấy ghép chuỗi làm TỤT recall@6 của câu `independent`
+    # (0,75) ở chế độ `blend` — mặc định production — trong khi ở `override`
+    # nó vẫn là lựa chọn tốt nhất. Lý do: ghép chuỗi ra đời 2026-07-29 khi
+    # cross-encoder còn TỰ QUYẾT thứ tự; từ 2026-08-20 nó chỉ là lá phiếu hoà
+    # với RRF, mà RRF đã mang sẵn bằng chứng từ `aux` ở chân truy xuất.
+    # Xem tests/rag/test_rerank_query_aux.py cho cả bốn ô đã đo.
+    monkeypatch.setenv("RAG_RERANK_MODE", "override")
     from src.rag import retrieve as r
     _seed(clean_tables, [
         ("A", "noi dung tai lieu", [1.0] + [0.0] * 1023),
@@ -295,7 +303,12 @@ def test_rerank_recovers_doc_when_bare_query_lacks_context(clean_tables, monkeyp
     cross-encoder that can only recognize the right doc's content when the
     AUX query's context reaches the rerank string — proves concatenation
     (not just pooling) is what lets a bare-acronym primary query still
-    surface the doc in the final result."""
+    surface the doc in the final result.
+
+    THU HẸP 2026-09-24: chạy ở `override`. Ghép chuỗi chỉ còn hiệu lực khi
+    cross-encoder là người quyết — xem chú thích ở
+    `test_rerank_query_includes_aux_when_present`."""
+    monkeypatch.setenv("RAG_RERANK_MODE", "override")
     from src.rag import retrieve as r
     # RIGHT's text deliberately does NOT contain the literal string "SLA" —
     # if it did, plainto_tsquery('simple', 'SLA') would sparse-match it

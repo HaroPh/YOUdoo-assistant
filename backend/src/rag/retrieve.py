@@ -145,6 +145,19 @@ def fold_enabled() -> bool:
     return os.environ.get("RAG_FOLD_ENABLED", "1") != "0"
 
 
+def rerank_override() -> bool:
+    """Cross-encoder là NGƯỜI QUYẾT (override) hay LÁ PHIẾU hoà với RRF (blend)?
+
+    Một nguồn sự thật cho hai nơi cần biết: cách xếp lại trong `rerank()` và
+    truy vấn đưa cho cross-encoder trong `retrieve()`. Hai chỗ đọc biến môi
+    trường riêng là cách chắc chắn để một chỗ trôi mà chỗ kia không biết —
+    đúng cái bẫy `sql_section_suffix` đã đi đóng ở evals.
+
+    Giá trị lạ → blend, không ném (giữ nguyên hành vi từ 2026-08-20).
+    """
+    return os.environ.get("RAG_RERANK_MODE", "blend").strip().lower() == "override"
+
+
 def _lexical_fold(conn, qseg_fold: str, visibility) -> list[tuple]:
     """Chân khớp mặt chữ trên text ĐÃ BỎ DẤU — cả hai phía đều bỏ dấu.
 
@@ -272,7 +285,7 @@ def rerank(query: str, chunks: list[Chunk]) -> tuple[list[Chunk], bool]:
     # thuần theo cross-encoder — cách đã bị bác với reranker CŨ vì nó chấm
     # theo mặt chữ; câu hỏi mở là với reranker MẠNH hơn thì hoà 1:1 có còn
     # đúng không (spec 2026-09-17 §5). Giá trị lạ → blend, không ném.
-    if os.environ.get("RAG_RERANK_MODE", "blend").strip().lower() == "override":
+    if rerank_override():
         order = by_score
     else:
         order = sorted(range(len(chunks)),
@@ -366,7 +379,37 @@ def retrieve(query: str, k: int = TOP_K, conn=None,
                 dense_score=e["dense"], sparse_score=e["sparse"],
                 fold_score=e.get("fold"),
                 rrf_score=e["rrf"], rank=rank))
-        rerank_query = query if not aux_queries else query + "\n" + "\n".join(aux_queries)
+        # Truy vấn cho cross-encoder phụ thuộc VAI TRÒ của nó (ĐỔI 2026-09-24).
+        #
+        # Cross-encoder chấm MỘT cặp (truy vấn, đoạn văn). Ghép lượt trước vào
+        # truy vấn — hành vi từ 2026-07-29, khi reranker còn là NGƯỜI QUYẾT —
+        # làm mọi đoạn chỉ khớp được một nửa khi hai lượt khác chủ đề.
+        #
+        # Đo trên bộ multiturn, corpus production, recall@6 / MRR có ngữ cảnh:
+        #                        ghép chuỗi          chỉ câu hiện tại
+        #   blend  elliptical    1,00 / 0,9375       1,00 / 0,9000
+        #   blend  independent   0,75 / 0,6190 (!)   1,00 / 0,6042
+        #   ovrrd  elliptical    1,00 / 0,9000       1,00 / 0,7292
+        #   ovrrd  independent   1,00 / 1,0000       1,00 / 0,8750
+        #
+        # Nói cách khác ghép chuỗi KHÔNG phải di sản sai — nó đúng cho override
+        # và sai cho blend, đúng theo vai trò: khi cross-encoder tự quyết thứ
+        # tự, truy vấn trống nghĩa ("SLA", "trong bao lâu?") phá thứ tự nên nó
+        # CẦN ngữ cảnh; khi nó chỉ là lá phiếu hoà với RRF (đổi 2026-08-20),
+        # RRF đã mang sẵn bằng chứng từ `aux` ở chân truy xuất, và ngữ cảnh
+        # thừa trong truy vấn chỉ còn kéo sụp thang điểm.
+        #
+        # Ca blend hỏng: "các hình thức xử lý kỷ luật lao động…" sau lượt "giá
+        # niêm yết của sản phẩm…" — đáp án tụt hạng 5 → 7, rơi khỏi top-6.
+        # KHÔNG do tranh chỗ trong pool: top-6 vẫn y nguyên tập chunk, chỉ đổi
+        # thứ tự; reranker vẫn chấm Điều 124 cao nhất cả hai lần, nhưng ghép
+        # chuỗi kéo cả thang điểm từ ≈3–5 xuống ≈ −1…+0,9.
+        #
+        # Cùng lớp lỗi với C1 ở lượt bóng ngay dưới (lượt trước được cho ngang
+        # trọng số với câu đang hỏi); vòng sửa C1 2026-09-22 chỉ đụng lượt
+        # bóng. Gác bởi tests/rag/test_rerank_query_aux.py.
+        rerank_query = (query + "\n" + "\n".join(aux_queries)
+                        if aux_queries and rerank_override() else query)
         chunks, reranked = rerank(rerank_query, pool)
         chunks = compress(query, chunks, k)
         # Bản BÓNG không lọc: cùng vector/từ khoá, cùng RRF, KHÔNG rerank, chỉ
