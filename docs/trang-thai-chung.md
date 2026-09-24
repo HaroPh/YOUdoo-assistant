@@ -25,6 +25,8 @@ Quy ước:
 
 | # | mục | vùng | ghi chú |
 |---|---|---|---|
+| B1 | **Hai baseline `retrieval` đã cũ — chốt lại hay điều tra?** | evals | `baseline-bge-m3-retrieval-nua_dau` ghi 0,820, đo lại 2026-09-24 ra **0,766**; `-khong_dau` ghi 0,526, đo lại ra **0,434**. Dạng CÓ DẤU không đổi (0,963). Cả hai baseline chốt **2026-08-20**, trước lần nạp lại corpus 2026-09-19 (3.151 → 3.902 chunk). Đã kiểm và **bác** giả thuyết sót backfill: 0/3.901 chunk rỗng `chunk_text_fold`. Nguyên nhân thật **chưa biết** — nhiều khả năng là nhiễu do corpus lớn thêm, nhưng chưa chứng minh. Chốt lại baseline sẽ xoá dấu vết mức tụt này, nên KHÔNG tự làm. |
+| B2 | **Luật top-3 từ chối oan 40–43% khi mật độ tài liệu nội bộ cao** | rag | Bench ngoài 2026-09-23, nhãn giả lập: vai `kho` bị từ chối ở 295/727 câu TVPL (40,6%) và 274/631 câu Zalo (43,4%) **mà nó đã tìm đúng đáp án** — 235 và 196 ca trong số đó đáp án ở **hạng 1**. Cơ chế: `nodes.py`/`fanout.py` THAY câu trả lời bằng lời từ chối và vứt bỏ cả chunk thấy được; luật không hỏi "phần thấy được đã đủ trả lời chưa". Production đo 0/990 **chỉ vì mật độ thấp** (4 tệp thương mại). **Đây là điều kiện CHẶN việc mở lại 19b** ("corpus có nhiều tài liệu nội bộ") — bench chứng minh luật hỏng đúng lúc điều kiện đó thành thật. Hướng sửa đã phác + cách đo: xem ghi chú trong phiên 2026-09-24. |
 
 ## Việc đang treo
 
@@ -116,6 +118,19 @@ báo trước.
 - Thứ hạng bên trong top-6 có đổi câu trả lời cuối không (docstring `rerank()`).
 
 ## Bẫy vận hành
+
+- ⚠️ **`backend/.env` là cấu hình VÔ HÌNH và nó từng sai.** Tới 2026-09-24 dòng
+  `OLLAMA_URL` ở đó trỏ `http://localhost:11434` — cổng CHẾT (Ollama của Youdoo bind
+  `127.0.0.1:11435`, chỉ IPv4), lại còn dính án phạt IPv6 ~2s/lời gọi đã ghi trong
+  `rag/config.py`. Repo `.env.example` ghi ĐÚNG; chỉ tệp cục bộ trôi. Mã Youdoo không
+  tự nạp `.env` (`load_dotenv` duy nhất trong cây là của bộ dữ liệu bên thứ ba), nên
+  nó chỉ cắn qua `load-env.ps1`/`start-dev.ps1` — tức đúng đường dev được ghi trong
+  tài liệu. **Trước mọi lượt đo, kiểm `OLLAMA_URL` thật sự phân giải ra cái gì.**
+- ⚠️ **So với tệp baseline KHÔNG phải phép đo đối chứng.** 2026-09-24: thấy `retrieval`
+  nửa dấu 0,820 → 0,766 sau một thay đổi và suýt kết luận là mình gây hồi quy. Đo lại
+  bằng cách `git stash` bản sửa rồi chạy code HEAD trên CÙNG corpus thì HEAD cũng ra
+  0,766 — baseline đã cũ từ trước. **Muốn biết một thay đổi có gây hồi quy không thì
+  phải so với HEAD chạy hôm nay, không phải với con số chốt 5 tuần trước.**
 
 - ⚠️ **Cạn hạn mức gây SUY GIẢM CHẤT LƯỢNG, không chỉ gây lỗi.** Lượt gọi tụt xuống
   mắt xích yếu hơn; model yếu vẫn trả lời trôi chảy nhưng bỏ chỉ dẫn trong SOP —
