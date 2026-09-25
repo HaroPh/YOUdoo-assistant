@@ -157,22 +157,43 @@ opt = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
 if opt.get("k"):
     k = opt["k"]
 dem = {"ok": 0, "none": 0}
+live = None
+def _boc_dem(obj):
+    # Reranker tra None khi loi BAT KY; RerankCompressor khi do tra NGUYEN danh
+    # sach goc trong im lang — tuc do "khong rerank" ma tuong la co. Dem de ben
+    # ngoai tu choi so lieu neu co luot nao hong. *a/**kw: engine cuc bo goi voi
+    # batch_size, engine ngoai goi voi user.
+    _goc = obj.predict
+    def _dem(*a, **kw):
+        r = _goc(*a, **kw)
+        dem["ok" if r is not None else "none"] += 1
+        return r
+    obj.predict = _dem
 rf = None
 if opt.get("rerank"):
     from open_webui.retrieval.models.external import ExternalReranker
     from open_webui.retrieval.utils import get_reranking_function
     rr = ExternalReranker(api_key=opt["rerank"]["key"], url=opt["rerank"]["url"],
                           model="bge-reranker-v2-m3")
-    _goc = rr.predict
-    def _dem(sentences, user=None):
-        # ExternalReranker tra None khi loi BAT KY; RerankCompressor khi do tra
-        # NGUYEN danh sach goc trong im lang — tuc do "khong rerank" ma tuong la
-        # co. Dem de ben ngoai tu choi so lieu neu co luot nao hong.
-        r = _goc(sentences, user=user)
-        dem["ok" if r is not None else "none"] += 1
-        return r
-    rr.predict = _dem
+    _boc_dem(rr)
     rf = get_reranking_function("external", "bge-reranker-v2-m3", rr)
+elif not opt:
+    # NHU DANG CAU HINH: dung reranker bang CHINH get_rf cua ho tu cau hinh song.
+    # Ban dau hang nay ep reranking_function=None, tuc do cosine du Open WebUI da
+    # bat reranker — nhan "nhu dang cau hinh" noi doi. Va get_rf co bay that:
+    # `if reranking_model:` — de trong ten model thi KHONG dung reranker nao,
+    # du engine=external va URL/khoa deu dung (bat duoc 2026-09-25).
+    from open_webui.routers.retrieval import get_rf
+    from open_webui.retrieval.utils import get_reranking_function
+    _eng = cfg("rag.reranking_engine", "") or ""
+    _mdl = cfg("rag.reranking_model", "") or ""
+    _obj = get_rf(_eng, _mdl, cfg("rag.external_reranker_url", "") or "",
+                  cfg("rag.external_reranker_api_key", "") or "",
+                  str(cfg("rag.external_reranker_timeout", "") or ""))
+    live = {"engine": _eng, "model": _mdl, "rf": type(_obj).__name__ if _obj else None}
+    if _obj is not None:
+        _boc_dem(_obj)
+        rf = get_reranking_function(_eng, _mdl, _obj)
 kr = kr_override or cfg("rag.top_k_reranker", k)
 
 async def one(cn, q):
@@ -198,7 +219,7 @@ for fn, q in json.loads(sys.argv[2]):
     except Exception as e:
         out.append({"tep": fn, "q": q, "loi": f"{type(e).__name__}: {e}"})
 print("===JSON===")
-print(json.dumps({"rows": out, "dem": dem, "k": k, "kr": kr}, ensure_ascii=False))
+print(json.dumps({"rows": out, "dem": dem, "k": k, "kr": kr, "live": live}, ensure_ascii=False))
 '''
 
 
@@ -218,7 +239,8 @@ def their_side(k_reranker: int | None = None, opt: dict | None = None) -> dict:
         sys.exit(f"chân HỌ thất bại:\n{(p.stdout or '')[-800:]}\n{(p.stderr or '')[-1500:]}")
     goi = json.loads(p.stdout.split("===JSON===", 1)[1].strip())
     data, dem = goi["rows"], goi["dem"]
-    if (opt or {}).get("rerank") and (dem["none"] > 0 or dem["ok"] == 0):
+    co_rr = (opt or {}).get("rerank") or ((goi.get("live") or {}).get("rf") is not None)
+    if co_rr and (dem["none"] > 0 or dem["ok"] == 0):
         sys.exit(f"reranker ngoài KHÔNG trả điểm ({dem}) — Open WebUI đã âm thầm dùng "
                  f"danh sách gốc, số đo sẽ là 'không rerank' giả làm 'có rerank'. "
                  f"Backend có đang chạy mã có /v1/rerank không?")
@@ -228,7 +250,7 @@ def their_side(k_reranker: int | None = None, opt: dict | None = None) -> dict:
             out[(tep, q)] = {"rank": None, "n": 0, "loi": row["loi"]}
         else:
             out[(tep, q)] = {"rank": hit(row["docs"], dap_an), "n": len(row["docs"])}
-    out["_cau_hinh"] = {"k": goi["k"], "kr": goi["kr"], "dem": dem}
+    out["_cau_hinh"] = {"k": goi["k"], "kr": goi["kr"], "dem": dem, "live": goi.get("live")}
     return out
 
 
@@ -309,7 +331,15 @@ def rerank_sweep() -> None:
         ch = kq.pop("_cau_hinh")
         trung = sum(v["rank"] is not None for v in kq.values())
         n = max(v["n"] for v in kq.values())
-        goi = f"reranker trả điểm {ch['dem']['ok']} lượt" if opt and opt.get("rerank") else "không reranker"
+        lv = ch.get("live")
+        if lv is not None:
+            goi = (f"CẤU HÌNH SỐNG: engine={lv['engine']!r} model={lv['model']!r} → "
+                   + (f"dựng {lv['rf']}, trả điểm {ch['dem']['ok']} lượt" if lv["rf"]
+                      else "KHÔNG dựng được reranker nào ⇒ Open WebUI đang chấm cosine"))
+        elif opt and opt.get("rerank"):
+            goi = f"reranker trả điểm {ch['dem']['ok']} lượt"
+        else:
+            goi = "không reranker"
         L.append(f"{ten}  → {trung}/{len(CASES)}   (k={ch['k']}, kr={ch['kr']}, "
                  f"giao tối đa {n} chunk; {goi})")
         chi_tiet[ten] = kq
