@@ -6,12 +6,17 @@
 > `ts_rank`. **Pool cache của lượt này không tái lập được bằng mã hôm nay**;
 > nó được giữ nguyên ở `bench-cache/*-pools.PRE-TIEBREAK-20260923.json`.
 >
-> Đo lại hai chân trên mã đã tất định: [`../bench-ngoai-2026-09-24-tiebreak/`](../bench-ngoai-2026-09-24-tiebreak/README.md)
+> **Đo lại ĐỦ NĂM CHÂN trên mã đã tất định:** [`../bench-ngoai-2026-09-24-tiebreak/`](../bench-ngoai-2026-09-24-tiebreak/README.md)
 > — r@20 TVPL 0,9150 → 0,9193, Zalo 0,9277 → 0,9365, không hồi quy ở chân nào.
+> **Dùng bảng ở đó thay cho bảng dưới đây.**
 >
-> Kết luận **tương đối** của Pha A (bge thắng Qwen3-0.6B; override thắng blend)
-> **KHÔNG bị ảnh hưởng**: mọi chân chấm trên cùng một pool, nên chênh lệch giữa
-> chúng không phụ thuộc pool ấy được dựng ra sao.
+> Kết luận tương đối: **7/8 phép so MRR giữ nguyên**, gồm cả override > blend
+> (p < 0,0001 cả hai bộ). Riêng `qwen06-blend vs bge-blend` trên TVPL rơi từ
+> p = 0,007 xuống p ≈ 0,06 — cùng chiều, không còn đủ bằng chứng. Một phiên bản
+> trước của ghi chú này khẳng định kết luận tương đối "không bị ảnh hưởng vì mọi
+> chân chấm trên cùng một pool" — **sai**: cùng pool làm phép so CÔNG BẰNG, không
+> làm kết quả BẤT BIẾN khi đổi pool. Quyết định không đổi: Qwen3-0.6B vẫn không
+> thay được bge (thua 3/4, không thắng phép nào, chậm 3,4×).
 
 Mã: `evals/bench_ngoai.py`, `evals/bench_ngoai_legs.sh`, test `tests/evals/test_bench_ngoai.py`.
 
