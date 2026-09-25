@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from urllib.parse import unquote
 
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, ValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.agents.erp_agent import ERPAgent
@@ -342,6 +343,60 @@ def _derive_thread_id(body: dict, messages: list[dict], headers=None,
 # Cùng một nhãn tiến trình chỉ phát lại sau chừng này giây. Đủ dài để không
 # spam khi agent gọi tool liên tiếp, đủ ngắn để panel không đứng im quá lâu.
 LAP_NHAN_TOI_THIEU_S = 2.0
+
+
+class _YeuCauRerank(BaseModel):
+    """Hợp đồng Open WebUI 0.11.0 (`retrieval/models/external.py`), dạng
+    Cohere/Jina. `model` nhận cho khớp hợp đồng nhưng KHÔNG dùng để chọn model:
+    endpoint luôn chấm bằng reranker đang nạp của backend."""
+    query: str
+    documents: list[str]
+    top_n: int | None = None
+    model: str | None = None
+
+
+@app.post("/v1/rerank")
+async def rerank(req: Request):
+    """Reranker của PROJECT cho Open WebUI (Reranking Engine = External).
+
+    Open WebUI có đường RAG riêng cho tệp đính kèm, và đường đó không có
+    reranker (chỉ chấm lại cosine). Để nó tự chạy thì chạy trên CPU của
+    container (~1 s/lượt) với một bản 2,2 GB nữa; gọi sang đây thì dùng chung
+    ĐÚNG model đang trên GPU (~21 ms).
+
+    Xếp THUẦN theo điểm cross-encoder — Open WebUI tự làm vậy với điểm nhận
+    về, tức ngữ nghĩa override, khớp `RAG_RERANK_MODE=override` của production.
+
+    Reranker hỏng ⇒ 503, KHÔNG bịa điểm. `score_pairs` trả None khi tắt, khi
+    hỏng, và VĨNH VIỄN sau lần hỏng đầu trong đời tiến trình. Điểm giả cho ra
+    một thứ tự rác mà nhìn vẫn hợp lệ; còn lỗi HTTP thì Open WebUI bắt được và
+    dùng danh sách gốc (kèm cảnh báo trong log của nó).
+
+    `to_thread`: model chạy đồng bộ trên GPU — chạy thẳng trong vòng lặp sự
+    kiện sẽ chặn mọi lượt chat đang song song.
+
+    Xác thực TRƯỚC khi đọc body — cùng khuôn `chat_completions`. Bản đầu khai
+    body là tham số pydantic, và FastAPI kiểm body TRƯỚC khi thân hàm chạy:
+    gọi không token với body sai trả 422 thay vì 401, tức người lạ thăm dò
+    được cấu trúc endpoint qua thông báo lỗi. Test liệt kê MỌI route `/v1/*`
+    bắt được lỗ này.
+    """
+    _kiem_token(req)
+    try:
+        body = _YeuCauRerank.model_validate(await req.json())
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors(include_url=False))
+    if not body.documents:
+        return {"results": []}
+    from src.rag import reranker
+    diem = await asyncio.to_thread(reranker.score_pairs, body.query, body.documents)
+    if diem is None:
+        raise HTTPException(status_code=503,
+                            detail="reranker không sẵn sàng (tắt hoặc đã hỏng)")
+    xep = sorted(range(len(diem)), key=lambda i: diem[i], reverse=True)
+    if body.top_n is not None:
+        xep = xep[:max(body.top_n, 0)]
+    return {"results": [{"index": i, "relevance_score": float(diem[i])} for i in xep]}
 
 
 @app.post("/v1/chat/completions")

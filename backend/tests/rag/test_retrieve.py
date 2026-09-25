@@ -47,6 +47,10 @@ def test_retrieve_empty_on_no_match(clean_tables, monkeypatch):
 
 @pytest.mark.integration
 def test_rerank_reorders_and_tags_scores(clean_tables, monkeypatch):
+    # GHIM blend (2026-09-25): test này kiểm TOÁN HỌC riêng của blend. tests/conftest.py
+    # nạp .env gốc, mà production chạy override từ 2026-09-25 — không ghim thì
+    # máy dev đỏ còn CI (không có .env) vẫn xanh trên cùng một mã.
+    monkeypatch.setenv("RAG_RERANK_MODE", "blend")
     from src.rag import retrieve as r
     # BA tài liệu, không phải hai: từ 2026-08-20 cross-encoder chỉ là MỘT LÁ
     # PHIẾU hoà vào thứ hạng RRF. Với đúng hai ứng viên đảo chỗ cho nhau, hai
@@ -87,6 +91,10 @@ def test_rerank_khong_lat_duoc_cap_doi_xung(clean_tables, monkeypatch):
     hỏng và đi sửa nhầm chỗ — đúng cách reranker đã chết im lặng 6 tuần.
 
     Điểm vẫn được gắn đầy đủ: reranker CÓ chạy, chỉ là không thắng."""
+    # GHIM blend (2026-09-25): test này kiểm TOÁN HỌC riêng của blend. tests/conftest.py
+    # nạp .env gốc, mà production chạy override từ 2026-09-25 — không ghim thì
+    # máy dev đỏ còn CI (không có .env) vẫn xanh trên cùng một mã.
+    monkeypatch.setenv("RAG_RERANK_MODE", "blend")
     from src.rag import retrieve as r
     _seed(clean_tables, [
         ("A", "Khách hàng hoàn hàng trong 30 ngày", [1.0] + [0.0] * 1023),
@@ -103,6 +111,10 @@ def test_rerank_khong_lat_duoc_cap_doi_xung(clean_tables, monkeypatch):
 
 @pytest.mark.integration
 def test_rerank_pool_wider_than_k(clean_tables, monkeypatch):
+    # GHIM blend (2026-09-25): test này kiểm TOÁN HỌC riêng của blend. tests/conftest.py
+    # nạp .env gốc, mà production chạy override từ 2026-09-25 — không ghim thì
+    # máy dev đỏ còn CI (không có .env) vẫn xanh trên cùng một mã.
+    monkeypatch.setenv("RAG_RERANK_MODE", "blend")
     # FIX CHÍNH: chunk hạng-7-theo-RRF (ngoài top-6) phải lọt được vào kết
     # quả khi cross-encoder chấm nó cao nhất — trước fix, rerank chỉ nhận 6
     # chunk đã chốt nên điều này bất khả thi.

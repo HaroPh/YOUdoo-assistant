@@ -90,3 +90,29 @@ def test_n_lech_bi_bat_du_chat_luong_TOT_HON():
     chặn khi số xấu thì một baseline cũ vẫn lặng lẽ cho qua mọi lượt may mắn."""
     with pytest.raises(ValueError):
         eval_gate._gate("retrieval", _kq(n=64, r20=1.0, r6=1.0), BASE)
+
+
+# ─── chế độ rerank (THÊM 2026-09-25, khi bật override cho production) ──────
+
+def test_baseline_khac_CHE_DO_rerank_thi_NEM():
+    """Baseline có ghi `rerank_mode` nhưng trước đây cổng không kiểm nó. Bật
+    override cho production thì cổng sẽ so kết quả OVERRIDE với baseline BLEND
+    mà không báo gì — và vì override cao hơn nên PASS, biến phần chênh
+    (+0,014 r@6 TVPL) thành vùng đệm che hồi quy về sau."""
+    with pytest.raises(ValueError, match="rerank_mode"):
+        eval_gate._gate("retrieval", {**_kq(), "rerank_mode": "override"},
+                        {**BASE, "rerank_mode": "blend"})
+
+
+def test_cung_che_do_thi_khong_nem():
+    assert eval_gate._gate("retrieval", {**_kq(), "rerank_mode": "override"},
+                           {**BASE, "rerank_mode": "override"}) is True
+
+
+def test_baseline_cu_khong_co_khoa_che_do_hieu_la_blend():
+    """Baseline ghi trước khi có khoá `rerank_mode` được hiểu là blend — cùng
+    khuôn `role` (thiếu khoá ⇒ admin). Không thì mọi baseline cũ thành rác."""
+    cu = {k: v for k, v in BASE.items() if k != "rerank_mode"}
+    assert eval_gate._gate("retrieval", {**_kq(), "rerank_mode": "blend"}, cu) is True
+    with pytest.raises(ValueError, match="rerank_mode"):
+        eval_gate._gate("retrieval", {**_kq(), "rerank_mode": "override"}, cu)

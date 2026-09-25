@@ -221,6 +221,19 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
             if result[khoa] != base[khoa]:
                 raise ValueError(f"baseline khác cấu hình {khoa}: "
                                  f"đo={result[khoa]!r} baseline={base[khoa]!r}")
+        # `rerank_mode` THÊM 2026-09-25, khi bật override cho production.
+        # Baseline có ghi khoá này từ trước nhưng cổng không kiểm — chuyển
+        # production sang override thì cổng so kết quả OVERRIDE với baseline
+        # BLEND mà không báo gì, và vì override cao hơn nên PASS: phần chênh
+        # thành vùng đệm che hồi quy về sau. Baseline cũ thiếu khoá → blend,
+        # cùng khuôn `role` ngay dưới.
+        measured_mode = result.get("rerank_mode", "blend")
+        baseline_mode = base.get("rerank_mode", "blend")
+        if measured_mode != baseline_mode:
+            raise ValueError(f"baseline khác cấu hình rerank_mode: "
+                             f"đo={measured_mode!r} baseline={baseline_mode!r} — "
+                             f"đặt RAG_RERANK_MODE khớp production (nạp .env gốc) "
+                             f"hoặc chốt lại baseline")
         # Baseline ghi trước 19b không có khoá role → hiểu là admin.
         measured_role = result.get("role", "admin")
         baseline_role = base.get("role", "admin")

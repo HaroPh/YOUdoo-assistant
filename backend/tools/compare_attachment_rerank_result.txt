@@ -1,0 +1,18 @@
+NHƯ ĐANG CẤU HÌNH (đọc webui.db)  → 10/11   (k=10, kr=5, giao tối đa 5 chunk; CẤU HÌNH SỐNG: engine='external' model='bge-reranker-v2-m3' → dựng ExternalReranker, trả điểm 11 lượt)
+cosine (không reranker), k=10 kr=10  → 10/11   (k=10, kr=10, giao tối đa 10 chunk; không reranker)
+reranker project,        k=10 kr=10  → 10/11   (k=10, kr=10, giao tối đa 10 chunk; reranker trả điểm 11 lượt)
+reranker project,        k=10 kr=5   → 10/11   (k=10, kr=5, giao tối đa 5 chunk; reranker trả điểm 11 lượt)
+reranker project,        k=10 kr=3   → 10/11   (k=10, kr=3, giao tối đa 3 chunk; reranker trả điểm 11 lượt)
+
+Từng câu (hạng chunk đầu tiên chứa đáp án; — = không có trong ngữ cảnh):
+  [ 1   2   1   1   1]  DVT_2022  tổng tài sản đầu năm là bao nhiêu
+  [ 1   1   1   1   1]  DVT_2022  tổng cộng tài sản cuối năm là bao nhiêu
+  [ 1   2   1   1   1]  DVT_2022  phân phối cho các quỹ năm trước là bao nhiêu
+  [ 1   1   1   1   1]  DVT_2022  chi phí thuế thu nhập doanh nghiệp năm nay là bao nh
+  [ 3   6   3   3   3]  DVT_2022  các khoản phải thu cuối năm là bao nhiêu
+  [ 1   1   1   1   1]  DVT_2022  khấu hao luỹ kế tài sản cố định hữu hình cuối năm
+  [ 1   1   1   1   1]  NTC_2025  đầu tư góp vốn vào đơn vị khác là bao nhiêu
+  [ —   —   —   —   —]  NTC_2025  gửi cho tôi text thô của mục 29
+  [ 1   1   1   1   1]  NTC_2025  cam kết thuê hoạt động đến 1 năm là bao nhiêu
+  [ 1   1   1   1   1]  NTC_2025  tiền và tương đương tiền cuối năm là bao nhiêu
+  [ 3   5   3   3   3]  NTC_2025  lưu chuyển tiền thuần từ hoạt động kinh doanh năm na

@@ -85,6 +85,20 @@ def _llm(alias: str, role: str) -> "RoutedChatModel":
     return RoutedChatModel(_get_router(), role, pin=alias)
 
 
+def rerank_mode_label() -> str:
+    """Chế độ rerank THẬT SỰ chạy, để ghi vào kết quả đo.
+
+    Lấy từ `rerank_override()` — một nguồn sự thật — chứ không tự đọc lại
+    `RAG_RERANK_MODE`. Bản trước đọc nguyên văn biến môi trường: với "OVERRIDE"
+    hệ chạy override (vì `rerank_override()` chuẩn hoá hoa thường) mà nhãn ghi
+    "OVERRIDE"; với giá trị lạ hệ chạy blend mà nhãn ghi giá trị lạ đó. Cổng
+    `retrieval` so nhãn này với baseline, nên nhãn lệch là cổng ném lỗi giả
+    hoặc cho qua một phép so lệch cấu hình.
+    """
+    from src.rag.retrieve import rerank_override
+    return "override" if rerank_override() else "blend"
+
+
 def baseline_path(model: str, set_name: str, role: str = "admin",
                   dang_go: str = "co_dau") -> str:
     """Đường dẫn file baseline. MỘT nguồn sự thật cho quy ước tên — eval_gate
@@ -1185,7 +1199,7 @@ async def eval_retrieval(pace: float = 0.0, checkpoint_path=None,
     return {"set": "retrieval", "n": n, "rerank": rerank, "dang_go": dang_go,
             "role": role,
             "rerank_model": RERANK_MODEL,
-            "rerank_mode": os.environ.get("RAG_RERANK_MODE", "blend"),
+            "rerank_mode": rerank_mode_label(),
             "methods_seen": sorted({r["method"] for r in per_case}),
             "recall_at_20": round(_avg("recall_at_pool"), 4),
             "recall_at_6": round(_avg("recall_at_final"), 4),

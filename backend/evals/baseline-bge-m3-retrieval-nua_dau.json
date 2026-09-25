@@ -5,33 +5,33 @@
   "dang_go": "nua_dau",
   "role": "admin",
   "rerank_model": "BAAI/bge-reranker-v2-m3",
-  "rerank_mode": "blend",
+  "rerank_mode": "override",
   "methods_seen": [
     "dense+fold-rrf+rerank"
   ],
   "recall_at_20": 0.8028,
-  "recall_at_6": 0.7661,
-  "mrr": 0.6007,
+  "recall_at_6": 0.7844,
+  "mrr": 0.657,
   "chunk_span": 1.57,
   "by_difficulty": {
     "easy": {
       "n": 31,
       "recall_at_20": 0.9032,
-      "mrr": 0.7519
+      "mrr": 0.8237
     },
     "hard": {
       "n": 62,
       "recall_at_20": 0.7339,
-      "mrr": 0.4893
+      "mrr": 0.5498
     },
     "trap": {
       "n": 16,
       "recall_at_20": 0.875,
-      "mrr": 0.7396
+      "mrr": 0.75
     }
   },
-  "lat_p50": 560,
-  "lat_p95": 596,
+  "lat_p50": 559,
+  "lat_p95": 598,
   "fails": [
     {
       "question": "quy trình giao hàng gồm những bước nào?",
@@ -49,27 +49,27 @@
       "got": [
         [
           "sop.docx",
-          "Quy trình nhập kho › Bước 1 — Kiểm đếm hàng hóa"
+          "Quy trình nhập kho › Bước 5 — Bàn giao"
         ],
         [
           "sop.docx",
-          "Quy trình nhập kho › Bước 5 — Bàn giao"
+          "Quy trình nhập kho › Bước 1 — Kiểm đếm hàng hóa"
         ],
         [
           "boluat-danssu.pdf",
           "Chương XIV › QUY ĐỊNH CHUNG › Mục 2. THỰC HIỆN NGHĨA VỤ › Điều 279. Thực hiện nghĩa vụ giao vật"
         ],
         [
+          "luat-baohiemxahoi.pdf",
+          "Chương IV › Mục 1. ĐĂNG KÝ THAM GIA BẢO HIỂM XÃ HỘI BẮT BUỘC VÀ BẢO HIỂM XÃ HỘI TỰ NGUYỆN › Điều 26. Giao dịch điện tử trong lĩnh vực bảo hiểm xã hội"
+        ],
+        [
           "boluat-thuongmai.pdf",
           "Chương VI › MỤC 5. QUÁ CẢNH HÀNG HÓA QUA LÃNH THỔ VIỆT NAM VÀ DỊCH VỤ QUÁ CẢNH HÀNG HÓA › Điều 244. Quá cảnh bằng đường hàng không"
         ],
         [
-          "luat-doanhnghiep.pdf",
-          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương VIII › NHÓM CÔNG TY › Điều 197. Báo cáo tài chính của công ty mẹ, công ty con"
+          "boluat-thuongmai.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 3. Giải thích từ ngữ"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -90,7 +90,11 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 437. Trách nhiệm do giao tài sản không đúng số lượng"
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 453. Mua trả chậm, trả dần"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương V › ẤN ĐỊNH THUẾ › Điều 50. Ấn định thuế đối với người nộp thuế trong trường hợp vi phạm pháp luật về thuế"
         ],
         [
           "luat-quanlythue.pdf",
@@ -98,15 +102,11 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 453. Mua trả chậm, trả dần"
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 437. Trách nhiệm do giao tài sản không đúng số lượng"
         ],
         [
-          "luat-doanhnghiep.pdf",
-          "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương V › CÔNG TY CỔ PHẦN › Điều 134. Điều kiện thanh toán và xử lý các cổ phần được mua lại"
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 43. Giao thừa hàng"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -127,15 +127,11 @@
         ],
         [
           "boluat-laodong.pdf",
-          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 122. Nguyên tắc, trình tự, thủ tục xử lý kỷ luật lao động"
-        ],
-        [
-          "boluat-laodong.pdf",
-          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 122. Nguyên tắc, trình tự, thủ tục xử lý kỷ luật lao động"
-        ],
-        [
-          "boluat-laodong.pdf",
           "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 125. Áp dụng hình thức xử lý kỷ luật sa thải"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 122. Nguyên tắc, trình tự, thủ tục xử lý kỷ luật lao động"
         ],
         [
           "boluat-laodong.pdf",
@@ -143,7 +139,11 @@
         ],
         [
           "boluat-laodong.pdf",
-          "Chương XVII › ĐIỀU KHOẢN THI HÀNH › Điều 219. Sửa đổi, bổ sung một số điều của các luật có liên quan đến lao động"
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 117. Kỷ luật lao động"
+        ],
+        [
+          "boluat-laodong.pdf",
+          "Chương VIII › KỶ LUẬT LAO ĐỘNG, TRÁCH NHIỆM VẬT CHẤT › Mục 1. KỶ LUẬT LAO ĐỘNG › Điều 125. Áp dụng hình thức xử lý kỷ luật sa thải"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -159,28 +159,28 @@
       ],
       "got": [
         [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 67. Hợp đồng, giao dịch phải được Hội đồng thành viên chấp thuận"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 406. Điều kiện giao dịch chung trong giao kết hợp đồng"
+        ],
+        [
           "boluat-danssu.pdf",
           "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 4. HỢP ĐỒNG VAY TÀI SẢN › Điều 471. Họ, hụi, biêu, phường"
         ],
         [
-          "luat-doanhnghiep.pdf",
-          "Chương VI › CÔNG TY HỢP DANH › Điều 181. Quyền và nghĩa vụ của thành viên hợp danh"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 67. Hợp đồng, giao dịch phải được Hội đồng thành viên chấp thuận"
+          "boluat-thuongmai.pdf",
+          "Chương II › MỤC 3. MUA BÁN HÀNG HÓA QUA SỞ GIAO DỊCH HÀNG HÓA › Điều 70. Các hành vi bị cấm đối với thương nhân môi giới hàng hoá qua Sở giao dịch hàng hoá"
         ],
         [
           "luat-doanhnghiep.pdf",
           "Chương V › CÔNG TY CỔ PHẦN › Điều 153. Hội đồng quản trị"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương II › MỤC 3. MUA BÁN HÀNG HÓA QUA SỞ GIAO DỊCH HÀNG HÓA › Điều 65. Quyền và nghĩa vụ của các bên trong hợp đồng kỳ hạn"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 437. Trách nhiệm do giao tài sản không đúng số lượng"
+          "luat-doanhnghiep.pdf",
+          "Chương VI › CÔNG TY HỢP DANH › Điều 181. Quyền và nghĩa vụ của thành viên hợp danh"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -197,11 +197,7 @@
       "got": [
         [
           "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 167. Chấp thuận hợp đồng, giao dịch giữa công ty với người có liên quan"
         ],
         [
           "luat-doanhnghiep.pdf",
@@ -209,15 +205,19 @@
         ],
         [
           "luat-doanhnghiep.pdf",
-          "Chương VI › CÔNG TY HỢP DANH › Điều 184. Điều hành kinh doanh của công ty hợp danh"
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
         ],
         [
-          "luat-doanhnghiep.pdf",
-          "Chương II › THÀNH LẬP DOANH NGHIỆP › Điều 24. Điều lệ công ty"
+          "boluat-laodong.pdf",
+          "Chương III › HỢP ĐỒNG LAO ĐỘNG › Mục 1. GIAO KẾT HỢP ĐỒNG LAO ĐỘNG › Điều 18. Thẩm quyền giao kết hợp đồng lao động"
         ],
         [
           "luat-doanhnghiep.pdf",
           "Chương V › CÔNG TY CỔ PHẦN › Điều 167. Chấp thuận hợp đồng, giao dịch giữa công ty với người có liên quan"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 86. Hợp đồng, giao dịch của công ty với những người có liên quan"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -245,8 +245,8 @@
           "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 9. Thuế suất"
         ],
         [
-          "luat-thuegtgt.pdf",
-          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 5. Đối tượng không chịu thuế"
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương II › CĂN CỨ TÍNH THUẾ, THỜI ĐIỂM TÍNH THUẾ VÀ BIỂU THUẾ › Điều 8. Trị giá tính thuế, thời điểm tính thuế"
         ],
         [
           "luat-thuegtgt.pdf",
@@ -254,7 +254,7 @@
         ],
         [
           "luat-thuegtgt.pdf",
-          "Chương II › CĂN CỨ VÀ PHƯƠNG PHÁP TÍNH THUẾ › Điều 7. Giá tính thuế"
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 5. Đối tượng không chịu thuế"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -275,15 +275,7 @@
         ],
         [
           "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 55. Hội đồng thành viên"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 58. Điều kiện và thể thức tiến hành họp Hội đồng thành viên"
-        ],
-        [
-          "luat-doanhnghiep.pdf",
-          "Chương V › CÔNG TY CỔ PHẦN › Điều 130. Quyết định chào bán trái phiếu riêng lẻ"
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 87. Tăng, giảm vốn điều lệ"
         ],
         [
           "luat-doanhnghiep.pdf",
@@ -291,7 +283,15 @@
         ],
         [
           "luat-doanhnghiep.pdf",
-          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 87. Tăng, giảm vốn điều lệ"
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 58. Điều kiện và thể thức tiến hành họp Hội đồng thành viên"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 1. CÔNG TY TRÁCH NHIỆM HỮU HẠN HAI THÀNH VIÊN TRỞ LÊN › Điều 55. Hội đồng thành viên"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương V › CÔNG TY CỔ PHẦN › Điều 130. Quyết định chào bán trái phiếu riêng lẻ"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -311,16 +311,16 @@
           "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 438. Trách nhiệm do giao vật không đồng bộ"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 296. Kéo dài thời hạn, từ chối thực hiện hợp đồng trong trường hợp bất khả kháng"
+          "sla.docx",
+          "Thỏa thuận mức dịch vụ nhà cung cấp › Điều 3 — Thời gian giao hàng"
         ],
         [
           "boluat-thuongmai.pdf",
           "Chương II › MỤC 3. MUA BÁN HÀNG HÓA QUA SỞ GIAO DỊCH HÀNG HÓA › Điều 65. Quyền và nghĩa vụ của các bên trong hợp đồng kỳ hạn"
         ],
         [
-          "sla.docx",
-          "Thỏa thuận mức dịch vụ nhà cung cấp › Điều 3 — Thời gian giao hàng"
+          "boluat-thuongmai.pdf",
+          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 296. Kéo dài thời hạn, từ chối thực hiện hợp đồng trong trường hợp bất khả kháng"
         ],
         [
           "boluat-thuongmai.pdf",
@@ -328,7 +328,7 @@
         ],
         [
           "boluat-thuongmai.pdf",
-          "Chương VI › MỤC 7. CHO THUÊ HÀNG HÓA › Điều 279. Rút lại chấp nhận"
+          "Chương VI › MỤC 2. ĐẤU GIÁ HÀNG HÓA › Điều 209. Thời hạn giao hàng hoá bán đấu giá"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -353,19 +353,19 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương III › CÁ NHÂN › Mục 1. NĂNG LỰC PHÁP LUẬT DÂN SỰ, NĂNG LỰC HÀNH VI DÂN SỰ CỦA CÁ NHÂN › Điều 23. Người có khó khăn trong nhận thức, làm chủ hành vi"
+          "Chương III › CÁ NHÂN › Mục 1. NĂNG LỰC PHÁP LUẬT DÂN SỰ, NĂNG LỰC HÀNH VI DÂN SỰ CỦA CÁ NHÂN › Điều 22. Mất năng lực hành vi dân sự"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương II › XÁC LẬP, THỰC HIỆN VÀ BẢO VỆ QUYỀN DÂN SỰ › Điều 14. Bảo vệ quyền dân sự thông qua cơ quan có thẩm quyền"
+          "Chương III › CÁ NHÂN › Mục 1. NĂNG LỰC PHÁP LUẬT DÂN SỰ, NĂNG LỰC HÀNH VI DÂN SỰ CỦA CÁ NHÂN › Điều 23. Người có khó khăn trong nhận thức, làm chủ hành vi"
+        ],
+        [
+          "luat-doanhnghiep.pdf",
+          "Chương II › THÀNH LẬP DOANH NGHIỆP › Điều 17. Quyền thành lập, góp vốn, mua cổ phần, mua phần vốn góp và quản lý doanh nghiệp"
         ],
         [
           "luat-doanhnghiep.pdf",
           "Chương III › CÔNG TY TRÁCH NHIỆM HỮU HẠN › Mục 2. CÔNG TY TRÁCH NHIỆM HỮU HẠN MỘT THÀNH VIÊN › Điều 78. Thực hiện quyền của chủ sở hữu công ty trong một số trường hợp đặc biệt"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương III › CÁ NHÂN › Mục 1. NĂNG LỰC PHÁP LUẬT DÂN SỰ, NĂNG LỰC HÀNH VI DÂN SỰ CỦA CÁ NHÂN › Điều 22. Mất năng lực hành vi dân sự"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -382,19 +382,7 @@
       "got": [
         [
           "boluat-danssu.pdf",
-          "Chương X › QUY ĐỊNH CHUNG › Mục 1. NGUYÊN TẮC XÁC LẬP, THỰC HIỆN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 160. Nguyên tắc xác lập, thực hiện quyền sở hữu, quyền khác đối với tài sản"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương XIV › QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Mục 1. QUYỀN ĐỐI VỚI BẤT ĐỘNG SẢN LIỀN KỀ › Điều 254. Quyền về lối đi qua"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương X › QUY ĐỊNH CHUNG › Mục 1. NGUYÊN TẮC XÁC LẬP, THỰC HIỆN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 162. Chịu rủi ro về tài sản"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương X › QUY ĐỊNH CHUNG › Mục 1. NGUYÊN TẮC XÁC LẬP, THỰC HIỆN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 160. Nguyên tắc xác lập, thực hiện quyền sở hữu, quyền khác đối với tài sản"
+          "Chương X › QUY ĐỊNH CHUNG › Mục 1. NGUYÊN TẮC XÁC LẬP, THỰC HIỆN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 159. Quyền khác đối với tài sản"
         ],
         [
           "boluat-danssu.pdf",
@@ -402,7 +390,19 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương X › QUY ĐỊNH CHUNG › Mục 3. GIỚI HẠN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 171. Quyền và nghĩa vụ của chủ sở hữu, chủ thể có quyền khác đối với tài sản trong trường hợp xảy ra tình thế cấp thiết"
+          "Chương X › QUY ĐỊNH CHUNG › Mục 1. NGUYÊN TẮC XÁC LẬP, THỰC HIỆN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 160. Nguyên tắc xác lập, thực hiện quyền sở hữu, quyền khác đối với tài sản"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương X › QUY ĐỊNH CHUNG › Mục 1. NGUYÊN TẮC XÁC LẬP, THỰC HIỆN QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 160. Nguyên tắc xác lập, thực hiện quyền sở hữu, quyền khác đối với tài sản"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIII › QUYỀN SỞ HỮU › Mục 1. NỘI DUNG QUYỀN SỞ HỮU › Điều 187. Quyền chiếm hữu của người được chủ sở hữu ủy quyền quản lý tài sản"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XIV › QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Mục 1. QUYỀN ĐỐI VỚI BẤT ĐỘNG SẢN LIỀN KỀ › Điều 254. Quyền về lối đi qua"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -419,27 +419,27 @@
       "got": [
         [
           "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 387. Thông tin trong giao kết hợp đồng"
+        ],
+        [
+          "boluat-danssu.pdf",
           "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 416. Quyền từ chối của người thứ ba"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 387. Thông tin trong giao kết hợp đồng"
-        ],
-        [
-          "boluat-thuongmai.pdf",
-          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 297. Buộc thực hiện đúng hợp đồng"
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 2. THỰC HIỆN NGHĨA VỤ › Điều 278. Thời hạn thực hiện nghĩa vụ"
         ],
         [
           "boluat-danssu.pdf",
           "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 5. HỢP ĐỒNG THUÊ TÀI SẢN › Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương III › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG DỊCH VỤ › Điều 82. Thời hạn hoàn thành dịch vụ"
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 408. Hợp đồng vô hiệu do có đối tượng không thể thực hiện được"
         ],
         [
-          "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 9. HỢP ĐỒNG DỊCH VỤ › Điều 517. Nghĩa vụ của bên cung ứng dịch vụ"
+          "boluat-thuongmai.pdf",
+          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 297. Buộc thực hiện đúng hợp đồng"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -455,28 +455,28 @@
       ],
       "got": [
         [
-          "boluat-thuongmai.pdf",
-          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 296. Kéo dài thời hạn, từ chối thực hiện hợp đồng trong trường hợp bất khả kháng"
+          "boluat-danssu.pdf",
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 410. Thực hiện hợp đồng song vụ"
         ],
         [
           "boluat-laodong.pdf",
-          "Chương III › HỢP ĐỒNG LAO ĐỘNG › Mục 2. THỰC HIỆN HỢP ĐỒNG LAO ĐỘNG › Điều 33. Sửa đổi, bổ sung hợp đồng lao động"
+          "Chương III › HỢP ĐỒNG LAO ĐỘNG › Mục 1. GIAO KẾT HỢP ĐỒNG LAO ĐỘNG › Điều 20. Loại hợp đồng lao động"
         ],
         [
           "boluat-danssu.pdf",
           "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 416. Quyền từ chối của người thứ ba"
         ],
         [
-          "boluat-danssu.pdf",
-          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 395. Trường hợp bên đề nghị giao kết hợp đồng chết, mất năng lực hành vi dân sự hoặc có khó khăn trong nhận thức, làm chủ hành vi"
+          "boluat-laodong.pdf",
+          "Chương III › HỢP ĐỒNG LAO ĐỘNG › Mục 2. THỰC HIỆN HỢP ĐỒNG LAO ĐỘNG › Điều 33. Sửa đổi, bổ sung hợp đồng lao động"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VII › CHẾ TÀI TRONG THƯƠNG MẠI VÀ GIẢI QUYẾT TRANH CHẤP TRONG THƯƠNG MẠI › Điều 296. Kéo dài thời hạn, từ chối thực hiện hợp đồng trong trường hợp bất khả kháng"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XXVII › PHÁP LUẬT ÁP DỤNG ĐỐI VỚI QUAN HỆ TÀI SẢN, QUAN HỆ NHÂN THÂN › Điều 683. Hợp đồng"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 410. Thực hiện hợp đồng song vụ"
+          "Chương XIV › QUY ĐỊNH CHUNG › Mục 7. HỢP ĐỒNG › Điều 386. Đề nghị giao kết hợp đồng"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -493,11 +493,15 @@
       "got": [
         [
           "boluat-danssu.pdf",
+          "Chương XIX › Điều 579. Nghĩa vụ hoàn trả"
+        ],
+        [
+          "boluat-danssu.pdf",
           "Chương X › QUY ĐỊNH CHUNG › Mục 2. BẢO VỆ QUYỀN SỞ HỮU, QUYỀN KHÁC ĐỐI VỚI TÀI SẢN › Điều 166. Quyền đòi lại tài sản"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 454. Chuộc lại tài sản đã bán"
+          "Chương XIX › Điều 582. Quyền yêu cầu người thứ ba hoàn trả"
         ],
         [
           "boluat-danssu.pdf",
@@ -505,15 +509,11 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XIX › Điều 579. Nghĩa vụ hoàn trả"
-        ],
-        [
-          "boluat-danssu.pdf",
           "Chương XIX › Điều 581. Nghĩa vụ hoàn trả hoa lợi, lợi tức"
         ],
         [
-          "luat-quanlythue.pdf",
-          "Chương XIV › CƯỠNG CHẾ THI HÀNH QUYẾT ĐỊNH HÀNH CHÍNH VỀ QUẢN LÝ THUẾ › Điều 134. Cưỡng chế bằng biện pháp thu tiền, tài sản khác của đối tượng bị cưỡng chế do cơ quan, tổ chức, cá nhân khác đang giữ"
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 454. Chuộc lại tài sản đã bán"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -533,24 +533,24 @@
           "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 10. HỢP ĐỒNG VẬN CHUYỂN › Điều 525. Quyền của bên vận chuyển"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương VI › MỤC 5. QUÁ CẢNH HÀNG HÓA QUA LÃNH THỔ VIỆT NAM VÀ DỊCH VỤ QUÁ CẢNH HÀNG HÓA › Điều 243. Tuyến đường quá cảnh"
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 10. HỢP ĐỒNG VẬN CHUYỂN › Điều 526. Nghĩa vụ của hành khách"
         ],
         [
           "boluat-danssu.pdf",
           "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 10. HỢP ĐỒNG VẬN CHUYỂN › Điều 527. Quyền của hành khách"
         ],
         [
-          "boluat-laodong.pdf",
-          "Chương XI › NHỮNG QUY ĐỊNH RIÊNG ĐỐI VỚI LAO ĐỘNG CHƯA THÀNH NIÊN VÀ MỘT SỐ LAO ĐỘNG KHÁC › Mục 3. NGƯỜI LAO ĐỘNG VIỆT NAM ĐI LÀM VIỆC Ở NƯỚC NGOÀI, LAO ĐỘNG CHO CÁC TỔ CHỨC, CÁ NHÂN NƯỚC › Điều 151. Điều kiện người lao động nước ngoài làm việc tại Việt Nam"
-        ],
-        [
-          "luat-quanlythue.pdf",
-          "Chương VI › NỘP THUẾ › Điều 59. Xử lý đối với việc chậm nộp tiền thuế"
+          "boluat-thuongmai.pdf",
+          "Chương VI › MỤC 4. DỊCH VỤ LOGISTICS › Điều 239. Quyền cầm giữ và định đoạt hàng hoá"
         ],
         [
           "boluat-thuongmai.pdf",
-          "Chương VI › MỤC 5. QUÁ CẢNH HÀNG HÓA QUA LÃNH THỔ VIỆT NAM VÀ DỊCH VỤ QUÁ CẢNH HÀNG HÓA › Điều 242. Quyền quá cảnh hàng hóa"
+          "Chương VI › MỤC 5. QUÁ CẢNH HÀNG HÓA QUA LÃNH THỔ VIỆT NAM VÀ DỊCH VỤ QUÁ CẢNH HÀNG HÓA › Điều 248. Những hành vi bị cấm trong quá cảnh"
+        ],
+        [
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương IV › MIỄN THUẾ, GIẢM THUẾ, HOÀN THUẾ › Điều 16. Miễn thuế"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -567,27 +567,27 @@
       "got": [
         [
           "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 450. Mua bán quyền tài sản"
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 2. HỢP ĐỒNG TRAO ĐỔI TÀI SẢN › Điều 455. Hợp đồng trao đổi tài sản"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương VI › Điều 101. Chủ thể trong quan hệ dân sự có sự tham gia của hộ gia đình, tổ hợp tác, tổ chức khác không có tư cách pháp nhân"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 3. HỢP ĐỒNG TẶNG CHO TÀI SẢN › Điều 459. Tặng cho bất động sản"
         ],
         [
           "boluat-thuongmai.pdf",
           "Chương IV › MỤC 3. TRƯNG BÀY, GIỚI THIỆU HÀNG HÓA, DỊCH VỤ › Điều 124. Hợp đồng dịch vụ trưng bày, giới thiệu hàng hoá, dịch vụ"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 42. Giao chứng từ liên quan đến hàng hoá"
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 450. Mua bán quyền tài sản"
         ],
         [
           "boluat-thuongmai.pdf",
           "Chương VI › MỤC 2. ĐẤU GIÁ HÀNG HÓA › Điều 206. Đăng ký quyền sở hữu"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 2. HỢP ĐỒNG TRAO ĐỔI TÀI SẢN › Điều 455. Hợp đồng trao đổi tài sản"
-        ],
-        [
-          "boluat-thuongmai.pdf",
-          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 36. Trách nhiệm khi giao hàng có liên quan đến người vận chuyển"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -604,11 +604,11 @@
       "got": [
         [
           "boluat-danssu.pdf",
-          "Chương III › CÁ NHÂN › Mục 5. THÔNG BÁO TÌM KIẾM NGƯỜI VẮNG MẶT TẠI NƠI CƯ TRÚ, TUYÊN BỐ MẤT TÍCH, TUYÊN BỐ CHẾT › Điều 73. Hủy bỏ quyết định tuyên bố chết"
+          "Chương XX › QUY ĐỊNH CHUNG › Điều 615. Thực hiện nghĩa vụ tài sản do người chết để lại"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XX › QUY ĐỊNH CHUNG › Điều 615. Thực hiện nghĩa vụ tài sản do người chết để lại"
+          "Chương III › CÁ NHÂN › Mục 5. THÔNG BÁO TÌM KIẾM NGƯỜI VẮNG MẶT TẠI NƠI CƯ TRÚ, TUYÊN BỐ MẤT TÍCH, TUYÊN BỐ CHẾT › Điều 73. Hủy bỏ quyết định tuyên bố chết"
         ],
         [
           "boluat-danssu.pdf",
@@ -616,15 +616,15 @@
         ],
         [
           "boluat-danssu.pdf",
+          "Chương XX › QUY ĐỊNH CHUNG › Điều 619. Việc thừa kế của những người có quyền thừa kế di sản của nhau mà chết cùng thời điểm"
+        ],
+        [
+          "boluat-danssu.pdf",
           "Chương XXII › THỪA KẾ THEO DI CHÚC › Điều 643. Hiệu lực của di chúc"
         ],
         [
           "boluat-danssu.pdf",
-          "Chương XXIII › THỪA KẾ THEO PHÁP LUẬT › Điều 651. Người thừa kế theo pháp luật"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương XX › QUY ĐỊNH CHUNG › Điều 619. Việc thừa kế của những người có quyền thừa kế di sản của nhau mà chết cùng thời điểm"
+          "Chương III › CÁ NHÂN › Mục 5. THÔNG BÁO TÌM KIẾM NGƯỜI VẮNG MẶT TẠI NƠI CƯ TRÚ, TUYÊN BỐ MẤT TÍCH, TUYÊN BỐ CHẾT › Điều 73. Hủy bỏ quyết định tuyên bố chết"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -640,28 +640,28 @@
       ],
       "got": [
         [
-          "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 452. Mua sau khi sử dụng thử"
+          "boluat-thuongmai.pdf",
+          "Chương II › MUA BÁN HÀNG HÓA › Điều 24. Hình thức hợp đồng mua bán hàng hoá"
         ],
         [
           "boluat-danssu.pdf",
           "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 434. Thời hạn thực hiện hợp đồng mua bán"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 61. Chuyển rủi ro trong các trường hợp khác"
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 452. Mua sau khi sử dụng thử"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 36. Trách nhiệm khi giao hàng có liên quan đến người vận chuyển"
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 452. Mua sau khi sử dụng thử"
         ],
         [
           "boluat-thuongmai.pdf",
           "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 40. Trách nhiệm đối với hàng hoá không phù hợp với hợp đồng"
         ],
         [
-          "boluat-thuongmai.pdf",
-          "Chương II › MỤC 2. QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN TRONG HỢP ĐỒNG MUA BÁN HÀNG HÓA › Điều 41. Khắc phục trong trường hợp giao thiếu hàng, giao hàng không phù hợp với hợp đồng"
+          "boluat-danssu.pdf",
+          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 1. HỢP ĐỒNG MUA BÁN TÀI SẢN › Điều 454. Chuộc lại tài sản đã bán"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -677,28 +677,28 @@
       ],
       "got": [
         [
+          "boluat-thuongmai.pdf",
+          "Chương VI › MỤC 3. ĐẤU THẦU HÀNG HÓA, DỊCH VỤ › Điều 214. Đấu thầu hàng hoá, dịch vụ"
+        ],
+        [
+          "luat-thuegtgt.pdf",
+          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 5. Đối tượng không chịu thuế"
+        ],
+        [
           "luat-thuexuatnhapkhau.pdf",
           "Chương II › CĂN CỨ TÍNH THUẾ, THỜI ĐIỂM TÍNH THUẾ VÀ BIỂU THUẾ › Điều 11. Thẩm quyền ban hành biểu thuế, thuế suất"
-        ],
-        [
-          "luat-quanlythue.pdf",
-          "Chương V › ẤN ĐỊNH THUẾ › Điều 50. Ấn định thuế đối với người nộp thuế trong trường hợp vi phạm pháp luật về thuế"
-        ],
-        [
-          "luat-thuexuatnhapkhau.pdf",
-          "Chương II › CĂN CỨ TÍNH THUẾ, THỜI ĐIỂM TÍNH THUẾ VÀ BIỂU THUẾ › Điều 11. Thẩm quyền ban hành biểu thuế, thuế suất"
-        ],
-        [
-          "luat-thuexuatnhapkhau.pdf",
-          "Chương V › TỪNG NHÓM HÀNG CHỊU THUẾ"
         ],
         [
           "luat-thuexuatnhapkhau.pdf",
           "Chương IV › MIỄN THUẾ, GIẢM THUẾ, HOÀN THUẾ › Điều 16. Miễn thuế"
         ],
         [
-          "luat-dautu.pdf",
-          "Chương II › BẢO ĐẢM ĐẦU TƯ › Điều 10. Bảo đảm hoạt động đầu tư kinh doanh"
+          "luat-thuexuatnhapkhau.pdf",
+          "Chương II › CĂN CỨ TÍNH THUẾ, THỜI ĐIỂM TÍNH THUẾ VÀ BIỂU THUẾ › Điều 11. Thẩm quyền ban hành biểu thuế, thuế suất"
+        ],
+        [
+          "luat-quanlythue.pdf",
+          "Chương V › ẤN ĐỊNH THUẾ › Điều 50. Ấn định thuế đối với người nộp thuế trong trường hợp vi phạm pháp luật về thuế"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -719,15 +719,7 @@
         ],
         [
           "boluat-danssu.pdf",
-          "Chương VI › Điều 104. Hậu quả pháp lý đối với giao dịch dân sự do thành viên không có quyền đại diện hoặc vượt quá phạm vi đại diện xác lập, thực"
-        ],
-        [
-          "boluat-danssu.pdf",
           "Chương XIX › Điều 581. Nghĩa vụ hoàn trả hoa lợi, lợi tức"
-        ],
-        [
-          "boluat-danssu.pdf",
-          "Chương XXVII › PHÁP LUẬT ÁP DỤNG ĐỐI VỚI QUAN HỆ TÀI SẢN, QUAN HỆ NHÂN THÂN › Điều 685. Nghĩa vụ hoàn trả do chiếm hữu, sử dụng, được lợi về tài sản không có căn cứ pháp luật"
         ],
         [
           "boluat-danssu.pdf",
@@ -735,7 +727,15 @@
         ],
         [
           "boluat-danssu.pdf",
-          "NHỮNG QUY ĐỊNH CHUNG › Điều 3. Các nguyên tắc cơ bản của pháp luật dân sự"
+          "Chương VI › Điều 104. Hậu quả pháp lý đối với giao dịch dân sự do thành viên không có quyền đại diện hoặc vượt quá phạm vi đại diện xác lập, thực"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương XXVII › PHÁP LUẬT ÁP DỤNG ĐỐI VỚI QUAN HỆ TÀI SẢN, QUAN HỆ NHÂN THÂN › Điều 685. Nghĩa vụ hoàn trả do chiếm hữu, sử dụng, được lợi về tài sản không có căn cứ pháp luật"
+        ],
+        [
+          "boluat-danssu.pdf",
+          "Chương II › XÁC LẬP, THỰC HIỆN VÀ BẢO VỆ QUYỀN DÂN SỰ › Điều 10. Giới hạn việc thực hiện quyền dân sự"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -752,19 +752,19 @@
       "got": [
         [
           "boluat-thuongmai.pdf",
-          "Chương IV › MỤC 3. TRƯNG BÀY, GIỚI THIỆU HÀNG HÓA, DỊCH VỤ › Điều 119. Kinh doanh dịch vụ trưng bày, giới thiệu hàng hoá, dịch vụ"
+          "Chương V › MỤC 3. ỦY THÁC MUA BÁN HÀNG HÓA › Điều 157. Bên uỷ thác"
+        ],
+        [
+          "boluat-thuongmai.pdf",
+          "Chương VI › MỤC 2. ĐẤU GIÁ HÀNG HÓA › Điều 192. Nghĩa vụ của người bán hàng không phải là người tổ chức đấu giá"
         ],
         [
           "boluat-laodong.pdf",
           "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 5. Quyền và nghĩa vụ của người lao động"
         ],
         [
-          "boluat-danssu.pdf",
-          "Chương XVI › MỘT SỐ HỢP ĐỒNG THÔNG DỤNG › Mục 4. HỢP ĐỒNG VAY TÀI SẢN › Điều 471. Họ, hụi, biêu, phường"
-        ],
-        [
-          "luat-baohiemxahoi.pdf",
-          "Chương I › NHỮNG QUY ĐỊNH CHUNG › Điều 2. Đối tượng tham gia bảo hiểm xã hội bắt buộc và bảo hiểm xã hội tự nguyện"
+          "boluat-thuongmai.pdf",
+          "Chương IV › MỤC 3. TRƯNG BÀY, GIỚI THIỆU HÀNG HÓA, DỊCH VỤ › Điều 119. Kinh doanh dịch vụ trưng bày, giới thiệu hàng hoá, dịch vụ"
         ],
         [
           "boluat-thuongmai.pdf",
@@ -772,7 +772,7 @@
         ],
         [
           "boluat-thuongmai.pdf",
-          "Chương V › MỤC 3. ỦY THÁC MUA BÁN HÀNG HÓA › Điều 157. Bên uỷ thác"
+          "Chương IV › MỤC 3. TRƯNG BÀY, GIỚI THIỆU HÀNG HÓA, DỊCH VỤ › Điều 118. Quyền trưng bày, giới thiệu hàng hoá, dịch vụ"
         ]
       ],
       "method": "dense+fold-rrf+rerank"
@@ -787,9 +787,9 @@
       "hidden": false,
       "recall_at_pool": 0.3333333333333333,
       "recall_at_final": 0.3333333333333333,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -811,9 +811,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.16666666666666666,
+      "reciprocal_rank": 0.2,
       "hit_ranks": [
-        6
+        5
       ]
     },
     {
@@ -823,10 +823,10 @@
       "hidden": false,
       "recall_at_pool": 0.6666666666666666,
       "recall_at_final": 0.6666666666666666,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2,
-        3
+        1,
+        4
       ]
     },
     {
@@ -835,10 +835,10 @@
       "method": "dense+fold-rrf+rerank",
       "hidden": false,
       "recall_at_pool": 1.0,
-      "recall_at_final": 0.0,
-      "reciprocal_rank": 0.14285714285714285,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        7
+        3
       ]
     },
     {
@@ -851,7 +851,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        3
+        4
       ]
     },
     {
@@ -871,9 +871,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -917,9 +917,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 0.2,
       "hit_ranks": [
-        2
+        5
       ]
     },
     {
@@ -929,9 +929,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.2,
+      "reciprocal_rank": 0.25,
       "hit_ranks": [
-        5
+        4
       ]
     },
     {
@@ -953,9 +953,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1
+        2
       ]
     },
     {
@@ -995,7 +995,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        5
+        3
       ]
     },
     {
@@ -1008,7 +1008,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        5
+        2
       ]
     },
     {
@@ -1028,9 +1028,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 0.2,
       "hit_ranks": [
-        4
+        5
       ]
     },
     {
@@ -1053,16 +1053,16 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
+        2,
+        3,
         4,
         5,
-        6,
         7,
-        8,
+        10,
         11,
-        17
+        13
       ]
     },
     {
@@ -1072,9 +1072,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -1108,9 +1108,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 0.0,
-      "reciprocal_rank": 0.08333333333333333,
+      "reciprocal_rank": 0.14285714285714285,
       "hit_ranks": [
-        12
+        7
       ]
     },
     {
@@ -1132,9 +1132,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -1153,10 +1153,10 @@
       "method": "dense+fold-rrf+rerank",
       "hidden": false,
       "recall_at_pool": 1.0,
-      "recall_at_final": 0.0,
-      "reciprocal_rank": 0.14285714285714285,
+      "recall_at_final": 1.0,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        7
+        3
       ]
     },
     {
@@ -1171,7 +1171,7 @@
         1,
         2,
         3,
-        7,
+        6,
         8,
         15
       ]
@@ -1183,9 +1183,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -1221,8 +1221,8 @@
       "hit_ranks": [
         1,
         2,
-        4,
-        6
+        3,
+        5
       ]
     },
     {
@@ -1236,8 +1236,8 @@
       "hit_ranks": [
         1,
         2,
-        3,
-        9
+        5,
+        6
       ]
     },
     {
@@ -1247,13 +1247,13 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.3333333333333333,
+      "reciprocal_rank": 0.25,
       "hit_ranks": [
-        3,
-        5,
-        6,
+        4,
         7,
-        10
+        11,
+        12,
+        13
       ]
     },
     {
@@ -1266,7 +1266,7 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        9
+        7
       ]
     },
     {
@@ -1281,11 +1281,11 @@
         1,
         2,
         3,
+        7,
         9,
-        10,
-        12,
-        13,
-        19
+        11,
+        14,
+        17
       ]
     },
     {
@@ -1301,9 +1301,9 @@
         2,
         3,
         5,
-        7,
-        13,
-        14
+        6,
+        9,
+        17
       ]
     },
     {
@@ -1328,15 +1328,15 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        3,
         6,
         7,
-        9,
         10,
-        14,
+        12,
+        13,
         15,
         16,
-        17
+        17,
+        18
       ]
     },
     {
@@ -1375,7 +1375,7 @@
       "hit_ranks": [
         1,
         2,
-        5
+        6
       ]
     },
     {
@@ -1388,10 +1388,10 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
+        2,
         3,
-        7,
-        8,
-        9
+        4,
+        6
       ]
     },
     {
@@ -1405,7 +1405,7 @@
       "hit_ranks": [
         1,
         2,
-        6
+        9
       ]
     },
     {
@@ -1418,8 +1418,8 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        3,
-        4
+        2,
+        3
       ]
     },
     {
@@ -1444,7 +1444,7 @@
       "reciprocal_rank": 1.0,
       "hit_ranks": [
         1,
-        13
+        10
       ]
     },
     {
@@ -1478,9 +1478,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -1524,11 +1524,11 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.3333333333333333,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
+        2,
         3,
-        4,
-        10
+        12
       ]
     },
     {
@@ -1553,8 +1553,8 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        4,
-        11
+        3,
+        9
       ]
     },
     {
@@ -1589,10 +1589,10 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
-        6
+        2,
+        7
       ]
     },
     {
@@ -1636,9 +1636,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        4
+        1
       ]
     },
     {
@@ -1692,9 +1692,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.3333333333333333,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        3
+        1
       ]
     },
     {
@@ -1714,9 +1714,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        4
+        1
       ]
     },
     {
@@ -1738,10 +1738,10 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
-        4
+        2,
+        6
       ]
     },
     {
@@ -1858,9 +1858,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        2
+        3
       ]
     },
     {
@@ -1870,9 +1870,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 0.0,
-      "reciprocal_rank": 0.07692307692307693,
+      "reciprocal_rank": 0.125,
       "hit_ranks": [
-        13
+        8
       ]
     },
     {
@@ -1904,9 +1904,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 0.3333333333333333,
       "hit_ranks": [
-        2
+        3
       ]
     },
     {
@@ -1988,7 +1988,7 @@
       "reciprocal_rank": 0.5,
       "hit_ranks": [
         2,
-        13
+        9
       ]
     },
     {
@@ -1998,9 +1998,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.16666666666666666,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        6
+        1
       ]
     },
     {
@@ -2010,10 +2010,10 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2,
-        3
+        1,
+        2
       ]
     },
     {
@@ -2023,9 +2023,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -2035,9 +2035,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.25,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        4
+        1
       ]
     },
     {
@@ -2047,9 +2047,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 1.0,
       "hit_ranks": [
-        2
+        1
       ]
     },
     {
@@ -2064,7 +2064,7 @@
         1,
         2,
         3,
-        11
+        5
       ]
     },
     {
@@ -2074,10 +2074,10 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.3333333333333333,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        3,
-        6
+        2,
+        4
       ]
     },
     {
@@ -2087,9 +2087,9 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 0.5,
+      "reciprocal_rank": 0.25,
       "hit_ranks": [
-        2
+        4
       ]
     },
     {
@@ -2099,11 +2099,11 @@
       "hidden": false,
       "recall_at_pool": 1.0,
       "recall_at_final": 1.0,
-      "reciprocal_rank": 1.0,
+      "reciprocal_rank": 0.5,
       "hit_ranks": [
-        1,
-        10,
-        14
+        2,
+        3,
+        8
       ]
     },
     {
