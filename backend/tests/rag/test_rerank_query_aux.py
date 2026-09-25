@@ -136,3 +136,25 @@ def test_luot_truoc_VAN_di_vao_chan_truy_xuat(bat_rerank):
     assert segment_vi(LUOT_TRUOC) in tham_so, (
         "lượt trước KHÔNG tới chân truy xuất — câu rút gọn sẽ hỏng")
     assert segment_vi(CAU_NAY) in tham_so, "câu hiện tại không tới chân truy xuất"
+
+
+@pytest.mark.parametrize("gia_tri, mong", [
+    ("override", "override"), ("OVERRIDE", "override"), (" override ", "override"),
+    ("blend", "blend"), ("linh tinh", "blend"), (None, "blend"),
+])
+def test_nhan_rerank_mode_cua_eval_KHOP_hanh_vi_that(monkeypatch, gia_tri, mong):
+    """Nhãn `rerank_mode` mà `eval_retrieval` ghi vào kết quả phải là chế độ
+    THẬT SỰ chạy — tức lấy từ `rerank_override()`, không tự đọc lại env.
+
+    Bản trước ghi nguyên văn `os.environ.get("RAG_RERANK_MODE", "blend")`:
+    với "OVERRIDE" hệ thống chạy override (vì `rerank_override()` chuẩn hoá hoa
+    thường) nhưng nhãn ghi "OVERRIDE"; với "linh tinh" hệ chạy blend mà nhãn
+    ghi "linh tinh". Cổng so nhãn này với baseline, nên nhãn nói dối là cổng
+    ném lỗi giả — hoặc tệ hơn, cho qua một phép so lệch cấu hình."""
+    from evals import run_eval
+    if gia_tri is None:
+        monkeypatch.delenv("RAG_RERANK_MODE", raising=False)
+    else:
+        monkeypatch.setenv("RAG_RERANK_MODE", gia_tri)
+    assert run_eval.rerank_mode_label() == mong
+    assert (mong == "override") is rt.rerank_override()
