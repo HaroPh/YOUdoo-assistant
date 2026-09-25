@@ -151,6 +151,28 @@ k = cfg("rag.top_k", 10)
 # Nen top_k_reranker=3 bien hybrid thanh dense-top-3. Do ca hai de tach CAU HINH
 # khoi PIPELINE.
 kr_override = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None
+# Tuy chon THEM (2026-09-25): ghi de k, va gan reranker NGOAI (backend Youdoo
+# /v1/rerank) — dung CHINH ExternalReranker + get_reranking_function cua ho.
+opt = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
+if opt.get("k"):
+    k = opt["k"]
+dem = {"ok": 0, "none": 0}
+rf = None
+if opt.get("rerank"):
+    from open_webui.retrieval.models.external import ExternalReranker
+    from open_webui.retrieval.utils import get_reranking_function
+    rr = ExternalReranker(api_key=opt["rerank"]["key"], url=opt["rerank"]["url"],
+                          model="bge-reranker-v2-m3")
+    _goc = rr.predict
+    def _dem(sentences, user=None):
+        # ExternalReranker tra None khi loi BAT KY; RerankCompressor khi do tra
+        # NGUYEN danh sach goc trong im lang — tuc do "khong rerank" ma tuong la
+        # co. Dem de ben ngoai tu choi so lieu neu co luot nao hong.
+        r = _goc(sentences, user=user)
+        dem["ok" if r is not None else "none"] += 1
+        return r
+    rr.predict = _dem
+    rf = get_reranking_function("external", "bge-reranker-v2-m3", rr)
 kr = kr_override or cfg("rag.top_k_reranker", k)
 
 async def one(cn, q):
@@ -158,7 +180,7 @@ async def one(cn, q):
         res = await query_doc_with_hybrid_search(
             collection_name=cn, collection_result=None, query=q,
             embedding_function=lambda query, prefix=None: ef(query, prefix=prefix, user=None),
-            k=k, reranking_function=None, k_reranker=kr,
+            k=k, reranking_function=rf, k_reranker=kr,
             r=cfg("rag.relevance_threshold", 0), hybrid_bm25_weight=cfg("rag.hybrid_bm25_weight", 0.5),
             enable_enriched_texts=cfg("rag.enable_hybrid_search_enriched_texts", False))
     else:
@@ -176,11 +198,11 @@ for fn, q in json.loads(sys.argv[2]):
     except Exception as e:
         out.append({"tep": fn, "q": q, "loi": f"{type(e).__name__}: {e}"})
 print("===JSON===")
-print(json.dumps(out, ensure_ascii=False))
+print(json.dumps({"rows": out, "dem": dem, "k": k, "kr": kr}, ensure_ascii=False))
 '''
 
 
-def their_side(k_reranker: int | None = None) -> dict:
+def their_side(k_reranker: int | None = None, opt: dict | None = None) -> dict:
     teps = sorted({c[0] for c in CASES})
     pairs = [[c[0], c[1]] for c in CASES]
     p = subprocess.run(
@@ -190,17 +212,23 @@ def their_side(k_reranker: int | None = None) -> dict:
         ["docker", "exec", "-i", "-e", "WEBUI_SECRET_KEY=probe-chi-doc",
          "youdoo-open-webui", "python", "-c", _THEIR_SCRIPT,
          json.dumps(teps), json.dumps(pairs, ensure_ascii=False),
-         json.dumps(k_reranker)],
+         json.dumps(k_reranker), json.dumps(opt or {})],
         capture_output=True, text=True, encoding="utf-8")
     if "===JSON===" not in (p.stdout or ""):
         sys.exit(f"chân HỌ thất bại:\n{(p.stdout or '')[-800:]}\n{(p.stderr or '')[-1500:]}")
-    data = json.loads(p.stdout.split("===JSON===", 1)[1].strip())
+    goi = json.loads(p.stdout.split("===JSON===", 1)[1].strip())
+    data, dem = goi["rows"], goi["dem"]
+    if (opt or {}).get("rerank") and (dem["none"] > 0 or dem["ok"] == 0):
+        sys.exit(f"reranker ngoài KHÔNG trả điểm ({dem}) — Open WebUI đã âm thầm dùng "
+                 f"danh sách gốc, số đo sẽ là 'không rerank' giả làm 'có rerank'. "
+                 f"Backend có đang chạy mã có /v1/rerank không?")
     out = {}
     for row, (tep, q, dap_an, _) in zip(data, CASES):
         if "loi" in row:
             out[(tep, q)] = {"rank": None, "n": 0, "loi": row["loi"]}
         else:
             out[(tep, q)] = {"rank": hit(row["docs"], dap_an), "n": len(row["docs"])}
+    out["_cau_hinh"] = {"k": goi["k"], "kr": goi["kr"], "dem": dem}
     return out
 
 
@@ -249,5 +277,55 @@ def main() -> None:
         f.write(txt + "\n")
 
 
+KET_QUA_RERANK = os.path.join(os.path.dirname(__file__), "compare_attachment_rerank_result.txt")
+
+
+def rerank_sweep() -> None:
+    """CHỈ chân HỌ — có nên nối reranker của project (/v1/rerank) vào Open WebUI?
+
+    Thêm 2026-09-25. Không chạy chân TA (nó gọi VLM ~13 lượt, tốn hạn mức) vì
+    câu hỏi ở đây chỉ nằm trong Open WebUI: cùng pipeline của họ, khác đúng
+    một thứ là hàm rerank. Mức nền 10/11 của hàng #26 là dòng "cosine, kr=10".
+
+    Thước vẫn là "đáp án có trong ngữ cảnh giao cho model". Ít chunk hơn thì
+    khó chứa đáp án hơn — nên cái reranker phải chứng minh là giữ được đáp án
+    với ÍT chunk hơn, không phải thắng khi cùng số chunk.
+    """
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+    rr = {"url": "http://host.docker.internal:8002/v1/rerank",
+          "key": os.environ["YOUDOO_API_TOKEN"]}
+    cau_hinh = [
+        ("NHƯ ĐANG CẤU HÌNH (đọc webui.db)", None, None),
+        ("cosine (không reranker), k=10 kr=10", 10, {"k": 10}),
+        ("reranker project,        k=10 kr=10", 10, {"k": 10, "rerank": rr}),
+        ("reranker project,        k=10 kr=5 ", 5, {"k": 10, "rerank": rr}),
+        ("reranker project,        k=10 kr=3 ", 3, {"k": 10, "rerank": rr}),
+    ]
+    L, chi_tiet = [], {}
+    for ten, kr, opt in cau_hinh:
+        print(f"chân HỌ: {ten.strip()}…", flush=True)
+        kq = their_side(k_reranker=kr, opt=opt)
+        ch = kq.pop("_cau_hinh")
+        trung = sum(v["rank"] is not None for v in kq.values())
+        n = max(v["n"] for v in kq.values())
+        goi = f"reranker trả điểm {ch['dem']['ok']} lượt" if opt and opt.get("rerank") else "không reranker"
+        L.append(f"{ten}  → {trung}/{len(CASES)}   (k={ch['k']}, kr={ch['kr']}, "
+                 f"giao tối đa {n} chunk; {goi})")
+        chi_tiet[ten] = kq
+    L.append("")
+    L.append("Từng câu (hạng chunk đầu tiên chứa đáp án; — = không có trong ngữ cảnh):")
+    for tep, q, _dap, _nguon in CASES:
+        hang = "  ".join(f"{(chi_tiet[t][(tep, q)]['rank'] or '—'):>2}" for t, _k, _o in cau_hinh)
+        L.append(f"  [{hang}]  {tep[:8]}  {q[:52]}")
+    txt = chr(10).join(L)
+    print(txt)
+    with open(KET_QUA_RERANK, "w", encoding="utf-8") as f:
+        f.write(txt + chr(10))
+
+
 if __name__ == "__main__":
-    main()
+    if "--rerank-sweep" in sys.argv:
+        rerank_sweep()
+    else:
+        main()
