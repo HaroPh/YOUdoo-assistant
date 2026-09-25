@@ -35,6 +35,11 @@ BO_QUA_THU_MUC = {
     "docs", "logs", "migrations",
     "tests",      # test được phép nhắc {e} trong chuỗi kỳ vọng
     "spikes",     # mã thử nghiệm, không phục vụ người dùng
+    # Dữ liệu BÊN THỨ BA tải về (bench ngoài: VLegal-Bench, TVPL, Zalo) — đã
+    # gitignore, không phải mã của dự án, và ta không sửa được nó. Bộ tải về
+    # 2026-09-23 mang theo `logging.error(f"...{e}")` của tác giả gốc và làm
+    # lưới này ĐỎ dù không dòng code Youdoo nào đổi.
+    "external-data",
 }
 
 # Miễn trừ theo từng file — nhưng khoá bằng SỐ LƯỢNG, không phải bằng tên,

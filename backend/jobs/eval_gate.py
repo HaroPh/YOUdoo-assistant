@@ -25,7 +25,24 @@ from src.llm.catalog import chain_for, nhip_toi_thieu, spec_for
 # có mặt: chúng là cổng tuyệt đối (violations==0 / hijack==0), không phải phép
 # đo tương đối — thêm baseline cho chúng là đổi ngữ nghĩa cổng.
 BASELINE_SETS = frozenset({"intent", "confirm", "planner", "read",
-                           "synthesis", "multi_source", "sop_select"})
+                           "synthesis", "multi_source", "sop_select",
+                           # `retrieval` CO baseline (bge-m3), khong phai cong
+                           # tuyet doi — khac `multiturn` ngay duoi.
+                           "retrieval"})
+
+# Bộ KHÔNG gọi LLM lần nào — đo thuần truy xuất (Postgres + model nhúng). Cần
+# đường đi riêng ở BA chỗ, nếu không job sẽ nổ hoặc nói dối:
+#   - hàm đo không nhận `llm` làm tham số đầu (của `eval_multiturn` là `pace`),
+#     nên gọi theo khuôn chung sẽ TypeError;
+#   - nhịp suy từ rpm của catalog vô nghĩa khi không có call nào để giãn;
+#   - "model" trong báo cáo phải là model NHÚNG, không phải model chat của một
+#     role nào đó — ghi tên model chat vào đây là để lại một con số nói sai
+#     điều gì vừa được đo.
+NO_LLM_SETS = frozenset({"multiturn", "retrieval"})
+
+# Nhãn model cho NO_LLM_SETS. Không lấy từ `config.EMBED_MODEL` vì đây là nhãn
+# BÁO CÁO, phải khớp quy ước tên baseline (`baseline-bge-m3-*.json`).
+EMBED_MODEL_LABEL = "bge-m3"
 
 # Model NEO của baseline — cố định, KHÔNG đổi theo model đang được ĐO (model
 # catalog hiện hành hoặc --model candidate). "So ứng viên với chuẩn đã ghim"
@@ -68,7 +85,10 @@ EVAL_FN = {"intent": run_eval.eval_intent, "confirm": run_eval.eval_confirm,
            "multi_source_gather": run_eval.eval_multi_source_gather,
            "localize": run_eval.eval_localize,
            "language": run_eval.eval_language,
-           "memory": run_eval.eval_memory}
+           "memory": run_eval.eval_memory,
+           # KHÔNG nhận `llm` — xem NO_LLM_SETS.
+           "multiturn": run_eval.eval_multiturn,
+           "retrieval": run_eval.eval_retrieval}
 
 
 def _gate(set_name: str, result: dict, base: dict | None) -> bool:
@@ -95,6 +115,40 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # trên một tập ca mà 2 ca còn lại là giới hạn phán đoán độ sâu đã đo
         # và ghi lại (xem cases.py).
         return result["hijack"] == 0 and result["acc"] >= base["acc"]
+    if set_name == "multiturn":
+        # Cổng TUYỆT ĐỐI, TỰ SO TRONG CÙNG MỘT LƯỢT — không đọc baseline.
+        #
+        # Vì sao không baseline, dù thiết kế ban đầu định dùng: (1) neo baseline
+        # của job này là model CHAT (`BASELINE_MODEL = "qwen3-8b"`), còn bộ này
+        # không gọi LLM lần nào — baseline của nó tên `baseline-bge-m3-multiturn`,
+        # tức hai quy ước tên khác nhau va nhau; (2) đúng tệp baseline ấy VỪA
+        # chứng minh nó trôi im lặng — chốt 2026-08-20, corpus nạp lại
+        # 2026-09-19 (3.151 → 3.902 chunk), và không ai biết cho tới khi đo tay
+        # ngày 2026-09-24. Cổng tự so trong cùng lượt miễn nhiễm với cả hai.
+        #
+        # HAI CHIỀU, vì bộ này sinh ra để đo cả lợi lẫn hại (multiturn_cases.py):
+        #
+        # 1. HẠI — truyền lượt trước KHÔNG ĐƯỢC làm câu tự-đứng-được tệ đi.
+        #    Đây là cơ chế đã giết việc hồi sinh chân sparse, và nó vừa bắt
+        #    được một lỗi thật: truy vấn ghép cho cross-encoder làm
+        #    `independent` tụt 1,00 → 0,75 (sửa 2026-09-24). Cổng này ĐỎ với
+        #    mã trước hôm đó — đó là bằng chứng nó gác được thật.
+        #
+        # 2. LỢI — ngữ cảnh PHẢI giúp câu rút gọn. Dùng `>` chứ không `>=`:
+        #    nếu ai đó gỡ `aux_queries` khỏi chân truy xuất thì with_ctx sẽ
+        #    BẰNG no_ctx, và `>=` sẽ cho qua đúng lúc tính năng vừa chết.
+        #    Lối thoát `== 1.0` là bắt buộc, không phải nới tay: khi corpus tốt
+        #    lên tới mức câu rút gọn tự đạt 1,0 thì không gì vượt được 1,0 nữa
+        #    và cổng sẽ đỏ vĩnh viễn — đúng cái bẫy đã làm `sop_select` bị gỡ
+        #    khỏi `--set all` suốt 6 tuần (xem ngay dưới).
+        #
+        # KHÔNG gác recall tuyệt đối ở đây: số tuyệt đối phụ thuộc corpus, mà
+        # corpus đổi là việc thường. Đó là việc của bộ `retrieval`.
+        ell = result["by_kind"]["elliptical"]
+        ind = result["by_kind"]["independent"]
+        return (ind["recall_at_6_with_ctx"] >= ind["recall_at_6_no_ctx"]
+                and (ell["recall_at_6_with_ctx"] > ell["recall_at_6_no_ctx"]
+                     or ell["recall_at_6_with_ctx"] == 1.0))
     if set_name == "planner":
         return (result["dangerous_misroute"] == 0
                 and result["tool_acc"] >= base["tool_acc"])
@@ -156,7 +210,14 @@ def _gate(set_name: str, result: dict, base: dict | None) -> bool:
         # Có 3 file baseline khác `dang_go` và cờ --no-rerank: so kết quả với
         # baseline khác cấu hình là so táo với cam. DÙNG SAI, không phải hồi
         # quy → ném, không trả FAIL.
-        for khoa in ("dang_go", "rerank"):
+        # `n` THÊM 2026-09-24, cùng lý do "táo với cam" như hai khoá kia và nó
+        # đã cắn thật: hard-set mở rộng 17→62 ca ngày 2026-09-19 nhưng chỉ
+        # baseline dạng CÓ DẤU được chốt lại, nên `nua_dau`/`khong_dau` so 109
+        # ca với mốc 64 ca — lệch tới 0,09, trông y hệt hồi quy chất lượng.
+        # Đo lại trên CÙNG 64 ca thì nửa dấu khớp tuyệt đối. Phòng tuyến thứ
+        # hai là test hợp đồng `test_moi_baseline_do_tren_DUNG_bo_ca_hien_tai`,
+        # bắt được ngay cả khi không ai chạy cổng.
+        for khoa in ("dang_go", "rerank", "n"):
             if result[khoa] != base[khoa]:
                 raise ValueError(f"baseline khác cấu hình {khoa}: "
                                  f"đo={result[khoa]!r} baseline={base[khoa]!r}")
@@ -209,29 +270,44 @@ def run(args) -> JobResult:
         sets = [args.set]
     detail, any_fail = {}, False
     for set_name in sets:
-        role = ROLE_FOR_SET[set_name]
-        model = args.model if args.model is not None else chain_for(role)[0].alias
-        # Nhịp suy từ MODEL ĐANG THẬT SỰ CHẠY, không phải từ mắt xích đầu của
-        # chuỗi. Bản trước lấy `chain_for(role)[0]` KỂ CẢ khi có `--model X`,
-        # nên đo một model ứng viên lại chạy theo trần của một model khác —
-        # đúng cách sinh ra một lượt đo hỏng mà không ai nghi ngờ.
-        #
-        # Công thức nằm ở catalog.nhip_toi_thieu (xét CẢ rpm LẪN tpm) — xem
-        # docstring của nó để biết vì sao chỉ xét rpm là sai với Groq.
-        try:
-            spec = spec_for(model)
-        except KeyError:
-            # `--model` có thể là tên ứng viên chưa vào catalog (vd
-            # "candidate-x" trong test). Không đoán trần của nó; rơi về mắt
-            # xích đầu như cũ, và người chạy vẫn đặt `--pace` tay được.
-            spec = chain_for(role)[0]
-        pace = args.pace if args.pace is not None else nhip_toi_thieu(spec)
+        khong_llm = set_name in NO_LLM_SETS
+        if khong_llm:
+            # Không dựng client, không suy nhịp, không chọn role chat — xem
+            # NO_LLM_SETS. pace=0 vì 12 ca chỉ chạm Postgres + Ollama nội bộ.
+            role, model, pace = None, EMBED_MODEL_LABEL, 0.0
+            spec = None
+        else:
+            role = ROLE_FOR_SET[set_name]
+            model = args.model if args.model is not None else chain_for(role)[0].alias
+            # Nhịp suy từ MODEL ĐANG THẬT SỰ CHẠY, không phải từ mắt xích đầu
+            # của chuỗi. Bản trước lấy `chain_for(role)[0]` KỂ CẢ khi có
+            # `--model X`, nên đo một model ứng viên lại chạy theo trần của một
+            # model khác — đúng cách sinh ra một lượt đo hỏng mà không ai nghi
+            # ngờ.
+            #
+            # Công thức nằm ở catalog.nhip_toi_thieu (xét CẢ rpm LẪN tpm) —
+            # xem docstring của nó để biết vì sao chỉ xét rpm là sai với Groq.
+            try:
+                spec = spec_for(model)
+            except KeyError:
+                # `--model` có thể là tên ứng viên chưa vào catalog (vd
+                # "candidate-x" trong test). Không đoán trần của nó; rơi về mắt
+                # xích đầu như cũ, và người chạy vẫn đặt `--pace` tay được.
+                spec = chain_for(role)[0]
+            pace = args.pace if args.pace is not None else nhip_toi_thieu(spec)
         try:
             # Đọc baseline TRƯỚC khi chạy eval thật (tốn call LLM, có pacing suy
             # từ rpm catalog) — baseline thiếu/hỏng thì fail nhanh, không đốt
             # call vô ích. chitchat KHÔNG có baseline (base ở lại None).
             base = None
-            bpath = _baseline_for(set_name, args.baseline_model, args.role)
+            # Bộ KHÔNG gọi LLM neo baseline vào model NHÚNG, không vào
+            # `--baseline-model` (mặc định `qwen3-8b`, một model CHAT). Dùng
+            # neo chung sẽ đi tìm `baseline-qwen3-8b-retrieval.json` không tồn
+            # tại → INFRA_ERROR mỗi đêm, trong khi tệp thật tên `bge-m3`.
+            bpath = _baseline_for(
+                set_name,
+                EMBED_MODEL_LABEL if khong_llm else args.baseline_model,
+                args.role)
             if bpath is not None:
                 with open(bpath, encoding="utf-8") as f:
                     base = json.load(f)
@@ -240,8 +316,19 @@ def run(args) -> JobResult:
                 kwargs = {"pace": pace, "checkpoint_path": checkpoint}
                 if set_name in role_config.ROLE_SENSITIVE_SETS:
                     kwargs["role"] = args.role
-                result = asyncio.run(EVAL_FN[set_name](
-                    run_eval._llm(model, role=role), **kwargs))
+                if set_name in role_config.VISIBILITY_SENSITIVE_SETS:
+                    # `--role` ở nhóm này đổi VISIBILITY chứ không đổi prompt
+                    # (role_config §5). Phải truyền CẢ HAI: `visibility` là thứ
+                    # thật sự lọc, `role` chỉ là nhãn bộ đo tự khai vào JSON.
+                    # Truyền mỗi `role` sẽ cho ra một báo cáo ghi "warehouse"
+                    # trong khi vẫn đo không lọc — đúng lớp lỗi "nhãn nói dối
+                    # với người đọc" mà `method_label` đã trả giá một lần.
+                    kwargs["visibility"] = role_config.visibility_for(args.role)
+                    kwargs["role"] = args.role
+                result = asyncio.run(
+                    EVAL_FN[set_name](**kwargs) if khong_llm
+                    else EVAL_FN[set_name](run_eval._llm(model, role=role),
+                                           **kwargs))
             finally:
                 # Mỗi set chạy trong MỘT asyncio.run() riêng → một event loop
                 # MỚI mỗi lần qua vòng lặp này. run_eval._router (và bên trong
@@ -275,6 +362,12 @@ def run(args) -> JobResult:
             acc_key = ("tool_acc" if set_name in ("planner", "read")
                        else "grounded_acc" if set_name == "synthesis"
                        else "both_source_coverage" if set_name == "multi_source"
+                       # GIỮ TRÙNG với run_eval.main (`--baseline` in dòng
+                       # GATE): hai chỗ cùng phải biết "chỉ số đầu" của bộ
+                       # này, và chọn khác nhau thì báo cáo job nói một đằng,
+                       # CLI nói một nẻo. `retrieval` KHÔNG có khoá `acc` —
+                       # thiếu dòng này là KeyError ngay đêm đầu.
+                       else "recall_at_6" if set_name == "retrieval"
                        else "acc")
             entry.update(**{acc_key: result[acc_key]},
                          baseline_acc=base[acc_key],
@@ -295,6 +388,19 @@ def run(args) -> JobResult:
             extra = ("" if result.get("hijack") is None
                      else f" hijack={result['hijack']}"
                           f" depth_acc={result.get('depth_acc')}")
+            if set_name == "retrieval":
+                # r@20 là vế THỨ HAI của cổng và là vế KHÔNG dung sai (trần
+                # pool). Không in ra thì một lượt FAIL vì r@20 trông y hệt một
+                # lượt FAIL vì r@6, và người đọc báo cáo không có cách nào
+                # phân biệt. `dang_go`/`n` đi kèm vì chúng là điều kiện hợp lệ
+                # của phép so — `n` lệch chính là thứ đã trôi im lặng 5 tuần.
+                entry.update(recall_at_20=result.get("recall_at_20"),
+                             mrr=result.get("mrr"),
+                             dang_go=result.get("dang_go"), n=result.get("n"),
+                             role=result.get("role"))
+                extra = (f" r@20={result['recall_at_20']:.4f}"
+                         f" (baseline {base['recall_at_20']:.4f})"
+                         f" dang_go={result.get('dang_go')} n={result.get('n')}")
             print(f"[{set_name}] model={model} pace={pace}s "
                   f"{acc_key}={result[acc_key]:.3f} "
                   f"baseline={base[acc_key]:.3f}{extra} "
@@ -367,6 +473,25 @@ def run(args) -> JobResult:
                       f"leaked_doc_code={result.get('leaked_doc_code')} "
                       f"truncated_answer={result.get('truncated_answer')} "
                       f"recall={result.get('recall')} → {'PASS' if ok else 'FAIL'}")
+            elif set_name == "multiturn":
+                # Nhánh riêng vì cùng lý do đã ghi ở `language` ngay trên:
+                # nhánh `else` viết CỨNG cho chitchat (`result["violations"]`),
+                # nên bộ nào không có nhánh sẽ KeyError ngay khi vào "all".
+                #
+                # In CẢ HAI nhóm và CẢ HAI chiều: cổng này là phép so
+                # no_ctx → with_ctx, nên một con số lẻ không nói được gì. Ghi
+                # `role` vì bộ nhạy visibility — báo cáo không được im lặng về
+                # việc vừa đo ở vai nào.
+                ell = result["by_kind"]["elliptical"]
+                ind = result["by_kind"]["independent"]
+                entry.update(role=result.get("role"),
+                             elliptical=ell, independent=ind)
+                print(f"[{set_name}] model={model} role={result.get('role')} "
+                      f"elliptical r@6 {ell['recall_at_6_no_ctx']}"
+                      f"→{ell['recall_at_6_with_ctx']}  "
+                      f"independent r@6 {ind['recall_at_6_no_ctx']}"
+                      f"→{ind['recall_at_6_with_ctx']} "
+                      f"→ {'PASS' if ok else 'FAIL'}")
             else:
                 # chitchat
                 entry["violations"] = result["violations"]
@@ -385,7 +510,8 @@ def add_args(p):
     p.add_argument("--set",
                    choices=["both", "all", "intent", "confirm", "chitchat",
                             "planner", "read", "synthesis", "multi_source",
-                            "multi_source_gather", "sop_select", "gather"],
+                            "multi_source_gather", "sop_select", "gather",
+                            "multiturn", "retrieval"],
                    default="both")
     p.add_argument("--pace", type=float, default=None,
                    help="giây/call (mặc định auto: (60/rpm)*1.2 suy từ catalog)")
