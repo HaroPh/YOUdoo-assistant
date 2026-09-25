@@ -118,3 +118,15 @@ so không phân biệt hoa thường — test cứng, không phải cảnh báo 
 **Chưa làm:** 3 khoảng trống vai↔Odoo còn lại (§2) nên khai vào
 `KNOWN_ODOO_GAPS` kèm lý do đo được, thay vì để script thoát mã 1 mãi. Mục 17b
 chủ dự án đang cân nhắc.
+
+**✅ Đã làm 2026-09-25, và con số "3" ở trên SAI.** Chạy script thật thì ra **15**
+GAP chưa khai, không phải 3. Ở đây chỉ đếm 3 cặp mang ý nghĩa nghiệp vụ; bảng §2
+nói "3 tool mail thô … script báo nhầm" nhưng không đưa các tool đó vào con số.
+Tính theo cặp (vai, tool) thì mỗi tool có mặt ở cả hai vai, lại thêm
+`send_rfq_email` (coordinator thứ năm) và `create_vendor` (đã chặn ở tầng bản ghi
+nhưng chưa khai). Cả 15 đã khai, chia 4 nhóm, lý do có số đo, xem comment trong
+`KNOWN_ODOO_GAPS`. Đo lại tầng bản ghi mail cùng ngày: vai kho đọc 1 template, kế
+toán 5, không vai nào đọc template `purchase.order`; admin đọc 3 (đối chứng).
+Script: exit 1 → exit 0, 28/28 gap đã biết. Một giới hạn ghi nhận thật: **`mail.mail`
+không có ir.rule**, nên chặn chéo vai trong luồng mail chỉ nằm ở bước tạo bản
+nháp (template), không nằm ở bước gửi/huỷ.

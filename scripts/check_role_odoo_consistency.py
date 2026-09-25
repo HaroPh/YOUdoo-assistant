@@ -222,6 +222,40 @@ KNOWN_ODOO_GAPS = {
     ("warehouse", "send_order_confirmation_email"): "cùng lý do như (warehouse, send_quotation_email).",
     ("accounting", "send_quotation_email"): "cùng lý do — ir.rule youdoo_ai_mail_tpl_accounting giới hạn về account.move (5 template).",
     ("accounting", "send_order_confirmation_email"): "cùng lý do như (accounting, send_quotation_email).",
+    # ── 15 cặp khai 2026-09-25 (mục 23 của trang-thai-chung) ──
+    # Trước đó script thoát mã 1 từ 2026-08-23 với 15 GAP chưa khai. Tài liệu
+    # ghi "3 khoảng trống", nhưng chạy thật thì ra 15. Chia làm bốn nhóm; lý do
+    # nào cũng có số đo, không có lý do nào chép lại từ chỗ khác.
+    #
+    # (a) Chặn ở tầng BẢN GHI, script chỉ kiểm tầng MODEL. Đo lại 2026-09-25
+    # bằng search_read mail.template: ai-warehouse đọc được 1 template (đều là
+    # stock.picking), ai-accounting đọc được 5 (đều là account.move), đọc được
+    # 0 template purchase.order; ai-admin đọc được 3, dùng làm cột đối chứng.
+    ("warehouse", "send_rfq_email"): "ir.rule youdoo_ai_mail_tpl_warehouse chặn chéo model — đo 2026-09-25: vai kho đọc 0 template purchase.order (admin đọc 3).",
+    ("accounting", "send_rfq_email"): "ir.rule youdoo_ai_mail_tpl_accounting chặn chéo model — đo 2026-09-25: vai kế toán đọc 0 template purchase.order (admin đọc 3).",
+    ("warehouse", "preview_template_email"): "tool thô dưới coordinator mail; bản nháp chỉ tạo được từ template đọc được, mà ir.rule mail.template giới hạn vai kho về stock.picking (1 template, đo 2026-09-25).",
+    ("accounting", "preview_template_email"): "cùng lý do — ir.rule giới hạn vai kế toán về account.move (5 template, đo 2026-09-25).",
+    ("warehouse", "create_vendor"): "ir.rule youdoo_ai_partner_khong_tao_ncc (supplier_rank=0, perm_read=False) chặn tạo NCC; create res.partner cấp model phải giữ để tạo khách. Nghiệm thu 3 chiều 2026-08-23: tạo khách ✅, tạo NCC CHẶN, đọc NCC ✅.",
+    ("accounting", "create_vendor"): "cùng luật và cùng nghiệm thu như (warehouse, create_vendor).",
+    # (b) KHÔNG có backstop Odoo, và cố ý không thêm. mail.mail không có ir.rule
+    # nào: coordinator mail trong vai (send_delivery_email của kho,
+    # send_invoice_email của kế toán) cần đủ read/write/unlink trên mail.mail.
+    # Cửa chặn chéo vai nằm ở bước TẠO bản nháp (nhóm (a)), không nằm ở bước
+    # gửi/huỷ.
+    ("warehouse", "send_prepared_email"): "nhóm Youdoo AI / Mail cấp mail.mail rwcu, coordinator send_delivery_email của chính vai kho cần nó; mail.mail không có ir.rule — chặn chéo vai nằm ở bước tạo bản nháp (template), không ở bước gửi.",
+    ("accounting", "send_prepared_email"): "cùng lý do — send_invoice_email của vai kế toán cần mail.mail write.",
+    ("warehouse", "discard_prepared_email"): "cùng lý do như (warehouse, send_prepared_email) — mail.mail unlink cần cho luồng huỷ bản nháp của coordinator trong vai.",
+    ("accounting", "discard_prepared_email"): "cùng lý do như (accounting, send_prepared_email).",
+    # (c) Chỉ đọc, và chặn thì làm gãy tool mà vai đang sở hữu: close_activity
+    # (own ở cả hai vai) search_read mail.activity trước khi ghi, và bộ lọc
+    # theo chủ sở hữu đó là lớp cưỡng chế duy nhất (xem TOOL_ACCESS_MAP).
+    ("warehouse", "find_my_activities"): "chỉ-đọc; mail.activity read là quyền close_activity (own) bắt buộc phải có — gỡ đi là gãy tool trong vai. Spec 2026-08-23 §2: 'không đáng'.",
+    ("accounting", "find_my_activities"): "cùng lý do như (warehouse, find_my_activities).",
+    # (d) ACL mặc định của Odoo; gỡ đi có thể làm vỡ luồng nghiệp vụ gốc (spec
+    # 2026-08-23 §2, khuôn an toàn: không sửa ACL mặc định).
+    ("warehouse", "update_quotation_lines"): "'Inventory / User' có w1 trên sale.order.line (ACL mặc định Odoo) — đo 2026-08-23: vai kho SỬA được số lượng dòng S00193 nhưng KHÔNG thêm/xoá dòng (c0 u0).",
+    ("accounting", "update_quotation_lines"): "ai-accounting có write trên sale.order — cùng gốc với (accounting, confirm_sale_order).",
+    ("accounting", "update_rfq_lines"): "'Accounting / Invoicing' có w1 trên purchase.order.line (ACL mặc định Odoo); cùng gốc với (accounting, confirm_purchase_order).",
 }
 
 ROLE_LOGINS = {"warehouse": "ai-warehouse", "accounting": "ai-accounting"}
