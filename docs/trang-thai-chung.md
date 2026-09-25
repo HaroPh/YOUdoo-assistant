@@ -25,7 +25,7 @@ Quy ước:
 
 | # | mục | vùng | ghi chú |
 |---|---|---|---|
-| 37b | Có bật `RAG_RERANK_MODE=override` cho production không | RAG | Hai nguồn số **CÙNG CHIỀU**: cả hai đều cho `override` hơn `blend` về MRR. Chúng chỉ khác ở độ chắc chắn và ở 2 câu cụ thể. Bench ngoài (1.788 câu): MRR +0,038/+0,046, p<0,0001 trên cả hai bộ (số trước khi sửa khoá phá hoà; bản đo lại trên pool tất định ở `bench-ngoai-2026-09-24-tiebreak/`). Bộ nội bộ 109 ca (#31d): Δ+0,0507, cũng tốt hơn, nhưng p chính xác 0,01073 nhỉnh hơn ngưỡng 0,01, và mất 2 câu hợp đồng lao động mà blend giữ. Câu cần quyết: 2 câu bị rơi đó có đủ nặng để chặn một cải thiện cùng chiều trên cả ba bộ không |
+| 37b | Có bật `RAG_RERANK_MODE=override` cho production không | RAG | Hai nguồn số **CÙNG CHIỀU**: cả hai đều cho `override` hơn `blend` về MRR. Chúng chỉ khác ở độ chắc chắn và ở 2 câu cụ thể. Bench ngoài (1.788 câu), đo lại trên pool TẤT ĐỊNH (`bench-ngoai-2026-09-24-tiebreak/`, 2026-09-25): MRR **+0,042/+0,048**, p<0,0001 trên cả hai bộ, recall@6 không tụt (TVPL +0,014 p=0,013 exact); nay tái lập được (số 23/09 trước khoá phá hoà là +0,038/+0,046). Bộ nội bộ 109 ca (#31d): Δ+0,0507, cũng tốt hơn, nhưng p chính xác 0,01073 nhỉnh hơn ngưỡng 0,01, và mất 2 câu hợp đồng lao động mà blend giữ. Câu cần quyết: 2 câu bị rơi đó có đủ nặng để chặn một cải thiện cùng chiều trên cả ba bộ không |
 | 29 | Có xoá **18 dòng rác `p=1200 c=300 t=1500`** trong `public.llm_usage` không | vận hành | Suite ghi vào sổ thật trước khi có rào `so_vlm_khong_cham_postgres` (#29 đã đóng ở `2e75d51` + `0c9a122`) |
 
 ## Việc đang treo

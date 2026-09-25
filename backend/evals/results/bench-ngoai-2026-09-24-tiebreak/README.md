@@ -55,18 +55,74 @@ dấu ASC tốt hơn DESC) — không có chiều hệ thống nào.
 lượt chạy cùng mã trên cùng dữ liệu cho cùng số, nên một cổng dựa trên recall
 không còn đỏ/xanh vì lý do giả.
 
-## Ba chân còn lại CHƯA đo lại
+## Pha A đủ năm chân (đo 2026-09-25, trên cùng pool tất định)
 
-`bge-override`, `qwen06-blend`, `qwen06-override` vẫn là số ngày 23/09.
+Ba chân còn lại chạy tuần tự trên đúng pool đã dựng lại ở trên — 46 phút cho sáu
+lượt, `errors = 0` mọi chân, **cổng R12 ĐẠT mọi chân** (recall@6 nửa SAU theo thứ
+tự chạy ≥ chân tắt rerank, bắt suy giảm giữa lượt mà cổng tổng không thấy).
 
-Kết luận **tương đối** của chúng (bge thắng Qwen3-0.6B; override thắng blend về
-MRR) **vẫn nguyên giá trị**: thiết kế của bench là mọi chân chấm trên CÙNG một
-pool, nên chênh lệch giữa các chân không phụ thuộc pool ấy được dựng ra sao.
-Chỉ con số **tuyệt đối** r@20 = 0,9150/0,9277 của bản cũ là một lần rút thăm —
-nay thay bằng 0,9193/0,9365.
+| bộ | chân | r@20 | r@6 | MRR | nDCG@10 | p50 rerank |
+|---|---|---:|---:|---:|---:|---:|
+| tvpl | no-rerank | 0,9193 | 0,8312 | 0,6863 | 0,7219 | — |
+| tvpl | bge-blend (production) | 0,9193 | 0,8805 | 0,7705 | 0,7960 | 189 ms |
+| tvpl | **bge-override** | 0,9193 | **0,8942** | **0,8124** | **0,8291** | 189 ms |
+| tvpl | qwen06-blend | 0,9193 | 0,8787 | 0,7621 | 0,7877 | 652 ms |
+| tvpl | qwen06-override | 0,9193 | 0,8887 | 0,7921 | 0,8107 | 653 ms |
+| zalo | no-rerank | 0,9365 | 0,8680 | 0,6857 | 0,7388 | — |
+| zalo | bge-blend (production) | 0,9365 | 0,9131 | 0,7484 | 0,7922 | 191 ms |
+| zalo | **bge-override** | 0,9365 | **0,9207** | **0,7960** | **0,8286** | 203 ms |
+| zalo | qwen06-blend | 0,9365 | 0,9105 | 0,7338 | 0,7807 | 665 ms |
+| zalo | qwen06-override | 0,9365 | 0,9061 | 0,7344 | 0,7801 | 662 ms |
 
-Muốn bảng Pha A hoàn toàn cùng một lượt thì chạy nốt ba chân
-(`bash evals/bench_ngoai_legs.sh <ds> <thư-mục>` chạy cả năm, ~1 giờ cho hai bộ).
+`p50` lần này đo khi GPU **không** bị chia với lượt nạp song song (bản 23/09 có),
+nên Qwen3-0.6B đo ra 652 ms thay vì 843 ms — tỉ lệ chậm hơn bge nay là **3,4×**.
+
+### Kiểm định ghép cặp — so với bản 23/09
+
+Chênh TB, CI95 bootstrap, p hoán vị; thắng/hoà/thua theo từng câu.
+
+| phép so | bộ | MRR (pool tất định) | MRR (23/09) |
+|---|---|---|---|
+| bge-blend vs no-rerank | tvpl | +0,084 [+0,072;+0,096] p<0,0001 | +0,084 p<0,0001 |
+| | zalo | +0,063 [+0,048;+0,078] p<0,0001 | +0,069 p<0,0001 |
+| **bge-override vs bge-blend** | tvpl | **+0,042 [+0,029;+0,055] p<0,0001**, 174/759/67 | +0,038 p<0,0001 |
+| | zalo | **+0,048 [+0,030;+0,066] p<0,0001**, 160/545/83 | +0,046 p<0,0001 |
+| qwen06-blend vs bge-blend | tvpl | **−0,008 [−0,017;+0,000] p≈0,06** | −0,012 p=0,007 |
+| | zalo | −0,015 [−0,027;−0,003] p≈0,016 | −0,013 p=0,032 |
+| qwen06-override vs bge-override | tvpl | −0,020 [−0,034;−0,007] p=0,003 | −0,022 p=0,001 |
+| | zalo | −0,062 [−0,079;−0,044] p<0,0001 | −0,060 p<0,0001 |
+
+recall@6 của override vs blend: TVPL +0,014 [+0,003;+0,025] p=0,013 (exact),
+Zalo +0,008 p=0,18 (exact) — override **không** làm tụt recall, nhích nhẹ ở TVPL.
+
+Hai p sát ngưỡng (0,06 và 0,016) tính bằng Monte Carlo vì DP vượt trần trạng thái
+(173 và 167 chênh ≠ 0). Đã kiểm lại với n_mc = 100 000 và ba seed khác nhau:
+TVPL 0,0601 / 0,0615 / 0,0623 — luôn trên 0,05; Zalo 0,0166 / 0,0160 / 0,0168 —
+luôn giữa 0,01 và 0,05. Không phải chuyện sai số MC.
+
+### Một khẳng định trước đó SAI — sửa lại
+
+Bản trước của README này (và ghi chú đầu README 23/09, và mô tả PR #1) viết:
+*"kết luận tương đối vẫn nguyên giá trị vì mọi chân chấm trên CÙNG một pool,
+nên chênh lệch giữa các chân không phụ thuộc pool ấy được dựng ra sao"*.
+
+**Số đo bác một phần:** 7/8 phép so MRR giữ nguyên chiều và mức ý nghĩa, nhưng
+`qwen06-blend vs bge-blend` trên TVPL rơi từ p = 0,007 xuống p ≈ 0,06 — cùng
+chiều, không còn đủ bằng chứng.
+
+Lập luận sai ở chỗ nhập **công bằng** với **bất biến**. Cùng một pool bảo đảm hai
+chân được so trên đầu vào giống hệt nhau — phép so CÔNG BẰNG. Nhưng pool chính là
+MẪU các cặp (câu hỏi, tập ứng viên) được đem ra so; đổi pool là đổi mẫu, và không
+có lý do gì để kết quả BẤT BIẾN.
+
+**Không quyết định nào đổi:**
+
+- **override > blend** — chắc hơn trước: +0,042/+0,048 p < 0,0001 trên cả hai bộ,
+  nay trên pool tất định nên tái lập được. Đây là phép so đứng sau quyết định có
+  chuyển production sang `RAG_RERANK_MODE=override` hay không.
+- **Qwen3-Reranker-0.6B không thay được bge-reranker-v2-m3** — vẫn đứng: thua có ý
+  nghĩa ở 3/4 phép so MRR, **không thắng ở phép nào**, chậm hơn 3,4×. Chỉ là dựa
+  trên 3 phép so thay vì 4.
 
 ## Chạy lại
 
