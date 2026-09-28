@@ -176,7 +176,7 @@ def extract_documents(path: str, filename: str) -> list[dict]:
             f"Ho tro: {', '.join(sorted(SUPPORTED_EXT))}")
 
     if kind == "pdf":
-        blocks, warnings = parse_pdf(path)
+        blocks, warnings = parse_pdf(path, source=filename)
         docs = _documents_from_blocks(blocks, filename, warnings,
                                       group_by_page=True)
     elif kind == "pptx":

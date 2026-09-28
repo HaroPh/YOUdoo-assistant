@@ -1,3 +1,4 @@
+import os
 import re
 
 from docx import Document
@@ -573,7 +574,8 @@ VISION_READER_FACTORY = lambda: vision.VisionReader()   # noqa: E731
 _VLM_LABEL_COLUMNS = ("STT", "Chỉ tiêu", "Mã số", "Thuyết minh")
 
 
-def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[str, str] | None, bool]:
+def _khoi_tu_vlm(reader, path: str, pageno: int, kq, *,
+                 source: str | None = None) -> tuple[list[dict], tuple[str, str] | None, bool]:
     """Đọc MỘT trang bằng VLM, kiểm bằng số học, dựng block theo trạng thái hàng.
 
     Trả `(blocks, cảnh_báo, dừng_vlm)`. `blocks` rỗng = trang này không nhận gì
@@ -590,7 +592,7 @@ def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[
         img = _anh_cua_trang(path, pageno, OCR_DPI)
         if kq.rotation:
             img = img.rotate(-kq.rotation, expand=True)
-        t = reader.read_table(vision.page_png(img))
+        t = reader.read_table(vision.page_png(img), source=source, page=pageno)
     except vision.VisionUnavailable:
         return [], None, True                       # trạng thái cấu hình, đã log một lần
     except (vision.VisionQuotaExhausted, vision.VisionCapReached) as e:
@@ -648,7 +650,8 @@ def _khoi_tu_vlm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[
 _TM_BANG_LEVEL = 5
 
 
-def _khoi_tu_vlm_tm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tuple[str, str] | None, bool]:
+def _khoi_tu_vlm_tm(reader, path: str, pageno: int, kq, *,
+                    source: str | None = None) -> tuple[list[dict], tuple[str, str] | None, bool]:
     """Như `_khoi_tu_vlm` nhưng cho TRANG THUYẾT MINH (hợp đồng tm-v1).
 
     Hai khác biệt bản chất so với trang báo cáo chính:
@@ -665,7 +668,8 @@ def _khoi_tu_vlm_tm(reader, path: str, pageno: int, kq) -> tuple[list[dict], tup
         img = _anh_cua_trang(path, pageno, OCR_DPI)
         if kq.rotation:
             img = img.rotate(-kq.rotation, expand=True)
-        t = reader.read_table(vision.page_png(img), che_do="thuyet_minh")
+        t = reader.read_table(vision.page_png(img), che_do="thuyet_minh",
+                              source=source, page=pageno)
     except vision.VisionUnavailable:
         return [], None, True
     except (vision.VisionQuotaExhausted, vision.VisionCapReached) as e:
@@ -845,7 +849,7 @@ def _flat_line_block(row: list[str], pageno: int, conf, furniture,
              "page": pageno, "source_kind": "ocr", "ocr_conf": conf}]
 
 
-def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
+def parse_pdf(path: str, *, source: str | None = None) -> tuple[list[dict], list[tuple[str, str]]]:
     """Heuristic headings (no font info): numbered/keyword headings & short
     ALL-CAPS lines. Trang CÓ bảng đi qua `pdfplumber` (spec 2026-09-04-b4);
     trang KHÔNG có bảng giữ NGUYÊN đường `pypdf` — bất biến byte-identical
@@ -854,6 +858,10 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
     HAI LƯỢT từ 2026-08-19: gom dòng theo trang trước, nhận diện rác
     header/footer trên toàn tài liệu, rồi mới dựng block. Một lượt thì không
     thể biết một dòng có lặp trên phần lớn số trang hay không.
+
+    `source`: tên tài liệu người dùng thấy, CHỈ để ghi nhật ký lượt gọi VLM
+    (`vlm_call_log`). Tệp đính kèm tới đây dưới tên tạm `tmpXXXX.pdf`, nên
+    người gọi biết tên thật phải truyền vào; bỏ trống thì lấy tên tệp của `path`.
     """
     reader = pypdf.PdfReader(path)
     all_warnings: list[tuple[str, str]] = []
@@ -906,7 +914,9 @@ def parse_pdf(path: str) -> tuple[list[dict], list[tuple[str, str]]]:
                         # `trigger.decide` chọn hợp đồng, không đoán ở đây.
                         doc = (_khoi_tu_vlm_tm if qd.che_do == "thuyet_minh"
                                else _khoi_tu_vlm)
-                        vlm_blocks, vlm_canh_bao, dung = doc(vlm_reader, path, pageno, kq_anh)
+                        vlm_blocks, vlm_canh_bao, dung = doc(
+                            vlm_reader, path, pageno, kq_anh,
+                            source=source or os.path.basename(path))
                         if vlm_canh_bao:
                             all_warnings.append(vlm_canh_bao)
                         if dung:

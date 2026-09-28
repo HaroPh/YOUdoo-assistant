@@ -98,7 +98,7 @@ def _chunks_for(read_path: str, kind: str, doc_id: str,
                 sheet_warnings)
     low = read_path.lower()
     if low.endswith(".pdf"):
-        blocks, pdf_warnings = parse_pdf(read_path)
+        blocks, pdf_warnings = parse_pdf(read_path, source=source_file)
     elif low.endswith(".pptx"):
         blocks, pdf_warnings = parse_pptx(read_path), []
     else:

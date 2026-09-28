@@ -10,7 +10,7 @@ from src.rag import extract
 
 
 def test_pdf_blocks_group_into_one_document_per_page(monkeypatch):
-    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+    monkeypatch.setattr(extract, "parse_pdf", lambda p, **kw: ([
         {"text": "dong A", "heading_level": None, "page": 1},
         {"text": "dong B", "heading_level": None, "page": 1},
         {"text": "dong C", "heading_level": None, "page": 2},
@@ -39,7 +39,7 @@ def test_docx_becomes_a_single_document_because_it_has_no_pages(monkeypatch):
 
 def test_whitespace_only_extraction_raises_instead_of_returning_content(monkeypatch):
     # ĐÂY LÀ LỖI ĐANG ĐI VÁ. Kiểm theo độ dài chuỗi sẽ cho 15 dấu cách lọt qua.
-    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+    monkeypatch.setattr(extract, "parse_pdf", lambda p, **kw: ([
         {"text": "   ", "heading_level": None, "page": 1},
         {"text": "\n\t ", "heading_level": None, "page": 2},
     ], []))
@@ -48,7 +48,7 @@ def test_whitespace_only_extraction_raises_instead_of_returning_content(monkeypa
 
 
 def test_no_blocks_at_all_raises(monkeypatch):
-    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([], []))
+    monkeypatch.setattr(extract, "parse_pdf", lambda p, **kw: ([], []))
     with pytest.raises(extract.EmptyExtraction):
         extract.extract_documents("/x.pdf", "x.pdf")
 
@@ -135,7 +135,7 @@ def test_source_kind_cua_trang_la_bac_XAU_NHAT_khong_phai_ocr_hay_text(monkeypat
     """Trước 2026-09-11: `"ocr" if any(...=="ocr") else "text"` — một trang toàn
     hàng VLM chưa kiểm mang nhãn "text", bậc tin cậy CAO NHẤT. Nay gộp theo
     bậc xấu nhất, cùng quy tắc với chunking."""
-    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+    monkeypatch.setattr(extract, "parse_pdf", lambda p, **kw: ([
         {"text": "TAI SAN", "heading_level": 1, "page": 1, "source_kind": "vision_unverified", "ocr_conf": None},
         {"text": "Mã số: 50 | Số đầu năm: 69.862.687.223", "heading_level": None, "page": 1,
          "source_kind": "vision_verified", "ocr_conf": None},
@@ -154,7 +154,7 @@ def test_source_kind_cua_trang_la_bac_XAU_NHAT_khong_phai_ocr_hay_text(monkeypat
 # BỎ mọi metadata khác. Nên `metadata.source_kind` không bao giờ tới model trên
 # đường tệp đính kèm, và body là kênh xuất xứ duy nhất còn sống.
 def test_hang_chua_kiem_co_so_mang_tien_to_trong_page_content(monkeypatch):
-    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+    monkeypatch.setattr(extract, "parse_pdf", lambda p, **kw: ([
         {"text": "TAI SAN", "heading_level": 1, "page": 7,
          "source_kind": "vision_unverified"},
         {"text": "Mã số: 52 | Năm trước: 358.487.382", "heading_level": None, "page": 7,
@@ -177,7 +177,7 @@ def test_tien_to_tu_giai_thich_va_khong_lap_khi_da_co(monkeypatch):
     """Dấu phải tự nói nghĩa (không có dòng chú giải đầu trang — nó chết ở khối
     thứ hai khi Open WebUI cắt 1000 ký tự), và không cộng dồn nếu block đã mang."""
     assert "CHƯA KIỂM" in extract.UNVERIFIED_PREFIX
-    monkeypatch.setattr(extract, "parse_pdf", lambda p: ([
+    monkeypatch.setattr(extract, "parse_pdf", lambda p, **kw: ([
         {"text": f"{extract.UNVERIFIED_PREFIX}Mã số: 52 | Năm trước: 358.487.382",
          "heading_level": None, "page": 7, "source_kind": "vision_unverified",
          "unverified_money": True},
