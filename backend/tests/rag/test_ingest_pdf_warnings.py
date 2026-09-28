@@ -4,7 +4,7 @@ from src.rag.ingest import _chunks_for
 def test_chunks_for_pdf_tra_ve_warnings_tu_parse_pdf(monkeypatch, tmp_path):
     from src.rag import ingest
 
-    def _fake_parse_pdf(path):
+    def _fake_parse_pdf(path, **kw):
         return (
             [{"text": "Mã: A | Mức: 10%", "heading_level": None, "page": 1,
               "atomic": True}],

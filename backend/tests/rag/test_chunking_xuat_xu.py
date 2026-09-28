@@ -157,7 +157,7 @@ def test_INSERT_co_hai_cot_moi_va_chiu_duoc_chunk_thieu_khoa(tmp_path, monkeypat
         # KHÔNG có source_kind/ocr_conf — đúng hình dạng chunk_xlsx_sheets.
     }
     monkeypatch.setattr(ingest_mod, "parse_pdf",
-                         lambda path: ([{"text": "x", "heading_level": None, "page": 1}], []))
+                         lambda path, **kw: ([{"text": "x", "heading_level": None, "page": 1}], []))
     monkeypatch.setattr(ingest_mod, "chunk_text_blocks",
                          lambda *a, **k: [chunk_co_khoa, chunk_khong_khoa])
     monkeypatch.setattr(ingest_mod, "embed_texts", lambda texts: [[0.0]] * len(texts))

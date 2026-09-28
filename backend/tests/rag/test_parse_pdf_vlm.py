@@ -45,9 +45,11 @@ def _payload_tr7():
 class _FakeVision:
     def __init__(self, payload=None, exc=None):
         self.payload, self.exc, self.calls = payload, exc, 0
+        self.kw = []
 
-    def read_table(self, png):
+    def read_table(self, png, **kw):
         self.calls += 1
+        self.kw.append(kw)
         assert png[:8] == b"\x89PNG\r\n\x1a\n", "phải nhận PNG bytes của ảnh trang"
         if self.exc:
             raise self.exc
@@ -263,9 +265,10 @@ class _FakeVisionTM:
         self._pl = payload
         self.che_do_da_nhan = None
 
-    def read_table(self, png, *, che_do="bang_chi_tieu"):
+    def read_table(self, png, *, che_do="bang_chi_tieu", **kw):
         from src.ocr import vision as _v
         self.che_do_da_nhan = che_do
+        self.kw = kw
         return _v.VisionTable(payload=self._pl, raw="{}", model="fake",
                               prompt_version=_v.PROMPT_TM_VERSION,
                               prompt_tokens=1, completion_tokens=1, total_tokens=2)
@@ -334,3 +337,48 @@ def test_bang_con_KHONG_cong_dung_thi_hang_mang_co_chua_kiem(monkeypatch):
     assert len(hang) == 4, "đường tm GIỮ hàng khi FAIL (fail_rejects=False), không loại"
     assert all(b["source_kind"] == "vision_unverified" for b in hang)
     assert all(b.get("unverified_money") for b in hang), "phải mang cờ để extract gắn dấu"
+
+
+# ─── nhật ký lượt gọi VLM: tài liệu + trang phải tới bộ đọc (2026-09-28) ─────
+def test_parse_pdf_truyen_ten_tep_va_trang_cho_nhat_ky_VLM(monkeypatch):
+    """Không truyền `source` thì lấy tên tệp của `path`."""
+    p, _ = _trang_anh(monkeypatch)
+    fake = _FakeVision(_payload_tr7())
+    monkeypatch.setattr(p, "VISION_READER_FACTORY", lambda: fake)
+    p.parse_pdf("thu_muc/dvt.pdf")
+    assert fake.kw == [{"source": "dvt.pdf", "page": 1}]
+
+
+def test_parse_pdf_uu_tien_ten_that_hon_ten_tep_tam(monkeypatch):
+    """Tệp đính kèm tới `parse_pdf` dưới tên tạm `tmpXXXX.pdf` — nhật ký phải
+    mang tên người dùng thấy, không thì không biết lượt gọi là của tệp nào."""
+    p, _ = _trang_anh(monkeypatch)
+    fake = _FakeVision(_payload_tr7())
+    monkeypatch.setattr(p, "VISION_READER_FACTORY", lambda: fake)
+    p.parse_pdf("C:/Temp/tmpab12cd.pdf", source="BCTC 2022.pdf")
+    assert fake.kw == [{"source": "BCTC 2022.pdf", "page": 1}]
+
+
+def test_trang_thuyet_minh_cung_truyen_ten_tep_va_trang(monkeypatch):
+    from types import SimpleNamespace
+    from PIL import Image
+    from src.rag import parse as p
+    monkeypatch.setattr(p, "_anh_cua_trang", lambda *a, **k: Image.new("RGB", (8, 8), "white"))
+    fake = _FakeVisionTM(_TM_PAYLOAD)
+    p._khoi_tu_vlm_tm(fake, "x.pdf", 61, SimpleNamespace(rotation=0), source="NTC_2025.pdf")
+    assert fake.kw == {"source": "NTC_2025.pdf", "page": 61}
+
+
+def test_extract_documents_dua_ten_that_xuong_parse_pdf(monkeypatch, tmp_path):
+    from src.rag import extract
+    seen = {}
+
+    def fake_parse_pdf(path, **kw):
+        seen.update(kw)
+        return [], []
+    monkeypatch.setattr(extract, "parse_pdf", fake_parse_pdf)
+    f = tmp_path / "tmp123.pdf"
+    f.write_bytes(b"%PDF-1.4")
+    with pytest.raises(extract.EmptyExtraction):     # parse giả trả rỗng
+        extract.extract_documents(str(f), "Báo cáo thật.pdf")
+    assert seen == {"source": "Báo cáo thật.pdf"}

@@ -26,11 +26,13 @@ import json
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from src.llm.catalog import spec_for
 from src.llm.providers import KeyRing, client_for, keys_for_env
+from src.ocr.call_log import DefaultVlmCallLog, redact_error
 
 logger = logging.getLogger(__name__)
 
@@ -239,12 +241,16 @@ class VisionReader:
     `client_factory(spec, api_key)` tiêm được (mặc định `providers.client_for`)
     để test bằng client giả — cùng khuôn `Router(client_factory=…)`.
     `store` là `UsageStore` (Postgres hay InMemory) hoặc None.
+    `call_log` là nhật ký MỌI lượt gọi (`call_log.py`), mặc định bản Postgres
+    mở muộn; `None` tường minh mới là tắt.
     """
 
     def __init__(self, *, client_factory=client_for, store=_MAC_DINH,
-                 max_calls: int = VLM_MAX_CALLS_PER_INGEST, ring: KeyRing | None = None) -> None:
+                 max_calls: int = VLM_MAX_CALLS_PER_INGEST, ring: KeyRing | None = None,
+                 call_log=_MAC_DINH) -> None:
         self._client_factory = client_factory
         self._store = _SoVlm() if store is _MAC_DINH else store
+        self._call_log = DefaultVlmCallLog() if call_log is _MAC_DINH else call_log
         self._max_calls = max_calls
         self._ring = ring or KeyRing()
         self._clients: dict[int, object] = {}
@@ -262,15 +268,20 @@ class VisionReader:
             raise VisionUnavailable(f"không có khoá {VLM_ENV} — VLM tắt")
         if idx not in self._clients:
             self._clients[idx] = self._client_factory(spec_for(self.model), khoa)
-        return self._clients[idx]
+        return idx, self._clients[idx]
 
-    def read_table(self, png: bytes, *, che_do: str = "bang_chi_tieu") -> VisionTable:
+    def read_table(self, png: bytes, *, che_do: str = "bang_chi_tieu",
+                   source: str | None = None, page: int | None = None) -> VisionTable:
         """PNG một trang → bảng theo hợp đồng. Ném một trong bốn lỗi có tên ở
         đầu module; người gọi biến chúng thành cảnh báo `IngestReport`.
 
         `che_do`: `bang_chi_tieu` (prompt gốc, trang có cột mã số) hoặc
         `thuyet_minh` (prompt tm-v1, bảng con + cấp + loại tổng). `trigger.decide`
-        chọn, không đoán ở đây."""
+        chọn, không đoán ở đây.
+
+        `source`/`page` chỉ để ghi nhật ký `vlm_call_log` — mỗi lần bấm gọi API
+        là đúng MỘT dòng, kể cả 429/lỗi/phản hồi hỏng (bất biến: số dòng ==
+        `self.calls`)."""
         prompt, pv, boc = ((PROMPT, PROMPT_VERSION, parse_response)
                            if che_do != "thuyet_minh"
                            else (PROMPT_TM, PROMPT_TM_VERSION, parse_response_tm))
@@ -289,13 +300,18 @@ class VisionReader:
              "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode("ascii")}},
         ])
         so_khoa = max(1, len(keys_for_env(VLM_ENV)))
+        ctx = {"source": source, "page": page, "mode": che_do, "prompt_version": pv}
         for _ in range(so_khoa):
-            client = self._client()
+            key_index, client = self._client()
             self.calls += 1
+            started = (datetime.now(timezone.utc), time.monotonic())
             try:
                 resp = client.invoke([msg])
             except Exception as e:                           # noqa: BLE001
-                if _is_rate_limit(e):
+                rate_limited = _is_rate_limit(e)
+                self._log_call(ctx, key_index, started,
+                               "rate_limited" if rate_limited else "error", error=e)
+                if rate_limited:
                     if self._ring.rotate(VLM_ALIAS, VLM_ENV):
                         continue
                     raise VisionQuotaExhausted(f"hết {so_khoa} khoá {VLM_ENV} vì 429") from e
@@ -306,9 +322,11 @@ class VisionReader:
             text = _text_of(getattr(resp, "content", ""))
             try:
                 payload = boc(text)
-            except VisionBadResponse:
+            except VisionBadResponse as e:
+                self._log_call(ctx, key_index, started, "bad_response", tokens=(p, c, t), error=e)
                 self.failures += 1
                 raise
+            self._log_call(ctx, key_index, started, "ok", tokens=(p, c, t))
             return VisionTable(payload=payload, raw=text, model=self.model,
                                prompt_version=pv, prompt_tokens=p,
                                completion_tokens=c, total_tokens=t)
@@ -322,6 +340,27 @@ class VisionReader:
                                upstream="google", prompt_tokens=p, completion_tokens=c, total_tokens=t)
         except Exception as e:                               # noqa: BLE001
             logger.warning("không ghi được sổ llm_usage cho %s: %s", VLM_ALIAS, e)
+
+    def _log_call(self, ctx: dict, key_index: int, started: tuple[datetime, float], outcome: str, *,
+                  tokens: tuple[int, int, int] | None = None,
+                  error: BaseException | None = None) -> None:
+        """Một dòng `vlm_call_log` cho MỘT lần bấm gọi API. Fail-open: nhật ký
+        hỏng chỉ cảnh báo, không giết lượt đọc. `ts` là lúc BẮT ĐẦU gọi; thời
+        gian chờ nằm ở `latency_ms`."""
+        if self._call_log is None:
+            return
+        p, c, t = tokens if tokens is not None else (None, None, None)
+        started_at, started_mono = started
+        try:
+            self._call_log.record(
+                ts=started_at, model=self.model, key_index=key_index,
+                outcome=outcome, latency_ms=int((time.monotonic() - started_mono) * 1000),
+                prompt_tokens=p, completion_tokens=c, total_tokens=t,
+                error=(redact_error(error, secrets=keys_for_env(VLM_ENV))
+                       if error is not None else None),
+                **ctx)
+        except Exception as e:                               # noqa: BLE001
+            logger.warning("không ghi được vlm_call_log (%s): %s", outcome, e)
 
 
 def _usage(resp) -> tuple[int, int, int]:

@@ -66,6 +66,14 @@ MIEN_TRU = {
     "backend/src/agents/skill_manifest.py": (
         2, 2, "raise SkillManifestError lúc nạp SKILL.md — fail-loud cho lập "
               "trình viên, app không lên chứ không lên sai"),
+    "backend/src/ocr/call_log.py": (
+        1, 0, "`redact_error` (2026-09-28): dựng chuỗi lỗi cho cột `error` của "
+              "bảng `vlm_call_log` — nhật ký NỘI BỘ mọi lượt gọi VLM, không có "
+              "đường nào tới hội thoại (người gọi duy nhất là "
+              "`VisionReader._log_call`, ghi DB). Nguyên văn lỗi CHÍNH LÀ thứ "
+              "nhật ký tồn tại để giữ (429 hay 400 hay timeout), SAU KHI đã che "
+              "khoá API và cắt 200 ký tự. `exc` là THAM SỐ hàm, không phải "
+              "except-binding ⇒ regex thấy, AST không (như helpers.py)."),
     "backend/src/rag/embed.py": (
         1, 1, "raise EmbeddingError — lỗi hạ tầng lúc index, không ra người dùng"),
     "backend/src/ocr/document.py": (

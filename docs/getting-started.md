@@ -140,13 +140,16 @@ backend.
    docker cp backend\migrations\002_mcp_call_log.sql youdoo-postgres:/tmp/002_mcp_call_log.sql
    docker cp backend\migrations\004_user_memory.sql youdoo-postgres:/tmp/004_user_memory.sql
    docker cp backend\migrations\007_ocr_xuat_xu.sql youdoo-postgres:/tmp/007_ocr_xuat_xu.sql
+   docker cp backend\migrations\008_ts_vector_bo_dau.sql youdoo-postgres:/tmp/008_ts_vector_bo_dau.sql
    docker cp backend\migrations\009_rag_visibility_backfill.sql youdoo-postgres:/tmp/009_rag_visibility_backfill.sql
+   docker cp backend\migrations\010_vlm_call_log.sql youdoo-postgres:/tmp/010_vlm_call_log.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/001_llm_usage.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/002_mcp_call_log.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/004_user_memory.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/007_ocr_xuat_xu.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/008_ts_vector_bo_dau.sql
    docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/009_rag_visibility_backfill.sql
+   docker exec youdoo-postgres psql -U admin -d ai_assistant -f /tmp/010_vlm_call_log.sql
    ```
 
    009 **xoá** tài liệu SID khỏi corpus (thao tác phá huỷ, có chủ đích — xem
@@ -157,7 +160,7 @@ backend.
    `DATABASE_URL`. If you overrode `POSTGRES_USER` in `.env`, use that
    value here instead.
 
-   All six scripts are idempotent. The first five re-run harmlessly via
+   All seven scripts are idempotent. All but `009` re-run harmlessly via
    `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF EXISTS ... IF NOT EXISTS`;
    `009` gets there a different way — its `UPDATE` is guarded by
    `WHERE visibility <> 'commercial'` (a row already backfilled is skipped,
@@ -185,7 +188,10 @@ backend.
    `009_rag_visibility_backfill.sql` — backfills `rag_chunks.visibility`
    to `'commercial'` for the four price/discount/payment/SLA documents
    (RBAC at the RAG layer), and removes the SID financial-report document
-   that had leaked into the corpus.
+   that had leaked into the corpus. `010_vlm_call_log.sql` — one row per
+   VLM API call (OCR tier 3), including 429s and errors that `llm_usage`
+   never sees. Without it the backend still runs, but every VLM call logs a
+   `không ghi được vlm_call_log` warning and the call goes unrecorded.
 
    **On a fresh install, `rag_chunks` does not exist yet at this step** —
    it is created by `ensure_schema()` from `schema.sql` the first time you

@@ -3118,3 +3118,75 @@ backend đã **lặng lẽ đổi nguồn** sang corpus chung. Người dùng kh
 nhận ra từ giao diện. Đáng một mục riêng: khi tệp đính kèm không cho nguồn nào,
 trả lời phải nói rõ "không tìm thấy trong tệp đính kèm, sau đây là từ kho chung".
 
+
+## Nhật ký MỌI lượt gọi VLM — `vlm_call_log` (2026-09-28)
+
+**Quyết định chủ dự án:** VLM (bậc 3) **dùng chung ví Gemini với chatbot** —
+đo cùng ngày: 3/3 khoá `YOUDOO_VLM_API_KEY*` trùng `GOOGLE_API_KEY*` (so bằng
+băm, không in khoá). Không tách ví, nhưng **mọi lượt gọi phải được ghi**.
+
+**Vì sao bảng riêng, không thêm cột vào `llm_usage`:** `llm_usage` chỉ ghi
+lượt THÀNH CÔNG, và `usage_since` đếm DÒNG ở đó để kiểm hạn mức — chèn lượt
+429 vào là sổ ngân sách đếm sai. Trước bản này, lượt 429 / lỗi mạng / hết khoá
+không để lại gì sống qua tiến trình (`reader.calls`/`failures` chỉ trong bộ nhớ).
+
+**Cái ship:** migration `010_vlm_call_log.sql`; `src/ocr/call_log.py`
+(Postgres/InMemory/Default mở muộn, `redact_error`); `VisionReader.read_table`
+ghi đúng một dòng mỗi lần bấm gọi API (`ok`/`bad_response`/`rate_limited`/
+`error`) kèm `source`, `page`, `mode`, `key_index`, `latency_ms`, token, lỗi đã
+che khoá. `parse_pdf(path, source=…)` — `extract.py` truyền tên tệp THẬT (tệp
+đính kèm tới đây dưới tên tạm `tmpXXXX.pdf`), `ingest.py` truyền `source_file`.
+Bất biến: **số dòng == `reader.calls`**. `llm_usage` không đổi. `ts` là lúc
+BẮT ĐẦU gọi (bản đầu ghi lúc kết thúc — sửa sau nghiệm thu sống, có test đỏ
+trước; không chạy lại nghiệm thu sống vì bản sửa không đổi số dòng hay token).
+
+**Nghiệm thu sống** (`DVT_2022.pdf`, khoá thật, DB thật 5434):
+- 9 lượt gọi (4 trang báo cáo chính + 5 trang thuyết minh) → **9 dòng**, mọi
+  dòng đúng `source`/`page`; độ trễ 3,0–13,0 s/lượt.
+- Σ `total_tokens` nhật ký **24.888 = 24.888** của `llm_usage` alias `vlm-ocr`
+  cùng khung giờ (9 dòng).
+- Lượt lỗi THẬT (khoá giả, Google trả 400 `INVALID_ARGUMENT`, không tốn hạn
+  mức): 1 lượt → 1 dòng `error`, token NULL. Dòng này nằm lại trong bảng thật
+  (`source = 'probe-khoa-gia'`) — nó là một lượt gọi thật.
+
+**Cổng đã chứng minh đỏ được:** gỡ ghi ở nhánh ngoại lệ → 4/11 test đỏ; tắt che
+khoá (`secrets=[]`) → 1 test đỏ. Rào conftest `so_vlm_khong_cham_postgres` mở
+rộng để test không ghi vào bảng thật (bài học 18 dòng rác của #29).
+
+### Khó khăn và giới hạn
+
+- **Tự bắt một lỗ khi viết tài liệu:** bản đầu `DefaultVlmCallLog` chép khuôn
+  `_SoVlm` — dựng Postgres hỏng thì chỉ lượt ĐẦU cảnh báo, mọi lượt sau mất
+  dòng IM LẶNG. Trái đúng yêu cầu "đầy đủ". Sửa: vẫn chỉ thử kết nối một lần
+  (tránh timeout 2 s × số trang) nhưng nhớ lỗi và ném lại rẻ ở mọi lượt → mỗi
+  dòng mất là một cảnh báo. Có test đỏ trước (1 cảnh báo thay vì 2).
+- **Đường 429 CHƯA chạy sống** — không có lượt nào chạm trần trong nghiệm thu;
+  chỉ unit test + đột biến phủ. **Che khoá cũng chưa chứng minh bằng dữ liệu
+  sống**: thông điệp 400 thật của Google không chứa khoá, nên phép thử sống
+  không phân biệt được "đã che" với "không có gì để che".
+- **`outcome = ok` là ở tầng API/JSON, không phải "hàng đã được dùng".** Trang 4
+  của DVT ghi `ok` nhưng tầng số học từ chối ngay sau (`JSON không theo hợp
+  đồng … cot_gia_tri`). Muốn biết lượt nào phí thì đối chiếu cảnh báo
+  `IngestReport` theo trang — nhật ký không mang kết quả tầng dưới, cố ý: hai
+  tầng, hai nguồn sự thật.
+- Lượt bị chặn TRƯỚC khi gọi (VLM tắt, chạm trần 200) không có dòng — không
+  tiêu hạn mức. Không tự dọn bảng (cùng lệ `llm_usage`).
+- `getting-started.md` thiếu sẵn dòng `docker cp` cho `008` (lệnh `psql -f
+  /tmp/008…` sẽ không tìm thấy tệp) — vá cùng lúc thêm `010`.
+- **Đổi chữ ký `parse_pdf` làm đỏ 9 test ở chỗ KHÁC** (`test_extract.py`,
+  `test_ingest_pdf_warnings.py`, `test_chunking_xuat_xu.py`): bộ giả
+  `lambda p: …` không nhận `source=`. Lẽ ra phải `grep` mọi chỗ monkeypatch
+  `parse_pdf` ngay lúc đổi chữ ký. Thêm nữa: lượt đầu tôi cắt output bằng
+  `tail -8` nên chỉ thấy 7/9 tên test đỏ — chạy lại với `-rfE` mới đủ.
+- **Test tự viết bị chập chờn:** bản đầu test `ts` so ngưỡng (`latency_ms >= 300`,
+  `ts - trước < 200ms`) và đỏ 2/3 lượt chạy riêng (đo 297 < 300) — đồng hồ
+  monotonic Windows nhảy ~16 ms. Viết lại thành so THỨ TỰ (`ts <= lúc client
+  nhận lượt gọi`): 8/8 xanh, đột biến ghi-lúc-kết-thúc đỏ 3/3.
+- Lưới `test_khong_ro_loi_exception` bắt `redact_error` (ghép `{exc}`): khai miễn
+  trừ `(1, 0)` kèm lý do — chuỗi chỉ vào cột `error` của nhật ký nội bộ, không
+  tới hội thoại. Không đổi tên biến để né lưới.
+- Suite cuối: **3022 passed**, 1 skipped (`-m "not integration and not live"`);
+  tích hợp Postgres 3 passed.
+- **Bẫy Git Bash:** `docker exec … psql -f /tmp/x.sql` bị MSYS đổi `/tmp` thành
+  đường dẫn Windows → "No such file". Chạy với `MSYS_NO_PATHCONV=1` (PowerShell
+  không dính).

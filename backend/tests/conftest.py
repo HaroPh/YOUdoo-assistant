@@ -65,15 +65,23 @@ def so_vlm_khong_cham_postgres(request):
     quyết định hạn mức đọc từ nó đều sai — cùng lớp lỗi với "test làm bẩn bảng
     kiểm toán" đã trả giá trước đây.
 
-    Test `live` giữ sổ thật: đó là lúc lượt gọi CÓ thật và đáng được đếm."""
-    from src.ocr import vision
+    Test `live` giữ sổ thật: đó là lúc lượt gọi CÓ thật và đáng được đếm.
+
+    Cùng rào cho nhật ký `vlm_call_log` (2026-09-28): `VisionReader` mặc định
+    cũng tự có nhật ký Postgres, nên thiếu rào thì mọi test client giả là một
+    dòng giả trong bảng thật."""
+    from src.ocr import call_log, vision
     if request.node.get_closest_marker("live") is not None:
         return
     from src.llm.store import InMemoryUsageStore
     cu_store, cu_thu = vision._SoVlm._store, vision._SoVlm._da_thu
+    cu_log, cu_log_thu = call_log.DefaultVlmCallLog._store, call_log.DefaultVlmCallLog._tried
     vision._SoVlm._store, vision._SoVlm._da_thu = InMemoryUsageStore(), True
+    call_log.DefaultVlmCallLog._store = call_log.InMemoryVlmCallLog()
+    call_log.DefaultVlmCallLog._tried = True
     yield
     vision._SoVlm._store, vision._SoVlm._da_thu = cu_store, cu_thu
+    call_log.DefaultVlmCallLog._store, call_log.DefaultVlmCallLog._tried = cu_log, cu_log_thu
 
 
 @pytest.fixture(autouse=True)
